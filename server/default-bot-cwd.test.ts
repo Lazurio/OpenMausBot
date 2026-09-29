@@ -7,7 +7,7 @@ import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
-import { defaultBotCwdFromEnv } from "./bot-cwd.ts";
+import { defaultBotCwdFromEnv, requestedBotCwd } from "./bot-cwd.ts";
 import { DATA_DIR } from "./config.ts";
 import type { ModelSelection } from "./contracts.ts";
 import { Store } from "./store.ts";
@@ -69,6 +69,27 @@ describe("new bots with a server default working folder", () => {
     expect(reloaded.bot(seeded.id)?.cwd).toBe(folder);
     expect(reloaded.bot(defaulted.id)?.cwd).toBe(folder);
     expect(reloaded.bot(explicit.id)?.cwd).toBe(other);
+  });
+
+  it("keeps a Chief's explicit private workspace on the direct create path", () => {
+    // /api/internal/create-bot passes requestedBotCwd(body.cwd) to createBot.
+    expect(requestedBotCwd(undefined)).toEqual({ ok: true, cwd: undefined });
+    expect(requestedBotCwd("")).toEqual({ ok: true, cwd: "" });
+    expect(requestedBotCwd(null)).toEqual({ ok: true, cwd: "" });
+    expect(requestedBotCwd(other)).toEqual({ ok: true, cwd: other });
+    expect(requestedBotCwd("relative/path").ok).toBe(false);
+
+    const store = new Store(selection, undefined, folder);
+    const omitted = requestedBotCwd(undefined);
+    const empty = requestedBotCwd("");
+    const named = requestedBotCwd(other);
+    if (!omitted.ok || !empty.ok || !named.ok) throw new Error("unexpected refusal");
+    const defaulted = store.createBot({ name: "Omitted", ...(omitted.cwd !== undefined ? { cwd: omitted.cwd } : {}) });
+    const privateBot = store.createBot({ name: "Private", ...(empty.cwd !== undefined ? { cwd: empty.cwd } : {}) });
+    const chosen = store.createBot({ name: "Chosen", ...(named.cwd !== undefined ? { cwd: named.cwd } : {}) });
+    expect(defaulted.cwd).toBe(folder);
+    expect("cwd" in privateBot).toBe(false);
+    expect(chosen.cwd).toBe(other);
   });
 
   it("applies to a Chief's reviewed teammates, keeping an explicit private workspace", () => {

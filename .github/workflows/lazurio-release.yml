@@ -143,6 +143,7 @@ jobs:
     timeout-minutes: 20
     environment: lazurio-openmausbot-release
     permissions:
+      actions: read
       attestations: write
       contents: write
       id-token: write
@@ -280,11 +281,22 @@ jobs:
       - name: Tag the exact source with the release App
         env:
           GH_TOKEN: ${{ steps.release_app.outputs.token }}
+          WORKFLOWS_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           if [[ "$(git ls-remote origin refs/heads/main | cut -f1)" != "$SOURCE_SHA" ]]; then
             echo "main moved away from $SOURCE_SHA; the release is not tagged." >&2
+            exit 1
+          fi
+          # The protected-environment approval can take hours. Recheck right
+          # before the tag write, which is what would start a tag-triggered
+          # upstream publisher, that no upstream workflow became enabled.
+          active="$(GH_TOKEN="$WORKFLOWS_TOKEN" gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows?per_page=100" \
+            --jq '.workflows[] | select(.state == "active") | select(.path | test("^\\.github/workflows/lazurio-") | not) | .path')"
+          if [[ -n "$active" ]]; then
+            echo "Upstream workflows became enabled since verification; the release is not tagged:" >&2
+            echo "$active" >&2
             exit 1
           fi
           gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
