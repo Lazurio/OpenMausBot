@@ -15,7 +15,13 @@ plan DEV-6632 in the Human and Machine Mission Control). It follows the
 - **Rolling patch-stack.** A new upstream tag is taken by rebuilding the
   overlay on it in a candidate branch; only the Organization Admin replaces
   `main`, with an exact `--force-with-lease`, after green candidate CI and
-  after the old `main` is captured by an immutable release.
+  after the old `main` is captured by an immutable release. The only
+  exception is the one-time bootstrap from upstream commit
+  `415bdb684dc66fd37165bef38c9e6122921b41fd`: it needs no release because that
+  state stays in upstream's public history, its ancestry is checked against a
+  freshly fetched upstream `main` right before the lease, and the relief ends
+  with the bootstrap (Organization policy: HumanAndMachine-ai_GEN3
+  `AGENTS.md` and `ARCHITECTURE.md` §7).
 - **Own releases.** `vX.Y.Z-lazurio.N`, published only by
   `lazurio-release.yml` after approval in the `lazurio-openmausbot-release`
   environment. Lazurio Machines install the linux-x64 archive of a release.

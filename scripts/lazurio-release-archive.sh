@@ -35,9 +35,18 @@ fi
 work="$(mktemp -d)"
 cp package.json "$work/package.json.orig"
 cleanup() {
+  local status=$?
   cp "$work/package.json.orig" "$ROOT/package.json"
   if [[ -n "${server_pid:-}" ]]; then kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true; fi
-  rm -rf "$work"
+  # The smoke server may start rootless Podman under the temporary HOME (a
+  # runner with Podman installed). Its storage holds files owned by subordinate
+  # UIDs that only `podman unshare` can remove; stop it before deleting.
+  if command -v podman >/dev/null 2>&1 && [[ -d "$work/home/.local/share/containers" ]]; then
+    HOME="$work/home" podman system migrate >/dev/null 2>&1 || true
+    HOME="$work/home" podman unshare rm -rf "$work/home/.local/share/containers" >/dev/null 2>&1 || true
+  fi
+  rm -rf "$work" 2>/dev/null || echo "warning: could not remove $work" >&2
+  exit "$status"
 }
 trap cleanup EXIT
 
