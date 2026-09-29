@@ -7,8 +7,10 @@ head on a pull request it reviewed, or an explicit publication instruction.
 No model runs while there is nothing to do.
 
 It is a standard feature of Lazurio MausBot, not tied to one persona: any
-operator can turn it on, for example for the pull requests sent to them
-(Lazurio decision 0169, plan DEV-6632).
+operator can turn it on, for example for the pull requests sent to them.
+The Steward team in [`lazurio/teams/steward.openmaus.json`](../lazurio/teams/steward.openmaus.json)
+is the team Lazurio Organizations run behind it (Lazurio decision 0169,
+plan DEV-6632).
 
 ## Turning it on
 
@@ -43,9 +45,11 @@ the intake and of the bots is then that account's. If `gh` is missing or not
 signed in, the intake reports it and does nothing until it is.
 
 **The target bot** may be created after the server starts (for example by
-importing a team): until a bot with that id or name exists, the
+importing the Steward team): until a bot with that id or name exists, the
 intake reports `no_target` and does not query GitHub beyond the account.
-Two bots with the same name are refused; use the id then.
+Two bots with the same name are refused; use the id then. A persona other
+than Henry imports the same team, renames its leader and sets
+`OMB_GITHUB_INTAKE_BOT` to the new name.
 
 ## Triggers
 
@@ -82,7 +86,7 @@ no bot turn: a person approves them.
 Assignment alone never publishes. An instruction that fails a check is
 recorded as `ignored` with the reason and is never retried; the person asks
 again with a new comment. The bot still checks approvals and required checks
-before it merges.
+before it merges (see the Steward team).
 
 ## What the bot receives
 

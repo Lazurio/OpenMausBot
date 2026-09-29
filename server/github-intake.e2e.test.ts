@@ -1,6 +1,7 @@
-// The GitHub intake through the real isolated server: a fake `gh`
-// (OMB_GITHUB_INTAKE_GH) reports one requested pull request, the intake hands
-// it to the named bot through its managed webhook, the queued run finishes on
+// The GitHub intake through the real isolated server: the shipped Steward
+// team is imported, a fake `gh` (OMB_GITHUB_INTAKE_GH) reports one requested
+// pull request, the intake hands it to the team's leader through its managed
+// webhook, the queued run finishes on
 // the fake engine with the event inside the UNTRUSTED block, and a second
 // poll wakes nobody.
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -81,9 +82,13 @@ describe.skipIf(process.platform === "win32")("a server started with OMB_GITHUB_
     const waiting = await api("POST", "/api/github-intake/poll");
     expect(waiting.body.status).toMatchObject({ state: "no_target", login: "henry-bot" });
 
-    const created = await api("POST", "/api/bots", { name: "Henry", useDefaults: false });
-    expect(created.status).toBe(201);
-    const leader = created.body.bot;
+    // The shipped Steward team brings the leader the intake targets.
+    const steward = JSON.parse(readFileSync(new URL("../lazurio/teams/steward.openmaus.json", import.meta.url), "utf8"));
+    const imported = await api("POST", "/api/teams/import?mode=add", steward);
+    expect(imported.status).toBe(201);
+    expect(imported.body.bots).toHaveLength(4);
+    const leader = imported.body.bots.find((bot: { name: string }) => bot.name === "Henry");
+    expect(leader).toMatchObject({ chiefOfStaff: true, section: "Steward" });
     const polled = await api("POST", "/api/github-intake/poll");
     expect(polled.status).toBe(200);
     expect(polled.body.summary).toMatchObject({ state: "ok", delivered: 1 });
