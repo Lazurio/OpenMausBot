@@ -1,0 +1,308 @@
+name: Lazurio OpenMausBot Release
+
+# Manually dispatched from main by the release owner. Builds and smoke-tests
+# the linux-x64 archive, then waits for approval in the
+# lazurio-openmausbot-release environment before it tags the source and
+# publishes the GitHub Release that Lazurio Machines install from. Nothing is
+# ever overwritten. Runbook: docs/operations/lazurio-fork-release.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version X.Y.Z-lazurio.N (tag vX.Y.Z-lazurio.N)
+        required: true
+        type: string
+      source_sha:
+        description: Exact 40-character commit at the tip of main
+        required: true
+        type: string
+      upstream_tag:
+        description: Exact upstream stable tag the source is based on (vX.Y.Z)
+        required: true
+        type: string
+      upstream_sha:
+        description: Exact 40-character upstream tag commit
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: none
+
+concurrency:
+  group: lazurio-openmausbot-release
+  cancel-in-progress: false
+
+env:
+  VERSION: ${{ inputs.version }}
+  RELEASE_TAG: v${{ inputs.version }}
+  SOURCE_SHA: ${{ inputs.source_sha }}
+  UPSTREAM_TAG: ${{ inputs.upstream_tag }}
+  UPSTREAM_SHA: ${{ inputs.upstream_sha }}
+  UPSTREAM_REPOSITORY: https://github.com/milind-soni/OpenMausBot.git
+
+jobs:
+  verify:
+    name: Verify source and version
+    if: github.repository == 'Lazurio/OpenMausBot'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Fetch and verify the exact release source
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-lazurio\.[1-9][0-9]*$ ]]
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$UPSTREAM_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$UPSTREAM_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$VERSION" == "${UPSTREAM_TAG#v}-lazurio."* ]]
+          test "$GITHUB_REF" = "refs/heads/main"
+
+          git init .
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          git fetch --filter=blob:none --no-tags origin \
+            "refs/heads/main:refs/remotes/origin/main"
+          test "$(git rev-parse refs/remotes/origin/main)" = "$SOURCE_SHA"
+          git checkout --detach "$SOURCE_SHA"
+
+          git remote add upstream "$UPSTREAM_REPOSITORY"
+          git fetch --filter=blob:none upstream \
+            "refs/tags/$UPSTREAM_TAG:refs/tags/upstream-$UPSTREAM_TAG"
+          test "$(git rev-parse "refs/tags/upstream-$UPSTREAM_TAG^{commit}")" = "$UPSTREAM_SHA"
+          test "$(git merge-base "$UPSTREAM_SHA" "$SOURCE_SHA")" = "$UPSTREAM_SHA"
+          test "$(git rev-list --merges "$UPSTREAM_SHA..$SOURCE_SHA" --count)" = 0
+
+      # Upstream's own workflows publish on v* tags, on published releases and
+      # on pushes to main (npm, GHCR, release mirrors). In this fork they must
+      # stay disabled, or the tag this release creates would set them off.
+      - name: Refuse while an upstream workflow is enabled
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          active="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows?per_page=100" \
+            --jq '.workflows[] | select(.state == "active") | select(.path | test("^\\.github/workflows/lazurio-") | not) | .path')"
+          if [[ -n "$active" ]]; then
+            echo "Upstream workflows are enabled in this fork; disable them first (runbook: Automation boundary):" >&2
+            echo "$active" >&2
+            exit 1
+          fi
+
+      # Machines take the newest release as the one to update to, so a
+      # release must be the highest version on the channel.
+      - name: Refuse an existing or non-increasing version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -n "$(git ls-remote origin "refs/tags/$RELEASE_TAG")" ]]; then
+            echo "Tag $RELEASE_TAG already exists." >&2
+            exit 1
+          fi
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" > "$RUNNER_TEMP/releases.json"
+          node --input-type=module - "$RUNNER_TEMP/releases.json" <<'JS'
+          import * as NodeFS from "node:fs";
+
+          const channel = /^v(\d+)\.(\d+)\.(\d+)-lazurio\.(\d+)$/;
+          const parts = (tag) => channel.exec(tag)?.slice(1).map(Number);
+          const compare = (a, b) => a.reduce((order, value, index) => order || Math.sign(value - b[index]), 0);
+
+          const version = process.env.VERSION;
+          const wanted = parts(`v${version}`);
+          const releases = JSON.parse(NodeFS.readFileSync(process.argv[2], "utf8")).flat();
+          for (const release of releases) {
+            if (release.tag_name === `v${version}`) throw new Error(`A GitHub Release for v${version} already exists.`);
+            const published = parts(release.tag_name);
+            if (release.draft || published === undefined) continue;
+            if (compare(wanted, published) <= 0) throw new Error(`${version} is not newer than the published ${release.tag_name}.`);
+          }
+          console.log(`${version} is the highest version on the channel.`);
+          JS
+
+  archive:
+    name: Archive
+    needs: verify
+    uses: ./.github/workflows/lazurio-archive.yml
+    with:
+      version: ${{ inputs.version }}
+      source_sha: ${{ inputs.source_sha }}
+
+  publish:
+    name: Publish release
+    needs: [verify, archive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: lazurio-openmausbot-release
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
+    env:
+      RELEASE_CONTROL: ${{ vars.LAZURIO_OPENMAUSBOT_RELEASE_CONTROL }}
+    steps:
+      # Runs after approval and before any side effect. main may have moved
+      # while the run waited; then this release is stale and stops here.
+      - name: Recheck the release source after approval
+        shell: bash
+        env:
+          APP_ID_PRESENT: ${{ vars.LAZURIO_RELEASE_APP_ID != '' }}
+          APP_KEY_PRESENT: ${{ secrets.LAZURIO_RELEASE_APP_PRIVATE_KEY != '' }}
+        run: |
+          set -euo pipefail
+          test "$RELEASE_CONTROL" = "reviewed-v1"
+          if [[ "$APP_ID_PRESENT" != "true" || "$APP_KEY_PRESENT" != "true" ]]; then
+            echo "Release App variable LAZURIO_RELEASE_APP_ID or secret LAZURIO_RELEASE_APP_PRIVATE_KEY is missing; nothing was published." >&2
+            exit 1
+          fi
+
+          git init .
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          git fetch --filter=blob:none --no-tags origin \
+            "refs/heads/main:refs/remotes/origin/main"
+          if [[ "$(git rev-parse refs/remotes/origin/main)" != "$SOURCE_SHA" ]]; then
+            echo "main moved away from $SOURCE_SHA since dispatch; nothing was published." >&2
+            exit 1
+          fi
+          git checkout --detach "$SOURCE_SHA"
+          git remote add upstream "$UPSTREAM_REPOSITORY"
+          git fetch --filter=blob:none upstream \
+            "refs/tags/$UPSTREAM_TAG:refs/tags/upstream-$UPSTREAM_TAG"
+          test "$(git rev-parse "refs/tags/upstream-$UPSTREAM_TAG^{commit}")" = "$UPSTREAM_SHA"
+
+      - name: Download the archive
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: archive-linux-x64
+          path: release-assets
+
+      # Machines pin sha256 and size from this file, so it is written from the
+      # exact bytes that get uploaded, in sha256sum format.
+      - name: Write the archive checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-assets
+          test "$(ls)" = "openmausbot-$VERSION-linux-x64.tar.gz"
+          sha256sum "openmausbot-$VERSION-linux-x64.tar.gz" > SHA256SUMS
+          cat SHA256SUMS
+
+      - id: attest
+        name: Attest the archive
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-path: release-assets/openmausbot-${{ inputs.version }}-linux-x64.tar.gz
+
+      - name: Assemble release notes and evidence
+        env:
+          ATTESTATION: ${{ steps.attest.outputs.attestation-url }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="openmausbot-$VERSION-linux-x64.tar.gz"
+          jq -n --sort-keys \
+            --arg repository "https://github.com/$GITHUB_REPOSITORY" \
+            --arg source "$SOURCE_SHA" \
+            --arg tag "$RELEASE_TAG" \
+            --arg version "$VERSION" \
+            --arg upstream_tag "$UPSTREAM_TAG" \
+            --arg upstream_sha "$UPSTREAM_SHA" \
+            --arg name "$archive" \
+            --arg sha256 "$(cut -d' ' -f1 release-assets/SHA256SUMS)" \
+            --argjson size "$(stat -c %s "release-assets/$archive")" \
+            --arg attestation "$ATTESTATION" \
+            --arg run "$RUN_URL" \
+            '{
+              schema_version: "openmausbot.fork-release.v1",
+              source: {
+                repository: $repository,
+                commit: $source,
+                tag: $tag,
+                version: $version,
+                upstream_repository: "https://github.com/milind-soni/OpenMausBot",
+                upstream_release: $upstream_tag,
+                upstream_base: $upstream_sha
+              },
+              artifact: {
+                archive: {name: $name, platform: "linux-x64", sha256: $sha256, size: $size, layout: "npm-package", root: "package/", entry: "package/cli.js", node: ">=24"},
+                checksums: "SHA256SUMS"
+              },
+              configuration: {
+                listen: "127.0.0.1, --port",
+                webhook_port: "runtime OMB_WEBHOOK_PORT (default port + 1)",
+                default_bot_cwd: "runtime OMB_DEFAULT_BOT_CWD"
+              },
+              validation: {
+                workflow_run: $run,
+                archive_attestation: $attestation
+              }
+            }' > release-assets/release-evidence.json
+
+          {
+            echo "Vanilla upstream OpenMausBot $UPSTREAM_TAG plus the Lazurio overlay."
+            echo "Lazurio Machines install it from this release."
+            echo
+            echo "- Source: \`$SOURCE_SHA\`"
+            echo "- Upstream base: \`$UPSTREAM_TAG\` at \`$UPSTREAM_SHA\`"
+            echo "- Archive: \`$archive\` (upstream npm package layout, Node 24+)"
+            echo "- Archive attestation: $ATTESTATION"
+            echo
+            echo "## Lazurio overlay"
+            echo
+            git log --no-merges --pretty='format:- %s (%h)' "$UPSTREAM_SHA..$SOURCE_SHA"
+            echo
+          } > "$RUNNER_TEMP/RELEASE_NOTES.md"
+
+      # Release tags can only be created by the Lazurio OpenMausBot Release
+      # App, whose private key is a secret of this environment, so only an
+      # approved run can tag. The token is scoped to this repository.
+      - id: release_app
+        name: Mint the release App token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ vars.LAZURIO_RELEASE_APP_ID }}
+          private-key: ${{ secrets.LAZURIO_RELEASE_APP_PRIVATE_KEY }}
+          owner: Lazurio
+          repositories: OpenMausBot
+          permission-contents: write
+
+      # The API refuses an existing ref, so a tag that appeared since
+      # verification stops the release here.
+      - name: Tag the exact source with the release App
+        env:
+          GH_TOKEN: ${{ steps.release_app.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$(git ls-remote origin refs/heads/main | cut -f1)" != "$SOURCE_SHA" ]]; then
+            echo "main moved away from $SOURCE_SHA; the release is not tagged." >&2
+            exit 1
+          fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/$RELEASE_TAG" -f sha="$SOURCE_SHA" > /dev/null
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq .object.sha)" = "$SOURCE_SHA"
+
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "Lazurio OpenMausBot $RELEASE_TAG" \
+            --notes-file "$RUNNER_TEMP/RELEASE_NOTES.md" \
+            --latest \
+            "release-assets/openmausbot-$VERSION-linux-x64.tar.gz" \
+            release-assets/SHA256SUMS \
+            release-assets/release-evidence.json
