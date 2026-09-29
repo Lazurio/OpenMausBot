@@ -376,6 +376,9 @@ export function verificationServerEnvironment(parentEnv: NodeJS.ProcessEnv, data
   // A test's key for relaying an organization library into the fixture
   // (POST /api/testing/org-library); the route does not exist without it.
   if (parentEnv.OMB_TEST_ORG_LIBRARY_KEY) childEnv.OMB_TEST_ORG_LIBRARY_KEY = parentEnv.OMB_TEST_ORG_LIBRARY_KEY;
+  // A server-wide working folder for new bots (server/bot-cwd.ts); a test
+  // passes its own temporary folder to prove the setting end to end.
+  if (parentEnv.OMB_DEFAULT_BOT_CWD) childEnv.OMB_DEFAULT_BOT_CWD = parentEnv.OMB_DEFAULT_BOT_CWD;
   // Voice-note e2e fault injection: arms the one-shot audio-append failure
   // prelude inside the fixture server (see fail-audio-append-once.mjs).
   if (parentEnv.OMB_TEST_FAIL_AUDIO_APPEND_ONCE) {

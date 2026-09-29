@@ -281,6 +281,24 @@ Engine CLIs read their logins from the service user's home: sign them in
 from Settings → Engines (below), or as that user in a terminal, before you
 rely on routines running unattended.
 
+### Where new bots work
+
+A new bot works in its own private folder under the data directory until
+someone gives it a working folder. To start every new bot in one checkout
+instead, set `OMB_DEFAULT_BOT_CWD` to an existing absolute folder (`~/` is
+expanded) before the server starts:
+
+```sh
+OMB_DEFAULT_BOT_CWD="$HOME/work" openmausbot serve
+```
+
+It applies to every new bot, whichever way it is created: New bot, the
+first bot on an empty server, a Chief's reviewed team setup, and imports.
+A request that names its own folder, or explicitly none, still decides for
+itself, and existing bots keep their folder. The folder is checked like a
+bot's own: a relative path, a file or a missing folder stops the server at
+start with the reason. Unset or empty keeps the private folders.
+
 ## Installing the engines without a terminal
 
 Engines whose installer is an npm package (Claude Code, Codex, OpenCode,

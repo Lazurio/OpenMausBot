@@ -598,6 +598,7 @@ export class Store {
   private threads = new Map<string, ThreadState>();
   private defaultSelection: () => ModelSelection;
   private completeNewBotSelection: (selection: ModelSelection) => ModelSelection;
+  private newBotCwd: string | null;
   private listeners = new Set<(change: StoreChange) => void>();
   /** A broken team registry must not prevent loading independent chat data. */
   private registeringInitialSections = true;
@@ -610,9 +611,13 @@ export class Store {
     /** Workspace-wide new-bot defaults (config newBots), applied to every
      * new bot's selection whichever path created it. */
     completeNewBotSelection: (selection: ModelSelection) => ModelSelection = (selection) => selection,
+    /** Server-wide working folder for new bots (OMB_DEFAULT_BOT_CWD), used
+     * whichever path creates the bot unless it names a folder itself. */
+    newBotCwd: string | null = null,
   ) {
     this.defaultSelection = defaultSelection;
     this.completeNewBotSelection = completeNewBotSelection;
+    this.newBotCwd = newBotCwd;
     mkdirSync(DATA_DIR, { recursive: true });
     for (const file of [BOTS_FILE, GROUPS_FILE]) tightenRegistryFile(file);
     try {
@@ -1723,7 +1728,8 @@ export class Store {
       createdAt: Date.now(),
     };
     if (section) bot.section = section;
-    if (profile.cwd) bot.cwd = profile.cwd;
+    const cwd = profile.cwd ?? this.newBotCwd;
+    if (cwd) bot.cwd = cwd;
     bot.tasks = [{
       threadId: bot.threadId,
       title: UNTITLED_THREAD,
@@ -1779,7 +1785,7 @@ export class Store {
         const modelSelection = this.newBotSelection(operation.fields.modelSelection);
         next = { id: operation.botId, threadId: operation.threadId, name: operation.fields.name,
           title: "", description: "", soul: "", notifications: true, color: COLORS[nextBots.length % COLORS.length], unread: false,
-          resumeCursors: {}, createdAt, ...operation.fields, modelSelection,
+          resumeCursors: {}, createdAt, ...(this.newBotCwd ? { cwd: this.newBotCwd } : {}), ...operation.fields, modelSelection,
           approvalMode: "ask", autoApprove: false, composio: false, approvePeerComms: false,
           // A Chief's new teammate is seen by exactly the Chief's audience:
           // a restricted Chief never creates a bot everyone sees.
