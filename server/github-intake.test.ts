@@ -301,6 +301,23 @@ describe("the publish marker", () => {
     expect(hasPublishMarker("/lazurio publisher")).toBe(false);
     expect(hasPublishMarker("/Lazurio Publish")).toBe(false);
   });
+
+  it("never counts a marker inside CommonMark code", () => {
+    // A closing fence must match the opener's character and be at least as long.
+    expect(hasPublishMarker("````markdown\n```\n/lazurio publish\n````")).toBe(false);
+    expect(hasPublishMarker("~~~markdown\n```\n/lazurio publish\n~~~")).toBe(false);
+    expect(hasPublishMarker("```\n~~~\n/lazurio publish\n```")).toBe(false);
+    expect(hasPublishMarker("````\n/lazurio publish\n```\nstill code\n````")).toBe(false);
+    // An unclosed fence runs to the end; a closing line with text is not a close.
+    expect(hasPublishMarker("```\n/lazurio publish")).toBe(false);
+    expect(hasPublishMarker("```\n``` not a close\n/lazurio publish")).toBe(false);
+    // Indented code blocks: four spaces or a tab.
+    expect(hasPublishMarker("    /lazurio publish")).toBe(false);
+    expect(hasPublishMarker("\t/lazurio publish")).toBe(false);
+    // After a properly closed fence the marker counts again.
+    expect(hasPublishMarker("~~~~\nexample\n~~~~~\n/lazurio publish")).toBe(true);
+    expect(hasPublishMarker("```js\nx()\n```\n   /lazurio publish")).toBe(true);
+  });
 });
 
 // ── identity and target ───────────────────────────────────────────────────
@@ -540,6 +557,38 @@ describe("GitHub intake: publication", () => {
     expect(h.queued).toHaveLength(0);
     const ignored = h.intake.status().recent.filter((entry) => entry.outcome === "ignored").map((entry) => entry.requester);
     expect(ignored.sort()).toEqual(["matej", "reader", "stranger"]);
+  });
+
+  it("fails closed on an instruction in the same second as the assignment, in either order", async () => {
+    for (const commentFirst of [true, false]) {
+      const h = harness();
+      const pr = h.github.pr({ repo: "acme/app", number: 12, author: "alice" });
+      h.github.permissions.set("acme/app:matej", "admin");
+      let instruction;
+      if (commentFirst) {
+        instruction = h.github.comment(pr, "matej", "/lazurio publish");
+        h.github.assign(pr, "henry-bot");
+      } else {
+        h.github.assign(pr, "henry-bot");
+        instruction = h.github.comment(pr, "matej", "/lazurio publish");
+      }
+      const assignedAt = pr.events.at(-1)?.at;
+      instruction.at = assignedAt ?? instruction.at;
+      await h.intake.pollOnce();
+      expect(h.queued).toHaveLength(0);
+      expect(h.intake.status().recent.some((entry) => entry.outcome === "ignored" && entry.requester === "matej")).toBe(true);
+    }
+  });
+
+  it("publishes for a marker outside a code block but not for one quoted in a fence", async () => {
+    const h = harness();
+    const pr = assigned(h);
+    h.github.comment(pr, "steward", "For reference:\n````\n```\n/lazurio publish\n````");
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(0);
+    h.github.comment(pr, "steward", "````\nexample\n````\n/lazurio publish");
+    await h.intake.pollOnce();
+    expect(h.events()).toEqual([expect.objectContaining({ kind: "publish", requester: "steward" })]);
   });
 
   it("does not publish for an instruction on a pull request assigned to someone else", async () => {
