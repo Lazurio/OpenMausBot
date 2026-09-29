@@ -47,6 +47,15 @@ turn stays byte-identical to upstream.
   or an explicit `/lazurio publish` instruction, through the webhook queue
   ([`docs/lazurio-github-intake.md`](docs/lazurio-github-intake.md)). Off
   unless `OMB_GITHUB_INTAKE=1`.
+- **Steward team**: [`lazurio/teams/steward.openmaus.json`](lazurio/teams/steward.openmaus.json),
+  a leader (Henry, Chief of Staff) and three workers who review pull
+  requests on their exact head and publish only on an explicit instruction.
+  Import it (Templates → Import, or `POST /api/teams/import`) and point
+  `OMB_GITHUB_INTAKE_BOT` at the leader. Another persona (Pablo) imports the
+  same file and renames the leader; nothing in the instructions names the
+  persona. Imported bots start on Ask, so unattended work waits for
+  approvals in the app: which approval level a headless team may run on is
+  an open security decision of DEV-6632, not part of this overlay.
 
 How to release, rebuild on a new upstream tag, what the overlay contains and
 how Machines consume a release:

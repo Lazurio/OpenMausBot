@@ -111,6 +111,7 @@ release offers it.
 | `server: OMB_DEFAULT_BOT_CWD, a default working folder for new bots` | Bots in a Lazurio Environment start in the Lazurio Folder, read its `AGENTS.md` and work in its worktrees (decision 0169). Unset keeps upstream behaviour: a new bot works in its private `<data>/task-workspaces/...`. Upstream-friendly; propose it upstream. |
 | `release: Lazurio distribution`                                   | This runbook, `LAZURIO.md`, `scripts/lazurio-release-archive.sh`, the contract test and the workflows `lazurio-fork-ci.yml`, `lazurio-archive.yml` and `lazurio-release.yml`.                                                                           |
 | `server: GitHub intake, model-free pull request triggers for a bot` | Lazurio Environments hand GitHub review and publication work to a bot team without a model polling (decision 0169). Off unless `OMB_GITHUB_INTAKE=1`. New files plus `WebhookManager.deliver()` and its wiring; see [`docs/lazurio-github-intake.md`](../lazurio-github-intake.md). Upstream-friendly apart from the Lazurio publish marker. |
+| `lazurio: Steward team for the GitHub intake`                     | The team Lazurio Organizations run behind the intake: leader Henry (Chief of Staff) and three workers with exact-head review and explicit-publication rules, as a portable team file (`lazurio/teams/steward.openmaus.json`). Lazurio-only; never proposed upstream. |
 
 `OMB_DEFAULT_BOT_CWD` applies wherever a bot is created: New bot, the first
 bot on an empty server, a Chief's reviewed team setup and imports. A
