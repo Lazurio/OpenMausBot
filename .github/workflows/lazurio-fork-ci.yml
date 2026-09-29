@@ -62,6 +62,10 @@ jobs:
             server/bot-cwd.ts
             server/index.ts
             server/store.ts
+            # The GitHub intake: WebhookManager.deliver() hands its events to
+            # the webhook queue in-process. Its wiring also changes
+            # server/index.ts and scripts/control-omb.ts, listed above.
+            server/webhooks.ts
           )
           unexpected="$(git diff --name-only --diff-filter=MDRT "$UPSTREAM_SHA..HEAD" |
             grep -vxF -f <(printf '%s\n' "${allowed_upstream_changes[@]}") || true)"

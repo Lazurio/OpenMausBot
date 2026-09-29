@@ -391,6 +391,11 @@ export function verificationServerEnvironment(parentEnv: NodeJS.ProcessEnv, data
   // A server-wide working folder for new bots (server/bot-cwd.ts); a test
   // passes its own temporary folder to prove the setting end to end.
   if (parentEnv.OMB_DEFAULT_BOT_CWD) childEnv.OMB_DEFAULT_BOT_CWD = parentEnv.OMB_DEFAULT_BOT_CWD;
+  // The GitHub intake (server/github-intake.ts); a test points
+  // OMB_GITHUB_INTAKE_GH at a fake gh so no real GitHub is reached.
+  for (const [key, value] of Object.entries(parentEnv)) {
+    if (key.startsWith("OMB_GITHUB_INTAKE") && value) childEnv[key] = value;
+  }
   // Voice-note e2e fault injection: arms the one-shot audio-append failure
   // prelude inside the fixture server (see fail-audio-append-once.mjs).
   if (parentEnv.OMB_TEST_FAIL_AUDIO_APPEND_ONCE) {
