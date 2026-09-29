@@ -38,6 +38,16 @@ create path including a Chief's `create_bot`. The tool's upstream description
 stays unchanged on purpose, so the tool catalog sent to the model on every
 turn stays byte-identical to upstream.
 
+## What the overlay adds
+
+- `OMB_DEFAULT_BOT_CWD`: new bots start in the Lazurio Folder
+  ([`docs/self-hosting.md`](docs/self-hosting.md)).
+- **GitHub intake**: model-free polling under the Environment's signed-in
+  `gh` that hands a bot only real pull request work, a review on a new head
+  or an explicit `/lazurio publish` instruction, through the webhook queue
+  ([`docs/lazurio-github-intake.md`](docs/lazurio-github-intake.md)). Off
+  unless `OMB_GITHUB_INTAKE=1`.
+
 How to release, rebuild on a new upstream tag, what the overlay contains and
 how Machines consume a release:
 [`docs/operations/lazurio-fork-release.md`](docs/operations/lazurio-fork-release.md).

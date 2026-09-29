@@ -565,6 +565,8 @@ import { createHostedSlackRoutes } from "./routes/hosted-slack.ts";
 import { createBotPresetRoutes } from "./routes/bot-presets.ts";
 import { createBotMemoryRoutes } from "./routes/bot-memory.ts";
 import { createDeciderRoutes } from "./routes/decider.ts";
+import { createGithubIntakeRoutes } from "./routes/github-intake.ts";
+import { GithubIntake, githubIntakeConfigFromEnv, spawnGh } from "./github-intake.ts";
 
 const PORT = Number(process.env.OMB_PORT || process.env.OGB_PORT || 8799);
 const WEBHOOK_PORT = Number(process.env.OMB_WEBHOOK_PORT || PORT + 1);
@@ -573,6 +575,9 @@ const WEBHOOK_PUBLIC_URL = process.env.OMB_WEBHOOK_PUBLIC_URL || undefined;
 const STATIC_DIR = process.env.OMB_STATIC_DIR || null;
 // Where new bots start working when their creation names no folder (server/bot-cwd.ts).
 const DEFAULT_BOT_CWD = defaultBotCwdFromEnv();
+// The Lazurio GitHub intake (server/github-intake.ts): off unless
+// OMB_GITHUB_INTAKE=1; an unusable setting stops the server at start.
+const GITHUB_INTAKE = githubIntakeConfigFromEnv();
 const MIME: Record<string, string> = {
   ".html": "text/html",
   ".js": "text/javascript",
@@ -10569,6 +10574,24 @@ const webhookIngressStatus = () => ({
   ...(webhookIngressError ? { error: webhookIngressError } : {}),
 });
 
+// Model-free GitHub polling under this user's signed-in `gh`: real work is
+// handed to one bot through a managed webhook, so it joins the same queue,
+// receipts and untrusted-data wrapping as any webhook delivery. Polling
+// starts once the server listens.
+const githubIntake = GITHUB_INTAKE
+  ? new GithubIntake({
+      config: GITHUB_INTAKE,
+      gh: spawnGh(GITHUB_INTAKE.ghPath),
+      file: join(DATA_DIR, "github-intake.json"),
+      webhooks,
+      bots: () => store.bots,
+      guard: (work) => {
+        const release = workspaceMaintenance.request();
+        try { return work(); } finally { release(); }
+      },
+    })
+  : null;
+
 // ── config hot-reload ─────────────────────────────────────────────────
 // ── group turn engine ──────────────────────────────────────────────────
 // Room messages go to the configured default responder unless the user
@@ -13873,6 +13896,7 @@ ROUTES.push(createBotMemoryRoutes({
   },
 }));
 ROUTES.push(createDeciderRoutes({ decider }));
+ROUTES.push(createGithubIntakeRoutes({ intake: githubIntake }));
 
 const toolResults = new ToolResults();
 const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
@@ -22582,6 +22606,7 @@ server.listen(PORT, "127.0.0.1", () => {
   // endpoint is listening; earlier dispatch can hit uninitialized bindings.
   routines!.start();
   memoryUpkeep.start();
+  githubIntake?.start();
   const leftover = pendingThreads();
   if (leftover.length) console.log(`delegations: ${leftover.length} thread(s) with queued handoffs from a previous run — draining`);
   for (const threadId of leftover) {
@@ -22633,6 +22658,7 @@ const gracefulShutdown = createGracefulShutdown({
       routines?.stop();
       calendarCalls?.stop();
       memoryUpkeep.stop();
+      githubIntake?.stop();
       webhookIngress?.server.close();
       tunnelListener?.close();
     },

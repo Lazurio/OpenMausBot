@@ -417,6 +417,20 @@ export class WebhookManager {
     const trigger = this.webhooks.find((candidate) => candidate.endpointId === endpointId);
     if (!trigger || !secretMatches(secret, trigger.secretHash)) fail(401, "Invalid webhook URL or secret");
     if (trigger.verificationPending && !trigger.enabled) return this.captureVerification(trigger, event);
+    return this.dispatchRecorded(trigger, event);
+  }
+
+  /** A delivery from a trusted producer inside this server (the Lazurio
+   * GitHub intake, server/github-intake.ts): the same dispatch as an HTTP
+   * delivery (dedupe by delivery id, limits, attempt log, queued run and the
+   * UNTRUSTED event wrapping), without the capability secret. Null for an
+   * unknown webhook. */
+  deliver(id: string, event: WebhookEvent): WebhookReceiveResult | null {
+    const trigger = this.webhooks.find((candidate) => candidate.id === id);
+    return trigger ? this.dispatchRecorded(trigger, event) : null;
+  }
+
+  private dispatchRecorded(trigger: StoredWebhookTrigger, event: WebhookEvent): WebhookReceiveResult {
     try {
       return this.dispatch(trigger, event);
     } catch (error) {
