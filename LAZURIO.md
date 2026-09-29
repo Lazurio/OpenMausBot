@@ -31,6 +31,13 @@ plan DEV-6632 in the Human and Machine Mission Control). It follows the
 - **Rebase merges only** into `main`; every change to an upstream file is
   listed in `allowed_upstream_changes` of `lazurio-fork-ci.yml`.
 
+`OMB_DEFAULT_BOT_CWD` changes one default only: a bot created without a
+folder starts in that folder instead of its private task workspace. An
+explicit empty or null folder still gives the private workspace, on every
+create path including a Chief's `create_bot`. The tool's upstream description
+stays unchanged on purpose, so the tool catalog sent to the model on every
+turn stays byte-identical to upstream.
+
 How to release, rebuild on a new upstream tag, what the overlay contains and
 how Machines consume a release:
 [`docs/operations/lazurio-fork-release.md`](docs/operations/lazurio-fork-release.md).
