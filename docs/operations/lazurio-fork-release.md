@@ -87,6 +87,10 @@ release offers it.
    - `PATH` including `~/.local/bin`, so the server finds the signed-in
      `codex` and `claude` CLIs of the same user, as T3 does.
    - optionally `OMB_ENVIRONMENT_LABEL` (`<Organization> / <machine>`).
+   - optionally the GitHub intake (`OMB_GITHUB_INTAKE=1`,
+     `OMB_GITHUB_INTAKE_BOT` and its scope settings), with `gh` signed in
+     as the same user; see
+     [`docs/lazurio-github-intake.md`](../lazurio-github-intake.md).
 
    The server always listens on `127.0.0.1` only. The gateway serves it at
    `https://openmausbot.<vm>.<org>.lazurio.io/` and must require the
@@ -106,6 +110,7 @@ release offers it.
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `server: OMB_DEFAULT_BOT_CWD, a default working folder for new bots` | Bots in a Lazurio Environment start in the Lazurio Folder, read its `AGENTS.md` and work in its worktrees (decision 0169). Unset keeps upstream behaviour: a new bot works in its private `<data>/task-workspaces/...`. Upstream-friendly; propose it upstream. |
 | `release: Lazurio distribution`                                   | This runbook, `LAZURIO.md`, `scripts/lazurio-release-archive.sh`, the contract test and the workflows `lazurio-fork-ci.yml`, `lazurio-archive.yml` and `lazurio-release.yml`.                                                                           |
+| `server: GitHub intake, model-free pull request triggers for a bot` | Lazurio Environments hand GitHub review and publication work to a bot team without a model polling (decision 0169). Off unless `OMB_GITHUB_INTAKE=1`. New files plus `WebhookManager.deliver()` and its wiring; see [`docs/lazurio-github-intake.md`](../lazurio-github-intake.md). Upstream-friendly apart from the Lazurio publish marker. |
 
 `OMB_DEFAULT_BOT_CWD` applies wherever a bot is created: New bot, the first
 bot on an empty server, a Chief's reviewed team setup and imports. A
@@ -124,8 +129,8 @@ are stamped only at build time by `scripts/lazurio-release-archive.sh` and
 never committed.
 
 Deliberately not in the overlay (DEV-6632 M2 and later): approval levels
-(`full` and `custom` stay desktop-only, as upstream), GitHub intake, the
-Steward preset and any UI change.
+(`full` and `custom` stay desktop-only, as upstream), the Environment preset
+that installs and configures the Steward team, and any UI change.
 
 ## When to release
 
