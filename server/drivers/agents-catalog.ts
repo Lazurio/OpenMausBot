@@ -440,7 +440,7 @@ const toolDefinitions = (externalRuntime: boolean) => [
         cwd: {
           type: "string",
           maxLength: 1024,
-          description: "Absolute path of the folder this specialist's tools read and write in (for example /Users/me/Projects/site). It must already exist. Leave it out for the specialist's private workspace.",
+          description: "Absolute path of the folder this specialist's tools read and write in (for example /Users/me/Projects/site). It must already exist. Leave it out for the workspace's default folder when the server sets one (OMB_DEFAULT_BOT_CWD), otherwise the specialist's private workspace; pass an empty string for the private workspace explicitly.",
         },
       },
       required: ["name", "role", "instructions"],

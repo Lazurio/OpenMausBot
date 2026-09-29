@@ -65,7 +65,7 @@ import * as checkpoints from "./checkpoints.ts";
 import { commandReceipt } from "./commands.ts";
 import { buildTurnDigest, coverageForDriver, digestPromptLine, renderDigest, toolEvidence } from "./digest.ts";
 import { appendDecision, bindDecisionRetention, boundRetentionDays, decisionRetentionDays, decisionsCsv, flushDecisionLog, pruneDecisions, readDecisionRange, readDecisions, withDecisionActor, type DecisionActor } from "./decision-log.ts";
-import { defaultBotCwdFromEnv, validateBotCwd } from "./bot-cwd.ts";
+import { defaultBotCwdFromEnv, requestedBotCwd, validateBotCwd } from "./bot-cwd.ts";
 import {
   ATTACHMENTS_DIR,
   attachmentExists,
@@ -18148,12 +18148,11 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         if (hostedModels && !hostedModels.allows(selection)) return json(res, 400, { error: hostedModels.error() });
         // The same check the profile path runs: absolute, exists, is a
         // folder. Creation names where the specialist works; nothing looser.
-        let cwd: string | undefined;
-        if (body.cwd !== undefined) {
-          const checkedCwd = validateBotCwd(body.cwd);
-          if (!checkedCwd.ok) return json(res, 400, { error: checkedCwd.error });
-          cwd = checkedCwd.cwd ?? undefined;
-        }
+        // Omitted: the server's default folder (OMB_DEFAULT_BOT_CWD) or the
+        // private workspace; an explicit empty folder: the private workspace.
+        const requestedCwd = requestedBotCwd(body.cwd);
+        if (!requestedCwd.ok) return json(res, 400, { error: requestedCwd.error });
+        const cwd = requestedCwd.cwd;
         // Discovery can yield; check current authority and capacity again before writing.
         if (store.bot(chief.id) !== chief || chief.hidden || !chief.chiefOfStaff || !connectorThread(chief.id, fromThreadId)) {
           return json(res, 403, { error: "only an active Chief of Staff can create operator bots" });

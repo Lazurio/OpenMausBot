@@ -25,6 +25,17 @@ export function validateBotCwd(input: unknown): CwdValidation {
   return { ok: true, cwd };
 }
 
+/** The folder a create request names for a new bot, as the Store takes it:
+ * undefined when the request names none (the bot gets OMB_DEFAULT_BOT_CWD,
+ * else its private task workspace), "" for an explicit empty or null folder
+ * (always the private task workspace), or the validated absolute path. */
+export function requestedBotCwd(input: unknown): { ok: true; cwd: string | undefined } | { ok: false; error: string } {
+  if (input === undefined) return { ok: true, cwd: undefined };
+  const checked = validateBotCwd(input);
+  if (!checked.ok) return checked;
+  return { ok: true, cwd: checked.cwd ?? "" };
+}
+
 /** OMB_DEFAULT_BOT_CWD: the working folder every new bot starts in when its
  * creation names none. Unset or blank keeps each new bot in its private task
  * workspace. The value is checked exactly like a bot's own folder, and an

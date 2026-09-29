@@ -60,6 +60,7 @@ jobs:
             docs/self-hosting.md
             scripts/control-omb.ts
             server/bot-cwd.ts
+            server/drivers/agents-catalog.ts
             server/index.ts
             server/store.ts
           )
