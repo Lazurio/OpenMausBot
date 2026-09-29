@@ -78,10 +78,14 @@ no bot turn: a person approves them.
 - the pull request is assigned to the account;
 - a comment on the pull request (its conversation, not a review comment)
   contains the line **`/lazurio publish`**: exactly that, on a line of its
-  own, not quoted and not in a code block;
+  own, not quoted and not in a code block (CommonMark: a fence closes only with
+  the same character at least as long, and a line indented four spaces or a
+  tab is code);
 - the comment's author has the `write`, `maintain` or `admin` role on the
   repository and is not the account itself;
-- the comment was written after the latest assignment to the account.
+- the comment was written after the latest assignment to the account; GitHub
+  timestamps have one-second resolution, so a comment in the same second as
+  the assignment does not count.
 
 Assignment alone never publishes. An instruction that fails a check is
 recorded as `ignored` with the reason and is never retried; the person asks
