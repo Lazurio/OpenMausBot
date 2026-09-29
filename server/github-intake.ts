@@ -104,17 +104,30 @@ export function githubIntakeConfigFromEnv(env: NodeJS.ProcessEnv = process.env):
   return { bot, scope, owners, exclude, intervalMs: seconds * 1_000, ...(ghPath ? { ghPath } : {}) };
 }
 
-/** True when one line of the comment, outside quotes and code fences, is
- * exactly the publish marker (surrounding spaces allowed). */
+/** True when one line of the comment, outside quotes and code, is exactly the
+ * publish marker. Code follows CommonMark: a fenced block opens with three or
+ * more backticks or tildes indented at most three spaces and closes only with
+ * the same character, at least as long, and nothing else on the line; a line
+ * indented four or more spaces (or by a tab) is an indented code block. An
+ * unclosed fence runs to the end of the comment. */
 export function hasPublishMarker(body: string): boolean {
-  let fenced = false;
+  let fence: { char: string; length: number } | null = null;
   for (const raw of body.split(/\r?\n/)) {
+    const indent = /^[ ]*/.exec(raw)?.[0].length ?? 0;
+    const shallow = indent <= 3 && !raw.startsWith("\t");
     const line = raw.trim();
-    if (line.startsWith("```") || line.startsWith("~~~")) {
-      fenced = !fenced;
+    const run = shallow ? /^(`{3,}|~{3,})(.*)$/.exec(line) : null;
+    if (fence) {
+      if (run && run[1][0] === fence.char && run[1].length >= fence.length && run[2].trim() === "") fence = null;
       continue;
     }
-    if (!fenced && line === PUBLISH_MARKER) return true;
+    if (run) {
+      // A backtick fence's info string may not contain a backtick.
+      if (run[1][0] === "`" && run[2].includes("`")) continue;
+      fence = { char: run[1][0], length: run[1].length };
+      continue;
+    }
+    if (shallow && line === PUBLISH_MARKER) return true;
   }
   return false;
 }
@@ -660,7 +673,9 @@ export class GithubIntake {
       const key = `publish:${repo}#${number}:${comment.id}`;
       const requester = comment.user?.login ?? "";
       const base = { key, kind: "publish" as const, repository: repo, number, headSha: pr.head.sha, requester };
-      if (!(Date.parse(comment.created_at) >= assignedAt)) {
+      // GitHub timestamps have one-second resolution: a comment in the same
+      // second as the assignment cannot be ordered after it, so it fails closed.
+      if (!(Date.parse(comment.created_at) > assignedAt)) {
         this.record({ ...base, outcome: "ignored", reason: "the instruction is older than the assignment to this account" });
         this.log(`[github-intake] ${repo}#${number}: ignored a publish instruction by ${requester} from before the assignment`);
         continue;
