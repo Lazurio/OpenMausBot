@@ -29,10 +29,12 @@ upstream's `scripts/build-npm-package.mjs` exactly as upstream's
 `npm-package.yml` builds `openmausbot` for npm, and packed with `npm pack`.
 Its layout is therefore the npm layout: everything under `package/`
 (`cli.js`, `dist-server/`, `dist/`, `skills/`, `enterprise/`,
-`package.json`, `LICENSE`, `README.md`), no `node_modules`, run with Node 24
-or newer. The only differences from the upstream npm tarball are the
-version in `package/package.json` (the release version) and the Lazurio
-overlay in the code. The same bytes also install with
+`lazurio/teams/`, `package.json`, `LICENSE`, `README.md`), no `node_modules`,
+run with Node 24 or newer. The only differences from the upstream npm tarball
+are the version in `package/package.json` (the release version), the Lazurio
+overlay in the code, and `lazurio/teams/` with the Steward team file
+(`package/lazurio/teams/steward.openmaus.json`), which an Environment imports
+from the installed release. The same bytes also install with
 `npm install -g ./openmausbot-<version>-linux-x64.tar.gz`.
 
 The JavaScript is platform independent; `linux-x64` names the platform the

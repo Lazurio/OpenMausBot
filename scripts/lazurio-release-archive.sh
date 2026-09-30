@@ -63,6 +63,19 @@ VERSION="$VERSION" node -e '
 pnpm build:server
 pnpm exec vite build
 node scripts/build-npm-package.mjs
+# Lazurio's team definitions ship inside the package, so an Environment can
+# import the Steward team from the installed release without the repository
+# (the Steward preset, decision 0169). Only this generated package changes;
+# upstream's build script and package.json stay untouched.
+mkdir -p release/npm/lazurio
+cp -R lazurio/teams release/npm/lazurio/teams
+node -e '
+  const fs = require("node:fs");
+  const path = "release/npm/package.json";
+  const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+  if (!pkg.files.includes("lazurio")) pkg.files.push("lazurio");
+  fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");
+'
 (cd release/npm && npm pack --silent --pack-destination "$work" >/dev/null)
 packed="$work/openmausbot-$VERSION.tgz"
 test -f "$packed"
@@ -73,10 +86,11 @@ mkdir -p "$work/run" "$work/home" "$work/data" "$work/folder"
 tar -xzf "$packed" -C "$work/run"
 pkg="$work/run/package"
 test ! -d "$pkg/node_modules"
-for required in cli.js dist-server/index.js dist-server/openmausbot.js dist/index.html package.json LICENSE; do
+for required in cli.js dist-server/index.js dist-server/openmausbot.js dist/index.html package.json LICENSE lazurio/teams/steward.openmaus.json; do
   test -f "$pkg/$required" || { echo "archive is missing package/$required" >&2; exit 1; }
 done
 test "$(node -p 'require(process.argv[1]).version' "$pkg/package.json")" = "$VERSION"
+node -e 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))' "$pkg/lazurio/teams/steward.openmaus.json"
 help="$(node "$pkg/cli.js" --help)"
 grep -q "openmausbot serve" <<< "$help"
 
