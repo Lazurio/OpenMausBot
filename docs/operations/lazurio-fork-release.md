@@ -234,7 +234,7 @@ Organization Admin can do these steps; the order matters.
    `prevent_self_review`, deployments from `main` only, variable
    `LAZURIO_OPENMAUSBOT_RELEASE_CONTROL=reviewed-v1`, variable
    `LAZURIO_RELEASE_APP_ID`, secret `LAZURIO_RELEASE_APP_PRIVATE_KEY`.
-8. **First release** `0.1.91-lazurio.1`, dispatched by the Steward. Right after it, disable the upstream workflows it registered (Automation boundary).
+8. **First release** `0.1.91-lazurio.1`, dispatched by the Steward. Right after it, disable `npm-package.yml`, which the release registers (Automation boundary). `sync-published-release.yml` stays latent; see Automation boundary.
 
 ## Testing before a release
 
@@ -369,9 +369,24 @@ GitHub registers a workflow only at its first triggering event, and only a
 registered workflow can be disabled. After the one-time bootstrap (2026-09-30)
 `docker.yml` and `ci-stop-closed.yml` registered and are disabled. `docker.yml`
 fired on the bootstrap push and ended in `startup_failure`, because Actions
-allow only GitHub-owned actions plus `pnpm/action-setup`. `npm-package.yml`
-(tag `v*`) and `sync-published-release.yml` (release published) register only
-with the first release, and neither can publish from this fork: npm does not
-trust this repository for `openmausbot`, and the mirror needs `RELEASES_PAT`.
-Right after the first release, run the disable command above, and check that
-nothing but the three `lazurio-*` workflows is active (issue #6).
+allow only GitHub-owned actions plus `pnpm/action-setup`.
+
+Two publishers are still unregistered, and neither can publish from this fork:
+npm does not trust this repository for `openmausbot`, and the mirror needs
+`RELEASES_PAT`, which the fork does not have.
+
+- `npm-package.yml` (tag `v*`) registers with the first release. The release
+  App creates the tag, and App-created tags start workflows. Right after the
+  first release, run the disable command above.
+- `sync-published-release.yml` (release published) does **not** register with
+  our releases. The release workflow publishes with `GITHUB_TOKEN`, and
+  GitHub starts no workflow for events that token causes. It stays latent until
+  a release is published another way, for example by hand in the UI or with a
+  personal token. After any such publication, run the disable command at once.
+  Once registered, the release workflow's pre-tag check refuses it while it is
+  enabled.
+
+After the first release, check that only the three `lazurio-*` workflows are
+active. Also check that `sync-published-release.yml` is either absent from the
+list or disabled. Issue #6 stays open until it is registered and disabled, or
+the upstream publish jobs get a reviewed repository guard.
