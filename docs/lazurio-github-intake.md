@@ -176,4 +176,6 @@ changes of state, deliveries, own pull requests and ignored instructions.
   account write only where it should review and publish; branch rules stay
   the enforcement, the team's standing instructions the process.
 - **Approval levels are unchanged.** Unattended bots run with their own
-  approval level; headless full access is a separate decision.
+  approval level. Steward teams run on Auto (issue #3): the operator sets it
+  after the import, the provider's review approves routine actions and
+  anything else waits for the operator. Headless Full access does not exist.
