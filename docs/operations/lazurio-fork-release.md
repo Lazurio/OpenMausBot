@@ -387,9 +387,12 @@ npm does not trust this repository for `openmausbot`, and the mirror needs
 - `npm-package.yml` (tag `v*`) registers with the first release. The release
   App creates the tag, and App-created tags start workflows, so its first run
   starts on that tag. Right after the first release, cancel that run and run
-  the disable command above. On `0.1.91-lazurio.1` (2026-09-30) the run was
-  cancelled before it built anything, and the workflow is now disabled;
-  later releases do not start it.
+  the disable command above. On `0.1.91-lazurio.1` (2026-09-30) the run had
+  already built and saved its npm tarball as an Actions artifact when the
+  cancellation took effect; its `publish to npm` and `update GitHub release`
+  jobs were cancelled before they started, so nothing reached npm and the
+  release kept its assets. The workflow is now disabled; later releases do
+  not start it.
 - `sync-published-release.yml` (release published) does **not** register with
   our releases. The release workflow publishes with `GITHUB_TOKEN`, and
   GitHub starts no workflow for events that token causes. It stays latent until
