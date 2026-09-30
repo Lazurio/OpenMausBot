@@ -75,6 +75,25 @@ NodeTest.test("the archive is upstream's npm package, stamped and smoke-tested",
   }
 });
 
+NodeTest.test("the archive ships the Steward team file an Environment imports (issue #4)", async () => {
+  const team = "lazurio/teams/steward.openmaus.json";
+  JSON.parse(await read(team));
+  // Copied into the generated package and its files list between the upstream
+  // build and npm pack; upstream's build script and package.json stay as they are.
+  const build = script.indexOf("node scripts/build-npm-package.mjs");
+  const copy = script.indexOf("cp -R lazurio/teams release/npm/lazurio/teams");
+  const files = script.indexOf('pkg.files.push("lazurio")');
+  const pack = script.indexOf("npm pack --silent");
+  NodeAssert.ok(build > 0 && build < copy && copy < files && files < pack, "team copied and listed after the build, before npm pack");
+  NodeAssert.match(script, /const path = "release\/npm\/package\.json";/);
+  const upstreamBuild = await read("scripts/build-npm-package.mjs");
+  NodeAssert.doesNotMatch(upstreamBuild, /lazurio\/teams/, "upstream's build script stays untouched");
+  NodeAssert.doesNotMatch(await read("package.json"), /lazurio\/teams/, "the source package.json stays untouched");
+  // The smoke test requires the file inside the package and parses it.
+  NodeAssert.match(script, /for required in [^\n]*lazurio\/teams\/steward\.openmaus\.json/);
+  NodeAssert.match(script, /JSON\.parse\(require\("node:fs"\)\.readFileSync\(process\.argv\[1\], "utf8"\)\)' "\$pkg\/lazurio\/teams\/steward\.openmaus\.json"/);
+});
+
 NodeTest.test("CI is read-only and pins the exact upstream base", () => {
   NodeAssert.match(ci, /^permissions:\n {2}contents: read\n {2}id-token: none/m);
   NodeAssert.doesNotMatch(ci, /contents: write|packages: write|id-token: write/);
