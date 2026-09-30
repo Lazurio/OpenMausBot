@@ -110,11 +110,22 @@ export function githubIntakeConfigFromEnv(env: NodeJS.ProcessEnv = process.env):
  * the same character, at least as long, and nothing else on the line; a line
  * indented four or more spaces (or by a tab) is an indented code block. An
  * unclosed fence runs to the end of the comment. */
+/** Columns of a line's leading whitespace with CommonMark tab stops of 4, so a
+ * tab after one to three spaces still reaches the indented-code column. */
+function leadingColumns(line: string): number {
+  let column = 0;
+  for (const char of line) {
+    if (char === " ") column += 1;
+    else if (char === "\t") column += 4 - (column % 4);
+    else break;
+  }
+  return column;
+}
+
 export function hasPublishMarker(body: string): boolean {
   let fence: { char: string; length: number } | null = null;
   for (const raw of body.split(/\r?\n/)) {
-    const indent = /^[ ]*/.exec(raw)?.[0].length ?? 0;
-    const shallow = indent <= 3 && !raw.startsWith("\t");
+    const shallow = leadingColumns(raw) <= 3;
     const line = raw.trim();
     const run = shallow ? /^(`{3,}|~{3,})(.*)$/.exec(line) : null;
     if (fence) {

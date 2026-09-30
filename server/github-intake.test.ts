@@ -314,6 +314,10 @@ describe("the publish marker", () => {
     // Indented code blocks: four spaces or a tab.
     expect(hasPublishMarker("    /lazurio publish")).toBe(false);
     expect(hasPublishMarker("\t/lazurio publish")).toBe(false);
+    // A tab after one to three spaces also reaches the fourth column.
+    expect(hasPublishMarker("Example (not an instruction):\n\n \t/lazurio publish")).toBe(false);
+    expect(hasPublishMarker("  \t/lazurio publish")).toBe(false);
+    expect(hasPublishMarker("   \t/lazurio publish")).toBe(false);
     // After a properly closed fence the marker counts again.
     expect(hasPublishMarker("~~~~\nexample\n~~~~~\n/lazurio publish")).toBe(true);
     expect(hasPublishMarker("```js\nx()\n```\n   /lazurio publish")).toBe(true);
@@ -578,6 +582,14 @@ describe("GitHub intake: publication", () => {
       expect(h.queued).toHaveLength(0);
       expect(h.intake.status().recent.some((entry) => entry.outcome === "ignored" && entry.requester === "matej")).toBe(true);
     }
+  });
+
+  it("does not publish for a marker indented as code by spaces and a tab", async () => {
+    const h = harness();
+    const pr = assigned(h);
+    h.github.comment(pr, "steward", "Example (not an instruction):\n\n \t/lazurio publish");
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(0);
   });
 
   it("publishes for a marker outside a code block but not for one quoted in a fence", async () => {
