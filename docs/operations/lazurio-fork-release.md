@@ -243,7 +243,7 @@ Organization Admin can do these steps; the order matters.
    `prevent_self_review`, deployments from `main` only, variable
    `LAZURIO_OPENMAUSBOT_RELEASE_CONTROL=reviewed-v1`, variable
    `LAZURIO_RELEASE_APP_ID`, secret `LAZURIO_RELEASE_APP_PRIVATE_KEY`.
-8. **First release** `0.1.91-lazurio.1`, dispatched by the Steward. Right after it, disable `npm-package.yml`, which the release registers (Automation boundary). `sync-published-release.yml` stays latent; see Automation boundary.
+8. **First release** `0.1.91-lazurio.1`, dispatched by the Steward. Right after it, cancel the `npm-package.yml` run its tag starts and disable the workflow (Automation boundary). Done on 2026-09-30. `sync-published-release.yml` stays latent; see Automation boundary.
 
 ## Testing before a release
 
@@ -385,8 +385,11 @@ npm does not trust this repository for `openmausbot`, and the mirror needs
 `RELEASES_PAT`, which the fork does not have.
 
 - `npm-package.yml` (tag `v*`) registers with the first release. The release
-  App creates the tag, and App-created tags start workflows. Right after the
-  first release, run the disable command above.
+  App creates the tag, and App-created tags start workflows, so its first run
+  starts on that tag. Right after the first release, cancel that run and run
+  the disable command above. On `0.1.91-lazurio.1` (2026-09-30) the run was
+  cancelled before it built anything, and the workflow is now disabled;
+  later releases do not start it.
 - `sync-published-release.yml` (release published) does **not** register with
   our releases. The release workflow publishes with `GITHUB_TOKEN`, and
   GitHub starts no workflow for events that token causes. It stays latent until
