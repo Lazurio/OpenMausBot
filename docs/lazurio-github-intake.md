@@ -28,16 +28,22 @@ the server behaves exactly as upstream OpenMausBot.
 | `OMB_GITHUB_INTAKE_GH` | The `gh` executable; default `gh` on `PATH`. |
 
 An unknown value stops the server at start with the reason. Example for a
-Lazurio Environment whose persona reviews one Organization:
+new Lazurio Environment whose persona reviews one Organization:
 
 ```sh
 OMB_GITHUB_INTAKE=1 \
 OMB_GITHUB_INTAKE_BOT=Henry \
-OMB_GITHUB_INTAKE_SCOPE=organization \
 OMB_GITHUB_INTAKE_OWNERS=acme \
-OMB_GITHUB_INTAKE_EXCLUDE='acme/infra,acme/productionspace-*' \
 openmausbot serve
 ```
+
+**Start with `requested`** (Organization Admin decision, issue #5). A new
+Environment keeps the default scope and reviews only pull requests that
+request the account. `organization` is a later, deliberate switch: its first
+poll finds every open ready pull request the account can push to and queues
+a review for each, a wave of reviews and model cost. When switching, set
+`OMB_GITHUB_INTAKE_EXCLUDE` as well, for example
+`acme/infra,acme/productionspace-*`.
 
 **Identity.** The intake runs `gh api` as the server's user and has no token
 of its own. Sign that user in once (`gh auth login`); every GitHub action of
