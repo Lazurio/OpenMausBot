@@ -132,7 +132,8 @@ are stamped only at build time by `scripts/lazurio-release-archive.sh` and
 never committed.
 
 Deliberately not in the overlay (DEV-6632 M2 and later): approval levels
-(`full` and `custom` stay desktop-only, as upstream), the Environment preset
+(`full` and `custom` stay desktop-only, as upstream; Steward teams run on
+`auto`, set by the operator after the import, issue #3), the Environment preset
 that installs and configures the Steward team, and any UI change.
 
 ## When to release

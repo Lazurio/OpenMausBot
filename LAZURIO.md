@@ -55,9 +55,13 @@ turn stays byte-identical to upstream.
   Import, or `POST /api/teams/import`) and point
   `OMB_GITHUB_INTAKE_BOT` at the leader. Another persona (Pablo) imports the
   same file and renames the leader; nothing in the instructions names the
-  persona. Imported bots start on Ask, so unattended work waits for
-  approvals in the app: which approval level a headless team may run on is
-  an open security decision of DEV-6632, not part of this overlay.
+  persona. Imported bots start on Ask, which would leave unattended work
+  waiting for an approval nobody gives. Steward teams run on **Auto**
+  (Organization Admin decision, issue #3): right after the import the
+  operator sets all four bots to Auto in the app. The provider's own review
+  then approves routine actions and anything else still asks. Full and
+  Custom stay desktop-only, as upstream; the overlay adds no way to raise a
+  bot above Auto.
 
 How to release, rebuild on a new upstream tag, what the overlay contains and
 how Machines consume a release:
