@@ -181,7 +181,13 @@ changes of state, deliveries, own pull requests and ignored instructions.
   bot can only do what the signed-in account may do on GitHub. Give the
   account write only where it should review and publish; branch rules stay
   the enforcement, the team's standing instructions the process.
-- **Approval levels are unchanged.** Unattended bots run with their own
-  approval level. Steward teams run on Auto (issue #3): the operator sets it
-  after the import, the provider's review approves routine actions and
-  anything else waits for the operator. Headless Full access does not exist.
+- **Approval levels.** Unattended bots run with their own approval level;
+  the intake changes none. Steward teams run on Full access without a
+  sandbox (Organization Admin decision of 2026-10-01, issue #3, superseding
+  Auto): the Environment, one Machine with one operator, is the boundary.
+  The operator starts the service with `OMB_HEADLESS_FULL_ACCESS=1` and sets
+  each bot to Full after the import
+  ([self-hosting](self-hosting.md#full-access-without-the-desktop-app));
+  Machines never sets it. Every intake delivery opens a new conversation,
+  which starts Full, and the leader's delegated work runs Full too.
+  Questions and missing credentials still wait for the operator.

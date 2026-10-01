@@ -47,6 +47,12 @@ turn stays byte-identical to upstream.
   or an explicit `/lazurio publish` instruction, through the webhook queue
   ([`docs/lazurio-github-intake.md`](docs/lazurio-github-intake.md)). Off
   unless `OMB_GITHUB_INTAKE=1`.
+- `OMB_HEADLESS_FULL_ACCESS`: the operator's opt-in at server start that
+  lets the owner on loopback set a bot to Full access through the ordinary
+  bot settings API, which upstream allows only in the desktop app. Only
+  Full is unlocked, never Custom
+  ([`docs/self-hosting.md`](docs/self-hosting.md)). Off unless
+  `OMB_HEADLESS_FULL_ACCESS=1`.
 - **Steward team**: [`lazurio/teams/steward.openmaus.json`](lazurio/teams/steward.openmaus.json),
   a leader (Henry, Chief of Staff) and three workers who review pull
   requests on their exact head and publish only on an explicit instruction.
@@ -56,12 +62,22 @@ turn stays byte-identical to upstream.
   `OMB_GITHUB_INTAKE_BOT` at the leader. Another persona (Pablo) imports the
   same file and renames the leader; nothing in the instructions names the
   persona. Imported bots start on Ask, which would leave unattended work
-  waiting for an approval nobody gives. Steward teams run on **Auto**
-  (Organization Admin decision, issue #3): right after the import the
-  operator sets all four bots to Auto in the app. The provider's own review
-  then approves routine actions and anything else still asks. Full and
-  Custom stay desktop-only, as upstream; the overlay adds no way to raise a
-  bot above Auto.
+  waiting for an approval nobody gives. Steward teams run on **Full access,
+  without a sandbox** (Organization Admin decision of 2026-10-01, issue #3;
+  it supersedes the earlier decision for Auto): the Environment, one Machine
+  with one operator, is the boundary. Right after the import the operator
+  sets each bot's engine, Codex or Claude (both are supported, as the
+  Environment's own signed-in CLIs), and then sets all four bots to Full, in
+  that order: changing the engine of a Full bot needs Ask first. Full needs
+  the operator to start the service with `OMB_HEADLESS_FULL_ACCESS=1`; the
+  app's level selector offers Full only in the desktop app, so the operator
+  sets it through the local API
+  ([`docs/self-hosting.md`](docs/self-hosting.md)). Machines never sets the
+  opt-in. Full is upstream's Full: Codex runs with `never` approvals in the
+  `danger-full-access` sandbox, Claude with `bypassPermissions`, and the work
+  the leader (a Chief of Staff with Full) delegates runs Full too. Questions
+  and missing credentials still reach a person; GitHub rights and branch
+  rules stay the limit.
 
 How to release, rebuild on a new upstream tag, what the overlay contains and
 how Machines consume a release:
