@@ -623,6 +623,7 @@ import { findAntigravityLeftovers, removeAntigravityLeftovers } from "./drivers/
 import { createLiveRoutes } from "./routes/live.ts";
 import { createGithubIntakeRoutes } from "./routes/github-intake.ts";
 import { GithubIntake, githubIntakeConfigFromEnv, spawnGh } from "./github-intake.ts";
+import { headlessFullAccessFromEnv, headlessFullAccessPermits } from "./headless-full-access.ts";
 
 const PORT = Number(process.env.OMB_PORT || process.env.OGB_PORT || 8799);
 const WEBHOOK_PORT = Number(process.env.OMB_WEBHOOK_PORT || PORT + 1);
@@ -634,6 +635,9 @@ const DEFAULT_BOT_CWD = defaultBotCwdFromEnv();
 // The Lazurio GitHub intake (server/github-intake.ts): off unless
 // OMB_GITHUB_INTAKE=1; an unusable setting stops the server at start.
 const GITHUB_INTAKE = githubIntakeConfigFromEnv();
+// The operator's opt-in to Full access over the API (server/headless-full-access.ts).
+const HEADLESS_FULL_ACCESS = headlessFullAccessFromEnv();
+if (HEADLESS_FULL_ACCESS) console.log("[approvals] OMB_HEADLESS_FULL_ACCESS is on: the local owner may set bots to Full access (no sandbox, no approval prompts) over the API");
 const MIME: Record<string, string> = {
   ".html": "text/html",
   ".js": "text/javascript",
@@ -21281,7 +21285,10 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         ((requestedApprovalMode === "full" || requestedApprovalMode === "custom") &&
           currentApprovalMode !== requestedApprovalMode) ||
         (currentApprovalMode === "custom" && requestedApprovalMode !== "custom");
-      if (requiresPrivateApprovalTransition) {
+      // OMB_HEADLESS_FULL_ACCESS lets the loopback owner enter Full here; nothing else.
+      const headlessFull = requiresPrivateApprovalTransition && headlessFullAccessPermits({
+        enabled: HEADLESS_FULL_ACCESS, auth, current: currentApprovalMode, requested: requestedApprovalMode });
+      if (requiresPrivateApprovalTransition && !headlessFull) {
         return json(res, 403, {
           error: "This approval-level change can only be made from the packaged desktop app",
         });
@@ -21522,6 +21529,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         bot = store.patchBot(m[1], patch);
       }
       if (!bot) return json(res, 404, { error: "no such bot" });
+      if (headlessFull) console.warn(`bot ${bot.id}: approval level raised to Full by ${requestSource(req)} through the local API`);
       if (body.memoryUpkeep === false || body.memoryEnabled === false) memoryUpkeep.dropBot(bot.id);
       // A defined Works on is the newest explicit choice: this bot's
       // auto-recorded pins that now point elsewhere give way immediately, so
