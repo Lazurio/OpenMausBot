@@ -396,6 +396,8 @@ export function verificationServerEnvironment(parentEnv: NodeJS.ProcessEnv, data
   for (const [key, value] of Object.entries(parentEnv)) {
     if (key.startsWith("OMB_GITHUB_INTAKE") && value) childEnv[key] = value;
   }
+  // The operator's opt-in to Full access over the API (server/headless-full-access.ts).
+  if (parentEnv.OMB_HEADLESS_FULL_ACCESS) childEnv.OMB_HEADLESS_FULL_ACCESS = parentEnv.OMB_HEADLESS_FULL_ACCESS;
   // Voice-note e2e fault injection: arms the one-shot audio-append failure
   // prelude inside the fixture server (see fail-audio-append-once.mjs).
   if (parentEnv.OMB_TEST_FAIL_AUDIO_APPEND_ONCE) {
