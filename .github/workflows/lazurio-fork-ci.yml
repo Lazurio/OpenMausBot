@@ -66,6 +66,9 @@ jobs:
             # the webhook queue in-process. Its wiring also changes
             # server/index.ts and scripts/control-omb.ts, listed above.
             server/webhooks.ts
+            # OMB_HEADLESS_FULL_ACCESS, the operator's opt-in to Full access
+            # over the API, changes only files listed above: server/index.ts,
+            # scripts/control-omb.ts and docs/self-hosting.md.
           )
           unexpected="$(git diff --name-only --diff-filter=MDRT "$UPSTREAM_SHA..HEAD" |
             grep -vxF -f <(printf '%s\n' "${allowed_upstream_changes[@]}") || true)"
