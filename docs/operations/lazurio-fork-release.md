@@ -89,6 +89,10 @@ release offers it.
    - `PATH` including `~/.local/bin`, so the server finds the signed-in
      `codex` and `claude` CLIs of the same user, as T3 does.
    - optionally `OMB_ENVIRONMENT_LABEL` (`<Organization> / <machine>`).
+   - never `OMB_HEADLESS_FULL_ACCESS`. Full access is the operator's own
+     decision for their Environment: the operator adds it to the unit
+     (for example `systemctl --user edit openmausbot.service`) and restarts
+     it; see Overlay.
    - optionally the GitHub intake (`OMB_GITHUB_INTAKE=1`,
      `OMB_GITHUB_INTAKE_BOT` and its scope settings), with `gh` signed in
      as the same user; see
@@ -114,6 +118,7 @@ release offers it.
 | `release: Lazurio distribution`                                   | This runbook, `LAZURIO.md`, `scripts/lazurio-release-archive.sh`, the contract test and the workflows `lazurio-fork-ci.yml`, `lazurio-archive.yml` and `lazurio-release.yml`.                                                                           |
 | `server: GitHub intake, model-free pull request triggers for a bot` | Lazurio Environments hand GitHub review and publication work to a bot team without a model polling (decision 0169). Off unless `OMB_GITHUB_INTAKE=1`. New files plus `WebhookManager.deliver()` and its wiring; see [`docs/lazurio-github-intake.md`](../lazurio-github-intake.md). Upstream-friendly apart from the Lazurio publish marker. |
 | `lazurio: Steward team for the GitHub intake`                     | The team Lazurio Organizations run behind the intake: leader Henry (Chief of Staff) and three workers with exact-head review and explicit-publication rules, as a portable team file (`lazurio/teams/steward.openmaus.json`). Lazurio-only; never proposed upstream. |
+| `server: OMB_HEADLESS_FULL_ACCESS, Full access over the API as an operator opt-in` | Steward teams run without a sandbox; the Environment is the boundary (issue #3). Off unless `OMB_HEADLESS_FULL_ACCESS=1`: the owner on loopback may then set a bot to Full through the bot PATCH, nothing else. New `server/headless-full-access.ts` plus one guard and two log lines in `server/index.ts`; see [`docs/self-hosting.md`](../self-hosting.md#full-access-without-the-desktop-app). Upstream-friendly; could be proposed upstream. |
 
 `OMB_DEFAULT_BOT_CWD` applies wherever a bot is created: New bot, the first
 bot on an empty server, a Chief's reviewed team setup and imports. A
@@ -131,10 +136,14 @@ change to any other upstream file. New Lazurio files need no entry. Versions
 are stamped only at build time by `scripts/lazurio-release-archive.sh` and
 never committed.
 
-Deliberately not in the overlay (DEV-6632 M2 and later): approval levels
-(`full` and `custom` stay desktop-only, as upstream; Steward teams run on
-`auto`, set by the operator after the import, issue #3), the Environment preset
-that installs and configures the Steward team, and any UI change.
+Deliberately not in the overlay (DEV-6632 M2 and later): the Environment
+preset that installs and configures the Steward team, and any UI change.
+Approval levels stay upstream's, with one opt-in: Steward teams run on
+`full` (Organization Admin decision of 2026-10-01, issue #3, superseding the
+earlier `auto`), which a headless server allows only when the operator
+starts it with `OMB_HEADLESS_FULL_ACCESS=1`. `custom` stays desktop-only, and
+the app's level selector still offers Full only in the desktop app, so the
+operator sets Full through the local API ([self-hosting](../self-hosting.md#full-access-without-the-desktop-app)).
 
 ## When to release
 

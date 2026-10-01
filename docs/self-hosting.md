@@ -299,6 +299,39 @@ itself, and existing bots keep their folder. The folder is checked like a
 bot's own: a relative path, a file or a missing folder stops the server at
 start with the reason. Unset or empty keeps the private folders.
 
+### Full access without the desktop app
+
+Full access and Custom are normally chosen only in the packaged desktop app
+([approval levels](approval-levels.md)): a headless server trusts every
+loopback request as its owner, so any process of the server's user,
+including a bot's own shell, could otherwise raise a bot to Full. On a
+server that is its operator's own machine, where bots are meant to run
+without a sandbox, the operator can allow Full over the API at start:
+
+| Variable | Meaning |
+| --- | --- |
+| `OMB_HEADLESS_FULL_ACCESS` | `1` lets the owner on loopback set a bot to Full access through the bot settings API. Unset, empty, `0` or `false`: off, as upstream. Any other value stops the server at start with the reason. Ignored in the desktop app. |
+
+```sh
+OMB_HEADLESS_FULL_ACCESS=1 openmausbot serve
+# then, on the server, for each bot:
+curl -sS -X PATCH http://127.0.0.1:8799/api/bots/<bot id> \
+  -H 'content-type: application/json' -d '{"approvalMode":"full"}'
+```
+
+The server logs one line at start when the opt-in is on, and one line for
+each bot raised to Full. Only entering Full from Ask, Auto-accept edits or
+Approve for me is unlocked, for the bot's default; the app's level selector
+still offers Full only in the desktop app. Custom, leaving Custom, a single
+thread's level, paired devices and a server with `OMB_LOOPBACK_TRUST=service`
+stay as upstream. Full is the same Full the desktop sets: Codex runs with
+`never` approvals in its `danger-full-access` sandbox, Claude with
+`bypassPermissions`, and a Chief of Staff with Full passes it on to the work
+it delegates. New conversations start Full, including the ones that webhook
+deliveries and routine runs open; a conversation that already has its own
+level keeps it. Back to Ask needs no opt-in. Removing the opt-in later stops
+new raises but does not lower bots that are already Full; set them to Ask.
+
 ## Installing the engines without a terminal
 
 Engines whose installer is an npm package (Claude Code, Codex, OpenCode,
