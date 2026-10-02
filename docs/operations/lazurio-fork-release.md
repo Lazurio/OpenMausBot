@@ -75,11 +75,11 @@ release offers it.
    `gh attestation verify <archive> --repo Lazurio/OpenMausBot`), and transfer
    it to the Machine as the T3 archive is transferred.
 3. **Install.** Unpack into a versioned directory, for example
-   `~/.openmausbot/runtime/versions/<version>/`, with
+   `~/.local/share/lazurio/mausbot/versions/<version>/`, with
    `--strip-components=1`. Every member is a regular file or directory under
    `package/`; refuse anything else. Check that `package.json` reports
    `<version>`. Node 24 or newer comes from the Machine toolchain.
-4. **Run.** One user unit, for example `openmausbot.service`, running
+4. **Run.** One user unit, `mausbot.service`, running
    `node <versions>/<version>/cli.js serve --no-pair --port 4102 --data-dir <home>/.openmausbot`
    with:
    - `OMB_WEBHOOK_PORT` set explicitly. The webhook listener otherwise takes
@@ -91,7 +91,7 @@ release offers it.
    - optionally `OMB_ENVIRONMENT_LABEL` (`<Organization> / <machine>`).
    - never `OMB_HEADLESS_FULL_ACCESS`. Full access is the operator's own
      decision for their Environment: the operator adds it to the unit
-     (for example `systemctl --user edit openmausbot.service`) and restarts
+     (for example `systemctl --user edit mausbot.service`) and restarts
      it; see Overlay.
    - optionally the GitHub intake (`OMB_GITHUB_INTAKE=1`,
      `OMB_GITHUB_INTAKE_BOT` and its scope settings), with `gh` signed in
@@ -99,7 +99,7 @@ release offers it.
      [`docs/lazurio-github-intake.md`](../lazurio-github-intake.md).
 
    The server always listens on `127.0.0.1` only. The gateway serves it at
-   `https://openmausbot.<vm>.<org>.lazurio.io/` and must require the
+   `https://mausbot.<vm>.<org>.lazurio.io/` and must require the
    workspace sign-in before proxying: OpenMausBot trusts every loopback
    request as its owner.
 5. **Update.** OpenMausBot has no in-app updater for this channel
