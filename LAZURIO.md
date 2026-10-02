@@ -38,6 +38,25 @@ create path including a Chief's `create_bot`. The tool's upstream description
 stays unchanged on purpose, so the tool catalog sent to the model on every
 turn stays byte-identical to upstream.
 
+## In a Lazurio Environment
+
+Lazurio calls this product **Lazurio MausBot**. Machines install it as the
+user unit `mausbot.service` at `https://mausbot.<vm>.<org>.lazurio.io/`;
+only the names this repository and upstream own keep `openmausbot` (the
+release assets, the npm package and its `openmausbot` CLI, the `OMB_*`
+variables and the data directory `~/.openmausbot`).
+
+Bots use the Environment's sign-ins like every other agent there (Lazurio
+decisions 0162 and 0172), and that includes Composio. They work in the
+Lazurio Folder, read its agent instructions and call the `composio` CLI the
+operator enabled and signed in from the Launchpad Settings. Every bot
+therefore reaches the Environment's Composio connections by default, without
+any fork change. OpenMausBot's own **Connected apps** (a Composio project key
+with its own Composio user) stay unconfigured: they would hold a second,
+separate set of connections. Its per-bot tool grants apply only to that mode,
+so a bot cannot be limited to fewer apps than its Environment; narrower
+access means a separate Environment.
+
 ## What the overlay adds
 
 - `OMB_DEFAULT_BOT_CWD`: new bots start in the Lazurio Folder
