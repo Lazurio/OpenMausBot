@@ -11,6 +11,7 @@ type ViewerFrame = BrowserFrame & { viewerId: string; generation: number };
 const button = "rounded-md p-1.5 text-ink-secondary hover:bg-inset hover:text-ink disabled:opacity-40 disabled:cursor-not-allowed";
 const RECONNECT_DELAYS = [1_000, 2_000, 4_000, 8_000, 15_000];
 const RECONNECT_MESSAGE = "Connection interrupted. Reconnecting the browser view…";
+const BUSY_MESSAGE = "The bot is using this browser. The live view opens when it is free…";
 
 /** Closing a panel releases its lease. A new connection never silently
  * restores permission to type, and never replays old browser frames. */
@@ -24,6 +25,8 @@ export function LiveBrowser({ bot }: { bot: Bot }) {
   const [control, setControl] = useState({ held: false, controlling: false, owned: false });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  // The server keeps the view open while the bot's own command holds the browser.
+  const [busy, setBusy] = useState(false);
   const [showProfiles, setShowProfiles] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
   const [viewport, setViewport] = useState({ width: 1280, height: 720 });
@@ -78,15 +81,17 @@ export function LiveBrowser({ bot }: { bot: Bot }) {
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
     viewer.current = ""; pendingOperation.current = null; haltMessage.current = "";
     urlEditing.current = false;
-    setFrame(null); setTabs([]); setAddress(""); setConnected(false); setError("");
+    setFrame(null); setTabs([]); setAddress(""); setConnected(false); setError(""); setBusy(false);
     setControl({ held: false, controlling: false, owned: false }); setPending(false);
     const source = new EventSource(`/api/bots/${encodeURIComponent(bot.id)}/browser/live`);
     const listen = (name: string, handler: (data: any) => void) => source.addEventListener(name, (event) => {
       if (stopped || !ownsConnection()) return;
       try { handler(JSON.parse((event as MessageEvent).data)); } catch { /* Malformed events are not rendered. */ }
     });
+    listen("waiting", () => { if (!viewer.current) setBusy(true); });
     listen("ready", (data) => {
       if (typeof data.viewerId !== "string" || !data.viewerId) return;
+      setBusy(false);
       const expected = data.viewerId;
       viewer.current = expected;
       inputQueue.current = createBrowserInputQueue(async (body) => {
@@ -141,7 +146,7 @@ export function LiveBrowser({ bot }: { bot: Bot }) {
           setAttempt((value) => value + 1);
         }, delay);
       }
-      setError(message); setConnected(false); setFrame(null); setControl({ held: false, controlling: false, owned: false });
+      setError(message); setBusy(false); setConnected(false); setFrame(null); setControl({ held: false, controlling: false, owned: false });
       // Keep this generation alive: a successful restart closes its stream
       // before the action reply arrives, and must still reconnect afterward.
       viewer.current = ""; inputQueue.current?.clear(); inputQueue.current = null; source.close();
@@ -225,7 +230,7 @@ export function LiveBrowser({ bot }: { bot: Bot }) {
         onReturnToToolbar={() => addressInput.current?.focus()}
         acknowledge={(seq) => { if (generation.current === frame.generation && viewer.current === frame.viewerId) void action({ type: "ack", seq }, frame.viewerId).catch(() => {}); }}
         onDecodeError={() => { if (generation.current === frame.generation && viewer.current === frame.viewerId) setError("A browser frame could not be decoded. Close and reopen the panel to reconnect."); }} />
-        : <div className="flex min-h-64 flex-col items-center justify-center gap-3 p-6 text-center text-[13px] text-ink-secondary">{connected && control.held ? <Hand size={24} /> : error && !reconnecting ? <Globe size={24} /> : <Loader2 size={24} className="animate-spin" />}<span>{control.held ? "Live view paused for human control" : reconnecting ? "Reconnecting…" : error ? "Browser disconnected" : "Opening the live browser…"}</span></div>}
+        : <div className="flex min-h-64 flex-col items-center justify-center gap-3 p-6 text-center text-[13px] text-ink-secondary">{connected && control.held ? <Hand size={24} /> : error && !reconnecting ? <Globe size={24} /> : <Loader2 size={24} className="animate-spin" />}<span>{control.held ? "Live view paused for human control" : reconnecting ? "Reconnecting…" : error ? "Browser disconnected" : busy ? BUSY_MESSAGE : "Opening the live browser…"}</span></div>}
     </div>
     <dialog ref={profilesDialog} onClose={() => setShowProfiles(false)} onClick={(e) => { if (e.target === e.currentTarget) setShowProfiles(false); }} className="m-auto w-[min(420px,calc(100%-32px))] max-h-[80vh] overflow-auto rounded-2xl border border-hairline/50 bg-card p-5 text-ink shadow-2xl backdrop:bg-black/40">
       <div className="mb-4 flex items-center justify-between"><h2 className="text-[15px] font-medium">Browser profiles</h2><button className={button} aria-label="Close browser profiles" onClick={() => setShowProfiles(false)}><X size={16} /></button></div>
