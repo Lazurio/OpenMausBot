@@ -6,9 +6,11 @@ runtime for the bot teams of Lazurio Environments (Lazurio decision 0169;
 plan DEV-6632 in the Human and Machine Mission Control). It follows the
 `Lazurio/t3code` model:
 
-- **Same product as upstream.** Functionally identical to vanilla
-  OpenMausBot; the UI is at most lightly adjusted. Anything that could live
-  upstream is written to be proposed upstream.
+- **Same product and look as upstream.** Functionally identical to vanilla
+  OpenMausBot. Upstream's look and branding stay until upstream's stable
+  releases; the only decided UI change is the loader of the Lazurio shell
+  ([below](#the-lazurio-shell)). Anything that could live upstream is
+  written to be proposed upstream.
 - **Exact upstream base.** `main` is an exact upstream stable tag
   (`vX.Y.Z`) plus a short, meaningful Lazurio overlay of linear commits. It
   never follows upstream `main`, and never contains a merge commit.
@@ -40,8 +42,10 @@ turn stays byte-identical to upstream.
 
 ## In a Lazurio Environment
 
-Lazurio calls this product **Lazurio MausBot**. Machines install it as the
-user unit `mausbot.service` at `https://mausbot.<vm>.<org>.lazurio.io/`;
+In the app switch of an Environment (Chat · Apps · Automate) this product is
+**Automate**, and we call it **MausBot**; it keeps upstream's look and
+branding (the Lazurio shell decisions of 2026-10-03; earlier texts and the
+code call it Lazurio MausBot). Machines install it as the user unit `mausbot.service` at `https://mausbot.<vm>.<org>.lazurio.io/`;
 only the names this repository and upstream own keep `openmausbot` (the
 release assets, the npm package and its `openmausbot` CLI, the `OMB_*`
 variables and the data directory `~/.openmausbot`).
@@ -101,6 +105,30 @@ access means a separate Environment.
   the leader (a Chief of Staff with Full) delegates runs Full too. Questions
   and missing credentials still reach a person; GitHub rights and branch
   rules stay the limit.
+
+## The Lazurio shell
+
+**Decided on 2026-10-03 (the Lazurio shell decisions); implementation
+pending.** It is not in the overlay or in `allowed_upstream_changes` yet.
+
+The overlay will add only a loader for the Lazurio shell: the rail of
+Environments, the app switch at the top of MausBot's own sidebar and the
+floating Buddy bubble. The shell is three Web Components with Shadow DOM
+(`<lazurio-rail>`, `<lazurio-column-head>`, `<lazurio-buddy>`) defined by
+`/.lazurio/shell.js`, which the Environment's Launchpad serves on the same
+origin behind the Environment's gateway, with its data in
+`/.lazurio/shell.json`. MausBot knows nothing of Lazurio's data and fetches
+nothing itself, and a new rail needs no new release of this fork.
+
+The patch is about 20 lines in about three files: the script tag in
+`index.html`, the three elements, and
+`#root { margin-left: var(--lazurio-rail-width, 0); }`. Those files join
+`allowed_upstream_changes` as one reviewed entry, so a rebuild on a new
+upstream tag conflicts only on those lines. The switch and the rail are plain
+links to the Environment's other origins, so MausBot's router does not
+change. Nothing renders outside Lazurio: without `/.lazurio/shell.js` the
+elements stay undefined, the rail's width is 0 and the app behaves as
+upstream. No recolouring or renaming comes with it.
 
 How to release, rebuild on a new upstream tag, what the overlay contains and
 how Machines consume a release:
