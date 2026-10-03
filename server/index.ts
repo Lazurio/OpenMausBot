@@ -428,6 +428,7 @@ import {
   browserEngineStatus,
   browserSessionId,
   describeBrowserEngine,
+  setBrowserViewport,
 } from "./browser-engine.ts";
 import { createScreenFrameSource, type ScreenCapture } from "./screen-frame-source.ts";
 import { screenFrameHash, screenSurfaceForTool, screenTouchingTool, settledFrameIsNews } from "./screen-frame-gate.ts";
@@ -2501,7 +2502,7 @@ function cancelDirectTurnDispatch(botId: string, expectedThreadId?: string): Dir
 /** The bot's browser for this turn: agent-browser, one isolated session per
  * browser profile or per bot (docs/plans/browser-engine.md). Null, with the
  * reason logged once, when the engine is not on this machine. */
-const browserRuntime = new BrowserRuntime();
+const browserRuntime = new BrowserRuntime({ applyViewport: (spec) => setBrowserViewport(spec.command, spec.env) });
 const browserLive = new BrowserLive({ runtime: browserRuntime });
 // Temporary profiles last for this server run, but are never saved to disk.
 // The viewer and the agent must address the SAME temporary browser.
