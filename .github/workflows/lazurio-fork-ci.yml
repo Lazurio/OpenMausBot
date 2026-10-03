@@ -84,6 +84,12 @@ jobs:
             src/components/BrowserPanel.test.ts
             src/components/BrowserViewport.tsx
             src/components/BrowserViewport.test.ts
+            # The Lazurio shell slot (issue #16): the loader, the rail, the
+            # padding rule and Buddy in index.html, and the column head at the
+            # top of the sidebar. The shell itself is served by the
+            # Environment's Launchpad; without it nothing renders.
+            index.html
+            src/components/Sidebar.tsx
           )
           unexpected="$(git diff --name-only --diff-filter=MDRT "$UPSTREAM_SHA..HEAD" |
             grep -vxF -f <(printf '%s\n' "${allowed_upstream_changes[@]}") || true)"
