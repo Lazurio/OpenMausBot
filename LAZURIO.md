@@ -121,9 +121,11 @@ origin behind the Environment's gateway, with its data in
 nothing itself, and a new rail needs no new release of this fork.
 
 The patch is about 20 lines in about three files: the script tag in
-`index.html`, the three elements, and
-`#root { margin-left: var(--lazurio-rail-width, 0); }`. Those files join
-`allowed_upstream_changes` as one reviewed entry, so a rebuild on a new
+`index.html`, the three elements, and a fixed rail with
+`#root { box-sizing: border-box; padding-left: var(--lazurio-rail-width, 0px); }`
+(padding, not margin, so the app never overflows past the right edge). Each
+changed file joins `allowed_upstream_changes` as its own exact path under one
+reviewed reason, so a rebuild on a new
 upstream tag conflicts only on those lines. The switch and the rail are plain
 links to the Environment's other origins, so MausBot's router does not
 change. Nothing renders outside Lazurio: without `/.lazurio/shell.js` the
