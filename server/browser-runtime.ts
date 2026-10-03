@@ -22,6 +22,25 @@ export function browserRuntimeEnv(overrides: Record<string, string | undefined>)
   return { ...env, ...overrides };
 }
 
+/** The page size of a headless browser OMB launches, in CSS pixels.
+ *
+ * agent-browser sizes the Chrome *window* (`--window-size=1280,720`), and
+ * headless Chrome (new mode) takes its emulated browser UI out of that window,
+ * so the page itself came out 1280×577 on Linux and 1280×633 on macOS. Its
+ * screencast metadata still reported 1280×720, so the live view aimed clicks
+ * at the wrong place. agent-browser has no launch option for the page size;
+ * `set viewport` sets it and resizes the window's content area, which the
+ * browser's later tabs inherit. */
+export const BROWSER_VIEWPORT = { width: 1280, height: 720 } as const;
+export const BROWSER_VIEWPORT_ARGS = ["set", "viewport", String(BROWSER_VIEWPORT.width), String(BROWSER_VIEWPORT.height)] as const;
+
+/** Only a headless browser this server launches is OMB's to size. A browser
+ * attached over CDP is someone's own Chrome, and a headed window is the
+ * user's to size. */
+export function ownsBrowserViewport(env: NodeJS.ProcessEnv): boolean {
+  return env.AGENT_BROWSER_HEADLESS === "1" && !env.AGENT_BROWSER_CDP;
+}
+
 export class TransportError extends Error {}
 type Pending = { resolve: (result: unknown) => void; reject: (error: Error) => void; timer: NodeJS.Timeout };
 
@@ -192,6 +211,9 @@ class BrowserClient {
   }
 }
 
+/** Sets the page size of a session's browser, launching it if needed. */
+export type ApplyViewport = (spec: BrowserSpawnSpec) => Promise<unknown>;
+
 interface Gate {
   owner: string | null;
   ready: boolean;
@@ -205,12 +227,14 @@ interface Gate {
 
 export class BrowserRuntime {
   private gates = new Map<string, Gate>();
-  private clients = new Map<string, { key: string; client: BrowserClient }>();
+  private clients = new Map<string, { key: string; client: BrowserClient; viewport?: Promise<unknown> }>();
   private options: { requestTimeoutMs: number; takeoverTimeoutMs: number; idleMs: number; maxPending: number; resultBudget: number };
+  private applyViewport?: ApplyViewport;
 
-  constructor(options: Partial<BrowserRuntime["options"]> = {}) {
+  constructor({ applyViewport, ...options }: Partial<BrowserRuntime["options"]> & { applyViewport?: ApplyViewport } = {}) {
     const budget = Number(process.env.OMB_BROWSER_RESULT_BUDGET);
     this.options = { requestTimeoutMs: 120_000, takeoverTimeoutMs: 15_000, idleMs: 60_000, maxPending: 16, resultBudget: Number.isFinite(budget) && budget > 0 ? budget : DEFAULT_BROWSER_RESULT_BUDGET, ...options };
+    this.applyViewport = applyViewport;
   }
 
   private gate(session: string): Gate {
@@ -273,6 +297,15 @@ export class BrowserRuntime {
       await entry.client.ready;
       beforeDispatch?.();
       if (method === "tools/call" && this.gate(session).owner !== null) throw new Error(BROWSER_CONTROL_REFUSAL);
+      if (method === "tools/call" && this.applyViewport) {
+        // The bot's first call on a transport may launch the browser. Size its
+        // page first, once per transport, so the page, the bot's screenshots
+        // and the live view agree. Failure only leaves the engine's default.
+        entry.viewport ??= this.applyViewport(spec).catch(() => undefined);
+        await entry.viewport;
+        beforeDispatch?.();
+        if (this.gate(session).owner !== null) throw new Error(BROWSER_CONTROL_REFUSAL);
+      }
       try {
         // The model sees slimmed schemas and text-only, bounded results; the
         // launch/session parameters OMB owns never reach the engine from a call.
