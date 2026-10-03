@@ -5,9 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/app-icon.svg" />
     <title>OpenMausBot</title>
+    <!-- Lazurio shell (LAZURIO.md "The Lazurio shell"): served by the Environment's Launchpad; absent outside Lazurio. -->
+    <script type="module" src="/.lazurio/shell.js" vite-ignore></script>
+    <style>#root { box-sizing: border-box; padding-left: var(--lazurio-rail-width, 0px); }</style>
   </head>
   <body>
+    <lazurio-rail></lazurio-rail>
     <div id="root"></div>
+    <lazurio-buddy></lazurio-buddy>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

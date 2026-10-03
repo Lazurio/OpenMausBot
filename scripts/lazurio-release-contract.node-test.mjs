@@ -127,3 +127,15 @@ NodeTest.test("the runbook and fork contract name the operative facts", () => {
   }
   NodeAssert.match(contract, /docs\/operations\/lazurio-fork-release\.md/);
 });
+
+NodeTest.test("the Lazurio shell slot survives a rebuild on a new upstream tag", async () => {
+  const [page, sidebar] = await Promise.all([read("index.html"), read("src/components/Sidebar.tsx")]);
+  // Same-origin loader that Vite leaves alone; the Environment's Launchpad serves it.
+  NodeAssert.match(page, /<script type="module" src="\/\.lazurio\/shell\.js" vite-ignore><\/script>/);
+  // Padding, not margin: #root is full width under an overflow-hidden body.
+  NodeAssert.match(page, /#root \{ box-sizing: border-box; padding-left: var\(--lazurio-rail-width, 0px\); \}/);
+  NodeAssert.match(page, /<lazurio-rail><\/lazurio-rail>\s*<div id="root"><\/div>\s*<lazurio-buddy><\/lazurio-buddy>/);
+  // The column head is the first thing in the sidebar's top bar, above the upstream top row.
+  NodeAssert.match(sidebar, /<GlassBar edge="top">\n(?:\s*\{\/\*[^\n]*\*\/\}\n)?\s*\{createElement\("lazurio-column-head", \{ active: "automate" \}\)\}/);
+  NodeAssert.equal(sidebar.match(/lazurio-column-head/g)?.length, 1);
+});

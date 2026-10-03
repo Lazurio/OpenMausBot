@@ -1,7 +1,7 @@
 import { track } from "@/lib/analytics";
 import { OrganizationIdentity } from "./OrganizationIdentity";
 import { approvalCardOutcome } from "./ApprovalCard";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { createElement, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import {
   Activity,
@@ -2212,6 +2212,8 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
           spans the sidebar's full height. */}
       <GlassScrollFrame className="flex-1">
       <GlassBar edge="top">
+      {/* Lazurio shell (LAZURIO.md): the Environment picker and the app switch, above the upstream top row. Undefined, it renders nothing. */}
+      {createElement("lazurio-column-head", { active: "automate" })}
       {/* One top row: [traffic lights] [drag space] [server] [buttons].
           macOS owns inset traffic lights; Linux/Windows use native chrome.
           On macOS the row is twice the lights' centre line tall, so

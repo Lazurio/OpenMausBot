@@ -8,7 +8,7 @@ plan DEV-6632 in the Human and Machine Mission Control). It follows the
 
 - **Same product and look as upstream.** Functionally identical to vanilla
   OpenMausBot. Upstream's look and branding stay until upstream's stable
-  releases; the only decided UI change is the loader of the Lazurio shell
+  releases; the only UI change is the slot of the Lazurio shell
   ([below](#the-lazurio-shell)). Anything that could live upstream is
   written to be proposed upstream.
 - **Exact upstream base.** `main` is an exact upstream stable tag
@@ -108,29 +108,38 @@ access means a separate Environment.
 
 ## The Lazurio shell
 
-**Decided on 2026-10-03 (the Lazurio shell decisions); implementation
-pending.** It is not in the overlay or in `allowed_upstream_changes` yet.
+**Decided on 2026-10-03 (the Lazurio shell decisions); the slot is in the
+overlay since issue #16.** The overlay adds only a slot for the Lazurio
+shell: the rail on the left, the column head (the Environment picker, the
+Settings gear and the switch Chat · Apps · Automate) at the top of MausBot's
+own sidebar, and the floating Buddy bubble. The shell is Web Components with
+Shadow DOM (`<lazurio-rail>`, `<lazurio-column-head>`, `<lazurio-buddy>`)
+defined by `/.lazurio/shell.js`, which the Environment's Launchpad serves on
+this origin behind the Environment's gateway, with its data in
+`/.lazurio/shell.json` (LazurioPlatform decision F36). MausBot knows nothing
+of Lazurio's data and fetches nothing itself, so a new rail, a new picker or
+new data needs no release of this fork.
 
-The overlay will add only a loader for the Lazurio shell: the rail of
-Environments, the app switch at the top of MausBot's own sidebar and the
-floating Buddy bubble. The shell is three Web Components with Shadow DOM
-(`<lazurio-rail>`, `<lazurio-column-head>`, `<lazurio-buddy>`) defined by
-`/.lazurio/shell.js`, which the Environment's Launchpad serves on the same
-origin behind the Environment's gateway, with its data in
-`/.lazurio/shell.json`. MausBot knows nothing of Lazurio's data and fetches
-nothing itself, and a new rail needs no new release of this fork.
+The slot is two upstream files, each its own line in
+`allowed_upstream_changes`:
 
-The patch is about 20 lines in about three files: the script tag in
-`index.html`, the three elements, and a fixed rail with
-`#root { box-sizing: border-box; padding-left: var(--lazurio-rail-width, 0px); }`
-(padding, not margin, so the app never overflows past the right edge). Each
-changed file joins `allowed_upstream_changes` as its own exact path under one
-reviewed reason, so a rebuild on a new
-upstream tag conflicts only on those lines. The switch and the rail are plain
-links to the Environment's other origins, so MausBot's router does not
-change. Nothing renders outside Lazurio: without `/.lazurio/shell.js` the
-elements stay undefined, the rail's width is 0 and the app behaves as
-upstream. No recolouring or renaming comes with it.
+- `index.html`: `<script type="module" src="/.lazurio/shell.js" vite-ignore>`
+  (Vite leaves the tag as it is and bundles nothing), `<lazurio-rail>` before
+  `#root` and `<lazurio-buddy>` after it, and
+  `#root { box-sizing: border-box; padding-left: var(--lazurio-rail-width, 0px); }`
+  (padding, not margin, so the app never overflows past the right edge; the
+  rail positions itself).
+- `src/components/Sidebar.tsx`: `<lazurio-column-head active="automate">` as
+  the first child of the sidebar's top bar, above upstream's own top row,
+  which stays with all its controls (0179 point 6: upstream's look and brand
+  stay).
+
+The release contract test checks both, so a rebuild on a new upstream tag
+that loses the slot fails CI. The switch and the rail are plain links to the
+Environment's other origins, so MausBot's router does not change. Nothing
+renders outside Lazurio: without `/.lazurio/shell.js` the elements stay
+undefined, the rail's width is 0 and the app behaves as upstream (the browser
+only logs the failed script). No recolouring or renaming comes with it.
 
 How to release, rebuild on a new upstream tag, what the overlay contains and
 how Machines consume a release:
