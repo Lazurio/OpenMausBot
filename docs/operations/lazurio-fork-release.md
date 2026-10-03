@@ -54,7 +54,7 @@ release on the same upstream base; a new upstream base starts again at `.1`.
 
 The workflow refuses a version that is not higher than every published
 Lazurio release, so the newest release is always the highest version.
-Mind SemVer: `0.1.91-lazurio.1` is lower than `0.1.91`. Nothing in Lazurio
+Mind SemVer: `0.1.95-lazurio.1` is lower than `0.1.95`. Nothing in Lazurio
 compares our versions with upstream's; do not install upstream npm releases
 on Machines next to ours.
 
@@ -180,15 +180,23 @@ else stays blocked by `non_fast_forward`.
    that they agree.
 3. Review `allowed_upstream_changes`: remove files the overlay no longer
    changes; add a file only as a reviewed decision with its reason.
-4. Open a pull request and wait for a green `Lazurio Fork CI`. Hand the
-   Admin the exact old `main` (`expected_old_main`), the exact new head
-   (`candidate_head`) and the link to the green run.
+4. Open a pull request and wait for a green `Lazurio Fork CI`. A rebuild
+   never contains the old `main`, so GitHub reports the pull request as
+   conflicting and starts no `pull_request` workflow for it. Dispatch the
+   check on the candidate branch instead; its run reports on the exact head:
+
+   ```bash
+   gh workflow run lazurio-fork-ci.yml --repo Lazurio/OpenMausBot --ref <candidate branch>
+   ```
+
+   Hand the Admin the exact old `main` (`expected_old_main`), the exact new
+   head (`candidate_head`) and the link to the green run.
 5. Before `main` moves, the current `main` must be captured by a published
    **immutable** `v…-lazurio.N` release; no other tag counts:
 
    ```bash
    expected_old_main="$(git ls-remote https://github.com/Lazurio/OpenMausBot.git refs/heads/main | cut -f1)"
-   capture=v0.1.91-lazurio.3   # the latest release
+   capture="$(gh release view --repo Lazurio/OpenMausBot --json tagName --jq .tagName)"   # the latest release
    test "$(gh api "repos/Lazurio/OpenMausBot/git/ref/tags/$capture" --jq .object.sha)" = "$expected_old_main"
    test "$(gh api "repos/Lazurio/OpenMausBot/releases/tags/$capture" --jq .immutable)" = true
    ```
@@ -271,7 +279,7 @@ Organization Admin can do these steps; the order matters.
 
    ```bash
    pnpm install --frozen-lockfile
-   bash scripts/lazurio-release-archive.sh 0.1.91-lazurio.0 /tmp/omb-release
+   bash scripts/lazurio-release-archive.sh 0.1.95-lazurio.0 /tmp/omb-release
    ```
 
    The script stamps the version (and restores `package.json`), builds,
@@ -289,9 +297,9 @@ Organization Admin can do these steps; the order matters.
 Only from `main`, and only from the commit at its tip:
 
 ```bash
-VERSION=0.1.91-lazurio.1
+VERSION=0.1.95-lazurio.1
 SOURCE_SHA="$(git ls-remote https://github.com/Lazurio/OpenMausBot.git refs/heads/main | cut -f1)"
-UPSTREAM_TAG=v0.1.91
+UPSTREAM_TAG=v0.1.95
 UPSTREAM_SHA="$(git ls-remote https://github.com/milind-soni/OpenMausBot.git "refs/tags/$UPSTREAM_TAG" | cut -f1)"
 # Upstream tags are lightweight: the tag SHA is the commit (the workflow checks it).
 
@@ -334,7 +342,7 @@ the release should not go out, Matěj rejects it and nothing is published.
 ## Verifying a published release
 
 ```bash
-VERSION=0.1.91-lazurio.1
+VERSION=0.1.95-lazurio.1
 mkdir -p "/tmp/omb-$VERSION" && cd "/tmp/omb-$VERSION"
 gh release download "v$VERSION" --repo Lazurio/OpenMausBot
 sha256sum --check SHA256SUMS            # macOS: shasum -a 256 --check SHA256SUMS
@@ -411,6 +419,21 @@ npm does not trust this repository for `openmausbot`, and the mirror needs
   personal token. After any such publication, run the disable command at once.
   Once registered, the release workflow's pre-tag check refuses it while it is
   enabled.
+
+A rebuild is a triggering event too, because it changes upstream files that
+upstream's path filters watch. Its pull request is conflicting and triggers
+nothing, but replacing `main` does. On the rebuild to `v0.1.95` (no new
+upstream workflow file since `v0.1.91`, but the upstream version in
+`package.json` changes) two workflows register with that push:
+
+- `docs.yml` (push to `main` touching `package.json`, `pnpm-lock.yaml` or
+  `apps/docs/**`) only builds the docs.
+- `release.yml` (push to `main` that changes `package.json`) stops in its
+  `prepare` job at the missing `RELEASES_PAT`, so it publishes nothing.
+
+GitHub cannot disable a workflow before it registers. Right after the push,
+cancel whichever run is still going and run the disable command above;
+until then `Lazurio Fork CI` on `main` and the release refuse to proceed.
 
 After the first release, check that only the three `lazurio-*` workflows are
 active. Also check that `sync-published-release.yml` is either absent from the

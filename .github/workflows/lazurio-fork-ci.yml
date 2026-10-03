@@ -20,8 +20,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  UPSTREAM_TAG: v0.1.91
-  UPSTREAM_SHA: 1078681831b10435045195e5bff29ef790654d84
+  UPSTREAM_TAG: v0.1.95
+  UPSTREAM_SHA: 5e8b2523f02449ca18aff90edf47ce386c696872
   UPSTREAM_REPOSITORY: https://github.com/milind-soni/OpenMausBot.git
 
 jobs:
@@ -180,6 +180,6 @@ jobs:
     name: Archive
     uses: ./.github/workflows/lazurio-archive.yml
     with:
-      version: 0.1.91-lazurio.0
+      version: 0.1.95-lazurio.0
       source_sha: ${{ github.event.pull_request.head.sha || github.sha }}
       source_repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
