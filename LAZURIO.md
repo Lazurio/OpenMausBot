@@ -72,6 +72,10 @@ access means a separate Environment.
   Full is unlocked, never Custom
   ([`docs/self-hosting.md`](docs/self-hosting.md)). Off unless
   `OMB_HEADLESS_FULL_ACCESS=1`.
+- **Live browser fixes** (issues #13, #14): the Browser panel clicks where
+  the person points and waits while the bot is using the browser, instead
+  of failing with an install hint. An upstream-ready commit carried until
+  upstream takes it.
 - **Steward team**: [`lazurio/teams/steward.openmaus.json`](lazurio/teams/steward.openmaus.json),
   a leader (Henry, Chief of Staff) and three workers who review pull
   requests on their exact head and publish only on an explicit instruction.

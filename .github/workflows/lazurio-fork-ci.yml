@@ -69,6 +69,21 @@ jobs:
             # OMB_HEADLESS_FULL_ACCESS, the operator's opt-in to Full access
             # over the API, changes only files listed above: server/index.ts,
             # scripts/control-omb.ts and docs/self-hosting.md.
+            # Live browser fixes (issues #13, #14), an upstream-ready commit
+            # carried until upstream takes it: a fixed page size for the
+            # headless browser, clicks mapped into the page the frames show,
+            # and a view that waits while the bot holds the browser. Its
+            # wiring also changes server/index.ts, listed above.
+            server/browser-engine.ts
+            server/browser-engine.test.ts
+            server/browser-live.ts
+            server/browser-live.test.ts
+            server/browser-runtime.ts
+            server/browser-runtime.test.ts
+            src/components/BrowserPanel.tsx
+            src/components/BrowserPanel.test.ts
+            src/components/BrowserViewport.tsx
+            src/components/BrowserViewport.test.ts
           )
           unexpected="$(git diff --name-only --diff-filter=MDRT "$UPSTREAM_SHA..HEAD" |
             grep -vxF -f <(printf '%s\n' "${allowed_upstream_changes[@]}") || true)"
