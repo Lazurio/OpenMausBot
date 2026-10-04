@@ -8,6 +8,23 @@
     <!-- Lazurio shell (LAZURIO.md "The Lazurio shell"): served by the Environment's Launchpad; absent outside Lazurio. -->
     <script type="module" src="/.lazurio/shell.js" vite-ignore></script>
     <style>#root { box-sizing: border-box; padding-left: var(--lazurio-rail-width, 0px); }</style>
+    <!-- The shell's colour roles, from the active skin's tokens (html[data-skin]), so the rail and the column head take the skin's colours; the rail is the sidebar's panel. Unused outside Lazurio. -->
+    <style>
+      :root {
+        --lazurio-surface: var(--color-panel);
+        --lazurio-ink: var(--color-ink);
+        --lazurio-ink-muted: var(--color-ink-secondary);
+        --lazurio-line: color-mix(in srgb, var(--color-hairline) 40%, var(--color-panel));
+        --lazurio-line-strong: var(--color-hairline);
+        --lazurio-hover: color-mix(in srgb, var(--color-raised) 40%, var(--color-panel));
+        --lazurio-selected: color-mix(in srgb, var(--color-raised) 70%, var(--color-panel));
+        --lazurio-control: var(--color-inset);
+        --lazurio-raised: var(--color-raised);
+        --lazurio-overlay: var(--color-menu);
+        --lazurio-overlay-ink: var(--color-ink);
+        --lazurio-focus: var(--color-focus);
+      }
+    </style>
   </head>
   <body>
     <lazurio-rail></lazurio-rail>

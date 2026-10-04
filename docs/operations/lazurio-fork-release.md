@@ -120,6 +120,7 @@ release offers it.
 | `lazurio: Steward team for the GitHub intake`                     | The team Lazurio Organizations run behind the intake: leader Henry (Chief of Staff) and three workers with exact-head review and explicit-publication rules, as a portable team file (`lazurio/teams/steward.openmaus.json`). Lazurio-only; never proposed upstream. |
 | `server: OMB_HEADLESS_FULL_ACCESS, Full access over the API as an operator opt-in` | Steward teams run without a sandbox; the Environment is the boundary (issue #3). Off unless `OMB_HEADLESS_FULL_ACCESS=1`: the owner on loopback may then set a bot to Full through the bot PATCH, nothing else. New `server/headless-full-access.ts` plus one guard and two log lines in `server/index.ts`; see [`docs/self-hosting.md`](../self-hosting.md#full-access-without-the-desktop-app). Upstream-friendly; could be proposed upstream. |
 | `fix(browser): live view uses the page's real size and waits while the bot holds the browser` | The Browser panel on a headless Machine aimed clicks about 25 % too low and cut off the page, and failed with an install hint while the bot was using its browser (issues #13, #14). Gives OMB's headless browser a fixed 1280×720 page, maps clicks into the page the frames show, and keeps the view waiting while the session is busy. Written for upstream without Lazurio content: branch `fix/live-browser-viewport-and-busy` on `v0.1.91`, `fix/live-browser-viewport-and-busy-main` on upstream `main`. Drop it once upstream has an equivalent. |
+| `lazurio: the Lazurio shell slot, rail, column head and Buddy` and `lazurio: the shell takes the skin's colours through its roles` | The Lazurio shell's rail, column head and Buddy in an Environment (the Lazurio shell decisions of 2026-10-03), in the colours of the active skin (decided on 2026-10-04): `index.html` and one element in `src/components/Sidebar.tsx`; see [`LAZURIO.md`](../../LAZURIO.md#the-lazurio-shell). Outside Lazurio nothing renders and nothing reads the colour roles. Lazurio-only; never proposed upstream. |
 
 `OMB_DEFAULT_BOT_CWD` applies wherever a bot is created: New bot, the first
 bot on an empty server, a Chief's reviewed team setup and imports. A
@@ -139,7 +140,7 @@ never committed.
 
 Deliberately not in the overlay (DEV-6632 M2 and later): the Environment
 preset that installs and configures the Steward team, and any UI change
-beyond the upstream-ready live browser fixes.
+beyond the upstream-ready live browser fixes and the Lazurio shell slot.
 Approval levels stay upstream's, with one opt-in: Steward teams run on
 `full` (Organization Admin decision of 2026-10-01, issue #3, superseding the
 earlier `auto`), which a headless server allows only when the operator

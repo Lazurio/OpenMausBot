@@ -128,7 +128,8 @@ The slot is two upstream files, each its own line in
   `#root` and `<lazurio-buddy>` after it, and
   `#root { box-sizing: border-box; padding-left: var(--lazurio-rail-width, 0px); }`
   (padding, not margin, so the app never overflows past the right edge; the
-  rail positions itself).
+  rail positions itself), and the shell's colour roles on `:root`
+  ([below](#colours-of-the-shell)).
 - `src/components/Sidebar.tsx`: `<lazurio-column-head active="automate">` as
   the first child of the sidebar's top bar, above upstream's own top row,
   which stays with all its controls (0179 point 6: upstream's look and brand
@@ -139,7 +140,38 @@ that loses the slot fails CI. The switch and the rail are plain links to the
 Environment's other origins, so MausBot's router does not change. Nothing
 renders outside Lazurio: without `/.lazurio/shell.js` the elements stay
 undefined, the rail's width is 0 and the app behaves as upstream (the browser
-only logs the failed script). No recolouring or renaming comes with it.
+only logs the failed script). MausBot itself is not recoloured or renamed.
+
+### Colours of the shell
+
+**Decided on 2026-10-04.** The shell's elements take the colours of the app
+they sit in, through colour roles: custom properties the host sets on its
+document root, which the elements' shadow roots inherit. `index.html` sets
+them from the active skin's own tokens, and a skin is the `data-skin`
+attribute on `<html>`, so the roles follow every skin, live:
+
+| Role | MausBot token |
+| --- | --- |
+| `--lazurio-surface` (the rail, the column behind the head) | `--color-panel`, the sidebar |
+| `--lazurio-ink`, `--lazurio-overlay-ink` | `--color-ink` |
+| `--lazurio-ink-muted` | `--color-ink-secondary` |
+| `--lazurio-line` | `--color-hairline` at 40 % over the panel |
+| `--lazurio-line-strong` | `--color-hairline` |
+| `--lazurio-hover` | `--color-raised` at 40 % over the panel |
+| `--lazurio-selected` | `--color-raised` at 70 % over the panel |
+| `--lazurio-control` | `--color-inset` |
+| `--lazurio-raised` | `--color-raised` |
+| `--lazurio-overlay` | `--color-menu` |
+| `--lazurio-focus` | `--color-focus` |
+
+The mixes are the sidebar's own (`hover:bg-raised/40`, `bg-raised/70`,
+`border-hairline/40`). The rail is the sidebar's panel, so the two read as
+one surface with no line between them; the sidebar has no left border. The
+skins and the skin picker stay upstream's; one theme across Lazurio's apps
+is a later mechanism, not part of this fork. Nothing in MausBot reads the
+roles, so outside Lazurio it looks exactly as upstream. The release contract
+test checks the roles and that every token they read is still declared by
+the skins, so a rebuild on an upstream tag that renames a token fails CI.
 
 How to release, rebuild on a new upstream tag, what the overlay contains and
 how Machines consume a release:
