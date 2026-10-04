@@ -139,3 +139,24 @@ NodeTest.test("the Lazurio shell slot survives a rebuild on a new upstream tag",
   NodeAssert.match(sidebar, /<GlassBar edge="top">\n(?:\s*\{\/\*[^\n]*\*\/\}\n)?\s*\{createElement\("lazurio-column-head", \{ active: "automate" \}\)\}/);
   NodeAssert.equal(sidebar.match(/lazurio-column-head/g)?.length, 1);
 });
+
+NodeTest.test("the shell takes the active skin's colours through its roles", async () => {
+  const [page, styles] = await Promise.all([read("index.html"), read("src/styles.css")]);
+  const block = /<style>\s*:root \{([^}]*)\}\s*<\/style>/.exec(page)?.[1];
+  NodeAssert.ok(block, "index.html sets the colour roles on :root");
+  const roles = Object.fromEntries([...block.matchAll(/(--lazurio-[\w-]+): ([^;]+);/g)].map(([, name, value]) => [name, value]));
+  const names = ["surface", "ink", "ink-muted", "line", "line-strong", "hover", "selected", "control", "raised", "overlay", "overlay-ink", "focus"];
+  NodeAssert.deepEqual(Object.keys(roles).sort(), names.map((name) => `--lazurio-${name}`).sort());
+  // The rail is the sidebar's panel: one surface, no line between them.
+  NodeAssert.equal(roles["--lazurio-surface"], "var(--color-panel)");
+  // Every token a role reads is declared by the skins, so a rebuild on an
+  // upstream tag that renames one fails here instead of dropping a colour.
+  const theme = /@theme \{([^]*?)\n\}/.exec(styles)?.[1];
+  NodeAssert.ok(theme, "src/styles.css declares the skin tokens in @theme");
+  for (const [, token] of block.matchAll(/var\((--[\w-]+)\)/g)) {
+    NodeAssert.match(token, /^--color-/, token);
+    NodeAssert.match(theme, new RegExp(`\\n\\s*${token}:`), `${token} is a skin token`);
+  }
+  // MausBot itself reads none of the roles: outside Lazurio it looks as upstream.
+  NodeAssert.doesNotMatch(styles, /--lazurio-/);
+});

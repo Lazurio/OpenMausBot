@@ -85,9 +85,10 @@ jobs:
             src/components/BrowserViewport.tsx
             src/components/BrowserViewport.test.ts
             # The Lazurio shell slot (issue #16): the loader, the rail, the
-            # padding rule and Buddy in index.html, and the column head at the
-            # top of the sidebar. The shell itself is served by the
-            # Environment's Launchpad; without it nothing renders.
+            # padding rule, the shell's colour roles from the skin's tokens
+            # and Buddy in index.html, and the column head at the top of the
+            # sidebar. The shell itself is served by the Environment's
+            # Launchpad; without it nothing renders and nothing reads the roles.
             index.html
             src/components/Sidebar.tsx
           )
