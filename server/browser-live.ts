@@ -460,6 +460,9 @@ export class BrowserLive {
     options.res.once("error", () => this.close(viewer));
     try {
       const port = await this.connectWhenFree(viewer);
+      // Best-effort steps of the startup swallow their own failures, an abort
+      // by close() included; a viewer closed meanwhile gets no socket.
+      if (!this.current(viewer)) throw new BrowserLiveError("This browser view is no longer available.", 409);
       viewer.port = port;
       const socket = new WebSocket(`ws://127.0.0.1:${port}/?pacing=ack&maxFps=15`);
       viewer.socket = socket;

@@ -292,6 +292,19 @@ describe("authenticated browser viewer relay", () => {
     expect(res.id).toBeTruthy();
     expect(res.events("waiting")).toHaveLength(0);
   });
+  it("opens no stream socket when the viewer closes while the page is being sized", async () => {
+    let finish!: (value: ReturnType<typeof output>) => void;
+    execute.mockReset().mockResolvedValueOnce(output(ready)).mockImplementationOnce(() => new Promise((resolve) => finish = resolve));
+    const res = new ResponseFixture();
+    const opening = live.open({ botId: "a", session: "s", owner: "a", isCurrent: () => true, res: res as unknown as ServerResponse,
+      spec: { command: "/engine", env: { AGENT_BROWSER_SESSION: "s", AGENT_BROWSER_HEADLESS: "1" } } });
+    const rejected = expect(opening).rejects.toThrow();
+    await expect.poll(() => execute.mock.calls.length).toBe(2);
+    live.closeForOwner("a");
+    finish(output({}));
+    await rejected;
+    expect(SocketFixture.instances).toHaveLength(0);
+  });
   it("only acknowledges the exact frame rendered by this bound viewer", async () => {
     const { res, socket, action } = await open();
     socket.receive(frame);
