@@ -1,4 +1,4 @@
-// Lazurio MausBot GitHub intake: model-free polling of GitHub for real work.
+// Lazurio MausBot GitHub intake: model-free polling of GitHub for real work. (Demo change: measures the related-tests path of #25; not for merge.)
 //
 // Plain code asks GitHub, through the Environment's signed-in `gh` CLI (the
 // same user as this server), which pull requests need the account: a review
