@@ -32,11 +32,15 @@ jobs:
     permissions:
       actions: read
       contents: read
+    outputs:
+      vitest_scope: ${{ steps.scope.outputs.vitest_scope }}
+      vitest_related: ${{ steps.scope.outputs.vitest_related }}
     steps:
       - name: Fetch exact source and upstream base without credentials
         env:
           SOURCE_REF: ${{ github.event.pull_request.head.sha || github.sha }}
           SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           git init .
@@ -51,6 +55,14 @@ jobs:
           test "$(git rev-parse "refs/tags/upstream-$UPSTREAM_TAG^{commit}")" = "$UPSTREAM_SHA"
           git merge-base --is-ancestor "$UPSTREAM_SHA" HEAD
           test "$(git rev-list --merges "$UPSTREAM_SHA..HEAD" --count)" = 0
+
+          # A pull request's tests are chosen against its base; without it,
+          # scripts/lazurio-ci-scope.mjs runs the whole suite.
+          if [ -n "$BASE_SHA" ]; then
+            git remote add base "https://github.com/${GITHUB_REPOSITORY}.git"
+            git fetch --filter=blob:none base "$BASE_SHA" ||
+              echo "::warning::Cannot fetch the pull request's base $BASE_SHA"
+          fi
 
           # The overlay adds Lazurio files and changes only the upstream files
           # below. Each entry is a reviewed decision; a change to any other
@@ -122,13 +134,17 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      - name: Choose the vitest files
+        id: scope
+        run: node scripts/lazurio-ci-scope.mjs
+
       - name: Install locked dependencies
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
         run: pnpm install --frozen-lockfile
 
-      - name: Validate the Lazurio release contract
-        run: node --test scripts/lazurio-release-contract.node-test.mjs
+      - name: Validate the Lazurio release contract and test selection
+        run: node --test scripts/lazurio-release-contract.node-test.mjs scripts/lazurio-ci-scope.node-test.mjs
 
       - name: Typecheck
         run: pnpm typecheck
@@ -136,7 +152,12 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-  # Upstream's own suite, sharded the way upstream ci.yml runs it on Linux.
+  # Upstream's own suite in four shards of about equal measured duration
+  # (lazurio/vitest.config.mjs). A pull request runs the overlay's own tests
+  # and what `vitest related` relates to its diff; pushes to main, manual
+  # runs and pull requests that change CI, the upstream pin, the test runner,
+  # dependencies or shared test helpers run everything
+  # (scripts/lazurio-ci-scope.mjs).
   vitest:
     name: vitest (shard ${{ matrix.shard }}/4)
     needs: overlay
@@ -175,7 +196,20 @@ jobs:
         run: node --input-type=commonjs -e "require('electron')"
 
       - name: Run tests
-        run: pnpm exec vitest run --shard=${{ matrix.shard }}/4 --reporter=default --reporter=github-actions
+        env:
+          SHARD: ${{ matrix.shard }}/4
+          VITEST_SCOPE: ${{ needs.overlay.outputs.vitest_scope }}
+          VITEST_RELATED: ${{ needs.overlay.outputs.vitest_related }}
+        run: |
+          set -euo pipefail
+          options=(--config lazurio/vitest.config.mjs "--shard=$SHARD" --reporter=default --reporter=github-actions)
+          if [ "$VITEST_SCOPE" = related ]; then
+            related="$(jq -er '.[]' <<<"$VITEST_RELATED")"
+            mapfile -t files <<<"$related"
+            pnpm exec vitest related --run "${options[@]}" "${files[@]}"
+          else
+            pnpm exec vitest run "${options[@]}"
+          fi
 
       - name: Broker and Electron unit tests
         if: matrix.shard == 1

@@ -271,10 +271,25 @@ Organization Admin can do these steps; the order matters.
    - the overlay guard (exact upstream tag, no merge commits, only
      allowlisted upstream files changed), upstream workflows disabled, the
      release contract test, `pnpm typecheck` and `pnpm lint`;
-   - upstream's own vitest suite in four shards on Linux, plus
-     `pnpm broker:test` and `pnpm test:electron`;
+   - upstream's own vitest suite in four shards on Linux, split by measured
+     duration (`lazurio/vitest.config.mjs`), plus `pnpm broker:test` and
+     `pnpm test:electron`;
    - `Archive`: the release archive built and smoke-tested under
      `<upstream>-lazurio.0`.
+
+   `main`, a manual run (the dispatched check of a rebuild) and a pull
+   request that changes CI, the upstream pin, the test runner, dependencies
+   or shared test helpers run the whole vitest suite. Any other pull request
+   runs the overlay's own tests and what `vitest related` relates to its
+   diff: the changed test files and every test that imports a changed file
+   (`scripts/lazurio-ci-scope.mjs`). vitest follows imports only, so a test
+   that starts the server as a child process or reads a file from disk can
+   miss a pull request and fail on `main` after the merge; repair it forward.
+   To see what a pull request runs:
+   `UPSTREAM_SHA=<pin> node scripts/lazurio-ci-scope.mjs <base> <head>`.
+   A rebuild that renames or removes a test file listed in
+   `lazurio/vitest-durations.json` fails until its entry is renamed or
+   dropped.
 2. **Local archive** (optional, useful when debugging the build). In a clean
    checkout with Node 24+ and pnpm:
 
