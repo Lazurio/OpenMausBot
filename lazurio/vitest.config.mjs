@@ -4,12 +4,13 @@
 // files (about 9 of the suite's 45 minutes) into one shard.
 //
 // lazurio/vitest-durations.json holds, in seconds, the files that took 5 s
-// or more in the Lazurio Fork CI run on main at a57f8dc5 (run 37222187977),
-// measured as the time between a shard's consecutive finished-file lines in
-// the log; every other file weighs 0.75 s, their average. An outdated
-// duration only unbalances the shards: every file still runs in exactly one
-// of them. A listed file that no longer exists fails the run; rename or drop
-// its entry, and re-measure the same way when the shards drift apart.
+// or more on average in two Lazurio Fork CI runs on the test files of main at
+// a57f8dc5 (runs 37476583884 and 37478790478), measured as the time between a
+// shard's consecutive finished-file lines in the log; every other file weighs
+// 0.7 s, their average. An outdated duration only unbalances the shards:
+// every file still runs in exactly one of them. A listed file that no longer
+// exists fails the run; rename or drop its entry, and re-measure the same way
+// when the shards drift apart.
 import { relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, mergeConfig } from "vitest/config";
