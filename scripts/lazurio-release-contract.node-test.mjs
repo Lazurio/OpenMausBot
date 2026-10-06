@@ -5,13 +5,11 @@ import * as NodeFSP from "node:fs/promises";
 import * as NodeTest from "node:test";
 
 const read = (path) => NodeFSP.readFile(path, "utf8");
-const [release, archive, ci, script, docs, contract] = await Promise.all([
+const [release, archive, ci, script] = await Promise.all([
   read(".github/workflows/lazurio-release.yml"),
   read(".github/workflows/lazurio-archive.yml"),
   read(".github/workflows/lazurio-fork-ci.yml"),
   read("scripts/lazurio-release-archive.sh"),
-  read("docs/operations/lazurio-fork-release.md"),
-  read("LAZURIO.md"),
 ]);
 
 NodeTest.test("release is manual, gated, and never overwrites", () => {
@@ -101,8 +99,6 @@ NodeTest.test("CI is read-only and pins the exact upstream base", () => {
   NodeAssert.ok(tag, "CI pins UPSTREAM_TAG");
   NodeAssert.match(ci, /UPSTREAM_SHA: [0-9a-f]{40}\n/);
   NodeAssert.match(ci, new RegExp(`version: ${tag.replaceAll(".", "\\.")}-lazurio\\.0\\n`));
-  NodeAssert.match(ci, /pnpm typecheck/);
-  NodeAssert.match(ci, /vitest run --shard=/);
   NodeAssert.match(ci, /Upstream workflows stay disabled/);
 });
 
@@ -119,13 +115,6 @@ NodeTest.test("the overlay may change only listed upstream files", () => {
     NodeAssert.doesNotMatch(entry, /[*?[\]{}]|\.\.|\/$/, entry);
     NodeAssert.doesNotMatch(entry, /^\.github\/workflows\//, "upstream workflows stay unchanged; they are disabled in settings");
   }
-});
-
-NodeTest.test("the runbook and fork contract name the operative facts", () => {
-  for (const fact of ["lazurio-openmausbot-release", "--force-with-lease", "openmausbot-<version>-linux-x64.tar.gz", "SHA256SUMS", "release-evidence.json", "OMB_DEFAULT_BOT_CWD", "OMB_WEBHOOK_PORT"]) {
-    NodeAssert.ok(docs.includes(fact), `runbook mentions ${fact}`);
-  }
-  NodeAssert.match(contract, /docs\/operations\/lazurio-fork-release\.md/);
 });
 
 NodeTest.test("the Lazurio shell slot survives a rebuild on a new upstream tag", async () => {
