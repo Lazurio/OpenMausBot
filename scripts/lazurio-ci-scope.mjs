@@ -3,25 +3,28 @@
 // before a release".
 //
 // Upstream's suite is about 900 files and 45 minutes of serial tests; the
-// overlay's own tests take seconds. A pull request therefore runs the
-// overlay's own tests (every test file the overlay adds or changes against
-// UPSTREAM_SHA) and what `vitest related` relates to the pull request's diff:
-// the changed test files and every test that imports a changed file. The
-// overlay guard lets a pull request change only allowlisted upstream files,
-// and a new allowlist entry is a CI change, so the rest of a diff is Lazurio
-// files and allowlisted upstream files.
+// overlay's own tests take seconds. A pull request that changes only
+// Lazurio files, documentation or tests therefore runs the overlay's own
+// tests (every test file the overlay adds or changes against UPSTREAM_SHA)
+// and what `vitest related` relates to its diff: the changed test files and
+// every test that imports a changed file.
 //
-// The whole suite runs on pushes to main and on manual runs (a rebuild on a
-// new upstream tag is dispatched by hand), and on a pull request that
-// changes what the import graph cannot see: CI and the upstream pin, this
-// selection and the shard config, the test runner, dependencies, shared test
-// helpers and fixtures. A pull request whose base does not stand on the
-// pinned upstream tag, or whose diff cannot be read, runs the whole suite too.
+// vitest relates by imports only, and upstream's tests reach most upstream
+// code another way: about a hundred end-to-end tests start server/index.ts
+// as a child process (no test imports it), and the UI tests load the app,
+// index.html included, through a Vite dev server. A pull request that
+// changes upstream code (any file present at UPSTREAM_SHA other than
+// Markdown and test files) therefore runs the whole suite. So does one that
+// changes CI and the upstream pin, this selection and the shard config, the
+// test runner, dependencies, shared test helpers or fixtures; one whose base
+// does not stand on the pinned upstream commit; and one whose diff cannot be
+// read. Pushes to main and manual runs (a rebuild on a new upstream tag is
+// dispatched by hand) always run everything.
 //
-// vitest relates by imports only: a test that starts the server as a child
-// process, or reads a file from disk, is not related to what it uses. The
-// overlay's own end-to-end tests boot the real server on every pull request,
-// and main runs everything after each merge.
+// What stays outside the import graph for Lazurio code (a Lazurio module
+// the spawned server loads, a file a test reads from disk) is covered by the
+// overlay's own end-to-end tests, which boot the real server on every pull
+// request, and by main running everything after each merge.
 import { execFileSync, spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -42,21 +45,24 @@ const TEST_FILE = /\.test\.(ts|mjs)$/;
 const SHA = /^[0-9a-f]{40}$/;
 
 /**
- * @param {{ changed: string[], overlay: string[] }} diff paths the pull
- *   request changes, and paths the overlay adds or changes against upstream
+ * @param {{ changed: string[], upstream: string[], overlay: string[] }} diff
+ *   paths the pull request changes, those of them present at the pinned
+ *   upstream commit, and paths the overlay adds or changes against upstream
  * @returns {{ scope: "full", reason: string } | { scope: "related", files: string[] }}
  */
-export function selectTests({ changed, overlay }) {
-  if (!Array.isArray(changed) || !Array.isArray(overlay) || changed.length === 0) {
+export function selectTests({ changed, upstream, overlay }) {
+  if (![changed, upstream, overlay].every(Array.isArray) || changed.length === 0) {
     return { scope: "full", reason: "the pull request's diff is empty or unreadable" };
   }
-  for (const file of [...changed, ...overlay]) {
+  for (const file of [...changed, ...upstream, ...overlay]) {
     if (typeof file !== "string" || file.split("/").some((part) => !part || part === "." || part === ".." || part.startsWith("-"))) {
       return { scope: "full", reason: `unexpected path ${JSON.stringify(file)}` };
     }
   }
   const trigger = changed.find((file) => FULL_SUITE.some((pattern) => pattern.test(file)));
   if (trigger) return { scope: "full", reason: `${trigger} changed` };
+  const code = upstream.find((file) => !file.endsWith(".md") && !TEST_FILE.test(file));
+  if (code) return { scope: "full", reason: `upstream code ${code} changed, which tests reach outside the import graph` };
   const files = new Set([...overlay.filter((file) => TEST_FILE.test(file)), ...changed]);
   return { scope: "related", files: [...files].sort() };
 }
@@ -83,7 +89,14 @@ export function pullRequestScope({ base, head, upstream, cwd = process.cwd() }) 
     return { scope: "full", reason: `the pull request's base ${mergeBase} does not stand on the pinned upstream ${upstream}` };
   }
   if (onUpstream.status !== 0) throw new Error(`git merge-base --is-ancestor failed: ${onUpstream.stderr}`);
-  return selectTests({ changed: diffPaths(cwd, [mergeBase, head]), overlay: diffPaths(cwd, ["--diff-filter=d", upstream, head]) });
+  const changed = diffPaths(cwd, [mergeBase, head]);
+  const present = changed.length === 0 ? "" : git(cwd, ["--literal-pathspecs", "ls-tree", "-r", "--name-only", "-z", upstream, "--", ...changed]);
+  if (present && !present.endsWith("\0")) throw new Error("unreadable git ls-tree output");
+  return selectTests({
+    changed,
+    upstream: present ? present.slice(0, -1).split("\0") : [],
+    overlay: diffPaths(cwd, ["--diff-filter=d", upstream, head]),
+  });
 }
 
 // Every file lands in exactly one of `count` shards, longest first, each on

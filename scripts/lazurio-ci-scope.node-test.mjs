@@ -13,14 +13,24 @@ import { pullRequestScope, readDurations, selectTests, splitByDuration } from ".
 const overlay = ["server/github-intake.ts", "server/github-intake.test.ts", "server/headless-full-access.e2e.test.ts", "LAZURIO.md"];
 
 NodeTest.test("a pull request runs the overlay's tests and the inputs of vitest related", () => {
-  NodeAssert.deepEqual(selectTests({ changed: ["LAZURIO.md"], overlay }), {
+  NodeAssert.deepEqual(selectTests({ changed: ["LAZURIO.md"], upstream: [], overlay }), {
     scope: "related",
     files: ["LAZURIO.md", "server/github-intake.test.ts", "server/headless-full-access.e2e.test.ts"],
   });
-  NodeAssert.deepEqual(selectTests({ changed: ["server/store.ts", "src/components/Sidebar.tsx"], overlay: [] }), {
+  // Lazurio code, upstream documentation and upstream tests stay selective.
+  const changed = ["server/github-intake.ts", "docs/self-hosting.md", "server/browser-live.test.ts"];
+  NodeAssert.deepEqual(selectTests({ changed, upstream: changed.slice(1), overlay: [] }), {
     scope: "related",
-    files: ["server/store.ts", "src/components/Sidebar.tsx"],
+    files: ["docs/self-hosting.md", "server/browser-live.test.ts", "server/github-intake.ts"],
   });
+});
+
+NodeTest.test("upstream code runs the whole suite: its tests reach it through child processes", () => {
+  for (const file of ["server/index.ts", "server/store.ts", "scripts/control-omb.ts", "src/components/Sidebar.tsx", "index.html"]) {
+    const scope = selectTests({ changed: ["LAZURIO.md", file], upstream: [file], overlay });
+    NodeAssert.equal(scope.scope, "full", file);
+    NodeAssert.match(scope.reason, /upstream code/);
+  }
 });
 
 NodeTest.test("what the import graph cannot see runs the whole suite", () => {
@@ -41,14 +51,15 @@ NodeTest.test("what the import graph cannot see runs the whole suite", () => {
     "companion/test/fixtures/devices.json",
     "shared/package-fixtures/full-team.v2.json",
   ]) {
-    NodeAssert.equal(selectTests({ changed: ["LAZURIO.md", file], overlay }).scope, "full", file);
+    NodeAssert.equal(selectTests({ changed: ["LAZURIO.md", file], upstream: [], overlay }).scope, "full", file);
   }
 });
 
 NodeTest.test("an empty or unreadable diff runs the whole suite", () => {
   for (const changed of [[], undefined, ["server/../x.ts"], ["server//x.ts"], ["--config=x"], [42]]) {
-    NodeAssert.equal(selectTests({ changed, overlay }).scope, "full", JSON.stringify(changed));
+    NodeAssert.equal(selectTests({ changed, upstream: [], overlay }).scope, "full", JSON.stringify(changed));
   }
+  NodeAssert.equal(selectTests({ changed: ["LAZURIO.md"], upstream: undefined, overlay }).scope, "full");
 });
 
 NodeTest.test("the scope of a pull request comes from git, and fails closed off the pinned upstream", (t) => {
@@ -68,11 +79,16 @@ NodeTest.test("the scope of a pull request comes from git, and fails closed off 
   const upstream = commit({ "server/store.ts": "1", "server/store.test.ts": "1" }, "upstream");
   commit({ "server/github-intake.ts": "1", "server/github-intake.test.ts": "1", "server/store.test.ts": "2" }, "overlay");
   const base = commit({ "LAZURIO.md": "1" }, "main");
-  const head = commit({ "LAZURIO.md": "2", "server/store.ts": "2" }, "pull request");
+  const head = commit({ "LAZURIO.md": "2", "server/github-intake.ts": "2", "server/store.test.ts": "3" }, "pull request");
 
   NodeAssert.deepEqual(pullRequestScope({ base, head, upstream, cwd: repo }), {
     scope: "related",
-    files: ["LAZURIO.md", "server/github-intake.test.ts", "server/store.test.ts", "server/store.ts"],
+    files: ["LAZURIO.md", "server/github-intake.test.ts", "server/github-intake.ts", "server/store.test.ts"],
+  });
+  const touchesUpstream = commit({ "server/store.ts": "2" }, "pull request on upstream code");
+  NodeAssert.deepEqual(pullRequestScope({ base, head: touchesUpstream, upstream, cwd: repo }), {
+    scope: "full",
+    reason: "upstream code server/store.ts changed, which tests reach outside the import graph",
   });
   // A rebuild on a newer upstream tag: its base does not stand on the new pin.
   git("checkout", "-q", "-b", "rebuild", upstream);
