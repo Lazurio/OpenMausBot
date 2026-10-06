@@ -153,10 +153,11 @@ jobs:
         run: pnpm lint
 
   # Upstream's own suite in four shards of about equal measured duration
-  # (lazurio/vitest.config.mjs). A pull request runs the overlay's own tests
-  # and what `vitest related` relates to its diff; pushes to main, manual
-  # runs and pull requests that change CI, the upstream pin, the test runner,
-  # dependencies or shared test helpers run everything
+  # (lazurio/vitest.config.mjs). A pull request that changes only Lazurio
+  # files, documentation or tests runs the overlay's own tests and what
+  # `vitest related` relates to its diff; pushes to main, manual runs and
+  # pull requests that change upstream code, CI, the upstream pin, the test
+  # runner, dependencies or shared test helpers run everything
   # (scripts/lazurio-ci-scope.mjs).
   vitest:
     name: vitest (shard ${{ matrix.shard }}/4)

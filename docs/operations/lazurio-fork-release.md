@@ -278,14 +278,17 @@ Organization Admin can do these steps; the order matters.
      `<upstream>-lazurio.0`.
 
    `main`, a manual run (the dispatched check of a rebuild) and a pull
-   request that changes CI, the upstream pin, the test runner, dependencies
-   or shared test helpers run the whole vitest suite. Any other pull request
-   runs the overlay's own tests and what `vitest related` relates to its
-   diff: the changed test files and every test that imports a changed file
-   (`scripts/lazurio-ci-scope.mjs`). vitest follows imports only, so a test
-   that starts the server as a child process or reads a file from disk can
-   miss a pull request and fail on `main` after the merge; repair it forward.
-   To see what a pull request runs:
+   request that changes upstream code (any upstream file other than Markdown
+   and tests), CI, the upstream pin, the test runner, dependencies or shared
+   test helpers run the whole vitest suite: upstream's end-to-end tests start
+   the server as a child process and load the app through a Vite dev server,
+   which vitest's import graph cannot see. Any other pull request (Lazurio
+   files, documentation, tests) runs the overlay's own tests and what
+   `vitest related` relates to its diff: the changed test files and every
+   test that imports a changed file (`scripts/lazurio-ci-scope.mjs`). A test
+   that reads a Lazurio file from disk can still miss a pull request and fail
+   on `main` after the merge; repair it forward. To see what a pull request
+   runs:
    `UPSTREAM_SHA=<pin> node scripts/lazurio-ci-scope.mjs <base> <head>`.
    A rebuild that renames or removes a test file listed in
    `lazurio/vitest-durations.json` fails until its entry is renamed or
