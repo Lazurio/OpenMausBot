@@ -102,7 +102,7 @@ export function pullRequestScope({ base, head, upstream, cwd = process.cwd() }) 
 // Every file lands in exactly one of `count` shards, longest first, each on
 // the shard with the least time so far; a file missing from `durations`
 // weighs UNLISTED_SECONDS. The same files give the same split on every shard.
-export const UNLISTED_SECONDS = 0.75;
+export const UNLISTED_SECONDS = 0.7;
 
 /** @returns {string[][]} the files of each shard */
 export function splitByDuration(files, durations, count) {
