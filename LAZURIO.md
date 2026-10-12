@@ -67,7 +67,8 @@ access means a separate Environment.
   ([`docs/self-hosting.md`](docs/self-hosting.md)).
 - **GitHub intake**: model-free polling under the Environment's signed-in
   `gh` that hands a bot only real pull request work, a review on a new head
-  or an explicit `/lazurio publish` instruction, through the webhook queue
+  or an explicitly activated assignment handoff (with legacy `/lazurio publish`
+  compatibility), through the webhook queue
   ([`docs/lazurio-github-intake.md`](docs/lazurio-github-intake.md)). Off
   unless `OMB_GITHUB_INTAKE=1`.
 - `OMB_HEADLESS_FULL_ACCESS`: the operator's opt-in at server start that

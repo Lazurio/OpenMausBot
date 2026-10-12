@@ -25,6 +25,7 @@ the server behaves exactly as upstream OpenMausBot.
 | `OMB_GITHUB_INTAKE_OWNERS` | Comma-separated owner logins. Only their repositories count, for every trigger. Unset: any owner. |
 | `OMB_GITHUB_INTAKE_EXCLUDE` | Comma-separated `owner/repo` patterns (`*` matches anything) left out of the `organization` scope, e.g. `acme/infra,acme/productionspace-*`. |
 | `OMB_GITHUB_INTAKE_INTERVAL_SECONDS` | Poll interval, default 90, bounded to 30–3600. |
+| `OMB_GITHUB_INTAKE_ASSIGNMENTS` | `1` enables assignment handoff as the scoped completion/merge mandate. Off by default for an explicit migration; only assignments after first activation qualify. |
 | `OMB_GITHUB_INTAKE_GH` | The `gh` executable; default `gh` on `PATH`. |
 
 An unknown value stops the server at start with the reason. Example for a
@@ -79,7 +80,32 @@ A review is also not handed over when the account already submitted
 records them as `needs_human_approval` (in the status and the log) and starts
 no bot turn: a person approves them.
 
-**Publication** fires once per instruction comment when all of these hold:
+**Assignment handoff**, enabled by `OMB_GITHUB_INTAKE_ASSIGNMENTS=1`,
+queues one completion task for a current assignment from a live repository
+writer. It needs the immutable GitHub assignment event, actor and recipient
+IDs, matching live writer identity, and the signed-in recipient. Self-assignment
+is not a mandate. No `/lazurio publish` comment is required: the assignee owns
+bounded repairs, verification and permitted merge, or an explicit transfer to
+the next authorized assignee. Review requests alone remain review-only.
+
+First activation persists `assignmentActivatedAt` in the existing intake
+state. Historical assignments do not silently become publication consent;
+reassign those PRs explicitly. Restart preserves that boundary and the event
+receipt. Drafts wait for Ready. A removed/replaced assignment revokes its
+handoff. Before merging the worker must recheck the current assignment event,
+immutable identities, live rights and current-head repository gates. Owner-only
+merge rules still apply; Free repositories use the same process agreement.
+An assignment is not authority for separate releases, infrastructure applies,
+repository settings or credentials. The shipped team explains these bounds.
+
+A PR with a qualifying assignment gets one completion task rather than a
+concurrent review task. The same assignment is not automatically replayed:
+if its native run ends while the PR remains open and assigned, the status
+shows `needs_recovery`. Check native workers and the actual PR before a new
+handoff. In-flight delegated work must not be duplicated.
+
+**Legacy publication comments** remain compatible. This path fires once per
+instruction comment when all of these hold:
 
 - the pull request is assigned to the account;
 - a comment on the pull request (its conversation, not a review comment)
@@ -93,7 +119,7 @@ no bot turn: a person approves them.
   timestamps have one-second resolution, so a comment in the same second as
   the assignment does not count.
 
-Assignment alone never publishes. An instruction that fails a check is
+With assignment handoff disabled, assignment alone does not publish. An instruction that fails a check is
 recorded as `ignored` with the reason and is never retried; the person asks
 again with a new comment. The bot still checks approvals and required checks
 before it merges (see the Steward team).
@@ -127,14 +153,22 @@ block:
 ```
 
 `reason` is `review_requested`, `reviewed_before`, `organization_scope` or
-`publish_instruction`. `requester` is the pull request's author for a review
+`publish_instruction` or `assignment_handoff`. The latter carries
+`assignment: {event_id, actor, actor_id, assignee, assignee_id, created_at}`. `requester` is the pull request's author for a review
 and the instruction's author for a publication, which also carries
 `instruction: {comment_id, url, author, created_at, marker}`. The event name
 is `github.review` or `github.publish`.
 
-Pausing the webhook pauses the intake: work stays pending and is delivered
-when it is enabled again. So does a full queue; the intake then tries once
-per poll, not once per pull request.
+Pausing the webhook prevents new delivery and **cancels queued runs** in
+upstream's native queue. A full queue defers not-yet-accepted work; the intake
+tries once per poll, not once per pull request. Accepted delivery is not
+completion. The intake reads native run receipts even when GitHub's
+`updated_at` did not change. If a coordinator ended or disappeared without a
+current-head GitHub verdict, it reports `needs_recovery` with the PR, run and
+next action. It does not replay work that may still have delegated workers.
+A late worker verdict resolves the status without another review. Publication
+recovery remains distinct: verify the current assignment and PR, never retry
+a publication as a review or erase deduplication receipts.
 
 ## Polling, limits and state
 
@@ -157,10 +191,11 @@ per poll, not once per pull request.
 
 `GET /api/github-intake` returns `{enabled: false}` or the state (`ok`,
 `gh_missing`, `gh_signed_out`, `no_target`, `paused`, `queue_full`,
-`rate_limited`, `error`), the account, the target bot, the webhook id, the
+`rate_limited`, `needs_recovery`, `error`), the account, the target bot, the webhook id, the
 configuration, `lastPollAt`, `lastSuccessAt`, `nextPollInMs`, `lastError` and
 the 50 most recent outcomes (`delivered`, `duplicate`, `already_reviewed`,
-`needs_human_approval`, `ignored`). `POST /api/github-intake/poll` polls now
+`needs_human_approval`, `needs_recovery`, `ignored`). Status also exposes
+`assignmentHandoff` and its persisted `assignmentActivatedAt`. `POST /api/github-intake/poll` polls now
 and returns the poll summary with the status. Both need the admin scope
 (the owner on loopback). The server log carries `[github-intake]` lines for
 changes of state, deliveries, own pull requests and ignored instructions.
@@ -191,3 +226,21 @@ changes of state, deliveries, own pull requests and ignored instructions.
   Machines never sets it. Every intake delivery opens a new conversation,
   which starts Full, and the leader's delegated work runs Full too.
   Questions and missing credentials still wait for the operator.
+
+
+## Contract and verification
+
+The 12 October 2026 Operator decision makes GitHub assignee the ordinary
+handoff for people and personas. The existing webhook queue and native
+execution receipts remain the only scheduler and work ledger. A second
+comment would duplicate intent; treating every reviewed PR as mergeable
+would discard the concrete handoff. The activation boundary prevents an
+upgrade from executing old assignments made under the previous contract.
+
+`server/github-intake.test.ts` exercises GitHub-shaped events, identities,
+live roles, review-only requests, migration, reassignment, pause/restart and
+late verdicts through the real WebhookManager. `github-intake.e2e.test.ts`
+imports the released team into the isolated real server and exercises the
+native queue and execution receipts with fake GitHub and model providers.
+These fixtures do not claim that a real GitHub merge or deployment occurred;
+that evidence belongs to each commissioned Environment.
