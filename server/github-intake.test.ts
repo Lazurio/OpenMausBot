@@ -36,9 +36,14 @@ interface FakePr {
   requested: string[];
   reviews: FakeReview[];
   assignees: string[];
-  events: Array<{ event: "assigned" | "unassigned"; assignee: string; at: string }>;
+  events: Array<{ event: "assigned" | "unassigned"; assignee: string; at: string; actor?: string }>;
   comments: FakeComment[];
   updated: number;
+}
+
+function identity(login: string) {
+  const ids: Record<string, number> = { "henry-bot": 12, alice: 11, matej: 14, steward: 13, reader: 15, stranger: 16 };
+  return { login, id: ids[login.toLowerCase()] ?? 99 };
 }
 
 class FakeGitHub {
@@ -55,6 +60,8 @@ class FakeGitHub {
   maxInFlight = 0;
   private clock = Date.parse("2026-09-30T08:00:00Z");
   private commentId = 100;
+
+  get now(): number { return this.clock; }
 
   tick(): string {
     this.clock += 60_000;
@@ -79,8 +86,8 @@ class FakeGitHub {
   }
 
   push(pr: FakePr, head: string): void { this.change(pr, (p) => { p.head = head; }); }
-  assign(pr: FakePr, who: string): void {
-    this.change(pr, (p) => { p.assignees.push(who); p.events.push({ event: "assigned", assignee: who, at: new Date(this.clock + 60_000).toISOString() }); });
+  assign(pr: FakePr, who: string, actor = "alice"): void {
+    this.change(pr, (p) => { p.assignees.push(who); p.events.push({ event: "assigned", assignee: who, actor, at: new Date(this.clock + 60_000).toISOString() }); });
   }
   comment(pr: FakePr, user: string, body: string): FakeComment {
     const comment = { id: ++this.commentId, user, body, at: new Date(this.clock + 60_000).toISOString() };
@@ -115,7 +122,7 @@ class FakeGitHub {
     const ok = (value: unknown): GhResult => ({ ok: true, stdout: JSON.stringify(value) });
     const notFound: GhResult = { ok: false, code: 1, stderr: "gh: Not Found (HTTP 404)" };
 
-    if (url.pathname === "/user") return ok({ login: this.login });
+    if (url.pathname === "/user") return ok(identity(this.login));
     if (url.pathname === "/user/repos") {
       return ok(paged(this.repos.map((repo) => ({
         full_name: repo.full_name,
@@ -141,12 +148,12 @@ class FakeGitHub {
     if (m) {
       const pr = this.find(m[1], Number(m[2]));
       if (!pr) return notFound;
-      if (m[3]) return ok(paged(pr.reviews.map((review, i) => ({ id: i + 1, user: { login: review.user }, commit_id: review.commit, state: review.state }))));
+      if (m[3]) return ok(paged(pr.reviews.map((review, i) => ({ id: i + 1, user: identity(review.user), commit_id: review.commit, state: review.state }))));
       return ok({
         number: pr.number, title: pr.title, html_url: `https://github.test/${pr.repo}/pull/${pr.number}`,
-        state: pr.open ? "open" : "closed", draft: pr.draft, user: { login: pr.author },
+        state: pr.open ? "open" : "closed", draft: pr.draft, user: identity(pr.author),
         head: { sha: pr.head }, base: { ref: "main" },
-        assignees: pr.assignees.map((login) => ({ login })),
+        assignees: pr.assignees.map(identity),
         requested_reviewers: pr.requested.map((login) => ({ login })),
       });
     }
@@ -160,14 +167,14 @@ class FakeGitHub {
           html_url: `https://github.test/${pr.repo}/pull/${pr.number}#issuecomment-${c.id}`,
         }))));
       }
-      return ok(paged(pr.events.map((e, i) => ({ id: i + 1, event: e.event, assignee: { login: e.assignee }, created_at: e.at }))));
+      return ok(paged(pr.events.map((e, i) => ({ id: i + 1, event: e.event, assignee: identity(e.assignee), actor: e.actor ? identity(e.actor) : null, created_at: e.at }))));
     }
     m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/collaborators\/([^/]+)\/permission$/);
     if (m) {
       const role = this.permissions.get(`${m[1]}:${m[2]}`);
       if (!role) return notFound;
       const permission = role === "maintain" ? "write" : role === "triage" ? "read" : role;
-      return ok({ permission, role_name: role, user: { login: m[2] } });
+      return ok({ permission, role_name: role, user: identity(m[2]) });
     }
     return { ok: false, code: 1, stderr: `gh: unexpected path ${path} (HTTP 404)` };
   }
@@ -202,7 +209,7 @@ afterEach(() => {
 
 interface Bot { id: string; name: string }
 
-function harness(overrides: Partial<GithubIntakeConfig> = {}, options: { dir?: string; github?: FakeGitHub; bots?: Bot[] } = {}) {
+function harness(overrides: Partial<GithubIntakeConfig> & { assignmentHandoff?: boolean } = {}, options: { dir?: string; github?: FakeGitHub; bots?: Bot[] } = {}) {
   const dir = options.dir ?? mkdtempSync(join(tmpdir(), "omb-github-intake-"));
   if (!options.dir) dirs.push(dir);
   const github = options.github ?? new FakeGitHub();
@@ -211,6 +218,7 @@ function harness(overrides: Partial<GithubIntakeConfig> = {}, options: { dir?: s
   let pending = 0;
   let run = 0;
   const receipts = new Map<string, string>();
+  const runs = new Map<string, { status: string; startedAt?: number }>();
   const webhooks = new WebhookManager({
     file: join(dir, "webhooks.json"),
     botState: (botId) => (bots.some((bot) => bot.id === botId) ? "ready" : "missing"),
@@ -218,6 +226,7 @@ function harness(overrides: Partial<GithubIntakeConfig> = {}, options: { dir?: s
       queued.push(input);
       const id = `run-${++run}`;
       receipts.set(`${input.webhookId}:${input.deliveryId}`, id);
+      runs.set(id, { status: "queued" });
       return { id };
     },
     findRun: (webhookId, deliveryId) => {
@@ -225,6 +234,7 @@ function harness(overrides: Partial<GithubIntakeConfig> = {}, options: { dir?: s
       return id ? { id } : null;
     },
     pendingRuns: () => pending,
+    cancelQueued: () => { for (const run of runs.values()) if (run.status === "queued") run.status = "cancelled"; },
   });
   const logs: string[] = [];
   const config: GithubIntakeConfig = { bot: "Henry", scope: "requested", owners: [], exclude: [], intervalMs: 90_000, ...overrides };
@@ -235,10 +245,11 @@ function harness(overrides: Partial<GithubIntakeConfig> = {}, options: { dir?: s
     webhooks,
     bots: () => bots,
     log: (line) => logs.push(line),
+    now: () => github.now,
   };
   const intake = new GithubIntake(intakeOptions);
   return {
-    dir, github, bots, queued, webhooks, logs, intake, intakeOptions,
+    dir, github, bots, queued, webhooks, logs, intake, intakeOptions, runs,
     setPending: (value: number) => { pending = value; },
     events: () => queued.map((entry) => eventOf(entry.prompt)),
   };
@@ -752,5 +763,167 @@ describe("GitHub intake: polling", () => {
     await Promise.all([h.intake.pollOnce(), h.intake.pollOnce()]);
     expect(h.queued).toHaveLength(1);
     expect(h.github.calls.filter((path) => path === "user")).toHaveLength(1);
+  });
+});
+
+
+describe("GitHub intake: assignment handoff", () => {
+  it("hands over a new assignment without a publication comment and only once across restart", async () => {
+    const h = harness({ assignmentHandoff: true });
+    h.github.permissions.set("acme/app:alice", "write");
+    const pr = h.github.pr({ repo: "acme/app", number: 42 });
+    h.github.assign(pr, "henry-bot", "alice");
+    await h.intake.pollOnce();
+    await new GithubIntake(h.intakeOptions).pollOnce();
+    expect(h.events()).toEqual([expect.objectContaining({
+      kind: "publish", reason: "assignment_handoff", requester: "alice",
+      assignment: expect.objectContaining({ event_id: 1, actor_id: 11, assignee_id: 12 }),
+    })]);
+  });
+
+  it("keeps a reviewer request review-only and coalesces an assigned review into one completion task", async () => {
+    const h = harness({ assignmentHandoff: true });
+    h.github.permissions.set("acme/app:alice", "write");
+    h.github.pr({ repo: "acme/app", number: 1, requested: ["henry-bot"] });
+    const pr = h.github.pr({ repo: "acme/app", number: 2, requested: ["henry-bot"] });
+    h.github.assign(pr, "henry-bot", "alice");
+    await h.intake.pollOnce();
+    expect(h.events().map(e => [e.number, e.kind]).sort()).toEqual([[1, "review"], [2, "publish"]]);
+  });
+
+  it("does not turn a historical assignment into publication when the feature is enabled", async () => {
+    const github = new FakeGitHub();
+    github.permissions.set("acme/app:alice", "write");
+    const pr = github.pr({ repo: "acme/app", number: 42 });
+    github.assign(pr, "henry-bot", "alice");
+    github.tick();
+    const h = harness({ assignmentHandoff: true }, { github });
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(0);
+    expect(h.intake.status().recent).toContainEqual(expect.objectContaining({ outcome: "ignored", reason: expect.stringMatching(/before.*activat/) }));
+    h.github.assign(pr, "henry-bot", "alice");
+    await h.intake.pollOnce();
+    expect(h.events()).toHaveLength(1);
+  });
+
+  it.each(["reader", "stranger", "henry-bot"])("does not accept an assignment from %s as a publication mandate", async (actor) => {
+    const h = harness({ assignmentHandoff: true });
+    h.github.permissions.set("acme/app:reader", "triage");
+    h.github.permissions.set("acme/app:henry-bot", "write");
+    const pr = h.github.pr({ repo: "acme/app", number: 42 });
+    h.github.assign(pr, "henry-bot", actor);
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(0);
+    expect(h.intake.status().recent).toContainEqual(expect.objectContaining({ outcome: "ignored" }));
+  });
+
+  it("does not deliver after assignment removal and treats reassignment as a new handoff", async () => {
+    const h = harness({ assignmentHandoff: true });
+    h.github.permissions.set("acme/app:alice", "write");
+    const pr = h.github.pr({ repo: "acme/app", number: 42 });
+    h.github.assign(pr, "henry-bot", "alice");
+    h.github.change(pr, p => { p.assignees = []; p.events.push({ event: "unassigned", assignee: "henry-bot", actor: "alice", at: h.github.tick() }); });
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(0);
+    h.github.assign(pr, "henry-bot", "alice");
+    await h.intake.pollOnce();
+    expect(h.events()).toHaveLength(1);
+    expect(h.events()[0].assignment.event_id).toBe(3);
+  });
+
+  it.each(["event-actor", "live-actor", "live-recipient"])("rejects missing or changed immutable identity: %s", async (failure) => {
+    const h = harness({ assignmentHandoff: true });
+    h.github.permissions.set("acme/app:alice", "write");
+    const pr = h.github.pr({ repo: "acme/app", number: 42 });
+    h.github.assign(pr, "henry-bot", "alice");
+    const intake = new GithubIntake({ ...h.intakeOptions, gh: async (args) => {
+      const reply = await h.github.gh(args);
+      if (!reply.ok) return reply;
+      const path = args.at(-1)!;
+      const data = JSON.parse(reply.stdout);
+      if (failure === "event-actor" && path.includes("/events")) delete data[0].actor.id;
+      if (failure === "live-actor" && path.includes("/permission")) data.user.id = 999;
+      if (failure === "live-recipient" && path.endsWith("/pulls/42")) data.assignees[0].id = 999;
+      return { ok: true, stdout: JSON.stringify(data) };
+    } });
+    await intake.pollOnce();
+    expect(h.events()).toHaveLength(0);
+    expect(intake.status().recent).toContainEqual(expect.objectContaining({ outcome: "ignored" }));
+  });
+
+  it("does not enqueue after the assignment actor loses write access while delivery is paused", async () => {
+    const h = harness({ assignmentHandoff: true });
+    h.github.permissions.set("acme/app:alice", "write");
+    const pr = h.github.pr({ repo: "acme/app", number: 42 });
+    h.github.assign(pr, "henry-bot", "alice");
+    h.setPending(6);
+    await h.intake.pollOnce();
+    expect(h.intake.status().state).toBe("queue_full");
+    h.github.permissions.set("acme/app:alice", "read");
+    h.setPending(0);
+    await h.intake.pollOnce();
+    expect(h.events()).toHaveLength(0);
+  });
+});
+
+
+describe("GitHub intake: delivery is not completion", () => {
+  function recoveryHarness() {
+    const h = harness();
+    const options = { ...h.intakeOptions, runState: (id: string) => h.runs.get(id) ?? null };
+    return { ...h, intake: new GithubIntake(options), options };
+  }
+
+  it("surfaces a cancelled queued review after pause, resume and restart instead of hiding it behind delivered", async () => {
+    const h = recoveryHarness();
+    h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    const hookId = h.intake.status().webhookId!;
+    h.webhooks.update(hookId, { enabled: false });
+    h.webhooks.update(hookId, { enabled: true });
+    const restarted = new GithubIntake(h.options);
+    await restarted.pollOnce();
+    expect(restarted.status().state).toBe("needs_recovery");
+    expect(restarted.status().recent).toContainEqual(expect.objectContaining({ outcome: "needs_recovery", runId: "run-1", reason: expect.stringMatching(/cancelled/) }));
+    expect(h.queued).toHaveLength(1);
+  });
+
+  it("recognizes a late worker verdict despite a failed coordinator and does not redeliver", async () => {
+    const h = recoveryHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.runs.set("run-1", { status: "failed", startedAt: h.github.now });
+    await h.intake.pollOnce();
+    expect(h.intake.status().state).toBe("needs_recovery");
+    h.github.change(pr, p => { p.reviews.push({ user: "henry-bot", commit: HEAD_A, state: "APPROVED" }); });
+    await h.intake.pollOnce();
+    expect(h.intake.status().state).toBe("ok");
+    expect(h.intake.status().recent).toContainEqual(expect.objectContaining({ outcome: "already_reviewed", headSha: HEAD_A }));
+    expect(h.queued).toHaveLength(1);
+  });
+
+  it("leaves active delegated work alone and reports a completed coordinator without a GitHub verdict", async () => {
+    const h = recoveryHarness();
+    h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.runs.set("run-1", { status: "waiting", startedAt: h.github.now });
+    await h.intake.pollOnce();
+    expect(h.intake.status().state).toBe("ok");
+    h.runs.set("run-1", { status: "completed", startedAt: h.github.now });
+    await h.intake.pollOnce();
+    expect(h.intake.status().state).toBe("needs_recovery");
+    expect(h.queued).toHaveLength(1);
+  });
+
+  it("keeps processing other PRs while one review needs operator recovery", async () => {
+    const h = recoveryHarness();
+    const intake = new GithubIntake({ ...h.options, concurrency: 1 });
+    h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await intake.pollOnce();
+    h.runs.set("run-1", { status: "cancelled" });
+    h.github.pr({ repo: "acme/app", number: 8, requested: ["henry-bot"] });
+    await intake.pollOnce();
+    expect(intake.status().state).toBe("needs_recovery");
+    expect(h.events().map(event => event.number)).toEqual([7, 8]);
   });
 });

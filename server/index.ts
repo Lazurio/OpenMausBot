@@ -12069,6 +12069,7 @@ const githubIntake = GITHUB_INTAKE
       file: join(DATA_DIR, "github-intake.json"),
       webhooks,
       bots: () => store.bots,
+      runState: (runId) => routines!.listRuns().find((run) => run.id === runId) ?? null,
       guard: (work) => {
         const release = workspaceMaintenance.request();
         try { return work(); } finally { release(); }

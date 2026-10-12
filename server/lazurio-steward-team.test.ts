@@ -34,7 +34,7 @@ describe("the Lazurio Steward team package", () => {
     expect(brief).toContain(PUBLISH_MARKER);
     expect(brief).toContain("AGENTS.md");
     expect(brief).toContain("commit_id");
-    expect(pkg.agents.find((agent) => agent.key === "leader")?.soul).toContain("delegate_bot");
+    expect(pkg.agents.find((agent) => agent.key === "leader")?.soul).toContain("coordinate_bots");
     for (const text of [brief, ...pkg.agents.map((agent) => agent.soul ?? "")]) {
       expect(text).not.toMatch(/henry|pablo/i);
     }
