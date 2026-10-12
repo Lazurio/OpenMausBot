@@ -791,6 +791,22 @@ describe("GitHub intake: assignment handoff", () => {
     expect(h.events().map(e => [e.number, e.kind]).sort()).toEqual([[1, "review"], [2, "publish"]]);
   });
 
+  it("waits for an already active review before dispatching a later assignment", async () => {
+    const h = harness({ assignmentHandoff: true });
+    const intake = new GithubIntake({ ...h.intakeOptions, runState: id => h.runs.get(id) ?? null });
+    h.github.permissions.set("acme/app:alice", "write");
+    const pr = h.github.pr({ repo: "acme/app", number: 42, requested: ["henry-bot"] });
+    await intake.pollOnce();
+    h.github.assign(pr, "henry-bot", "alice");
+    h.runs.set("run-1", { status: "waiting", startedAt: h.github.now });
+    await intake.pollOnce();
+    expect(h.events().map(event => event.kind)).toEqual(["review"]);
+    h.runs.set("run-1", { status: "completed", startedAt: h.github.now });
+    h.github.change(pr, p => p.reviews.push({ user: "henry-bot", commit: HEAD_A, state: "APPROVED" }));
+    await intake.pollOnce();
+    expect(h.events().map(event => event.kind)).toEqual(["review", "publish"]);
+  });
+
   it("does not turn a historical assignment into publication when the feature is enabled", async () => {
     const github = new FakeGitHub();
     github.permissions.set("acme/app:alice", "write");

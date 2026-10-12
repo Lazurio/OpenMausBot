@@ -741,6 +741,13 @@ export class GithubIntake {
       }
       return true;
     }
+    // Assignment can arrive after a review was already handed to a worker.
+    // Wait for existing native work instead of starting a concurrent publisher.
+    if (this.options.runState && this.state.records.some(record =>
+      record.repository.toLowerCase() === repo.toLowerCase() && record.number === number &&
+      record.runId && ["queued", "running", "waiting"].includes(this.options.runState!(record.runId)?.status ?? ""))) {
+      return false;
+    }
     return this.deliver(bot, deferred, summary, {
       ...base,
       payload: {
