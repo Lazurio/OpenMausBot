@@ -38,7 +38,7 @@ if (url.pathname === "/repos/acme/app/pulls/42") out({
   user: { login: pr.author, id: 11 }, head: { sha: __HEAD__ }, base: { ref: "main" }, assignees: state.assigned ? [{ login: "henry-bot", id: 12 }] : [],
 });
 if (url.pathname === "/repos/acme/app/pulls/42/reviews") out(state.approved ? [{user: {login: "henry-bot", id: 12}, state: "APPROVED", commit_id: __HEAD__}] : []);
-if (url.pathname === "/repos/acme/app/issues/42/events") out(state.assigned ? [{id: 90, event: "assigned", actor: {login: "alice", id: 11}, assignee: {login: "henry-bot", id: 12}, created_at: state.assignedAt}] : []);
+if (url.pathname === "/repos/acme/app/issues/42/events") out(state.assigned ? [{id: 90, event: "assigned", actor: {login: "henry-bot", id: 12}, assigner: {login: "alice", id: 11}, assignee: {login: "henry-bot", id: 12}, created_at: state.assignedAt}] : []);
 if (url.pathname === "/repos/acme/app/collaborators/alice/permission") out({permission: "write", role_name: "write", user: {login: "alice", id: 11}});
 process.stderr.write("gh: Not Found (HTTP 404)");
 process.exit(1);
