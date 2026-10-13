@@ -98,6 +98,22 @@ receipt. Drafts wait for Ready. A removed/replaced assignment revokes its
 handoff. Before merging the worker must recheck the current assignment event,
 immutable identities, live rights and current-head repository gates. Owner-only
 merge rules still apply; Free repositories use the same process agreement.
+
+Steward team **1.1.1** makes that provider-field check explicit in the worker's
+shared instructions. A real assignment can pass intake correctly and still
+be returned incorrectly if the worker re-reads issue-events and mistakes its
+`actor` for the initiator. Workers must compare REST `assigner.id`, recipient
+`assignee.id` and live rights; they must not infer self-assignment from the
+recipient-shaped `actor`. This does not relax any authorization check.
+
+The portable team has its own release number. An explicitly authorized update
+of an existing team reconciles the changed shared-instruction block through
+the native section-context API, preserving Organization context, bot IDs,
+history, models and grants. Importing a fresh team is not a migration of an
+existing one. This instruction-only update needs no new server behavior,
+receipt reset, activation cutoff or runtime restart; independently verify the
+next real assignment before claiming the worker behavior is fixed.
+
 An assignment is not authority for separate releases, infrastructure applies,
 repository settings or credentials. The shipped team explains these bounds.
 
