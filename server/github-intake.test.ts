@@ -167,7 +167,7 @@ class FakeGitHub {
           html_url: `https://github.test/${pr.repo}/pull/${pr.number}#issuecomment-${c.id}`,
         }))));
       }
-      return ok(paged(pr.events.map((e, i) => ({ id: i + 1, event: e.event, assignee: identity(e.assignee), actor: e.actor ? identity(e.actor) : null, created_at: e.at }))));
+      return ok(paged(pr.events.map((e, i) => ({ id: i + 1, event: e.event, assignee: identity(e.assignee), actor: identity(e.assignee), assigner: e.actor ? identity(e.actor) : null, created_at: e.at }))));
     }
     m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/collaborators\/([^/]+)\/permission$/);
     if (m) {
@@ -781,6 +781,26 @@ describe("GitHub intake: assignment handoff", () => {
     })]);
   });
 
+  // REST issue events attribute `actor` to the recipient. The documented
+  // `assigner` is the initiator; timeline events have a different projection.
+  it("does not infer an initiator from actor when REST assigner is missing", async () => {
+    const h = harness({ assignmentHandoff: true });
+    h.github.permissions.set("acme/app:alice", "admin");
+    const pr = h.github.pr({ repo: "acme/app", number: 42 });
+    h.github.assign(pr, "henry-bot", "alice");
+    const intake = new GithubIntake({ ...h.intakeOptions, gh: async (args) => {
+      const reply = await h.github.gh(args);
+      if (!reply.ok || !args.at(-1)!.includes("/events")) return reply;
+      const data = JSON.parse(reply.stdout);
+      data[0].actor = identity("alice");
+      delete data[0].assigner;
+      return { ok: true, stdout: JSON.stringify(data) };
+    } });
+    await intake.pollOnce();
+    expect(h.events()).toHaveLength(0);
+    expect(intake.status().recent).toContainEqual(expect.objectContaining({ outcome: "ignored" }));
+  });
+
   it("keeps a reviewer request review-only and coalesces an assigned review into one completion task", async () => {
     const h = harness({ assignmentHandoff: true });
     h.github.permissions.set("acme/app:alice", "write");
@@ -857,7 +877,7 @@ describe("GitHub intake: assignment handoff", () => {
       if (!reply.ok) return reply;
       const path = args.at(-1)!;
       const data = JSON.parse(reply.stdout);
-      if (failure === "event-actor" && path.includes("/events")) delete data[0].actor.id;
+      if (failure === "event-actor" && path.includes("/events")) delete data[0].assigner.id;
       if (failure === "live-actor" && path.includes("/permission")) data.user.id = 999;
       if (failure === "live-recipient" && path.endsWith("/pulls/42")) data.assignees[0].id = 999;
       return { ok: true, stdout: JSON.stringify(data) };

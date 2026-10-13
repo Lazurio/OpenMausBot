@@ -83,7 +83,10 @@ no bot turn: a person approves them.
 **Assignment handoff**, enabled by `OMB_GITHUB_INTAKE_ASSIGNMENTS=1`,
 queues one completion task for a current assignment from a live repository
 writer. It needs the immutable GitHub assignment event, actor and recipient
-IDs, matching live writer identity, and the signed-in recipient. Self-assignment
+IDs, matching live writer identity, and the signed-in recipient. The REST issue-events
+reader takes the initiating actor from `assigner`, never the endpoint’s `actor`
+(which may be the recipient). Missing `assigner` fails closed; timeline events
+are a different projection. Self-assignment
 is not a mandate. No `/lazurio publish` comment is required: the assignee owns
 bounded repairs, verification and permitted merge, or an explicit transfer to
 the next authorized assignee. Review requests alone remain review-only.

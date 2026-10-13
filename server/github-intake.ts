@@ -259,6 +259,7 @@ const eventsSchema = z.array(z.object({
   id: z.number().int().positive().optional(),
   event: z.string(),
   actor: login.nullable().optional(),
+  assigner: login.nullable().optional(),
   assignee: login.nullable().optional(),
   created_at: z.string(),
 }));
@@ -716,17 +717,18 @@ export class GithubIntake {
     const event = events.filter((entry) => ["assigned", "unassigned"].includes(entry.event) &&
       sameLogin(entry.assignee?.login, account)).at(-1);
     const key = `assignment:${repo}#${number}:${event?.id ?? "unverified"}`;
-    const requester = event?.actor?.login ?? "";
+    // REST issue events use assigner for the initiator; actor may be the recipient.
+    const requester = event?.assigner?.login ?? "";
     const base = { key, kind: "publish" as const, repository: repo, number, headSha: pr.head.sha, requester };
     let refusal: string | undefined;
-    if (!event?.id || event.event !== "assigned" || !event.actor?.id || event.assignee?.id !== this.accountId ||
+    if (!event?.id || event.event !== "assigned" || !event.assigner?.id || event.assignee?.id !== this.accountId ||
       !(pr.assignees ?? []).some((user) => sameLogin(user.login, account) && user.id === this.accountId)) {
       refusal = "The current assignment has no verifiable GitHub event and immutable actor/recipient identities";
     } else if (!(Date.parse(event.created_at) > (this.state.assignmentActivatedAt ?? this.now()))) {
       refusal = "The assignment is from before assignment handoff activation; reassign to explicitly hand it over";
-    } else if (event.actor.id === this.accountId || sameLogin(requester, account)) {
+    } else if (event.assigner.id === this.accountId || sameLogin(requester, account)) {
       refusal = "Self-assignment does not create a publication mandate";
-    } else if (!await this.canWrite(repo, requester, event.actor.id)) {
+    } else if (!await this.canWrite(repo, requester, event.assigner.id)) {
       refusal = "The assignment actor no longer has the verified write, maintain or admin role";
     }
     if (refusal) {
@@ -753,7 +755,7 @@ export class GithubIntake {
       payload: {
         ...this.payload("publish", "assignment_handoff", account, repo, pr, requester),
         assignment: {
-          event_id: event!.id!, actor: requester, actor_id: event!.actor!.id!,
+          event_id: event!.id!, actor: requester, actor_id: event!.assigner!.id!,
           assignee: account, assignee_id: this.accountId!, created_at: event!.created_at,
         },
       },
