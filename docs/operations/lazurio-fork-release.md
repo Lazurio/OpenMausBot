@@ -306,10 +306,36 @@ Organization Admin can do these steps; the order matters.
    `serve` with a temporary home, data directory and `OMB_DEFAULT_BOT_CWD`,
    and checks the health endpoint, the reported version and that the first
    bot starts in that folder.
-3. **Canary.** After publishing, move the canary Machine's pin first (the
-   Spectoda VM101 or Matěj's work VM), open OpenMausBot from Launchpad,
-   check the version, one bot turn and that the bot works in the Lazurio
-   Folder. Only then move other Machines.
+3. **Canary.** After publishing, move the pins of
+   [Ring 0](#ring-0-lazurioexampleorganization) first, open OpenMausBot from
+   Launchpad and check the version. Where the Environment has AI, also check
+   one bot turn and that the bot works in the Lazurio Folder. Without AI,
+   the browser acceptance of Ring 0 below is enough. Only then move other
+   Machines.
+
+## Ring 0: LazurioExampleOrganization
+
+Every release goes first to the Environments of LazurioExampleOrganization
+(GitHub id 325048785), the public reference Organization with fictional data
+and no tailnet, that run OpenMausBot. Lazurio decision 0204 point 7 sets this
+([HumanAndMachines/Lazurio `manual/decision-register.md`](https://github.com/HumanAndMachines/Lazurio/blob/main/manual/decision-register.md),
+row 0204).
+
+- **No consent or window:** pin moves, restarts, reinstalls and redeploys
+  there need neither the consent of the people who use those Environments nor
+  a window. The Agent does them as part of the release, on the instruction of
+  its Operator, who holds the live Admin role in that Organization, and
+  within the Operator's rights. The Agent gains no authority of its own.
+- **What stays:** the Operator's instruction, source review, the Machines
+  gates for each pin move, the Admin's approval of the release
+  ([Approval](#approval)), no secrets in Git, and every other Organization's
+  own consent.
+- **The next wave** moves only after browser acceptance on that
+  Organization's Environments (decision 0178): OpenMausBot opens in the
+  Environment browser and, once the Organization has AI, a bot team runs a
+  harmless task.
+- **Outside Ring 0:** tailnet entry, which that Organization does not have,
+  is first proven by the next wave.
 
 ## Dispatching a release
 
