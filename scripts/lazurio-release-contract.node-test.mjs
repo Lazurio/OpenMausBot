@@ -119,9 +119,10 @@ NodeTest.test("CI is read-only and pins the exact upstream base", () => {
 
 NodeTest.test("the overlay may change only listed upstream files", () => {
   NodeAssert.match(ci, /git diff --name-only --diff-filter=MDRT "\$UPSTREAM_SHA\.\.HEAD"/);
-  NodeAssert.match(ci, /grep -vxF -f <\(printf '%s\\n' "\$\{allowed_upstream_changes\[@\]\}" \$removed_upstream_enterprise \$removed_by_lazurio\)/);
+  NodeAssert.match(ci, /grep -vxF -f <\(printf '%s\\n' "\$\{allowed_upstream_changes\[@\]\}" \$removed_upstream_enterprise \$removed_by_lazurio \$changed_by_removals\)/);
   // Deletions of whole upstream files only as the removal manifests list them (issue #35).
   NodeAssert.match(ci, /removed_by_lazurio="\$\(jq -r '\.files\[\]' lazurio\/removals\/\*\.json\)"/);
+  NodeAssert.match(ci, /changed_by_removals="\$\(jq -r '\.changes\[\]' lazurio\/removals\/\*\.json\)"/);
   NodeAssert.match(ci, /git ls-tree --name-only "\$UPSTREAM_SHA" -- "\$file"/);
   NodeAssert.match(ci, /scripts\/lazurio-removals\.node-test\.mjs/);
   NodeAssert.match(ci, /if \[ -n "\$unexpected" \]; then[^]*?exit 1/);

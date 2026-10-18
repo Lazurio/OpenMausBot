@@ -1,6 +1,7 @@
 // Guards for the upstream features Lazurio removes from the code (issue #35,
 // DEV-6673 M3). Each area is one manifest in lazurio/removals/:
 //   files      upstream files deleted as a whole; CI allows exactly these deletions
+//   changes    upstream files the removal changes; CI adds them to allowed_upstream_changes
 //   forbidden  strings no shipped source, catalog or document may contain any more:
 //              routes, CLI commands, agent tool names, config keys, env vars, UI entry points
 //   routes     requests the running server must answer with 404
@@ -33,6 +34,14 @@ NodeTest.test("every removal manifest is well formed", () => {
     for (const route of manifest.routes) {
       NodeAssert.match(route.method, /^(GET|POST|PUT|PATCH|DELETE)$/, `${manifest.file}: ${JSON.stringify(route)}`);
       NodeAssert.match(route.path, /^\/api\//, `${manifest.file}: ${JSON.stringify(route)}`);
+    }
+    // The upstream files the removal changes join CI's allowed_upstream_changes:
+    // exact paths that exist, never an upstream workflow (those stay disabled, unchanged).
+    NodeAssert.ok(Array.isArray(manifest.changes), `${manifest.file}: changes`);
+    for (const file of manifest.changes) {
+      NodeAssert.match(file, /^[\w./-]+\.[a-z]+$/, `${manifest.file}: ${file}`);
+      NodeAssert.doesNotMatch(file, /\.\.|^\.github\/workflows\//, `${manifest.file}: ${file}`);
+      NodeAssert.ok(existsSync(file), `${manifest.file}: ${file} is changed, not deleted`);
     }
     for (const text of manifest.forbidden) NodeAssert.ok(typeof text === "string" && text.length >= 4, `${manifest.file}: ${text}`);
   }
