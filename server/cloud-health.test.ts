@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { beforeEach, describe, expect, it } from "vitest";
 import { failedTurnTool } from "../shared/failed-turn.ts";
-import { TRIAL_CREDIT_REFUSED } from "../shared/trial-credit.ts";
 import { CLOUD_HEALTH_PATH, CLOUD_PAIRING_PATH, CLOUD_PAIRING_SKEW_S, cloudPairingSignature, cloudRequestSignature } from "./cloud-home.ts";
 import { CLOUD_HEALTH_MAX_BYTES, HEALTH_BUCKET_CAP, createCloudHealth, createCloudHealthLedger, type CloudHealthDeps } from "./cloud-health.ts";
 import { DATA_DIR, EVENTS_DIR } from "./config.ts";
@@ -83,18 +82,16 @@ describe("the failure code a Cloud home reports", () => {
     expect(incidents(w)).toEqual([{ kind: "turn", code: "auth", engine: "codex", count: 1 }]);
   });
 
-  it("names the failures the server writes itself, and a trial credit's refusal", () => {
+  it("names the failures the server writes itself", () => {
     const w = world();
     w.fail("no activity for 20 minutes — the turn was stopped");
     w.fail("turn interrupted — OpenMausBot restarted");
     w.fail("this thread could not start — the engine is not installed");
     w.fail("queued message could not start — the engine is not installed");
-    w.fail(TRIAL_CREDIT_REFUSED.used_up);
     expect(incidents(w)).toEqual([
       { kind: "turn", code: "stalled", engine: null, count: 1 },
       { kind: "turn", code: "restart", engine: null, count: 1 },
       { kind: "turn", code: "could_not_start", engine: null, count: 2 },
-      { kind: "turn", code: "trial_used_up", engine: null, count: 1 },
     ]);
   });
 

@@ -85,23 +85,10 @@ export function computerPrompt(kind: ComputerPromptKind | null): string {
 
 export const CLOUD_HOME_PLACE = "the user's My Cloud, their always-on OpenMausBot in the cloud, not on their own computer";
 
-// The Cloud prompt names the synced folders; index.ts reads the registry through here.
-export { syncedFolders } from "./cloud-sync-store.ts";
-
-export function cloudHomePrompt(synced: ReadonlyArray<{ computerName: string; pcPath: string; cloudPath: string }> = []): string {
+export function cloudHomePrompt(): string {
   return ` You run on ${CLOUD_HOME_PLACE}.`
     + " You cannot see or use their Mac or PC, its screen or its files from here. If they ask for something on it, say so in one sentence."
-    + " Offer what works here: the built-in browser. Never ask them to set up this computer; it does not exist here."
-    + syncedFoldersPrompt(synced);
-}
-
-function syncedFoldersPrompt(synced: ReadonlyArray<{ computerName: string; pcPath: string; cloudPath: string }>): string {
-  if (!synced.length) return "";
-  // eslint-disable-next-line no-control-regex
-  const clean = (value: string, max: number) => value.replace(/[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g, " ").slice(0, max);
-  const shown = synced.slice(0, 20).map((folder) => `${clean(folder.pcPath, 300)} on ${clean(folder.computerName, 80)} → ${clean(folder.cloudPath, 300)}`).join("; ");
-  return ` Folders the person shares from their computer, as read-only copies kept up to date here: ${shown}${synced.length > 20 ? `; and ${synced.length - 20} more` : ""}.`
-    + " A path on that computer inside one of these means its copy here. Read from these copies, never change or delete files in them: save your work in your own working folder; the person gets it on their computer in Documents › MausBot.";
+    + " Offer what works here: the built-in browser. Never ask them to set up this computer; it does not exist here.";
 }
 
 export const CREDENTIAL_PROMPT =

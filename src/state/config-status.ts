@@ -53,13 +53,10 @@ export interface ConfigStatus {
     model?: string;
     /** Fish Audio speech model; present only while Fish is the provider. */
     fishModel?: "s2.1-pro" | "s2.1-pro-free";
-    /** ElevenLabs voice comes with Cloud Pro; no key is saved. */
-    included?: boolean;
   };
   /** The decision model: switches and whether a key is on file. The key
    * itself never comes back. `enabled` is the switch as it takes effect
-   * (off while no key is saved). `included`: Cloud Pro's decisions, no key
-   * saved. OpenRouter only: `keySource` says which key is in use (its own, or
+   * (off while no key is saved). OpenRouter only: `keySource` says which key is in use (its own, or
    * the one under Settings → API keys); `sharedKey`: that one is on file. */
   decider?: {
     provider: "jev" | "openrouter";
@@ -68,7 +65,6 @@ export interface ConfigStatus {
     configured: boolean;
     keySource?: "own" | "shared";
     sharedKey?: boolean;
-    included?: boolean;
     enabled: boolean;
     jobs: { roomRouting: boolean };
   };

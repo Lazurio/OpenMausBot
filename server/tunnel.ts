@@ -1,19 +1,10 @@
 // `openmausbot serve --tunnel`: every public request arrives over an IPC listener, so request-auth always demands a paired session.
 import { spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
-import { hostname } from "node:os";
+import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  COMPANION_ACCOUNT_EMAIL_FIELD,
-  COMPANION_INSTALLATION_ID_FIELD,
-  createCompanionAccountService,
-  resolveCompanionControlPlaneURL,
-  type CompanionAccountService,
-  type CredentialDocument,
-} from "../electron/companion-account-service.mjs";
+import { resolveCompanionControlPlaneURL } from "../electron/companion-account-service.mjs";
 import {
   cleanupCompanionOriginEndpoint,
   createCompanionOriginEndpoint,
@@ -23,152 +14,19 @@ import {
 import { ControlPlaneError, createControlPlaneClient } from "../electron/control-plane-client.mjs";
 import {
   createManagedCompanionTunnel,
-  managedCompanionTunnelAccess,
   resolveCloudflaredBinary,
   type ManagedTunnelAccess,
   type ManagedTunnelState,
 } from "../electron/managed-companion-tunnel.mjs";
-import { createSecureCredentialState } from "../electron/secure-credential-state.mjs";
-import { writeFileAtomic } from "./atomic.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-export const TUNNEL_CREDENTIALS_FILE = "tunnel-account.json";
 export const TUNNEL_RUNTIME_DIR = "tunnel-runtime";
 
 export type { CompanionOriginEndpoint, ManagedTunnelAccess, ManagedTunnelState };
 
-export interface TunnelCredentials {
-  file: string;
-  /** `unavailable`: the file exists but is unreadable, and nothing may be written over it. */
-  status: "ok" | "empty" | "unavailable";
-  read(): CredentialDocument;
-  update(
-    derive: (current: CredentialDocument) => CredentialDocument,
-    afterPersist?: (next: CredentialDocument) => Promise<void> | void,
-  ): Promise<unknown>;
-}
-
-function plainDocument(value: unknown): CredentialDocument | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  const document: CredentialDocument = {};
-  for (const [key, entry] of Object.entries(value)) document[key] = entry;
-  return document;
-}
-
-export function openTunnelCredentials(dataDir: string): TunnelCredentials {
-  const file = join(dataDir, TUNNEL_CREDENTIALS_FILE);
-  let initial: CredentialDocument = {};
-  let status: TunnelCredentials["status"] = "empty";
-  if (existsSync(file)) {
-    try {
-      // A file someone loosened (or an old umask) is tightened, not trusted as is.
-      if (process.platform !== "win32" && (statSync(file).mode & 0o077) !== 0) chmodSync(file, 0o600);
-      const parsed = plainDocument(JSON.parse(readFileSync(file, "utf8")));
-      if (!parsed) throw new Error("not a JSON object");
-      initial = parsed;
-      status = "ok";
-    } catch {
-      status = "unavailable";
-    }
-  }
-  const persist = (next: CredentialDocument) => {
-    mkdirSync(dataDir, { recursive: true, mode: 0o700 });
-    writeFileAtomic(file, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 });
-  };
-  const state = createSecureCredentialState(initial, persist, { writable: status !== "unavailable" });
-  return {
-    file,
-    status,
-    read: () => state.read(),
-    update: (derive, afterPersist) => state.update(derive, afterPersist),
-  };
-}
-
-export interface TunnelAccountSummary {
-  email: string | null;
-  address: string | null;
-  installationId: string | null;
-}
-
-function stringField(document: CredentialDocument, field: string): string | null {
-  const value = document[field];
-  return typeof value === "string" && value ? value : null;
-}
-
-export function describeTunnelAccount(document: CredentialDocument): TunnelAccountSummary {
-  return {
-    email: stringField(document, COMPANION_ACCOUNT_EMAIL_FIELD),
-    address: managedCompanionTunnelAccess(document)?.endpoint ?? null,
-    installationId: stringField(document, COMPANION_INSTALLATION_ID_FIELD),
-  };
-}
-
-export function tunnelAccess(document: CredentialDocument): ManagedTunnelAccess | null {
-  return managedCompanionTunnelAccess(document);
-}
-
-export function platformName(platform: NodeJS.Platform = process.platform): "darwin" | "windows" | "linux" {
-  return platform === "darwin" ? "darwin" : platform === "win32" ? "windows" : "linux";
-}
-
-export interface TunnelAccount {
-  service: CompanionAccountService;
-  credentials: TunnelCredentials;
-  controlPlane: string;
-}
-
-export interface TunnelRecovery {
-  running(): RunningTunnel | null;
-}
-
-const STOPPED_TUNNEL: ManagedTunnelState = { status: "stopped", ready: false };
-
-/** A server's operator owns its environment, so OMB_CONTROL_PLANE_URL is always honoured here (the desktop: dev builds only). */
-export function createTunnelAccount(options: {
-  dataDir: string;
-  version: string;
-  env?: NodeJS.ProcessEnv;
-  fetchImpl?: typeof fetch;
-  machineName?: string;
-  recovery?: TunnelRecovery;
-  log?: (line: string) => void;
-  clock?: {
-    setTimer: (callback: () => void, milliseconds: number) => unknown;
-    clearTimer: (handle: unknown) => void;
-    now: () => number;
-  };
-}): TunnelAccount {
-  const env = options.env ?? process.env;
-  const credentials = openTunnelCredentials(options.dataDir);
-  const controlPlane = resolveCompanionControlPlaneURL({ isPackaged: true, environment: env });
-  const client = controlPlane ? createControlPlaneClient({ baseURL: controlPlane, fetchImpl: options.fetchImpl }) : null;
-  const recovery = options.recovery;
-  const service = createCompanionAccountService({
-    client,
-    readCredentials: () => credentials.read(),
-    updateCredentials: (derive, afterPersist) => credentials.update(derive, afterPersist),
-    identity: { name: options.machineName ?? hostname(), platform: platformName(), appVersion: options.version },
-    newClientInstanceId: () => randomUUID(),
-    ...(options.log ? { log: options.log } : {}),
-    ...(recovery
-      ? {
-          autoRecover: true,
-          companionIsOn: () => recovery.running() !== null,
-          managedConnectionState: () => recovery.running()?.state() ?? STOPPED_TUNNEL,
-          activatePersistedEndpoint: async () => {
-            const tunnel = recovery.running();
-            const access = tunnelAccess(credentials.read());
-            if (!tunnel || !access) return tunnel?.state() ?? STOPPED_TUNNEL;
-            return tunnel.restart(access);
-          },
-          ...options.clock,
-        }
-      : {}),
-  });
-  return { service, credentials, controlPlane };
-}
-
+// Lazurio overlay (DEV-6673 M3): the OpenMausBot account sign-in that reserved a machine's public address
+// is removed; a fleet's installation credential is the only way to an address.
 export const FLEET_CREDENTIAL_ENV = "OMB_INSTALLATION_CREDENTIAL";
 
 /** A fleet container's installation credential comes from the environment; nothing is written to disk. */

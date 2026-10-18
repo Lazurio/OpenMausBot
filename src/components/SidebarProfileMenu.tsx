@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import {
   ArrowDownToLine,
   Check,
-  CircleUserRound,
   Download,
   Gauge,
   Info,
@@ -24,20 +23,17 @@ import { ShortcutHint } from "./ShortcutHint";
 import { useSidebarPhoneStatus } from "./SidebarPhoneButton";
 import { api, useStore, type Action } from "@/state/store";
 import { serverUpdateRow, type ServerUpdateCheck, type ServerUpdatePhase } from "@/lib/server-update";
-import type { CloudAccountBridge, CloudAccountState } from "../../electron/cloud-account.mjs";
 import { useUpdaterState, type UpdaterState } from "@/lib/updater";
 import { brand } from "../lib/brand";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { FEEDBACK_URL, HELP_CENTER_URL, openExternalLink } from "@/lib/app-links";
 import {
-  cloudPhoneDestination,
   connectPhoneEntry,
   currentPhonePairingTarget,
   loadPhonePairingAccess,
   phoneDestinations,
   phonePairingSettingsAction,
-  type CloudPhoneDestination,
   type ConnectPhoneEntry,
   type PhoneDestination,
   type PhonePairingAccess,
@@ -232,25 +228,8 @@ function useConnectPhoneEntry(cloudHome: boolean): ConnectPhoneEntry | null {
   return connectPhoneEntry(target, access);
 }
 
-export function useCloudPhoneDestination(enabled: boolean): { cloud: CloudPhoneDestination; bridge?: CloudAccountBridge } {
-  const bridge = enabled && !window.ogb?.remoteClient?.active ? window.ogb?.cloudAccount : undefined;
-  const [account, setAccount] = useState<CloudAccountState | null>(null);
-  useEffect(() => {
-    if (!bridge) return;
-    let active = true, updated = false;
-    const unsubscribe = bridge.onState((next) => { updated = true; if (active) setAccount(next); });
-    void bridge.state().then((next) => { if (active && !updated) setAccount(next); }).catch(() => {});
-    return () => { active = false; unsubscribe(); };
-  }, [bridge]);
-  return bridge ? { cloud: cloudPhoneDestination(account), bridge } : { cloud: null };
-}
-
-export function selectPhoneDestination(destination: PhoneDestination, { bridge, dispatch }: { bridge?: Pick<CloudAccountBridge, "connectHomeForPhone">; dispatch: (action: Action) => void }): void {
-  if (destination.id !== "cloud" || !bridge) {
-    dispatch(phonePairingSettingsAction());
-    return;
-  }
-  void bridge.connectHomeForPhone().catch(() => dispatch({ type: "toggleAppSettings", open: true, section: "cloudAccount" }));
+export function selectPhoneDestination(_destination: PhoneDestination, { dispatch }: { dispatch: (action: Action) => void }): void {
+  dispatch(phonePairingSettingsAction());
 }
 
 export function phoneMenuItems({
@@ -266,13 +245,12 @@ export function phoneMenuItems({
 }): SidebarMenuItem[] {
   return [
     ...destinations.map((destination) => ({
-      key: destination.id === "cloud" ? "connect-phone-cloud" : "connect-phone",
+      key: "connect-phone",
       label: t("sidebar.menu.connectPhone"),
       subtitle: t(destination.subtitleKey),
-      ...(destination.noteKey ? { note: t(destination.noteKey) } : {}),
       icon: <Smartphone size={18} />,
       trailing:
-        destination.id === "here" && destination.target === "computer" && connected ? (
+        destination.target === "computer" && connected ? (
           <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-success" />
         ) : undefined,
       onSelect: () => onConnect(destination),
@@ -290,26 +268,22 @@ export function profileMenuItems({
   phone,
   usage,
   update,
-  account,
   onUsage,
   onSettings,
   onShortcuts,
   onAbout,
   onHelp,
   onFeedback,
-  onAccount,
 }: {
   phone: SidebarMenuItem[];
   usage: boolean;
   update: SidebarMenuItem | null;
-  account: string | null;
   onUsage: () => void;
   onSettings: () => void;
   onShortcuts: () => void;
   onAbout: () => void;
   onHelp: () => void;
   onFeedback: () => void;
-  onAccount: () => void;
 }): SidebarMenuItem[] {
   const help: SidebarMenuItem[] = [
     { key: "help", label: t("sidebar.menu.help"), icon: <HelpCircle size={18} />, onSelect: onHelp },
@@ -329,9 +303,6 @@ export function profileMenuItems({
     { key: "support", label: t("sidebar.menu.support"), icon: <LifeBuoy size={18} />, submenu: help, onSelect: () => {} },
     { key: "settings", label: t("sidebar.menu.settings"), icon: <SettingsIcon size={18} />, onSelect: onSettings },
     ...(update ? [update] : []),
-    ...(account
-      ? [{ key: "account", label: account, icon: <CircleUserRound size={18} />, separatorBefore: true, onSelect: onAccount }]
-      : []),
   ];
 }
 
@@ -339,8 +310,7 @@ export function SidebarProfileMenu({ iconOnly = false, rail = false }: { iconOnl
   const { state, dispatch } = useStore();
   const phone = useSidebarPhoneStatus();
   const connectPhone = useConnectPhoneEntry(state.config?.cloudHome === true);
-  const cloudPhone = useCloudPhoneDestination(connectPhone?.target === "computer");
-  const destinations = phoneDestinations(connectPhone, cloudPhone.cloud);
+  const destinations = phoneDestinations(connectPhone);
   const desktopUpdate = useUpdateItem();
   const serverUpdate = useServerUpdateItem(!window.ogb?.updater);
   const update = desktopUpdate ?? serverUpdate;
@@ -350,9 +320,8 @@ export function SidebarProfileMenu({ iconOnly = false, rail = false }: { iconOnl
 
   const profile = state.config?.profile;
   const name = profileLabel(profile);
-  const connectTo = (destination: PhoneDestination) => selectPhoneDestination(destination, { bridge: cloudPhone.bridge, dispatch });
+  const connectTo = (destination: PhoneDestination) => selectPhoneDestination(destination, { dispatch });
   const remote = window.ogb?.remoteClient?.active === true;
-  const cloudAccount = !remote && Boolean(window.ogb?.cloudAccount || (window.ogb?.cloudPlan && state.config?.cloudHome === true));
 
   const items = profileMenuItems({
     phone: phoneMenuItems({
@@ -363,7 +332,6 @@ export function SidebarProfileMenu({ iconOnly = false, rail = false }: { iconOnl
     }),
     usage: !remote,
     update: update?.item ?? null,
-    account: cloudAccount ? t("settings.section.cloudAccount") : null,
     onUsage: () => dispatch({ type: "toggleAppSettings", open: true, section: "usage" }),
     onSettings: () => dispatch({ type: "toggleAppSettings" }),
     onShortcuts: () => {
@@ -373,7 +341,6 @@ export function SidebarProfileMenu({ iconOnly = false, rail = false }: { iconOnl
     onAbout: () => setAboutOpen(true),
     onHelp: () => void openExternalLink(HELP_CENTER_URL),
     onFeedback: () => void openExternalLink(FEEDBACK_URL),
-    onAccount: () => dispatch({ type: "toggleAppSettings", open: true, section: "cloudAccount" }),
   });
   const noteworthy = update && updateNoteworthy(update.phase, update.pending) && !updateHasButton(update.phase);
 

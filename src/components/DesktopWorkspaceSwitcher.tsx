@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, Cloud, Laptop } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { cloudColor } from "@/lib/cloud-look";
+import { cloudColor, cloudColorFill } from "@/lib/cloud-look";
 import { t } from "@/lib/i18n";
-import { CloudTile } from "./cloud-buy/parts";
 import { SIMPLE_RAIL_BUTTON } from "./SidebarSimpleTop";
 
 export function openServerMenu(bridge: { menu: (options?: { from?: "howto" }) => Promise<void> }, { howTo = false, onClosed }: { howTo?: boolean; onClosed?: () => void } = {}): Promise<void> {
@@ -94,4 +93,9 @@ export function DesktopWorkspaceSwitcher({ compact = false, inline = false, pill
     </button>
     {error && <p role="alert" className="mt-1 text-[11px] text-danger">{error}</p>}
   </div>;
+}
+
+function CloudTile({ color, size = 22 }: { color: unknown; size?: number }) {
+  return <span aria-hidden="true" style={{ width: size, height: size, background: cloudColorFill(color) }}
+    className="grid shrink-0 place-items-center rounded-[7px] text-white"><Cloud size={Math.round(size * 0.62)} strokeWidth={2.2} /></span>;
 }

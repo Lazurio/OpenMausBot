@@ -52,11 +52,10 @@ it("a browser keeps the code in the form for the person to confirm", () => {
 });
 
 it("My Cloud says where its connection starts, never 'the code shown on the server'", () => {
-  const cloud = pairIntro({ mode: "code", sent: false, email: "", cloudHome: true });
+  const cloud = pairIntro({ cloudHome: true });
   expect(cloud).toContain(`choose ${en["cloudHome.connect"]} in the OpenMausBot app`);
-  expect(cloud).toContain(`Settings → ${en["settings.section.cloudAccount"]}`);
+  expect(cloud).toContain("Settings → MausBot Cloud");
   expect(cloud).toContain("on your Plan page");
   expect(cloud).not.toContain("shown on the server");
-  expect(pairIntro({ mode: "code", sent: false, email: "", cloudHome: false })).toContain("shown on the server");
-  expect(pairIntro({ mode: "email", sent: true, email: "a@b.test", cloudHome: false })).toContain("a@b.test");
+  expect(pairIntro({ cloudHome: false })).toContain("shown on the server");
 });

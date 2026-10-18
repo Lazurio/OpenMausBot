@@ -30,8 +30,6 @@ export const USAGE = `openmausbot — your team of AI bots, ready in a few steps
                     [--public-url https://host]
   openmausbot sessions [revoke ID]
   openmausbot status
-  openmausbot login [--email you@example.com]
-  openmausbot logout
   openmausbot access list | add EMAIL [--chat-only] | remove EMAIL
   openmausbot service install [--domain HOST | --tunnel | --tailscale] [--port N] [--data-dir DIR] | uninstall
                     [--sentinel]   (the health scan below, every two minutes, instead of the server)
@@ -49,9 +47,6 @@ serve   starts the server without prompts and prints a pairing link + QR code
 pair    mints a pairing code against a running server (--client: chat only)
 sessions lists paired devices; "sessions revoke ID" signs one out
 status  what the server says about itself
-login   signs this machine in to an OpenMausBot account (an emailed code)
-        and reserves its public address for --tunnel
-logout  releases that address and signs out
 access  who may sign in with an emailed code at /pair: an address or
         @domain; --chat-only gives chat and approvals without settings.
         Takes effect at once, no restart.
@@ -76,9 +71,8 @@ fleet   many client workspaces on one Linux server, each its own account,
 --tailscale  serve over your tailnet: Tailscale terminates HTTPS and the
              link uses this machine's MagicDNS name (needs Tailscale signed in
              and HTTPS certificates enabled for the tailnet)
---tunnel     serve at a public https://c-… address through a
-             Cloudflare tunnel: no domain, no proxy, no open port. Run
-             \`openmausbot login\` once on this machine first.
+--tunnel     serve at a fleet workspace's public https://c-… address through
+             a Cloudflare tunnel (needs the fleet's OMB_INSTALLATION_CREDENTIAL)
 --domain     serve at https://HOST on your own domain: a pinned Caddy is
              downloaded once and run alongside the server, and gets the
              certificate itself. Point the domain's DNS at this machine and

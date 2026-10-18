@@ -48,20 +48,6 @@ beforeEach(() => {
 });
 afterEach(() => { vi.unstubAllGlobals(); setLocale("en"); });
 
-it("each server this app added (not this computer) offers Copy this computer here, which opens the copy for that server", async () => {
-  await mount();
-  const buttons = copyButtons();
-  expect(buttons).toHaveLength(1);
-  expect(buttons[0]!.props["aria-label"]).toBe("Copy this computer here: VPS");
-  expect(render().html).not.toContain("Copy this computer's bots and chats");
-  buttons[0]!.props.onClick!();
-  await mount();
-  expect(vi.mocked(move.state).mock.calls).toContainEqual(["vps"]);
-  const { html } = render();
-  expect(html).toContain("Copy this computer's bots and chats");
-  expect(html).toContain("from this computer to VPS");
-});
-
 it("is not offered without the desktop app's copy, or to a companion connected to another computer", async () => {
   stub({ cloudMove: undefined });
   await mount();
@@ -71,29 +57,6 @@ it("is not offered without the desktop app's copy, or to a companion connected t
   await mount();
   expect(copyButtons()).toHaveLength(0);
   expect(move.state).not.toHaveBeenCalled();
-});
-
-it("a server's own Copy brings the person here, on that server's copy, to start it themselves", async () => {
-  const replaced: string[] = [];
-  stub({});
-  vi.stubGlobal("window", { ...window, location: { search: "?desktop-settings=workspaces&copy-to=vps", href: "http://127.0.0.1:1/?desktop-settings=workspaces&copy-to=vps" },
-    history: { replaceState: (_state: unknown, _title: string, url: string) => { replaced.push(url); } } });
-  await mount(); await mount();
-  expect(vi.mocked(move.state).mock.calls).toContainEqual(["vps"]);
-  expect(render().html).toContain("from this computer to VPS");
-  expect(move.start).not.toHaveBeenCalled();
-  expect(replaced.at(-1)).toBe("/?desktop-settings=workspaces");
-  f.values = [];
-  let listener: (id?: string | null, panel?: "copy") => void = () => {};
-  stub({});
-  (window.ogb!.environments as { onOpenSettings: unknown }).onOpenSettings = (callback: typeof listener) => { listener = callback; return () => {}; };
-  await mount();
-  expect(render().html).not.toContain("Copy this computer's bots and chats");
-  listener("vps");
-  expect(render().html).not.toContain("Copy this computer's bots and chats");
-  listener("vps", "copy");
-  await mount();
-  expect(render().html).toContain("from this computer to VPS");
 });
 
 const LOCAL_ENV = { id: "env-1", kind: "local", name: "Work", dataDir: "/home/me/.openmausbot-work", missing: false };

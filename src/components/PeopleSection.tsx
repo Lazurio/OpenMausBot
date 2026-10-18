@@ -183,7 +183,6 @@ export function PeopleSection() {
   const [lists, setLists] = useState<SignInLists | null>(null);
   const [people, setPeople] = useState<Person[]>([]);
   const [base, setBase] = useState<string>(typeof window !== "undefined" ? window.location.origin : "");
-  const [emailOffered, setEmailOffered] = useState<boolean | null>(null);
   const [draft, setDraft] = useState("");
   const [role, setRole] = useState<Role>("member");
   const [link, setLink] = useState<string | null>(null);
@@ -195,12 +194,11 @@ export function PeopleSection() {
     setLoading(true);
     setError(null);
     try {
-      const [config, sessions, usage, domain, environment] = await Promise.all([
+      const [config, sessions, usage, domain] = await Promise.all([
         api("/api/config"),
         api("/api/auth/sessions").catch(() => ({ sessions: [] })),
         api("/api/usage?groupBy=user").catch(() => ({ groups: [] })),
         api("/api/settings/custom-domain").catch(() => null),
-        fetch("/.well-known/openmausbot/environment").then((res) => (res.ok ? res.json() : null)).catch(() => null),
       ]);
       const current: SignInLists = {
         admins: Array.isArray(config?.signIn?.admins) ? config.signIn.admins : [],
@@ -213,7 +211,6 @@ export function PeopleSection() {
       const spent = Array.isArray(usage?.groups) ? usage.groups : [];
       setPeople(authority.authority === "portal" ? peopleFromSessions(signedIn, spent) : mergePeople(current, signedIn, spent));
       if (typeof domain?.publicUrl === "string" && domain.publicUrl) setBase(domain.publicUrl);
-      setEmailOffered(environment?.capabilities?.emailSignIn === true ? true : environment ? false : null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -257,7 +254,7 @@ export function PeopleSection() {
   if (membership?.authority === "portal") return <PortalPeople peopleUrl={membership.peopleUrl} people={people} />;
   return (
     <Card title={t("people.title")} subtitle={t("people.subtitle")}>
-      {emailOffered === false && <p className="mb-3 rounded-lg border border-warning/25 bg-warning/5 px-3 py-2 text-[12.5px] text-ink-secondary">{t(membership?.pairingCodes === false ? "people.portalSignIn" : "people.notHosted")}</p>}
+      {<p className="mb-3 rounded-lg border border-warning/25 bg-warning/5 px-3 py-2 text-[12.5px] text-ink-secondary">{t(membership?.pairingCodes === false ? "people.portalSignIn" : "people.notHosted")}</p>}
       <form className="flex flex-wrap items-center gap-2" onSubmit={(event) => { event.preventDefault(); void invite(); }}>
         <input
           value={draft}

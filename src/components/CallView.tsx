@@ -20,7 +20,6 @@ import { usePushToTalk } from "@/lib/push-to-talk";
 import { BotAvatar } from "./Avatar";
 import { navigateThreadMenu } from "./BotProjects";
 import { LiveKeySetup } from "./LiveKeySetup";
-import { LiveProPrompt } from "./ProIntroduction";
 import { liveLineHeldElsewhere } from "./LiveCallBar";
 import { isRoutineApproval, isSkillApproval, pendingApprovals, spokenApprovalPrompt } from "./PendingApproval";
 import { callStarted } from "@/lib/product-events";
@@ -117,17 +116,14 @@ export function CallTargetButton({
   const helpMotion = useMenuMotion(Boolean(unavailable && helpOpen));
   const [menuOpen, setMenuOpen] = useState(false);
   const keyPopover = canLive && !active && media.needsKey && media.botId === targetId;
-  const proPopover = canLive && !active && media.needsPro && media.botId === targetId;
-  const startPrompt = keyPopover || proPopover;
+  const startPrompt = keyPopover;
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const chevronRef = useRef<HTMLButtonElement>(null);
   const keyRef = useRef<HTMLDivElement>(null);
-  const proRef = useRef<HTMLDivElement>(null);
   const helpId = useId();
   const menuId = useId();
   const keyId = useId();
-  const proId = useId();
   const elsewhereName = liveElsewhere ? state.bots.find((candidate) => candidate.id === media.botId)?.name : undefined;
   const composer = placement === "composer";
   const label = active
@@ -218,12 +214,6 @@ export function CallTargetButton({
     keyShown.current = keyPopover;
     if (opened) keyRef.current?.querySelector<HTMLInputElement>("input")?.focus();
   }, [keyPopover]);
-  const proShown = useRef(proPopover);
-  useEffect(() => {
-    const opened = proPopover && !proShown.current;
-    proShown.current = proPopover;
-    if (opened) proRef.current?.focus();
-  }, [proPopover]);
 
   if (lineHeldElsewhere) return null;
   return (
@@ -249,7 +239,7 @@ export function CallTargetButton({
           start(liveMode ? "live" : "turns");
         }}
         aria-expanded={unavailable ? helpOpen : startPrompt ? true : undefined}
-        aria-controls={unavailable ? helpId : keyPopover ? keyId : proPopover ? proId : undefined}
+        aria-controls={unavailable ? helpId : keyPopover ? keyId : undefined}
         aria-label={label}
         title={label}
         data-call-button={placement}
@@ -330,17 +320,6 @@ export function CallTargetButton({
             compact
             onSaved={() => void startLiveCall({ botId: targetId, threadId: liveThreadId })}
           />
-        </div>
-      )}
-
-      {proPopover && (
-        <div
-          ref={proRef}
-          id={proId}
-          tabIndex={-1}
-          className={cn("animate-pop-in absolute right-0 z-30 w-[340px] max-w-[90vw] rounded-xl shadow-2xl outline-none", composer ? "bottom-full mb-1.5" : "top-full mt-1.5")}
-        >
-          <LiveProPrompt />
         </div>
       )}
 
