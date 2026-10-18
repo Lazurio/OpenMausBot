@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AppWindow, AudioLines, ChevronRight, FileText, ShieldCheck, Tag } from "lucide-react";
+import { AudioLines, ChevronRight, FileText, ShieldCheck, Tag } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
@@ -17,7 +17,7 @@ import { useBotApps } from "../bot-settings/useBotApps";
 import type { useBotSettingsDerived } from "../bot-settings/useBotSettingsDerived";
 import { useThreadApproval } from "../thread-approval";
 import type { SimplePageId } from "./page-registry";
-import { buttonCls, Card, ColRow, NavRow, RowIcon, rowCls, RowText, Segmented, type SegmentOption } from "./rows";
+import { buttonCls, Card, ColRow, RowIcon, rowCls, RowText, Segmented, type SegmentOption } from "./rows";
 
 type Derived = ReturnType<typeof useBotSettingsDerived>;
 
@@ -29,7 +29,7 @@ const ACTS_LABEL: Record<ApprovalMode, () => string> = {
   custom: () => t("botPanel.acts.custom"),
 };
 
-export function SettingsPage({ bot, derived, onOpen, editingInstructions = false, onEditInstructions }: {
+export function SettingsPage({ bot, derived, editingInstructions = false, onEditInstructions }: {
   bot: Bot;
   derived: Derived;
   onOpen?: (page: SimplePageId) => void;
@@ -42,7 +42,7 @@ export function SettingsPage({ bot, derived, onOpen, editingInstructions = false
   const approval = useThreadApproval(currentTaskBot(bot));
   const storedCallMode = useCallMode();
   const [jobDraft, setJobDraft] = useState<string | null>(null);
-  const { patch, approvalMode, engine } = derived;
+  const { patch, approvalMode } = derived;
   const name = bot.name;
   const commitJob = () => {
     if (jobDraft !== null && jobDraft.trim() !== bot.title.trim()) patch({ title: jobDraft.trim() });

@@ -3,16 +3,13 @@ import { useAdvancedMode } from "@/lib/interface-mode";
 import { PHONE_LAYOUT, useMediaQuery } from "@/lib/use-media-query";
 import { ThreadLinkContext } from "@/components/ThreadLinkMenu";
 import { useShowThreads } from "@/lib/thread-preferences";
-import { AlertTriangle, ChevronLeft, ChevronRight, Copy, Monitor, RefreshCw, Reply, Square, Webhook } from "lucide-react";
-import { WorkingDots } from "@/components/WorkingIndicator";
+import { AlertTriangle, ChevronLeft, ChevronRight, Copy, RefreshCw, Reply, Square, Webhook } from "lucide-react";
 import { ACTION_ICON, CopyButton, MESSAGE_ROW, MessageActions, messageActionClass, ReplyAction, type MessageMenuItem } from "@/components/MessageActions";
 import { copyText } from "@/lib/copy-text";
 import { ReactAction, ReactionChips } from "@/components/Reactions";
 import { useBotMessageMenu, userMessageMenu } from "@/components/message-menu";
 import { useSpeech } from "@/lib/tts/useSpeech";
 import { localSystemVoiceActive } from "@/lib/local-voice";
-import { computerStartLine } from "@/lib/computer-start";
-import { rememberComputerPanelOpen } from "@/lib/computer-panel-focus";
 import { useCaptionChrome, useDesktopCapabilities } from "@/components/DesktopCapabilities";
 import {
   api,
@@ -39,8 +36,6 @@ import { MacCuaRecoveryActions } from "./MacCuaRecoveryActions";
 import { macCuaPermissionMessage, missingMacCuaPermissions } from "@/lib/mac-cua-permissions";
 import { failedTurnCause, signedOutEngine } from "@/lib/failed-turn";
 import { plainErrorLine } from "@/lib/plain-error";
-import { openPlaceAction, placeRowViewFor, usePlaceSeat, worksOnSimpleLabel } from "@/lib/place-view";
-import type { PlaceRow } from "../../shared/place-view";
 import { trialCreditKind, type TrialCreditRefusal } from "../../shared/trial-credit";
 import { TrialCreditNotice } from "./TrialCreditNotice";
 import { isPureLeakedSystemHarnessMessage, stripLeakedSystemHarnessMessages } from "../../shared/system-message-guard.ts";
@@ -101,7 +96,6 @@ import { SpeakButton } from "./SpeakButton";
 import { CallOverlay } from "./CallView";
 import { LiveCallBar } from "./LiveCallBar";
 import { LiveCallChip } from "./LiveCallPill";
-import { effectivePlace, toolPlace, type EffectivePlace } from "@/lib/place";
 import { cn } from "@/lib/cn";
 import { activeLocale, t } from "@/lib/i18n";
 import { COMPACT_BUBBLE } from "@/lib/compact-chip";
@@ -254,24 +248,6 @@ export function ErrorRow({
   );
 }
 
-function PlaceFailedRow({ place, botId, threadId, onRetry }: {
-  place: PlaceRow;
-  botId: string;
-  threadId?: string;
-  onRetry?: () => void;
-}) {
-  const { state, dispatch } = useStore();
-  const { capabilities } = useDesktopCapabilities();
-  const seat = usePlaceSeat(state.config, capabilities.host.platform);
-  const bot = state.bots.find((candidate) => candidate.id === botId);
-  const view = placeRowViewFor(place, seat, worksOnSimpleLabel(bot?.computer, capabilities.host.platform));
-  const id = view.action?.id;
-  const onClick = !id ? undefined
-    : id === "try-again" ? onRetry
-    : () => { openPlaceAction(id, { botId, threadId }, dispatch); };
-  return <ErrorRow message={view.line} action={view.action && onClick ? { label: view.action.label, onClick } : null} />;
-}
-
 const TRIAL_CREDIT_LINE: Record<"paused" | "too_low", LocaleKey> = { paused: "engines.trialCreditPaused", too_low: "engines.trialCreditTooLow" };
 function TrialCreditFailedRow({ kind, onRetry }: { kind: TrialCreditRefusal; onRetry?: () => void }) {
   const { dispatch } = useStore();
@@ -292,7 +268,6 @@ export function FailedTurnRow({ tool, engine, onRetry, botId, threadId }: {
   threadId?: string;
 }) {
   const resume = useLimitResetContinue(botId, threadId, tool.limitResetsAt);
-  if (tool.place && botId) return <PlaceFailedRow place={tool.place} botId={botId} threadId={threadId} onRetry={onRetry} />;
   const credit = trialCreditKind(failedTurnCause(tool.name) ?? "");
   if (credit) return <TrialCreditFailedRow kind={credit} onRetry={onRetry} />;
   const signedOut = signedOutEngine(tool, engine);
@@ -640,7 +615,7 @@ function PeerLabel({ peer }: { peer: PeerLine }) {
   );
 }
 
-const ActivityChip = memo(function ActivityChip({ message, place = "auto" }: { message: Message; place?: EffectivePlace }) {
+const ActivityChip = memo(function ActivityChip({ message }: { message: Message }) {
   const { bots, dispatch, liveTools } = useChatRows();
   const tool = message.tool;
   if (!tool) return null;
@@ -650,14 +625,13 @@ const ActivityChip = memo(function ActivityChip({ message, place = "auto" }: { m
     return <HandoffChip message={message} bots={bots} title={t("chat.openConversationWith", { name: comm.withName })}
       onClick={() => dispatch({ type: "select", id: comm.groupId })} />;
   }
-  return <ToolActivity tool={tool} live={liveTools.has(message.id)} place={toolPlace(tool.name, place)} />;
+  return <ToolActivity tool={tool} live={liveTools.has(message.id)} />;
 });
 
 const MessagesList = memo(function MessagesList({
   messages,
   transcript,
   lookups,
-  place,
   pinnedMessageId,
   today,
   editingId,
@@ -676,7 +650,6 @@ const MessagesList = memo(function MessagesList({
   messages: Message[];
   transcript: Message[];
   lookups: TranscriptLookups;
-  place: EffectivePlace;
   pinnedMessageId?: string;
   today: number;
   editingId: string | null;
@@ -722,7 +695,7 @@ const MessagesList = memo(function MessagesList({
         if (item.kind === "turn" || item.kind === "run") {
           if (!showToolCalls) return divider && <div key={item.id} className="contents">{divider}</div>;
           const forceOpen = item.messages.some((step) => step.id === focusedId);
-          const steps = item.messages.map((step) => <div key={step.id} className="contents" data-mid={step.id}><ActivityChip message={step} place={place} /></div>);
+          const steps = item.messages.map((step) => <div key={step.id} className="contents" data-mid={step.id}><ActivityChip message={step} /></div>);
           return (
             <div key={item.id} className="contents">
               {newDay && <DaySeparator at={first.at} today={today} simple={simple} />}
@@ -766,14 +739,12 @@ const MessagesList = memo(function MessagesList({
                   <FailedTurnRow
                     tool={m.tool}
                     engine={engine}
-                    botId={botId}
-                    threadId={threadId}
                     onRetry={m.id === lookups.retryableId && canRetryLast ? onRegenerate : undefined}
                   />
                 );
               }
               if (!showToolCalls && !m.comm && !m.threadRef && !m.relay && !m.dataResult) return null;
-              return <ActivityChip message={m} place={place} />;
+              return <ActivityChip message={m} />;
             }
             case "digest":
               return showToolCalls ? <DigestChip message={m} /> : null;
@@ -838,7 +809,6 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
   const simpleHead = !advanced && !remoteClient;
   const canWrite = useCanWriteIn(bot.threadId);
 
-  const computerStarting = computerStartLine(state.computerStarts[bot.id], bot.name);
   const mascotMotion = state.mascotMotion?.botId === bot.id ? state.mascotMotion : null;
   const [findOpen, setFindOpen] = useState(false);
   const { replyTo, selectReply, clearReply, consumeReply, restoreReply } = useReplyDraft(
@@ -924,7 +894,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
     () => ({ botId: bot.id, threadId: bot.threadId, botName: bot.name, voiceId: bot.voice, tts, localVoice, busy, liveTools, hasMore, bots, mentionPeers, mentionPerson: { profileName: state.config?.profile?.name }, focus, showToolCalls, locale, dispatch, onBranch, bubbleStyle, conversational: isConversational(bot.replyStyle), simple: !advanced, canReact: canWrite !== false, openedAt, speakerViewer }),
     [bot.id, bot.threadId, bot.name, bot.voice, tts, localVoice, busy, liveTools, hasMore, bots, mentionPeers, state.config?.profile?.name, focus, showToolCalls, locale, dispatch, onBranch, bubbleStyle, bot.replyStyle, advanced, canWrite, openedAt, speakerViewer],
   );
-  const currentTask = bot.tasks?.find((task) => task.threadId === bot.threadId), place = effectivePlace(bot, currentTask), team = state.config?.team, privateChat = Boolean(team) && currentTask?.private === true, sharedChat = Boolean(team) && !privateChat;
+  const currentTask = bot.tasks?.find((task) => task.threadId === bot.threadId), team = state.config?.team, privateChat = Boolean(team) && currentTask?.private === true, sharedChat = Boolean(team) && !privateChat;
 
   const [editingId, setEditingId] = useState<string | null>(null);
   useEffect(() => setEditingId(null), [bot.id, bot.threadId]);
@@ -1121,21 +1091,9 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
           )}
           <ThreadContextWarning bot={bot} messages={messages} />
           <EngineLimitNotice engine={bot.modelSelection?.instanceId} />
-          {/* The model and the bot's computer stay in view in both modes; Simple mode moves only ⋯ into the bot panel. */}
+          {/* The model and the browser stay in view in both modes; Simple mode moves only ⋯ into the bot panel. */}
           {!remoteClient && !phone && <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} />}
           <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)} />
-          {!phoneMenu && <button
-            data-tour="computer"
-            onClick={(event) => { if (!state.computerOpen) rememberComputerPanelOpen({ botId: bot.id, opener: event.currentTarget, tabs: event.detail === 0 }); dispatch({ type: "toggleComputer" }); }}
-            className={cn(
-              "relative",
-              simpleHead ? "flex size-8 items-center justify-center rounded-full transition-colors hover:bg-ink/[0.06]" : "rounded-md p-1.5 hover:bg-raised",
-              state.computerOpen ? "text-accent" : "text-ink-secondary hover:text-ink",
-            )}
-            title={t("chat.computer")} aria-label={busy && place === "browser" ? `${t("chat.computer")}, ${t("place.live")}` : t("chat.computer")}
-          >
-            <Monitor size={18} />{busy && place === "browser" && <span aria-hidden="true" className="absolute right-1 top-1 size-1.5 animate-pulse rounded-full bg-success" data-testid="computer-button-live" />}
-          </button>}
           {phoneMenu ? <ChatMoreMenu bot={bot} phoneHeader /> : (advanced || remoteClient) && <ChatHeaderMenu key={`menu:${bot.threadId}`} bot={bot} />}
         </div>
         </div>
@@ -1200,7 +1158,6 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
               messages={windowedMessages}
               transcript={messages}
               lookups={lookups}
-              place={place}
               pinnedMessageId={bot.pinnedMessageId}
               today={localDay(Date.now())}
               editingId={editingId}
@@ -1225,14 +1182,6 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
               >
                 {t("chat.showLater", { count: laterCount })}
               </button>
-            </div>
-          )}
-          {computerStarting && (
-            <div className="flex justify-start">
-              <div className="ui-pill">
-                <WorkingDots size={3.5} />
-                {computerStarting}
-              </div>
             </div>
           )}
           <TurnPresence

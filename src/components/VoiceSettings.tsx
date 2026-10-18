@@ -345,7 +345,7 @@ export function VoiceSettings({
         <div className="mb-1.5 flex items-center gap-2 text-[13px] text-ink-secondary">
           <span className={cn("size-1.5 rounded-full", configured ? "bg-success" : "bg-raised-hover")} />
           <span>{t("voice.providerKey", { provider: cloudProvider.name })}</span>
-          {configured && <span className="text-[11px] text-success">{included ? t("keys.includedWithCloudPro") : t("voice.connected")}</span>}
+          {configured && <span className="text-[11px] text-success">{t("voice.connected")}</span>}
         </div>
         <div className="flex gap-2">
           <input

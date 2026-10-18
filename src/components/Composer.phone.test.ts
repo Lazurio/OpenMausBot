@@ -57,7 +57,6 @@ let container: HTMLDivElement;
 const render = (props: Parameters<typeof Composer>[0]) => flushSync(() => root.render(createElement(Composer, props)));
 const plus = () => container.querySelector<HTMLElement>("[data-composer-plus]")?.closest("button") ?? null;
 const menu = () => document.body.querySelector<HTMLElement>('[data-sidebar-popover-menu="anchored"]');
-const item = (key: string) => document.body.querySelector<HTMLButtonElement>(`[data-menu-key="${key}"]`);
 const click = (element: Element | null) => {
   if (!element) throw new Error("nothing to click");
   flushSync(() => (element as HTMLElement).click());
@@ -103,12 +102,11 @@ describe("the phone composer", () => {
     render({ bot });
     expect(container.querySelector('button[aria-label="Attach a file"]')).toBeNull();
     expect(container.querySelector('[aria-label^="Ask for approval for"]')).toBeNull();
-    expect(container.querySelector('[data-testid="place-chip"]')).toBeNull();
     expect(fixture.call).toMatchObject({ inverse: true });
     openPlus();
     const keys = [...menu()!.querySelectorAll("[data-menu-key]")].map((row) => row.getAttribute("data-menu-key"));
-    expect(keys).toEqual(expect.arrayContaining(["attach", "place", "approval", "call:turns", "call:live"]));
-    expect(item("place")?.textContent).toContain("Works on");
+    expect(keys).toEqual(expect.arrayContaining(["attach", "approval", "call:turns", "call:live"]));
+    expect(keys).not.toContain("place");
   });
 
   it("keeps Advanced mode's buttons in a row on a wider screen", () => {
@@ -116,7 +114,7 @@ describe("the phone composer", () => {
     fixture.advanced = true;
     render({ bot });
     expect(container.querySelector('button[aria-label="Attach a file"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="place-chip"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="place-chip"]')).toBeNull();
     expect(fixture.call?.inverse).toBe(false);
   });
 });

@@ -1,4 +1,3 @@
-import { boatCapableEngine } from "@/lib/remote-desktop";
 import {
   useEffect,
   useLayoutEffect,
@@ -13,7 +12,6 @@ import {
   ChevronRight,
   CircleAlert,
   Clock3,
-  Cloud,
   ExternalLink,
   FileText,
   Laptop,
@@ -77,7 +75,6 @@ import {
   type Routine,
   type RoutineContextAttachment,
   type RoutineInput,
-  type RoutineRunOn,
   type RoutineRun,
   type RoutineRunStatus,
   type RoutineSchedule,
@@ -299,7 +296,6 @@ export function EventEditor({
   seed,
   bots,
   lockedBotId,
-  defaultRunOn,
   routinesOnly = false,
   plain = false, onClose,
   onSavedCall,
@@ -307,7 +303,6 @@ export function EventEditor({
   seed: EventSeed;
   bots: Bot[];
   lockedBotId?: string;
-  defaultRunOn?: RoutineRunOn;
   routinesOnly?: boolean; plain?: boolean;
   onClose: () => void;
   onSavedCall: (call: CalendarCall) => void;
@@ -367,7 +362,6 @@ export function EventEditor({
   };
   const [routineTarget, setRoutineTarget] = useState<RoutineTarget>(existingRoutine?.target ?? "bot");
   const [groupId, setGroupId] = useState(existingRoutine?.groupId ?? "");
-  const [runOn, setRunOn] = useState<RoutineRunOn>(existingRoutine?.runOn ?? defaultRunOn ?? "maus");
   const [attachments, setAttachments] = useState<Array<RoutineContextAttachment | CalendarCallAttachment>>(
     existingRoutine?.target === "room-goal" ? [] : existingRoutine?.attachments ?? existingCall?.attachments ?? [],
   );
@@ -377,7 +371,6 @@ export function EventEditor({
   const [attachmentPendingCount, setAttachmentPendingCount] = useState(0);
   const attachmentPending = attachmentPendingCount > 0;
   const fileInput = useRef<HTMLInputElement>(null);
-  const cloudReady = Boolean(state.config?.box.configured && botIds.length > 0 && botIds.every(id => boatCapableEngine(state.instances, bots.find(bot => bot.id === id)?.modelSelection.instanceId)?.snapshot.state === "available"));
   const rooms = state.groups.filter(roomCanRunGoal);
   const selectedRoom = rooms.find((group) => group.id === groupId);
   const roomMembers = selectedRoom ? activeRoomMembers(selectedRoom, state.bots) : bots;
@@ -447,7 +440,6 @@ export function EventEditor({
       setGroupId("");
       return;
     }
-    setRunOn("maus");
     setAttachments([]);
     setAttachmentNotice("");
     const room = selectedRoom ?? rooms[0];
@@ -473,10 +465,7 @@ export function EventEditor({
         uploadImage: imageAttachmentFromFile,
       });
       const added = toContextAttachments(result.attachments);
-      if (added.length) {
-        setAttachments((current) => [...current, ...added].slice(0, 20));
-        if (runOn === "cloud") setRunOn("maus");
-      }
+      if (added.length) setAttachments((current) => [...current, ...added].slice(0, 20));
       if (result.notice) setAttachmentNotice(result.notice);
     } finally {
       setAttachmentPendingCount((count) => Math.max(0, count - 1));
@@ -508,7 +497,7 @@ export function EventEditor({
           target: routineTarget,
           botId: lockedBotId ?? botIds[0] ?? "",
           groupId: routineTarget === "room-goal" && groupId ? groupId : null,
-          runOn: routineTarget === "room-goal" ? "maus" : runOn,
+          runOn: "maus",
           enabled: existingRoutine && (existingRoutine.enabled || !isDone(existingRoutine, savedAt)) ? undefined : true,
           schedule: nextSchedule,
           durationMinutes,
@@ -566,7 +555,6 @@ export function EventEditor({
   const [moreOpen, setMoreOpen] = useState(() => !(["none", "daily", "weekdays", "weekly"] as RecurrenceChoice[]).includes(recurrence)
     || routineTarget === "room-goal"
     || attachments.length > 0
-    || runOn === "cloud"
     || timeoutMinutes != null
     || runOnStartup
     || overlap === "queue");
@@ -847,9 +835,9 @@ export function EventEditor({
             </div>}
           </div>
   );
-  const runOnRow = kind === "routine" && (
+  const runOnRow = kind === "routine" && isRoomGoal && (
             <div className="flex items-start gap-4">
-              {isRoomGoal ? <Target size={18} className="mt-2.5 shrink-0 text-ink-secondary" /> : runOn === "cloud" ? <Cloud size={18} className="mt-2.5 shrink-0 text-ink-secondary" /> : <Laptop size={18} className="mt-2.5 shrink-0 text-ink-secondary" />}
+              <Target size={18} className="mt-2.5 shrink-0 text-ink-secondary" />
               <div className="min-w-0 flex-1">
                 <div className="rounded-xl border border-accent/35 bg-accent/[0.07] p-3">
                   <div className="text-[13px] font-medium text-ink">{cloudHome ? "Runs on My Cloud" : "Runs on this computer"}</div>
@@ -1531,8 +1519,7 @@ export function EventDetails({
       .sort((left, right) => routineRunTime(right) - routineRunTime(left))
       .slice(0, 3)
     : [];
-  const runOn = run?.runOn ?? routine?.runOn;
-  const runsOn = routineRunsOn({ roomGoal: isRoomGoal, runOn, computer: primary?.computer, cloudHome: state.config?.cloudHome === true });
+  const runsOn = routineRunsOn({ roomGoal: isRoomGoal, cloudHome: state.config?.cloudHome === true });
   const resultsOwner = resultsThreadId
     ? [...state.bots, ...state.groups].find((owner) => owner.threadId === resultsThreadId || owner.tasks?.some((task) => task.threadId === resultsThreadId))
     : undefined;
@@ -1717,13 +1704,13 @@ export function RoutineEditor({
   routine,
   bots,
   lockedBotId, initialBotId,
-  defaultRunOn, plain,
+  plain,
   onClose,
 }: {
   routine?: Routine;
   bots: Bot[];
   lockedBotId?: string; initialBotId?: string;
-  defaultRunOn?: RoutineRunOn; plain?: boolean;
+  plain?: boolean;
   onClose: () => void;
 }) {
   const at = routine?.schedule.type === "once"
@@ -1735,5 +1722,5 @@ export function RoutineEditor({
       : routine?.schedule.type === "cron"
         ? routine.nextRunAt ?? nextHour()
       : nextHour();
-  return <EventEditor seed={{ kind: "routine", at, durationMinutes: routine?.durationMinutes ?? 30, botIds: lockedBotId ? [lockedBotId] : routine ? [routine.botId] : initialBotId ? [initialBotId] : bots.length === 1 ? [bots[0]!.id] : [], routine }} bots={bots} lockedBotId={lockedBotId} defaultRunOn={defaultRunOn} plain={plain} onClose={onClose} onSavedCall={() => {}} />;
+  return <EventEditor seed={{ kind: "routine", at, durationMinutes: routine?.durationMinutes ?? 30, botIds: lockedBotId ? [lockedBotId] : routine ? [routine.botId] : initialBotId ? [initialBotId] : bots.length === 1 ? [bots[0]!.id] : [], routine }} bots={bots} lockedBotId={lockedBotId} plain={plain} onClose={onClose} onSavedCall={() => {}} />;
 }

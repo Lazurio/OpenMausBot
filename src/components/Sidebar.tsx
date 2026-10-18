@@ -121,7 +121,7 @@ import { useAdvancedMode } from "@/lib/interface-mode";
 import { myDefaultBot, useViewerEmail, useWelcomingBot } from "@/lib/default-bot";
 import { PinnedBotRoster, PinnedCircleThreadSection } from "./PinnedCircleThreads";
 import { archiveBotWithNotice, onArchiveNotice } from "./bot-archive";
-import { ArchivedBotsPanel, botConfirmCopy, type BotConfirmKind } from "./ArchivedBotsPanel"; import { MovedBotRows } from "./MoveToTeam";
+import { ArchivedBotsPanel, botConfirmCopy, type BotConfirmKind } from "./ArchivedBotsPanel";
 import { NewRoomPanel } from "./SidebarNewRoomPanel";
 import { SectionPicker } from "./SidebarSectionPicker";
 
@@ -539,7 +539,6 @@ export function BotThreadList({ bot, selected, density, query, pendingQueued, re
       const current = latest.current;
       const mode = approvalModeFor(current);
       const threadMode = approvalModeFor(currentTaskBot(current, task.threadId));
-      if (mode === "auto" && current.computer === "local" && threadMode !== "auto") {
         setPermissionRefresh({ threadId: task.threadId, kind: "local-auto" });
         return;
       }
@@ -1276,7 +1275,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
     if (from && over) reorderSections(from, placeSection(sectionIds, from, over.id, over.place));
     resetSectionDrag();
   };
-  const archivedBots = state.bots.filter((bot) => bot.hidden && !bot.movedTo);
+  const archivedBots = state.bots.filter((bot) => bot.hidden);
   const archivedEntry = remoteClient ? undefined : { count: archivedBots.length, open: () => setArchivedBotsOpen(true) };
   const attention = crossBotAttentionThreads(state.bots, state.pendingQueued, undefined, state.groups);
   const pinnedThreads = crossBotPinnedThreads(state.bots, state.groups, state.pendingQueued);
@@ -1711,7 +1710,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
               </div>
             );
           })}
-          <MovedBotRows bots={state.bots} /><SearchResults query={query} onLanded={() => { setQuery(""); setSearchOpen(false); }} />
+          <SearchResults query={query} onLanded={() => { setQuery(""); setSearchOpen(false); }} />
           {showPinnedCircleThreads && (
             <PinnedCircleThreadSection
               bots={pinnedBots}

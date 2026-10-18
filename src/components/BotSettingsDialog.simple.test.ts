@@ -41,7 +41,6 @@ const fixture = vi.hoisted(() => {
     openExternal: (() => Promise.resolve()) as (url: string) => Promise<void>,
     derived: {} as Record<string, unknown>,
     apps: { phase: "ready", apps: [], connectedSlugs: [] } as BotApps,
-    places: {} as Record<string, [boolean, boolean, string]>,
   };
 });
 vi.mock("react", async (original) => ({
@@ -90,11 +89,6 @@ vi.mock("./bot-settings/SkillsSection", async (importOriginal) => ({
   useManagedSkills: () => ({ ...fixture.skills, setReviewing: () => {}, enableReviewed: () => Promise.resolve() }),
 }));
 vi.mock("./bot-panel/use-memory-doc", () => ({ useMemoryDoc: () => fixture.memory }));
-vi.mock("./PlaceChip", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./PlaceChip")>()),
-  usePlaceViews: () => Object.fromEntries(Object.entries(fixture.places).map(([place, [policy, reachable, short]]) =>
-    [place, { policy, reachable, view: { state: reachable ? "ready" : "blocked", params: {}, short, line: `${short}.`, action: null } }])),
-}));
 vi.mock("./bot-settings/useBotApps", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./bot-settings/useBotApps")>()),
   useBotApps: () => fixture.apps,
@@ -261,8 +255,6 @@ beforeEach(() => {
     canUseConnectedApps: true, connectedAppsConfigured: true, connectedAppsEnabled: true, browserEnabled: true,
   };
   fixture.apps = { phase: "ready", apps: [], connectedSlugs: [] };
-  fixture.places = {
-    cloud: [true, true, "Cloud desktop"], vm: [true, true, "Private desktop"], local: [true, true, "Your screen"], browser: [true, true, "Web pages only"],
   };
   (window as unknown as { ogb?: unknown }).ogb = undefined;
 });

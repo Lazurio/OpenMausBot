@@ -175,20 +175,20 @@ describe("which engines a turn is bridged on", () => {
     const PATTERNS = "the engine's tool patterns name the agents server or match tools by pattern";
 
     it.each([
-      [{ disallowedTools: ["mcp__agents__vm_exec"] }],
+      [{ disallowedTools: ["mcp__agents__create_trigger"] }],
       [{ disallowedTools: ["Bash", "mcp__agents"] }],
       [{ disallowedTools: ["MCP__Agents__start_thread"] }],
       // a wildcard in the server position may reach the agents server
       [{ disallowedTools: ["mcp__*"] }],
       [{ disallowedTools: ["MCP__*"] }],
-      [{ disallowedTools: ["mcp__*__vm_exec"] }],
-      [{ disallowedTools: ["mcp__?__vm_exec"] }],
+      [{ disallowedTools: ["mcp__*__create_trigger"] }],
+      [{ disallowedTools: ["mcp__?__create_trigger"] }],
       [{ tools: ["Read", "mcp__agents__list_bots"] }],
       // The driver takes any text as an entry and joins the entries with a
       // comma for the CLI, so one entry can hold several patterns.
-      [{ disallowedTools: ["Bash,mcp__agents__vm_exec"] }],
-      [{ disallowedTools: ["Bash, mcp__agents__vm_exec"] }],
-      [{ disallowedTools: ["Bash(rm *),mcp__agents__vm_exec"] }],
+      [{ disallowedTools: ["Bash,mcp__agents__create_trigger"] }],
+      [{ disallowedTools: ["Bash, mcp__agents__create_trigger"] }],
+      [{ disallowedTools: ["Bash(rm *),mcp__agents__create_trigger"] }],
       [{ disallowedTools: ["Read", "Edit mcp__agents__start_thread"] }],
       [{ disallowedTools: ["Bash,mcp__*"] }],
       // "contains", as for a settings file: a server whose name merely starts the same way counts
@@ -198,20 +198,20 @@ describe("which engines a turn is bridged on", () => {
       // else the rule says. "In a tool's name" is outside parentheses, with
       // one flag set at "(" and cleared at ")", as the CLI splits the list.
       [{ disallowedTools: ["*"] }],
-      [{ disallowedTools: ["mcp__a*__vm_exec"] }],
+      [{ disallowedTools: ["mcp__a*__create_trigger"] }],
       [{ disallowedTools: ["*exec*"] }],
-      [{ disallowedTools: ["*__vm_exec"] }],
+      [{ disallowedTools: ["*__create_trigger"] }],
       [{ disallowedTools: ["mcp_*"] }],
       [{ disallowedTools: ["mcp__composio__*"] }],
       [{ disallowedTools: ["Bash", "WebFetch", "mcp__composio__GMAIL_SEND_EMAIL", "mcp__composio__*"] }],
       [{ disallowedTools: ["Read?"] }],
       [{ tools: ["Read", "Edi*"] }],
-      [{ disallowedTools: ["Bash(echo ( x),mcp__a*__vm_exec"] }],
+      [{ disallowedTools: ["Bash(echo ( x),mcp__a*__create_trigger"] }],
       [{ disallowedTools: ["Bash(\\(a),*exec*"] }],
-      [{ disallowedTools: ["Bash(a),mcp__a*__vm_exec,Read(b)"] }],
+      [{ disallowedTools: ["Bash(a),mcp__a*__create_trigger,Read(b)"] }],
       [{ disallowedTools: ["Bash(a)*"] }],
       // a list the driver itself would refuse is never a reason to bridge
-      [{ disallowedTools: "mcp__agents__vm_exec" }],
+      [{ disallowedTools: "mcp__agents__create_trigger" }],
       [{ disallowedTools: [7] }],
     ])("is not bridged when a pattern the CLI is handed names the agents server or matches tools by pattern: %j", (config) => {
       expect(agentsToolBridgeRefusal(ON, bot, { ...CLAUDE, config }, {})).toBe(PATTERNS);
@@ -247,7 +247,6 @@ describe("which engines a turn is bridged on", () => {
       // written for another server; allow rules do not glob.
       expect(agentsToolBridgeRefusal(ON, bot, inFolder("settings.json", { permissions: { deny: ["mcp__github__*"] } }))).toBe(WILDCARD);
       expect(agentsToolBridgeRefusal(ON, bot, inFolder("settings.json", { permissions: { ask: ["*exec*"] } }))).toBe(WILDCARD);
-      expect(agentsToolBridgeRefusal(ON, bot, inFolder("settings.local.json", { permissions: { deny: ["Bash(a)", "mcp__a*__vm_exec"] } }))).toBe(WILDCARD);
       expect(agentsToolBridgeRefusal(ON, bot, inFolder("settings.json", { permissions: { deny: ["Read?"] } }))).toBe(WILDCARD);
       // the keys in any case, as for hooks
       expect(agentsToolBridgeRefusal(ON, bot, inFolder("settings.json", { Permissions: { DENY: ["*"] } }))).toBe(WILDCARD);
@@ -256,7 +255,6 @@ describe("which engines a turn is bridged on", () => {
       settings(policy, { permissions: { deny: ["mcp__github__*"] } });
       expect(agentsToolBridgeRefusal(ON, bot, CLAUDE, {}, { ...HOST, managedPolicyFiles: [policy] })).toBe(WILDCARD);
       // naming the agents server is still the first thing seen
-      expect(agentsToolBridgeRefusal(ON, bot, inFolder("settings.json", { permissions: { deny: ["mcp__github__*", "mcp__agents__vm_exec"] } }))).toBe(NAMES);
       // not given the wildcard test: allow rules, additional directories, anything outside permissions
       expect(agentsToolBridgeEnv(ON, bot, inFolder("settings.json", { permissions: { allow: ["mcp__github__*", "*"] } }))).toEqual(on);
       expect(agentsToolBridgeEnv(ON, bot, inFolder("settings.json", { permissions: { additionalDirectories: ["/tmp/*"], deny: ["Bash(git *)", "Read(./src/**)", "Bash(npm run test:*)"] } }))).toEqual(on);
@@ -293,28 +291,22 @@ describe("which engines a turn is bridged on", () => {
     const inFolder = (file: string, content: unknown) => { const cwd = folder(); settings(join(cwd, ".claude", file), content); return { ...CLAUDE, cwd }; };
 
     it("is not bridged when the project's settings name the agents server anywhere", () => {
-      expect(agentsToolBridgeRefusal(ON, bot, inFolder("settings.json", { permissions: { deny: ["Bash(rm *)", "mcp__agents__vm_exec"] } }))).toBe(NAMES);
       expect(agentsToolBridgeEnv(ON, bot, inFolder("settings.json", { permissions: { ask: ["mcp__agents"] } }))).toEqual(off);
       // anywhere in the file, however it is nested or cased: a rule, a hook's matcher, a note
       expect(agentsToolBridgeEnv(ON, bot, inFolder("settings.json", { permissions: { rules: [{ tool: "MCP__Agents__start_thread", effect: "deny" }] } }))).toEqual(off);
-      expect(agentsToolBridgeRefusal(ON, bot, inFolder("settings.json", { hooks: { PostToolUse: [{ matcher: "mcp__agents__vm_exec", hooks: [{ type: "command", command: "audit.sh" }] }] } }))).toBe(NAMES);
-      expect(agentsToolBridgeRefusal(ON, bot, inFolder("settings.json", { env: { NOTE: "mcp__agents__vm_exec" }, permissions: { allow: ["Read"] } }))).toBe(NAMES);
       expect(agentsToolBridgeEnv(ON, bot, inFolder("settings.json", { permissions: { allow: ["mcp__agents__list_bots"] } }))).toEqual(off);
       // the test is "contains", so a server whose name merely starts the same way counts too: the cautious side
       expect(agentsToolBridgeEnv(ON, bot, inFolder("settings.json", { permissions: { deny: ["mcp__agentsmith__run"] } }))).toEqual(off);
       // a wildcard in the server position, the same test as for the engine's own pattern lists
-      expect(agentsToolBridgeRefusal(ON, bot, inFolder("settings.json", { permissions: { deny: ["mcp__*__vm_exec"] } }))).toBe(NAMES);
       expect(agentsToolBridgeRefusal(ON, bot, inFolder("settings.local.json", { permissions: { allow: ["Read", "MCP__?"] } }))).toBe(NAMES);
     });
 
     it("is not bridged when the name is spelled with JSON escapes, which the raw text does not show", () => {
       // "mcp__agents" is "mcp__agents" once parsed: every string value and every key is walked
-      expect(agentsToolBridgeRefusal(ON, bot, inFolder("settings.json", '{"permissions":{"deny":["mcp\\u005f\\u005fagents\\u005f\\u005fvm_exec"]}}'))).toBe(NAMES);
       expect(agentsToolBridgeRefusal(ON, bot, inFolder("settings.json", '{"permissions":{"deny":["\\u006dcp__*"]}}'))).toBe(NAMES);
       expect(agentsToolBridgeRefusal(ON, bot, inFolder("settings.local.json", '{"hooks":{"PostToolUse":[{"matcher":"MCP\\u005f\\u005fAGENTS","hooks":[]}]}}'))).toBe(NAMES);
       expect(agentsToolBridgeRefusal(ON, bot, inFolder("settings.json", '{"env":{"mcp\\u005f\\u005fagents":"1"}}'))).toBe(NAMES);
       // deep in a list of lists, as a key
-      expect(agentsToolBridgeRefusal(ON, bot, inFolder("settings.json", '{"a":[[{"MCP\\u005f\\u005fAgents\\u005f\\u005fvm_exec":true}]]}'))).toBe(NAMES);
       // the escaped spelling of something else is read for what it is
       expect(agentsToolBridgeEnv(ON, bot, inFolder("settings.json", '{"permissions":{"deny":["mcp\\u005f\\u005fcomposio"]}}'))).toEqual(on);
     });
@@ -324,8 +316,8 @@ describe("which engines a turn is bridged on", () => {
 
     it("is not bridged when the machine's managed policy does", () => {
       const policy = join(folder(), "managed-settings.json");
-      settings(policy, { permissions: { deny: ["mcp__agents__vm_exec"] } });
       expect(agentsToolBridgeRefusal(ON, bot, CLAUDE, {}, { ...HOST, managedPolicyFiles: [policy] })).toBe(NAMES);
+      settings(policy, { permissions: { deny: ["mcp__agents__create_trigger"] } });
       // every documented location is read: the rule may be in the second
       expect(agentsToolBridgeEnv(ON, bot, CLAUDE, {}, { ...HOST, managedPolicyFiles: [join(folder(), "absent.json"), policy] })).toEqual(off);
     });
@@ -333,9 +325,9 @@ describe("which engines a turn is bridged on", () => {
     it("reads the folder the turn is launched in: the person's home when the turn has none", () => {
       // drivers/claude.ts launches in turn.cwd ?? homedir()
       const home = folder();
-      settings(join(home, ".claude", "settings.json"), { permissions: { deny: ["mcp__agents__vm_exec"] } });
       expect(agentsToolBridgeEnv(ON, bot, { ...CLAUDE, cwd: undefined }, {}, { ...HOST, home })).toEqual(off);
       expect(agentsToolBridgeEnv(ON, bot, { ...CLAUDE, cwd: undefined }, {})).toEqual(on);
+      settings(join(home, ".claude", "settings.json"), { permissions: { deny: ["mcp__agents__create_trigger"] } });
       // and never the home when the turn has a folder of its own
       expect(agentsToolBridgeEnv(ON, bot, CLAUDE, {}, { ...HOST, home })).toEqual(on);
     });
@@ -448,10 +440,10 @@ describe("which engines a turn is bridged on", () => {
       // no such folder: nothing to read
       expect(agentsToolBridgeEnv(ON, bot, CLAUDE, {}, host)).toEqual(on);
       settings(join(base, "managed-settings.d", "10-defaults.json"), { permissions: { deny: ["WebFetch"] } });
-      settings(join(base, "managed-settings.d", "notes.txt"), "mcp__agents__vm_exec is mentioned here, in a file the CLI does not read");
       expect(agentsToolBridgeEnv(ON, bot, CLAUDE, {}, host)).toEqual(on);
-      settings(join(base, "managed-settings.d", "20-tools.json"), { permissions: { deny: ["mcp__agents__vm_exec"] } });
       expect(agentsToolBridgeRefusal(ON, bot, CLAUDE, {}, host)).toBe(NAMES);
+      settings(join(base, "managed-settings.d", "notes.txt"), "mcp__agents__create_trigger is mentioned here, in a file the CLI does not read");
+      settings(join(base, "managed-settings.d", "20-tools.json"), { permissions: { deny: ["mcp__agents__create_trigger"] } });
       // one that is there and cannot be read
       const broken = folder();
       settings(join(broken, "managed-settings.d", "10-defaults.json"), "{ not json");
@@ -477,8 +469,8 @@ describe("which engines a turn is bridged on", () => {
     });
 
     it("reads none of this for another engine", () => {
-      const cwd = inFolder("settings.json", { permissions: { deny: ["mcp__agents__vm_exec"] } }).cwd;
       for (const driverKind of ["openai-compat", "mistral"]) expect(agentsToolBridgeEnv(ON, bot, { driverKind, cwd }), driverKind).toEqual(on);
+      const cwd = inFolder("settings.json", { permissions: { deny: ["mcp__agents__create_trigger"] } }).cwd;
     });
   });
 
@@ -554,10 +546,8 @@ describe("which bots a turn is bridged for", () => {
   it("stays off for a bot with a tool selection, whose gates read the tool's own name", () => {
     // mcp-gate.ts, the chat runtime and the Pi extension all refuse an
     // excluded tool by the name in the call. Behind use_tool that name is
-    // use_tool, so a denied vm_exec would run. Any selection at all mounts
     // those gates, even one that permits everything.
     for (const toolScope of [
-      { deny: ["mcp:agents:vm_exec"] },
       { allow: ["native:*", "mcp:agents:list_bots"] },
       { allow: ["mcp:agents:*"] },
       { allow: [] },
@@ -628,10 +618,10 @@ describe("the decision cannot fail a turn", () => {
       expect(last()).toContain("(VaultLocked)");
       expect(last()).not.toContain("abc123");
       // the engine's config
-      const oddEngine = { ...CLAUDE, get config(): unknown { throw new TypeError("config has {\"disallowedTools\": [\"mcp__agents__vm_exec\"]}"); } };
       expect(agentsToolBridgeEnv(ON, bot, oddEngine, {})).toEqual(off);
+      const oddEngine = { ...CLAUDE, get config(): unknown { throw new TypeError("config has {\"disallowedTools\": [\"mcp__agents__create_trigger\"]}"); } };
       expect(last()).toContain("(TypeError)");
-      expect(last()).not.toContain("vm_exec");
+      expect(last()).not.toContain("create_trigger");
       // a file system error keeps its code, which names no path
       const denied = Object.assign(new Error("EACCES: permission denied, open '/etc/claude-code/managed-settings.json'"), { code: "EACCES" });
       const deniedHost: EngineHost = { home: folder(), get managedPolicyFiles(): readonly string[] { throw denied; } };
@@ -673,6 +663,7 @@ describe("the name a bridged call is given", () => {
 
   it("is the tool it ran on a turn that was bridged, for any tool of today's catalog, and its own for anything else", () => {
     bridgedAgents("thread-bridged", agents(), ON, bot, CLAUDE, {}, HOST);
+    for (const tool of ["list_triggers", "create_trigger", "create_bot", "create_options_card", "memory_log", "post_to_room"]) {
       expect(bridgedToolTitle("thread-bridged", "mcp__agents__use_tool", JSON.stringify({ name: tool, arguments: {} }, null, 2)), tool).toBe(`mcp__agents__${tool}`);
       expect(bridgedToolTitle("thread-bridged", "agents_use_tool", { name: tool }), tool).toBe(`agents_${tool}`);
       expect(bridgedToolTitle("thread-bridged", "use_tool", { name: tool }), tool).toBe(tool);
@@ -681,7 +672,7 @@ describe("the name a bridged call is given", () => {
     expect(bridgedToolTitle("thread-bridged", "mcp__agents__use_tool", { name: FIND_TOOL })).toBe("mcp__agents__use_tool");
     expect(bridgedToolTitle("thread-bridged", "mcp__agents__use_tool", undefined)).toBe("mcp__agents__use_tool");
     expect(bridgedToolTitle("thread-bridged", "mcp__agents__list_triggers", {})).toBe("mcp__agents__list_triggers");
-    expect(bridgedToolTitle("thread-bridged", "Bash", { name: "vm_exec" })).toBe("Bash");
+    expect(bridgedToolTitle("thread-bridged", "Bash", { name: "create_trigger" })).toBe("Bash");
   });
 
   it("leaves a use_tool row alone on a turn that was not bridged: it is some other server's tool of that name", () => {
@@ -691,7 +682,6 @@ describe("the name a bridged call is given", () => {
     // never decided, switched off, an engine that is not bridged, a bot with a selection
     bridgedAgents("thread-off", agents(), {}, bot, CLAUDE, {}, HOST);
     bridgedAgents("thread-acp", agents(), ON, bot, { driverKind: "grokAgent" }, {}, HOST);
-    bridgedAgents("thread-selected", agents(), ON, { toolScope: { deny: ["mcp:agents:vm_exec"] } }, CLAUDE, {}, HOST);
     for (const threadId of ["thread-never", "thread-off", "thread-acp", "thread-selected"]) {
       for (const title of ["use_tool", "mcp__agents__use_tool", "agents_use_tool"]) expect(bridgedToolTitle(threadId, title, call), `${threadId} ${title}`).toBe(title);
     }
@@ -782,7 +772,6 @@ describe("the prompt of a bridged turn", () => {
     for (const [agents, has] of [
       [{ env: agentsToolBridgeEnv(ON, bot, CLAUDE, {}) }, true],
       [{ env: agentsToolBridgeEnv(ON, bot, { driverKind: "grokAgent" }, {}) }, false],
-      [{ env: agentsToolBridgeEnv(ON, { toolScope: { deny: ["mcp:agents:vm_exec"] } }, CLAUDE, {}) }, false],
       [{ env: agentsToolBridgeEnv({}, bot, CLAUDE, {}) }, false],
     ] as const) {
       expect(buildSystemPrompt("You are Kiwi.", "", parts, agents).sections.some((entry) => entry.id === "tool-bridge")).toBe(has);

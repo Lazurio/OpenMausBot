@@ -332,19 +332,6 @@ describe("independent bot threads", () => {
     expect(ungrouped.bots[0]?.tasks?.[1]).toEqual({ ...bot.tasks?.[1], projectId: undefined });
     expect(ungrouped.bots[0]?.tasks?.[0]).toEqual(bot.tasks?.[0]);
   });
-
-  it("drops the machine's mark the moment the person pins or unpins a thread's place", () => {
-    const autoPinned = { ...start(), bots: [{ ...bot, tasks: bot.tasks?.map((task) =>
-      task.threadId === "first" ? { ...task, surface: "browser" as const, surfaceAuto: true as const } : task) }] };
-    const pinned = reducer(autoPinned, { type: "updateTask", botId: bot.id, threadId: "first", patch: { surface: "cloud" } });
-    expect(pinned.bots[0]?.tasks?.[0]?.surface).toBe("cloud");
-    expect(pinned.bots[0]?.tasks?.[0]?.surfaceAuto).toBeUndefined();
-    const unpinned = reducer(autoPinned, { type: "updateTask", botId: bot.id, threadId: "first", patch: { surface: null } });
-    expect(unpinned.bots[0]?.tasks?.[0]?.surface).toBeUndefined();
-    expect(unpinned.bots[0]?.tasks?.[0]?.surfaceAuto).toBeUndefined();
-    const listPinned = reducer(autoPinned, { type: "updateTask", botId: bot.id, threadId: "first", patch: { pinned: true } });
-    expect(listPinned.bots[0]?.tasks?.[0]).toMatchObject({ surface: "browser", surfaceAuto: true });
-  });
 });
 
 describe("keyboard shortcuts dialog state", () => {
@@ -629,14 +616,12 @@ describe("trusted approval-mode persistence", () => {
 
   it("keeps local-computer consent on an ordinary PATCH coalesced with a private mode", async () => {
     const request = vi.fn(async (_path: string, _init?: RequestInit) => ({
-      bot: { ...announcement("auto"), computer: "local" as const },
     }));
     const setMode = vi.fn(async () => announcement("full"));
 
     await persistBotUpdate(
       "bot-1",
       {
-        computer: "local",
         acknowledgeLocalAuto: true,
         approvalMode: "full",
       },
@@ -647,7 +632,6 @@ describe("trusted approval-mode persistence", () => {
     );
 
     expect(JSON.parse(String(request.mock.calls[0]?.[1]?.body))).toEqual({
-      computer: "local",
       acknowledgeLocalAuto: true,
     });
     expect(setMode).toHaveBeenCalledWith("bot-1", "full", { acknowledgeLocalAuto: true });
@@ -1046,12 +1030,9 @@ describe("config status frames", () => {
       configStatusFromFrame({
         xai: { configured: true },
         composio: { configured: true, mode: "managed" },
-        box: { configured: false },
-        vps: { configured: true, sshAlias: "homelab" },
         rooms: { turnTimeoutMinutes: 20 },
         mcp: { callTimeoutMinutes: 30 },
         threads: { maxConcurrentPerBot: 10 },
-        localVm: { mode: "per-bot", maxInstances: 3 },
         opencodeGo: { configured: true },
         tts: { configured: true, ready: true, voice: "Ada" },
         profile: { name: "Ian", email: "ian@example.test" },
@@ -1060,12 +1041,9 @@ describe("config status frames", () => {
     ).toEqual({
       xai: { configured: true },
       composio: { configured: true, mode: "managed" },
-      box: { configured: false },
-      vps: { configured: true, sshAlias: "homelab" },
       rooms: { turnTimeoutMinutes: 20 },
       mcp: { callTimeoutMinutes: 30 },
       threads: { maxConcurrentPerBot: 10 },
-      localVm: { mode: "per-bot", maxInstances: 3 },
       opencodeGo: { configured: true },
       tts: { configured: true, ready: true, voice: "Ada" },
       profile: { name: "Ian", email: "ian@example.test" },
@@ -1128,11 +1106,8 @@ describe("task rename", () => {
 describe("config status", () => {
   const config = configStatusFromFrame({
     composio: { configured: false },
-    box: { configured: false },
-    vps: { configured: false, sshAlias: "" },
     rooms: { turnTimeoutMinutes: 5 },
     mcp: { callTimeoutMinutes: 10 },
-    localVm: { mode: "shared", maxInstances: 2 },
     features: { skillAuthoring: true },
   });
 
@@ -1524,24 +1499,6 @@ describe("canonical message races", () => {
   });
 });
 
-describe("computer destination announcements", () => {
-  it.each(["botPatched", "taskSwitched", "botPatchedSwitch"] as const)("clears the old target on Auto via %s", (kind) => {
-    const bot: Bot = {
-      id: "computer-bot", threadId: "computer-thread", name: "Ziggy", title: "", description: "",
-      notifications: true, color: "green", unread: false,
-      modelSelection: { instanceId: "codex", model: "default" }, computer: "browser",
-      messages: [{ id: "message", role: "user", kind: "text", at: 1, text: "Keep this conversation" }],
-    };
-    const { computer: _oldComputer, ...announcement } = bot;
-    const next = reducer({ ...initialState, bots: [bot] }, {
-      type: kind === "taskSwitched" ? "taskSwitched" : "botPatched",
-      bot: { ...announcement, threadId: kind === "botPatchedSwitch" ? "replacement-thread" : bot.threadId },
-    });
-    expect(next.bots[0]?.computer).toBeUndefined();
-    expect(next.bots[0]?.messages).toEqual(bot.messages);
-  });
-});
-
 describe("VPS alias announcements", () => {
   it.each(["botPatched", "taskSwitched", "botPatchedSwitch"] as const)("clears the bot's own server when the frame omits it via %s", (kind) => {
     const bot: Bot = {
@@ -1740,17 +1697,6 @@ describe("section Chiefs", () => {
     expect(next.bots.find((candidate) => candidate.id === workChief.id)?.chiefOfStaff).toBe(false);
     expect(next.bots.find((candidate) => candidate.id === workCandidate.id)?.chiefOfStaff).toBe(true);
     expect(next.bots.find((candidate) => candidate.id === personalChief.id)?.chiefOfStaff).toBe(true);
-  });
-
-  it("optimistically clears an explicit computer when Auto is selected", () => {
-    const current = { ...bot("cloud-bot", "Work"), computer: "cloud" as const, messages: [] };
-    const next = reducer({ ...initialState, bots: [current] }, {
-      type: "updateBot",
-      botId: current.id,
-      patch: { computer: null },
-    });
-
-    expect(next.bots[0]?.computer).toBeUndefined();
   });
 });
 
@@ -2530,11 +2476,8 @@ describe("activity panel", () => {
 describe("live config frames", () => {
   const baseFrame: ConfigStatusFrame = {
     composio: { configured: false },
-    box: { configured: false },
-    vps: { configured: false, sshAlias: "" },
     rooms: { turnTimeoutMinutes: 10 },
     mcp: { callTimeoutMinutes: 10 },
-    localVm: { mode: "shared", maxInstances: 1 },
   };
 
   it("keeps automatic recovery and its backup through live config refreshes", () => {
@@ -2594,7 +2537,6 @@ describe("live config frames", () => {
 
   it("carries the organisation's read-only desktop policy through a config frame", () => {
     const managedPolicy = { organizationName: "Fixture Agency", version: 2, companyModelsOnly: true, allowedEngines: ["codex"],
-      mcp: { allowCustom: false, allowlist: ["github"] }, computers: { thisComputer: false, localVm: true, box: true, vps: true }, remoteAccess: false };
     expect(configStatusFromFrame({ ...baseFrame, managedPolicy }).managedPolicy).toEqual(managedPolicy);
     expect(configStatusFromFrame({ ...baseFrame, managedPolicy: null }).managedPolicy).toBeNull();
   });

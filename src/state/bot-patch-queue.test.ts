@@ -126,7 +126,7 @@ describe("bot patch queue", () => {
     ]);
   });
 
-  it("flush waits for the PATCH and returns the server-authoritative computer selection", async () => {
+  it("flush waits for the PATCH and returns the server-authoritative bot", async () => {
     const request = deferredBot();
     const send = vi.fn(async () => request.promise);
     const queue = createBotPatchQueue({
@@ -136,7 +136,6 @@ describe("bot patch queue", () => {
       onError: vi.fn(),
     });
 
-    queue.enqueue("bot-1", { computer: "cloud", cloudBackend: "vps" }, bot());
     const flushed = queue.flush("bot-1");
     let settled = false;
     void flushed.then(() => { settled = true; });
@@ -145,8 +144,6 @@ describe("bot patch queue", () => {
     expect(send).toHaveBeenCalledOnce();
     expect(settled).toBe(false);
 
-    request.resolve(bot({ computer: "cloud", cloudBackend: "vps" }));
-    await expect(flushed).resolves.toMatchObject({ computer: "cloud", cloudBackend: "vps" });
   });
 
   it("coalesces upload then remove so an older avatar can never resurrect", async () => {
@@ -157,7 +154,6 @@ describe("bot patch queue", () => {
         sent.push(patch);
         return bot({
           ...patch,
-          computer: patch.computer ?? undefined,
           connectorTools: patch.connectorTools ?? undefined,
           connectorScopes: patch.connectorScopes ?? undefined,
           phoneApps: patch.phoneApps ?? undefined,
@@ -350,13 +346,10 @@ describe("bot patch queue", () => {
       onError: vi.fn(),
     });
 
-    queue.enqueue("bot-1", { computer: "local", acknowledgeLocalAuto: true }, bot());
     queue.enqueue("bot-1", { title: "Ops" }, bot());
-    expect(queue.overlayFor("bot-1")).toEqual({ computer: "local", title: "Ops" });
     await vi.advanceTimersByTimeAsync(400);
     await queue.flush("bot-1");
 
-    expect(sent).toEqual([{ computer: "local", acknowledgeLocalAuto: true, title: "Ops" }]);
     for (const overlay of overlays) expect(overlay).not.toHaveProperty("acknowledgeLocalAuto");
   });
 
@@ -410,28 +403,6 @@ describe("bot patch queue", () => {
     release();
     await queue.flush("bot-1");
     expect(sent).toEqual([{ title: "Ops" }, { approvalMode: "ask" }]);
-  });
-
-  it("sends null to select Auto but normalizes it to an absent state field", async () => {
-    const sent: BotUpdatePatch[] = [];
-    const overlays: BotUpdatePatch[] = [];
-    const queue = createBotPatchQueue({
-      send: async (_botId, patch) => {
-        sent.push(patch);
-        return bot();
-      },
-      reconcile: async () => bot(),
-      onAuthoritative: (_bot, overlay) => overlays.push(overlay),
-      onError: vi.fn(),
-    });
-
-    queue.enqueue("bot-1", { computer: null }, bot({ computer: "cloud" }));
-    expect(queue.overlayFor("bot-1")).toEqual({ computer: undefined });
-    await vi.advanceTimersByTimeAsync(400);
-    await queue.flush("bot-1");
-
-    expect(sent).toEqual([{ computer: null }]);
-    expect(overlays).toEqual([{ computer: undefined }]);
   });
 
   it("sends null to drop a grants record but keeps bot state on the legacy boolean", async () => {

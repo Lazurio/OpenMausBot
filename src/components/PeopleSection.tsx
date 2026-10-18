@@ -179,7 +179,6 @@ export function PortalPeople({ peopleUrl, people }: { peopleUrl: string | null; 
 
 export function PeopleSection({ simple = false, startOpen = false }: { simple?: boolean; startOpen?: boolean }) {
   const [open, setOpen] = useState(startOpen);
-  const [tried, setTried] = useState(false);
   const [session, setSession] = useState<SessionState | null>(null);
   const [membership, setMembership] = useState<Membership | null>(null);
   const [lists, setLists] = useState<SignInLists | null>(null);
@@ -244,7 +243,6 @@ export function PeopleSection({ simple = false, startOpen = false }: { simple?: 
   };
 
   const invite = async () => {
-    setTried(true);
     if (!lists || busy) return;
     const entry = normalizeAccessEntry(draft);
     if (!entry) {
@@ -260,7 +258,6 @@ export function PeopleSection({ simple = false, startOpen = false }: { simple?: 
   const portal = membership?.authority === "portal" ? <PortalPeople peopleUrl={membership.peopleUrl} people={people} /> : null;
   const content = (
     <>
-      {emailOffered === false && (!simple || tried) && <p className="mb-3 rounded-lg border border-warning/25 bg-warning/5 px-3 py-2 text-[13px] text-ink-secondary">{t(membership?.pairingCodes === false ? "people.portalSignIn" : "people.notHosted")}</p>}
       <form className="flex flex-wrap items-center gap-2" onSubmit={(event) => { event.preventDefault(); void invite(); }}>
         <input
           value={draft}

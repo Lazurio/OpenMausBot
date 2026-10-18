@@ -386,7 +386,7 @@ describe("archive / delete confirmation", () => {
     expect(copy.tone).toBe("neutral");
   });
 
-  it("delete copy names the bot and warns about its owned computer", () => {
+  it("delete copy names the bot and says what goes with it", () => {
     const copy = botConfirmCopy("delete", "Willow");
 
     expect(copy.title).toContain("Willow");

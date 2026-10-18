@@ -10,7 +10,7 @@ import { toolStepLabel } from "@/lib/tool-step-label";
 import { PlaceIcon } from "./PlaceIcon";
 import { WorkingDots } from "./WorkingIndicator";
 
-export function ToolActivity({ tool, place = null, live = false }: { tool: NonNullable<Message["tool"]>; place?: Place | null; live?: boolean }) {
+export function ToolActivity({ tool, live = false }: { tool: NonNullable<Message["tool"]>; live?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const failed = tool.ok === false;
   const advanced = useAdvancedMode();

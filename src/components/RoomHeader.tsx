@@ -6,7 +6,6 @@ import { roomContextWarnings } from "@/lib/context-warning";
 import { effectiveDefaultResponder, jevRoomRoutingOn } from "@/lib/group-routing";
 import { t } from "@/lib/i18n";
 import { normalizeState } from "@/lib/mascot";
-import { effectivePlace, placeLabelKey } from "@/lib/place";
 import { openRoomPanel } from "@/lib/room-panel";
 import { chosenResponder, responderChoice, responderTitle } from "@/lib/room-responder";
 import { roomSpeakerIds } from "@/lib/room-threads";
@@ -18,7 +17,6 @@ import { useCaptionChrome } from "./DesktopCapabilities";
 import { ExportTranscriptMenu } from "./ExportTranscriptMenu";
 import { RoomHeaderCallButton } from "./GroupCallView";
 import { GroupUsageChip } from "./GroupUsageChip";
-import { PlaceIcon } from "./PlaceIcon";
 import { roomMemberQueueTitle } from "./RoomQueueList";
 import { RoomWorkingFolderChip } from "./RoomWorkingFolder";
 import { Select } from "./Select";
@@ -68,9 +66,6 @@ function memberMauses(group: Group, members: Bot[]) {
     const contextWarning = contextWarnings.find((warning) => warning.bot.id === b.id);
     const busyElsewhere = !busy && speakersElsewhere.has(b.id);
     const held = !group.dm && Boolean(group.holds?.[b.id]);
-    const task = b.tasks?.find((candidate) => candidate.threadId === group.threadId);
-    const effective = busy ? effectivePlace(b, task) : "off";
-    const showPlace = busy && effective !== "off" && effective !== "auto";
     return (
       <span
         key={b.id}
@@ -102,19 +97,7 @@ function memberMauses(group: Group, members: Bot[]) {
           </span>
         )}
         {contextWarning && <RoomContextBadge percent={contextWarning.percent} />}
-        {busy && (
-          showPlace ? (
-            <span
-              className="absolute -right-1 -top-1 flex size-3.5 items-center justify-center rounded-full border border-app bg-accent text-white"
-              role="img"
-              aria-label={t("place.chipAria", { place: t(placeLabelKey(effective)) })}
-            >
-              <PlaceIcon place={effective} size={9} strokeWidth={2.5} aria-hidden="true" />
-            </span>
-          ) : (
-            <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full border border-app bg-accent" />
-          )
-        )}
+        {busy && <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full border border-app bg-accent" />}
       </span>
     );
   });

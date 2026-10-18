@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -29,31 +29,6 @@ function loadEnvironmentIdInChild(dataDir: string): Promise<string> {
     child.on("close", (code) => {
       if (code === 0) resolve(stdout);
       else reject(new Error(`Environment identity child exited ${String(code)}: ${stderr}`));
-    });
-  });
-}
-
-function importComputerProvidersInChild(dataDir: string): Promise<void> {
-  const boatUrl = new URL("./boat.ts", import.meta.url).href;
-  const vpsUrl = new URL("./vps-computer.ts", import.meta.url).href;
-  const source = `await import(${JSON.stringify(boatUrl)}); await import(${JSON.stringify(vpsUrl)});`;
-  return new Promise((resolve, reject) => {
-    const child = spawn(
-      process.execPath,
-      ["--experimental-strip-types", "--input-type=module", "--eval", source],
-      {
-        env: { ...process.env, OMB_DATA_DIR: dataDir },
-        stdio: ["ignore", "ignore", "pipe"],
-      },
-    );
-    let stderr = "";
-    child.stderr.setEncoding("utf8").on("data", (chunk: string) => {
-      stderr += chunk;
-    });
-    child.on("error", reject);
-    child.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`Provider import child exited ${String(code)}: ${stderr}`));
     });
   });
 }
@@ -104,14 +79,6 @@ describe("environment identity", () => {
     dirs.push(unreadableDir);
     mkdirSync(join(unreadableDir, "environment-id"));
     expect(() => loadEnvironmentId(unreadableDir)).toThrow(/Cannot read the existing environment identity/);
-  });
-
-  it("does not create the data directory merely by importing computer providers", async () => {
-    const parent = mkdtempSync(join(tmpdir(), "omb-provider-import-"));
-    dirs.push(parent);
-    const dataDir = join(parent, "not-created-yet");
-    await importComputerProvidersInChild(dataDir);
-    expect(existsSync(dataDir)).toBe(false);
   });
 
   it("describes the server for clients without leaking anything secret", () => {

@@ -84,7 +84,6 @@ async function browserTurnThenQuit(config: Record<string, unknown> = {}, browser
   const fixture = engineHome(config);
   const { child, api } = await startServer(fixture.home, fixture.engine);
   const bot = (await api("POST", "/api/bots", { name: "Shutdown probe" })).body.bot;
-  expect((await api("PATCH", `/api/bots/${bot.id}`, { computer: "browser", browser: true, ...(browserProfile ? { browserProfile } : {}) })).status).toBe(200);
   expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "Check the website." })).status).toBe(202);
   await expect.poll(async () => (await api("GET", "/api/bots?messages=0")).body.bots
     .find((item: { id: string }) => item.id === bot.id)?.busy, { timeout: 20_000 }).toBe(false);

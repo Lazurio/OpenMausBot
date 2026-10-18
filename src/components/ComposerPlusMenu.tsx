@@ -91,7 +91,6 @@ function approvalMenu(choice: ApprovalChoice, simple: boolean) {
           icon: <Icon size={16} />,
           active: option.mode === mode,
           trailing: option.mode === mode ? check : undefined,
-          disabled: localOnly,
           onSelect: () => choice.onSelect(option.mode),
         };
       }),

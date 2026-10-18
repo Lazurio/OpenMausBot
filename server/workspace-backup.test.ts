@@ -134,7 +134,6 @@ describe("encrypted full workspace backups", () => {
     // Production closes its sole message handle after draining writes, while the maintenance gate is held.
     db.close();
     try {
-      json(join(source, "team-computers.json"), { version: 1, environmentId: "source-environment", computers: [{ id: "source-computer", name: "Source desktop", section: "Design" }] });
       const originalDb = readFileSync(join(source, "messages.db"));
       const originalRuntimeDb = readFileSync(join(source, "runtime.db"));
       const exported = await createWorkspaceBackup(source, {
@@ -154,8 +153,6 @@ describe("encrypted full workspace backups", () => {
       json(join(target, "bots.json"), [{ id: "old" }]);
       json(join(target, "sessions.json"), { identity: "target-session" });
       json(join(target, "cloud-owner.json"), { identity: "target-owner-record" });
-      const targetComputers = { version: 1, environmentId: "target-environment", computers: [{ id: "target-computer", name: "Destination desktop", section: null }] };
-      json(join(target, "team-computers.json"), targetComputers);
       writeFileSync(join(target, "environment-id"), "target-environment");
       writeFileSync(join(target, "openmausbot-server.lease"), "live-lease");
       writeFileSync(join(target, "messages.db-wal"), "old database WAL must not enter the new DB");
@@ -165,7 +162,6 @@ describe("encrypted full workspace backups", () => {
       expect(readJson(join(target, "bots.json"))).toEqual([{ id: "old" }]);
       expect(readStagedWorkspaceBackup(target, staged.id)).not.toHaveProperty("credentials");
       const data = join(target, ".backups", staged.id, "staged", "data");
-      expect(existsSync(join(data, "team-computers.json"))).toBe(false);
       expect(existsSync(join(data, "bots.json"))).toBe(true);
       expect(existsSync(join(data, "runtime.db"))).toBe(true);
       expect(existsSync(join(data, "cloud-owner.json"))).toBe(false);
@@ -185,7 +181,6 @@ describe("encrypted full workspace backups", () => {
       expect(readFileSync(join(target, "task-workspaces", "bot", "thread", "binary.bin"))).toEqual(Buffer.alloc(2 * 1024 * 1024, 0xa5));
       expect(readJson(join(target, "sessions.json"))).toEqual({ identity: "target-session" });
       expect(readJson(join(target, "cloud-owner.json"))).toEqual({ identity: "target-owner-record" });
-      expect(readJson(join(target, "team-computers.json"))).toEqual(targetComputers);
       expect(readFileSync(join(target, "environment-id"), "utf8")).toBe("target-environment");
       expect(readFileSync(join(target, "openmausbot-server.lease"), "utf8")).toBe("live-lease");
       expect(existsSync(join(target, "messages.db-wal"))).toBe(false);
@@ -499,7 +494,6 @@ describe("encrypted full workspace backups", () => {
       await expect(stageWorkspaceBackup(directory(), path, { password: PASSWORD })).rejects.toThrow(/metadata/);
     }
     for (const [name, content] of [
-      ["team-computers.json", '{"computers":[{"id":"foreign-computer","section":"Design"}]}'],
       ["workspace-credentials.json", '{"xaiApiKey":"secret"}'],
       ["external-runtimes.json", '{"bot-id":"external-runtime-secret"}'],
       ["External-Runtimes.json", "external-runtime-secret"],

@@ -23,7 +23,7 @@ import { useOpenComputer, WherePage } from "./ComputerTab";
 import { SettingsPage } from "./SettingsPage";
 import { memoryNotes, withMemoryNote, withoutMemoryNote } from "./memory-notes";
 import type { SimplePageId } from "./page-registry";
-import { BotSwitch, buttonCls, Card, LinkRow, NoteRow, RadioRow, rowCls, SwitchRow, TextRow, TrashButton } from "./rows";
+import { buttonCls, Card, LinkRow, NoteRow, RadioRow, rowCls, SwitchRow, TextRow, TrashButton } from "./rows";
 import { useMemoryDoc } from "./use-memory-doc";
 
 type Derived = ReturnType<typeof useBotSettingsDerived>;

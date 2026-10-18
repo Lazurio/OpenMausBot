@@ -6,19 +6,17 @@ import { admit, roomTurnHolds } from "./admission.ts";
 
 describe("admission golden tables", () => {
   it("direct-busy: steers plain text into a capable engine, parks everything else", () => {
-    const plain = { carriesImages: false, pendingComputerSelection: false, engineCanSteer: true };
+    const plain = { carriesImages: false, engineCanSteer: true };
     expect(admit("direct-busy", plain)).toEqual({ action: "steer" });
     expect(admit("direct-busy", { ...plain, carriesImages: true })).toEqual({ action: "queue", blockedBy: "images" });
-    expect(admit("direct-busy", { ...plain, pendingComputerSelection: true })).toEqual({ action: "queue" });
     expect(admit("direct-busy", { ...plain, engineCanSteer: false })).toEqual({ action: "queue" });
     expect(admit("direct-busy", {})).toEqual({ action: "queue" });
   });
 
   it("direct-busy: attachments steer into an engine that takes images mid-turn", () => {
-    const images = { carriesImages: true, engineCanSteerImages: true, pendingComputerSelection: false, engineCanSteer: true };
+    const images = { carriesImages: true, engineCanSteerImages: true, engineCanSteer: true };
     expect(admit("direct-busy", images)).toEqual({ action: "steer" });
     expect(admit("direct-busy", { ...images, engineCanSteer: false })).toEqual({ action: "queue" });
-    expect(admit("direct-busy", { ...images, pendingComputerSelection: true })).toEqual({ action: "queue" });
     expect(admit("direct-busy", { ...images, carriesImages: false, engineCanSteerImages: false })).toEqual({ action: "steer" });
   });
 

@@ -9,7 +9,6 @@
 <sub>OpenMausBot is an open-source Grok Bot alternative: an independent project inspired by **Grok Bot**, and the open-source alternative to **Meta Muse**, **OpenAI dots** and **Cue by Manus** — bring-your-own-agent, local-first, on the models you already have. Also known as **MausBot**; formerly **OpenGrokBot**. Not affiliated with xAI, Meta, OpenAI or Manus.</sub>
 
 Every bot in the sidebar is a real agent — Claude or Codex running locally under the hood — with its own
-personality, its own model, its own cloud computer, and its own connected apps.
 Talk to them like contacts. Watch them work. Approve what matters.
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
@@ -48,15 +47,6 @@ Talk to them like contacts. Watch them work. Approve what matters.
 <br>
 <br>
 
-<sub>Powered by <a href="https://boat.dev">boat.dev</a></sub>
-<br>
-<a href="https://boat.dev">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/sponsors/boat-logo-white.svg">
-    <img src="docs/assets/sponsors/boat-logo.svg" alt="Boat (boat.dev)" height="34">
-  </picture>
-</a>
-
 <br>
 <br>
 
@@ -80,8 +70,6 @@ already have:
   custom CLI binary (a versioned build or wrapper) in **Settings → Engines**.
 - **Local first.** One small harness server on `127.0.0.1` owns every agent process. Transcripts, keys, and
   events live in `~/.openmausbot`, not a cloud.
-- **Agents with hands.** Each bot can use a cloud Linux desktop, an isolated Local VM, or—where the platform
-  safety boundary is currently certified—your own computer, plus 500+ apps through Composio. Host control is
   available on macOS and Ubuntu Xorg after explicit opt-in. Ubuntu Wayland host control remains disabled while
   issue #345 is resolved.
 
@@ -246,7 +234,6 @@ expressions · screenshots of the bot's work folded into the transcript.
 ![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-0F172A?logo=tailwindcss&logoColor=38BDF8)
 ![Composio](https://img.shields.io/badge/Composio-e6493a)
-![Boat](https://img.shields.io/badge/Boat-sponsor-111111)
 ![Cua](https://img.shields.io/badge/Cua%20Driver-1f2937)
 ![ElevenLabs](https://img.shields.io/badge/ElevenLabs-000000?logo=elevenlabs&logoColor=white)
 ![Fish Audio](https://img.shields.io/badge/Fish%20Audio-2563eb)
@@ -259,7 +246,6 @@ expressions · screenshots of the bot's work folded into the transcript.
 | **Claude · Codex · Grok** | The agents behind every bot, run through their local CLIs |
 | **Electron** | Desktop shells for macOS, Windows, and Ubuntu |
 | **React + Vite + Tailwind CSS** | The chat app UI and its build |
-| **Boat** ([boat.dev](https://boat.dev)) | Each bot's cloud computer · our sponsor |
 | **Composio** | Connected apps — Gmail, Slack, GitHub, and more |
 | **Cua Driver** | Native computer use on your own machine |
 | **ElevenLabs · Fish Audio** | Hosted voices for bots that talk back |
@@ -289,7 +275,6 @@ flowchart LR
     BUS -- "one SSE stream" --> UI
     REG --> CL & CX & GR
     CL & CX & GR -- "permission requests" --> BROKER
-    server -- "Boat API" --> BOAT[("Cloud computer<br/>boat.dev")]
     server -- "Composio Session" --> APPS[("Gmail · Slack · GitHub · …")]
 ```
 
@@ -368,15 +353,12 @@ pnpm package:linux    # Ubuntu x64: .deb + AppImage + verified CUA runtime
 | Capability | macOS | Ubuntu 24.04 Xorg | Ubuntu 24.04 Wayland |
 |---|---|---|---|
 | Packaged app, embedded harness, local agent CLIs | Supported | Beta | Beta |
-| Composio and Boat/cloud computers | Supported | Beta | Beta |
 | Explicit preview-only local screen capture | Supported | Beta | Beta |
 | Bot control of this computer | Supported | Beta, explicit opt-in | Disabled: Wayland safety gate |
 | Native on-device dictation | Supported | Planned | Planned |
 
 The Linux preview is user-initiated and never enables local bot control or Auto routing. On Xorg, the reviewed Cua
 Driver 0.19.3 runtime starts only after explicit opt-in and without its full-screen cursor overlay. On Wayland the
-app never starts it and clears legacy opt-ins while that real-seat safety gate remains unresolved. Chat, preview,
-Cloud, and Local VM remain available on both sessions. See the [Ubuntu Desktop guide](docs/linux-desktop.md) and tracking
 issues [#29](https://github.com/milind-soni/OpenMausBot/issues/29),
 [#345](https://github.com/milind-soni/OpenMausBot/issues/345), and
 [#113](https://github.com/milind-soni/OpenMausBot/issues/113).
@@ -393,12 +375,9 @@ in the sidebar footer) when you want to enable its integration:
 | Credential | What it enables | Where to get it |
 |---|---|---|
 | Composio project key (`ak_…`) | Connect Gmail, GitHub, Slack, Notion, and other apps to your bots | [OpenMausBot Composio setup](docs/composio.md) |
-| Boat API key | Give bots an isolated remote Linux computer with a desktop and terminal | [Boat API key guide](https://docs.boat.dev/api-keys) |
 | ElevenLabs key | Read replies aloud, and call your bots | [ElevenLabs API keys](https://elevenlabs.io/app/settings/api-keys) |
 | Fish Audio key | Read replies aloud with Fish Audio voices, and call your bots | [Fish Audio API keys](https://fish.audio/app/api-keys/) |
 
-Composio and Boat are third-party services with their own accounts and terms. Boat is a paid service after
-its trial, and using a cloud computer may incur charges.
 
 ```sh
 pnpm typecheck     # app + server

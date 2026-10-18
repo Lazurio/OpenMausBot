@@ -11,7 +11,6 @@ import { GuidedTour } from "@/components/onboarding/GuidedTour";
 import { LiveCallHost } from "@/components/LiveCallHost";
 import { ThreadRefsProvider } from "@/components/ThreadRefs";
 import { initAnalytics } from "@/lib/analytics";
-import { parseComputerHelp } from "@/lib/computer-control";
 import { Sidebar } from "@/components/Sidebar";
 import { ChatView } from "@/components/ChatView";
 import { GroupView } from "@/components/GroupView";
@@ -124,7 +123,6 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
     setLocaleEpoch((epoch) => epoch + 1);
   }, [language]);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [localVmWorkspaceBotId, setLocalVmWorkspaceBotId] = useState<string | null>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const previousViewRef = useRef(state.activeView);
   const calendarOriginRef = useRef<"chat" | "team-map">("chat");
@@ -152,7 +150,6 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
   const cloudJobWaiting = Boolean(viewer?.cloudHome && viewer.canSave && cloudIntent.pending);
   const welcome = useCloudWelcome();
   const welcomeOnScreen = cloudWelcomeVisible({ viewer, connected: state.connected, enginesKnown: state.instances.length > 0, onboarding: state.config?.onboarding }, welcome)
-    && state.activeView === "chat" && !(!remoteClient && localVmWorkspaceBotId);
   const firstRun = cloudFirstRun({ welcome: welcomeOnScreen, intent: cloudAsk, signIn: cloudSignIn || cloudJobWaiting });
 
   useEffect(() => {
@@ -213,26 +210,6 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
     previousViewRef.current = state.activeView;
   }, [state.activeView]);
 
-  useEffect(() => {
-    if (
-      localVmWorkspaceBotId &&
-      (state.activeView !== "chat" || state.selectedId !== localVmWorkspaceBotId)
-    ) {
-      setLocalVmWorkspaceBotId(null);
-    }
-  }, [localVmWorkspaceBotId, state.activeView, state.selectedId]);
-
-  const openLocalVmWorkspace = (botId: string) => {
-    dispatch({ type: "toggleComputer", open: false });
-    setLocalVmWorkspaceBotId(botId);
-  };
-
-  const openComputerFromWorkspace = (botId: string) => {
-    setLocalVmWorkspaceBotId(null);
-    dispatch({ type: "select", id: botId });
-    dispatch({ type: "toggleComputer", open: true });
-  };
-
   const closeCalendar = useCallback(() => {
     if (calendarOriginRef.current === "team-map") {
       dispatch({ type: "showTeamMap" });
@@ -243,16 +220,6 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
   const openCalendarRoom = useCallback((id: string) => {
     dispatch({ type: "select", id });
   }, [dispatch]);
-
-  const nativeViewOverlayOpen =
-    drawerOpen ||
-    paletteOpen ||
-    state.settingsOpen ||
-    state.computerOpen ||
-    state.inspectorOpen ||
-    state.activityOpen ||
-    state.appSettingsOpen ||
-    state.pluginsOpen;
 
   useEffect(() => {
     return window.ogb?.onOpenAppSettings?.(section => dispatch((section === "cloud-add" || section === "cloud-add-howto") && window.ogb?.cloudAccount && !remoteClient
@@ -265,25 +232,6 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
   }, [dispatch]);
 
   useEffect(() => {
-    return window.ogb?.desktopViewer?.onState((viewer) => {
-      if (viewer.open || !viewer.contextId) return;
-      const botId = viewer.contextId;
-      void fetch(`/api/bots/${botId}/computer/control`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "release" }),
-      })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((snap) => {
-          if (snap) dispatch({ type: "computerControl", botId, held: snap.held === true, helpReason: snap.helpReason ?? null, help: parseComputerHelp(snap.help) });
-        })
-        .catch(() => {});
-      void fetch(`/api/bots/${botId}/computer/viewer-close`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}",
-      }).catch(() => {});
-    });
   }, [dispatch]);
 
   return (
@@ -326,13 +274,6 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
         <FilesView />
       ) : state.activeView === "routines" ? (
         <TriggersPage onBack={closeCalendar} onOpenRoom={openCalendarRoom} />
-      ) : !remoteClient && localVmWorkspaceBotId ? (
-        <LocalVmWorkspace
-          primaryBotId={localVmWorkspaceBotId}
-          overlayOpen={nativeViewOverlayOpen}
-          onClose={() => setLocalVmWorkspaceBotId(null)}
-          onOpenComputer={openComputerFromWorkspace}
-        />
       ) : firstRun === "welcome" ? (
         <CloudWelcome />
       ) : firstRun === "intent" ? (
@@ -370,11 +311,6 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
         remoteClient ? (
           <RemoteDesktopPanel key={`computer:${bot.id}`} bot={bot} />
         ) : (
-          <ComputerPanel
-            key={`computer:${bot.id}`}
-            bot={bot}
-            onOpenVmWorkspace={openLocalVmWorkspace}
-          />
         )
       )}
       {roomPanelOpen && group && (

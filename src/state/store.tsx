@@ -40,7 +40,6 @@ import type { ModelRequestCardData } from "../../shared/model-request";
 import type { RoutineRequestCardData } from "../../shared/routine-request";
 import type { RoutineRunCardData } from "../../shared/routine-run";
 import type { GroupGoalRunCardData } from "../../shared/group-goal-run";
-import type { PlaceRow } from "../../shared/place-view";
 import {
   reviewedSkillSha256,
   skillRequestBehavior,
@@ -51,7 +50,6 @@ import type { WebhookAttempt, WebhookIngressStatus, WebhookTrigger } from "@/lib
 import { duplicateBotProfile, restrictedCopyRequest } from "@/lib/bot-duplicate";
 import { botShowsUnread } from "@/lib/bot-unread";
 import { firstUnreadMessageId, threadOpensUnread, threadReadCursor } from "@/lib/unread-divider";
-import type { ComputerStart } from "@/lib/computer-start";
 import { parseComputerHelp } from "@/lib/computer-control";
 import { answerResponse, dismissResponse } from "@/lib/card-answer";
 import { forgetLiveTurns, noteRuntimeTurn, sendStop } from "@/lib/stop-turn";
@@ -255,8 +253,6 @@ export interface Task extends Pick<WireTask, "private" | "setupRequest" | "inbox
   unread?: boolean;
   lastReadMessageId?: string;
   pinnedMessageId?: string;
-  surface?: "cloud" | "vm" | "local" | "browser";
-  surfaceAuto?: true;
   openedBy?: ThreadOpener;
   closedBy?: ThreadCloser;
   archivedAt?: number;
@@ -313,9 +309,6 @@ export interface Bot extends DefaultBotFields {
   activity?: "working" | "waiting-on-you" | "idle" | "no-signal" | "dead" | "parked.computer";
   turnStartedAt?: number | null;
   modelSelection: ModelSelection;
-  computer?: "cloud" | "vm" | "local" | "browser" | "off";
-  cloudBackend?: CloudBackend;
-  autoStartVps?: boolean;
   vpsAlias?: string;
   cwd?: string;
   autoApprove?: boolean;
@@ -398,18 +391,15 @@ export type TaskUpdatePatch = Partial<Pick<Task, "modelSelection" | "approvalMod
   projectId?: string | null;
   archivedAt?: number | null;
   snoozedUntil?: number | null;
-  surface?: Task["surface"] | null;
   pinned?: boolean;
   link?: string | null;
 };
 
 function taskPatchFields(patch: TaskUpdatePatch): Partial<Task> {
-  const { acknowledgeLocalAuto: _localAck, updateBotDefault: _modelDefault, resetApprovalToAsk, projectId, archivedAt, snoozedUntil, surface, pinned, link, ...fields } = patch;
   return { ...fields, ...(resetApprovalToAsk ? { approvalMode: "ask", autoApprove: false, alwaysAllow: [] } : {}),
     ...(projectId === undefined ? {} : { projectId: projectId ?? undefined }),
     ...(archivedAt === undefined ? {} : { archivedAt: archivedAt ?? undefined }),
     ...(snoozedUntil === undefined ? {} : { snoozedUntil: snoozedUntil ?? undefined }),
-    ...(surface === undefined ? {} : { surface: surface ?? undefined, surfaceAuto: undefined }),
     ...(pinned === undefined ? {} : { pinned: pinned ? true : undefined }),
     ...(link === undefined ? {} : { link: link ?? undefined }) };
 }
@@ -456,14 +446,11 @@ export function configStatusFromFrame(frame: ConfigStatusFrame): ConfigStatus {
     openaiCompat: frame.openaiCompat,
     fleet: frame.fleet,
     composio: frame.composio,
-    box: frame.box,
-    vps: frame.vps,
     rooms: frame.rooms,
     mcp: frame.mcp,
     threads: frame.threads,
     automaticRecovery: frame.automaticRecovery,
     cacheKeepWarm: frame.cacheKeepWarm,
-    localVm: frame.localVm,
     opencodeGo: frame.opencodeGo,
     tts: frame.tts,
     decider: frame.decider, helpers: frame.helpers,
@@ -636,7 +623,6 @@ export interface AppState {
   botSettingsExpandAccordion: boolean;
   botSettingsSectionStored: boolean;
   botSettingsExpandRemembered: boolean;
-  computerStarts: Record<string, ComputerStart>;
   deletingBots: Record<string, true>;
   computerControl: Record<string, ComputerControlState>;
   dataSheets: Record<string, DataSheet>;
@@ -804,7 +790,6 @@ export type Action =
   | { type: "messageAdded"; threadId: string; message: Message }
   | { type: "messagePatched"; threadId: string; message: Message }
   | { type: "optimisticMessageRemoved"; threadId: string; sendId: string; restoreLeafId?: string | null }
-  | { type: "computerStart"; botId: string; start: ComputerStart | null }
   | ({ type: "computerControl"; botId: string } & ComputerControlState)
   | { type: "dataSheet"; sheet: DataSheet; tables?: DataTable[] }
   | { type: "dataView"; view: AppState["dataView"] }
@@ -1214,9 +1199,7 @@ export function reducer(state: AppState, action: Action): AppState {
             : action.bot.busy === false && before?.busy
               ? "celebrate"
               : null;
-      const motioned = kind ? withMascotMotion(state, action.bot.id, kind) : state;
-      const animated = action.bot.busy === false && before?.busy && motioned.computerStarts[action.bot.id]
-        ? reducer(motioned, { type: "computerStart", botId: action.bot.id, start: null }) : motioned;
+      const animated = kind ? withMascotMotion(state, action.bot.id, kind) : state;
       const next = action.bot.chiefOfStaff ? { ...animated, bots: withOneChief(animated.bots, action.bot) } : animated;
       const switchedThread =
         typeof action.bot.threadId === "string" && action.bot.threadId !== before.threadId &&
@@ -1239,7 +1222,6 @@ export function reducer(state: AppState, action: Action): AppState {
         awaitingThreadSnapshot: switchedThread || b.awaitingThreadSnapshot,
         // Complete frames omit cleared optional fields; copy them so the spread cannot keep stale values.
         browserProfile: action.bot.browserProfile,
-        computer: action.bot.computer,
         toolScope: action.bot.toolScope,
         section: action.bot.section, managedSections: action.bot.managedSections,
         vpsAlias: action.bot.vpsAlias, phoneApps: action.bot.phoneApps,
@@ -1384,13 +1366,6 @@ export function reducer(state: AppState, action: Action): AppState {
         ...b,
         messages: b.messages.map((m) => (m.id === action.message.id ? action.message : m)),
       }));
-    }
-    case "computerStart": {
-      const { [action.botId]: _ended, ...others } = state.computerStarts;
-      return {
-        ...(action.start ? withMascotMotion(state, action.botId, "launch") : state),
-        computerStarts: action.start ? { ...others, [action.botId]: action.start } : others,
-      };
     }
     case "computerControl":
       return {
@@ -1620,14 +1595,11 @@ export function reducer(state: AppState, action: Action): AppState {
         acknowledgeLocalAuto: _localAck,
         applyToAllThreads: _allThreads,
         keepThreadModels: _keepThreadModels, threadId: _threadId,
-        computer,
         connectorTools,
         connectorScopes, phoneApps, peers,
         ...rest
       } = action.patch;
       const botPatch: Partial<Bot> = { ...rest, ...(phoneApps !== undefined && { phoneApps: phoneApps ?? undefined }), ...(peers !== undefined && { peers: peers ?? undefined }) };
-      if (computer === null) botPatch.computer = undefined;
-      else if (computer !== undefined) botPatch.computer = computer;
       if (connectorTools === null) botPatch.connectorTools = undefined;
       else if (connectorTools !== undefined) botPatch.connectorTools = connectorTools;
       if (connectorScopes === null) botPatch.connectorScopes = undefined;
@@ -1790,7 +1762,6 @@ export function reducer(state: AppState, action: Action): AppState {
       let switched = updateBot(bumpTranscriptGeneration(state, action.bot.threadId), action.bot.id, (bot) => ({
         ...bot,
         ...action.bot,
-        computer: action.bot.computer,
         toolScope: action.bot.toolScope, managedSections: action.bot.managedSections,
         vpsAlias: action.bot.vpsAlias,
         messages: action.bot.messages ?? [],
@@ -1929,7 +1900,6 @@ export const initialState: AppState = {
   botSettingsExpandAccordion: false,
   botSettingsSectionStored: false,
   botSettingsExpandRemembered: false,
-  computerStarts: {},
   deletingBots: {},
   computerControl: {},
   dataSheets: {},
@@ -3264,15 +3234,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           if (action) rawDispatch(action);
           break;
         }
-        case "screen":
-          if (stateRef.current.computerStarts[frame.botId]) {
-            rawDispatch({ type: "computerStart", botId: frame.botId, start: null });
-          }
-          break;
-        case "computer":
-          rawDispatch({ type: "computerStart", botId: frame.botId,
-            start: { state: frame.state, ...(frame.place ? { place: frame.place } : {}) } });
-          break;
         case "computer-control":
           rawDispatch({
             type: "computerControl",

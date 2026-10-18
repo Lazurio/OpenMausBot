@@ -70,8 +70,6 @@ describe("SignInRequestCard while it waits", () => {
   });
 
   it.each([
-    ["vm", "the private desktop Pepper works on"],
-    ["cloud", "the cloud desktop Pepper works on"],
     ["local", "on this computer, in the browser Pepper is using"],
   ])("names the place for %s", (place, words) => {
     expect(view({ place })).toContain(words);
@@ -137,27 +135,15 @@ describe("SignInRequestCard once settled", () => {
 });
 
 describe("SignInBanner", () => {
-  const help = { botId: "pepper", threadId: "thread-1", messageId: "card-1", site: "example.com", place: "vm" as const };
-  const banner = (takeControl?: { onClick: () => void }) => {
     let root!: ReactNode;
-    function Capture() { root = SignInBanner({ help, askerName: "Pepper", takeControl }); return root; }
     return { html: renderToStaticMarkup(createElement(Capture)), nodes: elements(root) };
   };
 
   it("names the asking bot and the site, and answers the card", async () => {
     const { html, nodes } = banner();
     expect(html).toContain("<b>Pepper</b> needs you to sign in to example.com");
-    expect(html).not.toContain("Take control");
     button(nodes, "Done").props.onClick!();
     await settle();
     expect(answerSignIn).toHaveBeenCalledExactlyOnceWith(help, "done");
-  });
-
-  it("offers Take control only where it is given one", () => {
-    const takeControl = { onClick: vi.fn() };
-    const { html, nodes } = banner(takeControl);
-    expect(html).toContain("Take control");
-    nodes.find((node) => node.type === "button" && node.props.onClick === takeControl.onClick)!.props.onClick!();
-    expect(takeControl.onClick).toHaveBeenCalledOnce();
   });
 });

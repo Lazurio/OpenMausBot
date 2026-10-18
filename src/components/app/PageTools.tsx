@@ -1,5 +1,5 @@
 // A bot's page in the chat, artifact-style: its version stepper, Point, Share, Open in new tab and Full screen.
-import { useCallback, useEffect, useRef, useState, type MutableRefObject, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { createPortal } from "react-dom";
 import { ArrowUpRight, Check, ChevronLeft, ChevronRight, Copy, Crosshair, Globe, Loader2, Maximize2, Share2, Trash2, X } from "lucide-react";
 import { useStore } from "@/state/store";

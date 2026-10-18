@@ -207,20 +207,12 @@ describe("agents proxy tools/list golden", () => {
     expect(profile).not.toHaveProperty("ownThreadCreation");
   });
 
-  it("shows a Cloud home's bots no Local VM and no this computer, and every other server both", () => {
-    type SelectTool = Tool & { inputSchema: { properties: { surface: { enum: string[]; description: string } } } };
-    const select = (wire: string) => toolsOf(wire).find((tool) => tool.name === "select_computer") as SelectTool;
+  it("shows a Cloud home's bots the same tools as every other server", () => {
     const cloudHome = Object.keys(PROFILES).filter((name) => name.endsWith("+cloud-home"));
     expect(cloudHome).toHaveLength(2);
     for (const name of cloudHome) {
       const desktop = wires[name.slice(0, -"+cloud-home".length)]!;
-      const names = toolsOf(wires[name]!).map((tool) => tool.name);
-      expect(names).toEqual(toolsOf(desktop).map((tool) => tool.name).filter((tool) => tool !== "vm_exec"));
-      expect(select(desktop).inputSchema.properties.surface.enum).toEqual(["auto", "cloud", "vm", "local", "browser"]);
-      expect(toolsOf(desktop).map((tool) => tool.name)).toContain("vm_exec");
-      const surface = select(wires[name]!).inputSchema.properties.surface;
-      expect(surface.enum).toEqual(["auto", "cloud", "browser"]);
-      expect(surface.description).not.toMatch(/\b(?:vm|local) =/);
+      expect(toolsOf(wires[name]!).map((tool) => tool.name)).toEqual(toolsOf(desktop).map((tool) => tool.name));
     }
   });
 

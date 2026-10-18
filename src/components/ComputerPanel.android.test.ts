@@ -24,13 +24,11 @@ vi.mock("./DesktopCapabilities", async (importOriginal) => ({
 }));
 vi.mock("@/lib/interface-mode", () => ({ useAdvancedMode: () => true, setAdvancedMode: () => {} }));
 vi.mock("@/lib/use-owner-or-admin", () => ({ useOwnerOrAdmin: () => true }));
-vi.mock("./CloudScreenPreview", () => ({ CloudScreenPreview: () => null }));
 vi.mock("./AndroidDevicePanel", async (importOriginal) => ({
   ...await importOriginal<typeof import("./AndroidDevicePanel")>(),
   AndroidDevicePanel: () => null,
 }));
 vi.mock("./BrowserPanel", () => ({ BrowserPanel: () => null }));
-vi.mock("./CloudBackendPicker", () => ({ CloudBackendPicker: () => null }));
 vi.mock("./bot-settings/RoutinesSection", () => ({ RoutinesSection: () => null }));
 vi.mock("./data/DataPanel", () => ({ DataPanel: () => createElement("div", { "data-testid": "data-panel" }) }));
 const panelViewStore = vi.hoisted(() => ({ current: "computer" }));
@@ -45,7 +43,6 @@ vi.mock("@/state/store", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/state/store")>(),
   api: async (path: string) => {
     if (path.startsWith("/api/bots/scout/computer/control")) return { held: false, helpReason: null };
-    if (path.startsWith("/api/bots/scout/computer?")) return { surface: "cloud", backend: "box", configured: true, box: { boxId: "bx_23456789", state: "ready" } };
     return {};
   },
 }));
@@ -63,7 +60,6 @@ const engine = (instanceId: string) => ({
 }) as InstanceInfo;
 const makeBot = (patch: Partial<Bot> = {}): Bot => ({
   id: "scout", threadId: "thread", name: "Scout", title: "", description: "", color: "green",
-  notifications: true, unread: false, busy: false, computer: "cloud", messages: [],
   modelSelection: { instanceId: "claude", model: "m" },
   tasks: [{ threadId: "thread", title: "Thread", createdAt: 1, approvalMode: "ask" }],
   ...patch,
@@ -71,7 +67,6 @@ const makeBot = (patch: Partial<Bot> = {}): Bot => ({
 
 let root: Root | null = null;
 const value = (): Parameters<typeof BotEditorStore>[0]["value"] => ({
-  state: { ...initialState, instances: [engine("claude"), engine("codex")], config: { box: { configured: true } } as AppState["config"] } as AppState,
   dispatch: vi.fn(),
   flushBotPatches: async () => null,
   refreshInstances: async () => {},

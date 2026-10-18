@@ -102,7 +102,6 @@ export function planTeamChange(bots: readonly Bot[], instances: readonly Instanc
 }
 
 export function planNeedsLocalAutoConsent(plan: readonly TeamPlanRow[]): boolean {
-  return plan.some((row) => row.status === "apply" && row.patch.approvalMode === "auto" && row.bot.computer === "local");
 }
 
 /** One bot at a time, never in parallel: a refusal on one must not race the next. */
@@ -116,7 +115,6 @@ export async function applyTeamPlan(
     if (row.status === "unchanged") results.push({ bot: row.bot, status: "unchanged" });
     else if (row.status === "skip") results.push({ bot: row.bot, status: "skipped", reason: row.reason });
     else {
-      const patch = options.acknowledgeLocalAuto && row.patch.approvalMode === "auto" && row.bot.computer === "local"
         ? { ...row.patch, acknowledgeLocalAuto: true } : row.patch;
       try {
         await persist(row.bot, patch);

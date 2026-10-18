@@ -221,20 +221,6 @@ describe("first-reply rescue", () => {
     expect(rows()).toEqual([]);
   });
 
-  it("does not count a wait for the computer as the AI's silence", () => {
-    const { rescue, rows } = harness();
-    rescue.onEvent(started());
-    vi.advanceTimersByTime(15_000);
-    rescue.onEvent(event({ type: "turn.wait_started", turnId: "turn-1", resource: "computer:local" }));
-    vi.advanceTimersByTime(5 * 60_000);
-    expect(rows()).toEqual([]);
-    rescue.onEvent(event({ type: "turn.wait_ended", turnId: "turn-1", resource: "computer:local", waitedMs: 300_000, outcome: "acquired" }));
-    vi.advanceTimersByTime(19_999);
-    expect(rows()).toEqual([]);
-    vi.advanceTimersByTime(1);
-    expect(rows()).toHaveLength(1);
-  });
-
   it("stays out of turns nobody is watching live", () => {
     const { rescue, rows } = harness({ quiet: true });
     rescue.onEvent(started());

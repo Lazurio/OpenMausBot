@@ -38,10 +38,6 @@ async function chooseRoot(): Promise<React.ReactNode> {
     return home ? <SignedOutAtHome bridge={home} fallback={pair} /> : pair;
   }
   if (session.kind === "loopback" && session.trust === "service") return <PairPage initialCode={null} reason={SERVICE_TRUST_REASON} />;
-  if (location.pathname === "/desktop-viewer") {
-    const { DesktopViewer } = await import("./components/DesktopViewer");
-    return <DesktopViewer />;
-  }
   return <App />;
 }
 

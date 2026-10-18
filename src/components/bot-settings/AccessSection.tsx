@@ -8,10 +8,8 @@ import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import type { LocaleKey } from "@/locales";
 import { mcpServersForBot, useMcpServers } from "@/lib/mcp-servers";
-import { placeFacts, placeViewFor, usePlaceSeat } from "@/lib/place-view";
 import { shortPath } from "@/lib/short-path";
 import { useDesktopCapabilities } from "../DesktopCapabilities";
-import { CloudBackendPicker } from "../CloudBackendPicker";
 import { Switch } from "../SettingsPrimitives";
 import { ProposalStatus } from "./ProposalStatus";
 import { ToolSelectionCard } from "./ToolSelectionCard";
@@ -630,11 +628,6 @@ export function AccessSection({
     browserEnabled,
   } = derived;
   const browserInstallable = state.config?.browserEngine?.installable === true;
-  const { capabilities } = useDesktopCapabilities();
-  const placeSeat = usePlaceSeat(state.config, capabilities.host?.platform ?? "other");
-  const worksOn = placeViewFor(placeFacts({
-    bot, place: bot.computer ?? "auto", seat: placeSeat, config: state.config, instances: state.instances,
-  }));
   // The same list the Vault tab shows: Composio's connected accounts plus the native HighLevel connection.
   const apps = useBotApps(bot);
   const inventoryReady = apps.phase === "ready";
@@ -647,22 +640,6 @@ export function AccessSection({
 
   return (
     <div className="flex flex-col gap-4">
-      {shows("worksOn") && <div className="rounded-xl bg-card p-4" data-testid="access-works-on">
-        <div className="text-[15px] font-medium text-ink">{t("access.worksOn", { name: bot.name, short: worksOn.short })}</div>
-        <ProposalStatus bot={bot} kind="owner" />
-        <button
-          type="button"
-          onClick={() => {
-            dispatch({ type: "toggleSettings", open: false });
-            dispatch({ type: "toggleComputer", open: true });
-          }}
-          className="mt-3 rounded-lg bg-control px-3 py-1.5 text-[13px] text-ink hover:bg-raised-hover"
-        >
-          {t("place.action.openComputerPanel")}
-        </button>
-        <CloudPreference bot={bot} patch={patch} />
-      </div>}
-
       {shows("folder") && <WorkingFolder bot={bot} />}
 
       {shows("apps") && <div className="rounded-xl bg-card p-4">
@@ -748,21 +725,14 @@ export function AccessSection({
             <ProposalStatus bot={bot} kind="owner" />
           </div>
           <Switch
-            checked={browserEnabled && bot.computer !== "off"}
             aria-label={t("botAccess.browser.allow")}
-            disabled={
-              bot.computer === "off" ||
-              (!browserEnabled && ((!desktopBrowser && !browserInstallable) || !browserFeature || !canUseBrowser))
-            }
             onClick={() => patch({ browser: !browserAllowed })}
-            title={bot.computer === "off" ? t("botAccess.browser.offShort") : undefined}
             className="disabled:cursor-not-allowed"
           />
         </div>
         {!draft && (
           <RecordStepsRow
             on={bot.recordBrowserSteps === true}
-            browserOn={browserEnabled && bot.computer !== "off"}
             myChrome={state.config?.browserEngine?.myChrome === true && (state.config?.browserProfiles ?? []).some((profile) => profile.id === bot.browserProfile && profile.browser === "chrome")}
             onChange={(recordBrowserSteps) => patch({ recordBrowserSteps })}
           />

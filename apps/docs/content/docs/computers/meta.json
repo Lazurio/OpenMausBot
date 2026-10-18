@@ -1,5 +1,4 @@
 {
   "title": "Computers",
   "icon": "Monitor",
-  "pages": ["index", "local-computer", "local-vm", "cloud-and-vps"]
 }

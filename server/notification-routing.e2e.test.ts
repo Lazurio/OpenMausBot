@@ -225,10 +225,7 @@ describe("a room turn belongs to the room", () => {
     const bot = await createBot("Handsy", "stuck");
     let roomId: string | undefined;
     try {
-      // a sign-in needs a place to sign in on: this bot works in its built-in browser
       expect((await api("PATCH", "/api/config", { features: { browser: true } })).status).toBe(200);
-      const placed = await api("PATCH", `/api/bots/${bot.id}`, { computer: "browser" });
-      expect(placed.status, JSON.stringify(placed.body)).toBe(200);
       const room = (await api("POST", "/api/groups", {
         name: "War Room",
         memberIds: [bot.id],
@@ -241,13 +238,12 @@ describe("a room turn belongs to the room", () => {
 
       const stream = await openSse(`${base}/api/events`);
       try {
-        const asked = await api(
-          "POST",
-          "/api/internal/request-sign-in",
-          { site: "example.com", reason: "the login page wants a code" },
-          await capability(bot.id, room.threadId),
-        );
-        expect(asked.status).toBe(201);
+        const headers = await capability(bot.id, room.threadId);
+        let asked = { status: 0, body: undefined as unknown };
+        await expect.poll(async () => {
+          asked = await api("POST", "/api/internal/request-sign-in", { site: "example.com", reason: "the login page wants a code" }, headers);
+          return asked.status;
+        }, { timeout: 15_000 }).toBe(201);
 
         const frame = await stream.until(
           (candidate) => candidate.kind === "notify" && candidate.notification?.kind === "sign-in",

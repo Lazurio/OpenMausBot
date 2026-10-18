@@ -19,15 +19,14 @@ export const botDefaultModelSchema = z.object({
   "choose either a model variant or an effort level");
 
 // Preferences only: consent flags, live grants, bot IDs and execution state can never be replayed as permission grants.
-export const botDefaultsProfileSchema = profilePatchSchema.extend({
+const withoutRemovedDefaults = (value: unknown) => value && typeof value === "object" && !Array.isArray(value)
+  : value;
+export const botDefaultsProfileSchema = z.preprocess(withoutRemovedDefaults, profilePatchSchema.extend({
   name: z.string().max(100).refine(fitsOnOneLine, "name must fit on one line").optional(),
   section: z.string().trim().max(60).optional(),
   color: z.enum(MAUS_COLOR_NAMES).optional(),
   mascotExpression: z.string().max(60).nullable().optional(),
   modelSelection: botDefaultModelSchema.optional(),
-  computer: z.enum(["cloud", "vm", "local", "browser", "off"]).nullable().optional(),
-  cloudBackend: z.enum(["box", "vps"]).optional(),
-  autoStartVps: z.boolean().optional(),
   cwd: z.string().max(4096).nullable().optional(),
   approvalMode: z.enum(["ask", "auto", "full", "custom"]).optional(),
   alwaysAllow: strings(200, 500).optional(),
@@ -44,7 +43,7 @@ export const botDefaultsProfileSchema = profilePatchSchema.extend({
   parkDirectMessages: z.boolean().optional(),
   /** At creation, so a copy of a bot kept off the helper model is off it from its first moment. */
   helperModel: z.boolean().optional(),
-}).strict();
+}).strict());
 
 const scheduleSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("once"), at: timestamp }).strict(),

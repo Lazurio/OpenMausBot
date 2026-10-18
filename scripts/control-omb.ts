@@ -4,7 +4,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { closeSync, mkdirSync, mkdtempSync, openSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, dirname, join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs, type ParseArgsOptionsConfig } from "node:util";
 
@@ -249,32 +249,20 @@ export function verificationServerArgs(childEnv: NodeJS.ProcessEnv): string[] {
 export async function launchVerificationServer(
   parentEnv: NodeJS.ProcessEnv = process.env,
   signal?: AbortSignal,
-  localVm?: { binDir: string; host: string; sshKey: string; staticDir: string },
   browser?: { binaryPath: string; executablePath: string },
+  // Lazurio overlay (DEV-6673 M3): formerly the Local VM fixture; the slot stays so positional callers keep their meaning.
+  _removedLocalVm?: undefined,
   /** A stand-in enterprise layer (the folder shape core loads) and the key
    * it should accept, so a recipe can prove entitled behaviour offline. */
   enterprise?: { dir: string; licenseKey: string },
   room?: { scripted: boolean },
   /** Optional repository-owned fake providers for multi-engine setup checks. */
   extraProviders: Array<"codex" | "cline"> = [],
-  /** Programmatic tests only: an owned loopback Boat provider, never a live account. */
-  boatFixtureApi?: string,
+  /** Formerly a loopback Boat provider (DEV-6673 M3); the slot stays so positional callers keep their meaning. */
+  _removedBoatFixture?: undefined,
   /** Programmatic web UI qualification against the fixture's static server. */
   staticDir?: string,
 ): Promise<VerificationServer> {
-  if (boatFixtureApi) {
-    if (!/^http:\/\/127\.0\.0\.1:[1-9]\d{0,4}$/.test(boatFixtureApi)) {
-      throw new ControlOmbError("Boat verification requires an explicit loopback HTTP provider");
-    }
-    try { new URL(boatFixtureApi); }
-    catch { throw new ControlOmbError("Boat verification requires a valid loopback port"); }
-  }
-  if (localVm) {
-    const endpoint = new URL(localVm.host);
-    if (endpoint.protocol !== "ssh:" || endpoint.hostname !== "127.0.0.1" || endpoint.password) {
-      throw new ControlOmbError("Local VM verification requires an explicit loopback Podman machine");
-    }
-  }
   // OMB_TEST_PORTS=19975-19999 keeps a recipe's fixture in a range of its own.
   const range = /^(\d+)-(\d+)$/.exec((parentEnv.OMB_TEST_PORTS ?? process.env.OMB_TEST_PORTS)?.trim() ?? "");
   const port = range ? await freePortBlock([0, 1], Number(range[1]), Number(range[2]) - Number(range[1])) : await freePortBlock([0, 1]);
@@ -290,7 +278,6 @@ export async function launchVerificationServer(
   mkdirSync(evidenceDir, { recursive: true });
   const logPath = join(evidenceDir, `server-${Date.now()}-${process.pid}.log`);
   writeFileSync(join(dataDir, "config.json"), JSON.stringify({
-    ...(boatFixtureApi ? { box: { token: "box_verification_fixture" } } : {}),
     // A setup card's answers would be one more engine call at every new bot, taking replies a test scripts for its turns.
     features: { smartSetupChoices: false },
     instances: {
@@ -314,20 +301,11 @@ export async function launchVerificationServer(
 
   const log = openSync(logPath, "a", 0o600);
   const childEnv = verificationServerEnvironment(parentEnv, dataDir, port);
-  // Opt-in live Local VM fixture: keep the temporary home and fake engine,
-  // granting only the explicitly selected machine connection and static UI.
-  if (localVm) Object.assign(childEnv, {
-    OMB_EXTRA_PATH: [localVm.binDir, ...(process.platform === "win32" ? [join(childEnv.SYSTEMROOT || "C:\\Windows", "System32")] : [])].join(delimiter),
-    CONTAINER_HOST: localVm.host,
-    CONTAINER_SSHKEY: localVm.sshKey,
-    OMB_STATIC_DIR: localVm.staticDir,
-  });
   if (enterprise) Object.assign(childEnv, { OMB_ENTERPRISE_DIR: enterprise.dir, OMB_LICENSE_KEY: enterprise.licenseKey });
   if (browser) Object.assign(childEnv, {
     OMB_AGENT_BROWSER_PATH: browser.binaryPath,
     AGENT_BROWSER_EXECUTABLE_PATH: browser.executablePath,
   });
-  if (boatFixtureApi) childEnv.OMB_BOAT_API = boatFixtureApi;
   if (staticDir) childEnv.OMB_STATIC_DIR = staticDir;
   const child = spawn(process.execPath, verificationServerArgs(childEnv), {
     cwd: ROOT,

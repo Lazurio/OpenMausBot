@@ -21,7 +21,6 @@ import {
 } from "./PhoneSetupFlow";
 import { companionPairingMode } from "../lib/phone-setup";
 import { revealPhonePairing } from "../lib/phone-pairing";
-import { PhonesList } from "./PhonesList";
 import { ConnectionDetail } from "./ConnectionDetail";
 import { Card, Switch } from "./SettingsPrimitives";
 import { brand } from "../lib/brand";
@@ -294,8 +293,6 @@ export function CompanionSection({ profileEmail = "", focusRequest = 0 }: { prof
               )}
             </div>
           </div>
-
-          <PhonesList />
 
           <div className="border-t border-hairline/30 pt-4">
             <div className="text-[13px] text-ink">{t("remote.pairing.tailscale.title")}</div>

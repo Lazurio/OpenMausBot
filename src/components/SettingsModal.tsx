@@ -4,14 +4,13 @@ import { useStore, type AppSettingsSection } from "@/state/store";
 import { skillsLibraryEnabled } from "@/lib/feature-flags";
 import { type LocaleKey } from "@/locales";
 import { t } from "@/lib/i18n";
-import { AnthropicEveryClaudeBot, ApiKeyRow, OpenCodeProviderKeys, VpsConnection } from "./ApiKeys";
+import { AnthropicEveryClaudeBot, ApiKeyRow, OpenCodeProviderKeys } from "./ApiKeys";
 import { OpenAtLoginRow } from "./OpenAtLoginRow";
 import { DefaultBotSidebarRow } from "./DefaultBotControls";
 import { DiagnosticsRow } from "./DiagnosticsRow";
 import { LmStudioServer, OtherOpenAiCompatServers } from "./OpenAiCompatServers";
 import { DecisionModelSettings } from "./DecisionModelSettings";
 import { EnginesSettings } from "./EnginesSettings";
-import { LocalComputerSection } from "./LocalComputerSection";
 import { CompanionSection } from "./CompanionSection";
 import { ServerPairingCard } from "./ServerPairingCard";
 import { PeopleSection } from "./PeopleSection";
@@ -79,9 +78,8 @@ export const SECTIONS: Array<{
   { id: "connections", group: "ai", labelKey: "settings.section.connections", icon: KeyRound, keywords: ["keys", "api", "api key", "api keys", "connections", "composio", "box", "xai", "mistral", "cerebras", "meta", "muse", "vps", "router", "openrouter", "base url", "openai", "anthropic", "groq", "opencode", "deepseek", "provider", "lm studio", "lmstudio", "llm studio", "llmstudio", "bionic"] },
   { id: "decisionModel", group: "ai", labelKey: "settings.section.decisionModel", icon: Zap, keywords: ["decision", "extraction", "jev", "typesafe", "cloudflare", "workers ai", "clef", "clairic", "email", "routing", "auto", "rooms", "who answers"] },
   { id: "skills", group: "ai", labelKey: "settings.section.skills", icon: BookOpen, keywords: ["skills", "library", "assign", "agent skills", "skill md"] },
-  { id: "desktopWorkspaces", group: "computers", labelKey: "settings.section.desktopWorkspaces", icon: Building2, keywords: ["workspace", "cloud", "hosted", "vps", "server", "servers", "connect", "pair", "switch", "local"] },
-  { id: "computer", group: "computers", labelKey: "settings.section.computer", icon: Monitor, keywords: ["vm", "virtual", "desktop", "browser", "built-in browser", "profiles", "browser profiles"] },
   { id: "cloudAccount", group: "account", labelKey: "settings.section.cloudAccount", icon: Cloud, keywords: ["cloud", "my cloud", "account", "personal", "sign in", "pro", "subscription", "billing", "sync", "send", "this computer", "bots", "logins", "1password", "lend"] },
+  { id: "desktopWorkspaces", group: "computers", labelKey: "settings.section.desktopWorkspaces", icon: Building2, keywords: ["workspace", "cloud", "hosted", "server", "servers", "connect", "pair", "switch", "local"] },
   { id: "organization", group: "account", labelKey: "settings.section.organization", icon: Building2, keywords: ["company", "organization", "organisation", "sign in", "enroll", "managed", "models", "disconnect"] },
   { id: "usage", group: "account", labelKey: "settings.section.usage", icon: Coins, keywords: ["tokens", "cost", "billing", "plan", "quota", "remaining", "weekly", "5-hour", "model", "used"] },
   { id: "backups", group: "account", labelKey: "settings.section.backups", icon: Archive, keywords: ["export", "import", "restore", "full backup", "password", "recovery"] },
@@ -382,7 +380,6 @@ export function SettingsModal() {
               <OtherOpenAiCompatServers />
               <div className="pt-2 text-[12px] font-medium uppercase tracking-wide text-ink-secondary">{t("keys.integrations.title")}</div>
               <ApiKeyRow section="treg" testProvider="treg" /><ApiKeyRow section="box" />
-              <VpsConnection />
               <ApiKeyRow section="opencodeGo" />
               {state.config?.cloudHome !== true && (
                 <p className="-mt-2 text-[12px] leading-relaxed text-ink-secondary">

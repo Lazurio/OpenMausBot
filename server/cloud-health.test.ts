@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { beforeEach, describe, expect, it } from "vitest";
 import { failedTurnTool } from "../shared/failed-turn.ts";
-import type { PlaceRow } from "../shared/place-view.ts";
 import { TRIAL_CREDIT_REFUSED } from "../shared/trial-credit.ts";
 import { CLOUD_HEALTH_PATH, CLOUD_PAIRING_PATH, CLOUD_PAIRING_SKEW_S, cloudPairingSignature, cloudRequestSignature } from "./cloud-home.ts";
 import { CLOUD_HEALTH_MAX_BYTES, HEALTH_BUCKET_CAP, createCloudHealth, createCloudHealthLedger, type CloudHealthDeps } from "./cloud-health.ts";
@@ -46,7 +45,6 @@ function world(overrides: Partial<CloudHealthDeps> = {}) {
 }
 
 const incidents = (w: ReturnType<typeof world>, after?: string) => w.health.report(after).incidents.map(({ kind, code, engine, count }) => ({ kind, code, engine, count }));
-const place = (state: PlaceRow["state"]): PlaceRow => ({ state, params: { bot: "Tallyspoon Ops", cause: "Boat said: quota exceeded for ada@example.test." }, source: "works-on" });
 
 describe("a new Cloud's first hour in its health report", () => {
   it("carries the milestones and the Chief's counts, and null where there are none", () => {
@@ -58,13 +56,6 @@ describe("a new Cloud's first hour in its health report", () => {
 });
 
 describe("the failure code a Cloud home reports", () => {
-  it("names a place that could not be used by its state", () => {
-    const w = world();
-    w.fail("Your cloud computer hours are used up.", { place: place("cc-no-hours") });
-    w.fail("Tallyspoon Ops' browser stopped.", { place: place("browser-cannot") });
-    expect(incidents(w)).toEqual([{ kind: "place", code: "cc-no-hours", engine: null, count: 1 }, { kind: "place", code: "browser-cannot", engine: null, count: 1 }]);
-  });
-
   it("takes the engine's stop reason, unless it is generic and the cause says more", () => {
     const w = world();
     const started = (threadId: string, provider = "codex") => w.emit(threadId, { type: "turn.started" }, provider);
@@ -191,7 +182,7 @@ describe("the ledger", () => {
 describe("the report", () => {
   it("never carries a failure's words, a name, a title, a prompt, an address, a URL or an engine's account", async () => {
     const planted = ["Tallyspoon Ops", "Secret Merger Plans", "ada.lovelace@example.test", "Quarterly numbers for ACME", "https://intranet.acme.test/q3",
-      "Draft the ACME layoffs memo", "owner@example.test", "Ada Org", "acct-7f3a-secret", "sk-ant-api03-planted", "Boat said: quota exceeded"];
+      "Draft the ACME layoffs memo", "owner@example.test", "Ada Org", "acct-7f3a-secret", "sk-ant-api03-planted", "Provider said: quota exceeded"];
     const w = world({
       engines: () => [{ instanceId: "claude", driverKind: "claudeAgent",
         snapshot: { state: "available", authenticated: false, version: "2.1.300", reason: "Quarterly numbers for ACME", account: { email: "owner@example.test", organization: "Ada Org", method: "login" } } }],
@@ -203,13 +194,13 @@ describe("the report", () => {
     w.emit(task.threadId, { type: "turn.started" });
     w.fail("Quarterly numbers for ACME failed for ada.lovelace@example.test at https://intranet.acme.test/q3 (sk-ant-api03-planted)", {}, task.threadId);
     w.emit(task.threadId, { type: "turn.completed", ok: false, stopReason: "Quarterly numbers for ACME" });
-    w.fail("Boat said: quota exceeded", { place: place("cc-provider") }, task.threadId);
+    w.fail("could not start — Provider said: quota exceeded", {}, task.threadId);
     w.health.report(null);
     await new Promise((resolve) => setTimeout(resolve, 0));
     const body = JSON.stringify(w.health.report(null));
     for (const words of planted) expect(body, words).not.toContain(words);
     const report = JSON.parse(body);
-    expect(report.incidents.map((incident: { code: string }) => incident.code)).toEqual(["unknown", "cc-provider"]);
+    expect(report.incidents.map((incident: { code: string }) => incident.code)).toEqual(["unknown", "could_not_start"]);
     expect(report.engines).toEqual([{ kind: "claudeAgent", used: true, available: true, authenticated: false, version: "2.1.300" }]);
     expect(report.connectors.items).toEqual([{ slug: "gmail", connected: true }, { slug: "notion", connected: false }]);
   });
@@ -241,7 +232,7 @@ describe("the report", () => {
     for (let i = 0; i < HEALTH_BUCKET_CAP; i++) {
       const thread = `t${String(i).padStart(63, "0")}`;
       ledger.noteEvent({ eventId: "e", provider: `e${String(i).padStart(63, "0")}`, threadId: thread, createdAt: "", type: "turn.started" });
-      ledger.noteMessage(thread, { at: clock, tool: failedTurnTool("cut off", { place: place("cc-on-my-cloud") }), from: { botId: `b${"0".repeat(63)}`, name: "x", color: "x" } });
+      ledger.noteMessage(thread, { at: clock, tool: failedTurnTool("turn interrupted — OpenMausBot restarted"), from: { botId: `b${"0".repeat(63)}`, name: "x", color: "x" } });
       clock += 1;
     }
     const first = w.health.report(null);

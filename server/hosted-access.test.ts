@@ -207,7 +207,7 @@ describe("hosted bridge in the full server", () => {
     await refuseFullTask(cookie);
     const botId = await policyBot();
     expect((await call(`/api/bots/${botId}`, { method: "PATCH", local: true,
-      body: { approvalMode: "auto", acknowledgeLocalAuto: true, alwaysAllow: ["Bash:fixture-only"] } })).status).toBe(200);
+      body: { approvalMode: "auto", alwaysAllow: ["Bash:fixture-only"] } })).status).toBe(200);
     const before = (await call("/api/bots?messages=0", { local: true })).body.bots.find((bot: any) => bot.id === botId);
     for (const [method, path, body] of [
       ["PATCH", `/api/bots/${botId}`, { approvalMode: "full" }],
@@ -389,7 +389,7 @@ describe("hosted bridge in the full server", () => {
       ["GET", "/api/auth/sessions"],
       ["DELETE", `/api/auth/sessions/${adminSession.id}`],
       ["POST", "/api/bots", { name: "Rogue" }],
-      ["PATCH", `/api/bots/${botId}`, { approvalMode: "auto", acknowledgeLocalAuto: true }],
+      ["PATCH", `/api/bots/${botId}`, { approvalMode: "auto" }],
       ["POST", `/api/bots/${botId}/messages`, { text: "unguarded", threadId }],
       ["GET", "/api/config"],
     ];

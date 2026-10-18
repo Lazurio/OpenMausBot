@@ -115,7 +115,6 @@ describe.skipIf(process.platform === "win32")("direct final-screen settlement", 
     ].join("\n"), { mode: 0o700 });
     expect((await api("PATCH", "/api/instances/claude", { cli: wrapper })).status).toBe(200);
     expect((await api("PATCH", "/api/config", { features: { browser: true } })).status).toBe(200);
-    const created = await api("POST", "/api/bots", { name: "Screen settlement", browser: true, computer: "browser",
       modelSelection: { instanceId: "claude", model: "claude-sonnet-5" } });
     expect(created.status).toBe(201);
     botId = created.body.bot.id;

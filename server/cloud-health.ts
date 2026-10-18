@@ -4,7 +4,6 @@
 import { accessSync, constants, readFileSync, statfsSync } from "node:fs";
 import { availableParallelism, freemem, loadavg, totalmem } from "node:os";
 import { failedTurnCause } from "../shared/failed-turn.ts";
-import { PLACE_STATES } from "../shared/place-view.ts";
 import type { RoutineRunStatus } from "../shared/routines.ts";
 import { trialCreditKind } from "../shared/trial-credit.ts";
 import type { BoxReport } from "./bot-box/box.ts";
@@ -49,7 +48,6 @@ const FIXED_CAUSES: ReadonlyArray<[RegExp, string]> = [
   [/^could not deliver approval to the provider/, "approval_undelivered"],
   [/^Canonical event history is incomplete/, "event_log"],
 ];
-const PLACES: ReadonlySet<string> = new Set(PLACE_STATES);
 
 export type HealthIncidentKind = "turn" | "place";
 export interface HealthIncident {
@@ -143,8 +141,6 @@ export function createCloudHealthLedger(options: { botOf?: (threadId: string) =>
       settle(threadId);
       const botId = message.from?.botId ?? options.botOf?.(threadId) ?? null, engine = engines.get(threadId) ?? null;
       remember(lastRowAt, threadId, message.at, THREAD_CAP);
-      const place = message.tool?.place?.state;
-      if (place && PLACES.has(place)) return record("place", place, engine, message.at, botId, threadId);
       const fixed = fixedCode(cause);
       if (fixed) return record("turn", fixed, engine, message.at, botId, threadId);
       if (pending.size >= PENDING_CAP) settle(pending.keys().next().value as string);

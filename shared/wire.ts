@@ -15,7 +15,6 @@ import type { RoutineRequestCardData } from "./routine-request.ts";
 import type { WebhookRequestCardData } from "./webhook-request.ts";
 import type { AppEventAttempt, AppTrigger, AppTriggerRequestCardData, AppTriggerService } from "./app-triggers.ts";
 import type { ProfileRequestCardData } from "./profile-request.ts";
-import type { PlaceRow } from "./place-view.ts";
 import type { ModelRequestCardData } from "./model-request.ts";
 import type { SkillRequestCardData } from "./skill-request.ts";
 import type { QuestionRequestCardData } from "./ask-question.ts";
@@ -51,11 +50,6 @@ export interface ModelSelection {
   variant?: string;
 }
 
-/** Which cloud computer backs computer: "cloud"; absent means Boat. */
-export type CloudBackend = "box" | "vps";
-
-/** A place a bot can act. `cloud` covers both cloud backends. */
-export type Surface = "cloud" | "vm" | "local" | "browser";
 
 export const MAUS_COLOR_NAMES = [
   "green", "blue", "red", "orange", "purple", "cyan", "pink",
@@ -182,12 +176,6 @@ export interface WireTask {
   busy?: boolean;
   /** Epoch ms when this task's current busy stretch began; runtime-only. */
   turnStartedAt?: number;
-  /** Where this conversation works when pinned; absent = follow the bot. */
-  surface?: Surface;
-  /** The pin above was set by the machine (an Auto turn or the bot's
-   * select_computer), not a person, so the next Works on change moves it.
-   * Derived at projection, never stored. */
-  surfaceAuto?: true;
   usage?: TaskUsage;
   /** Prompt-cache keep-warm status for this thread, derived at projection;
    * absent when no window is open. */
@@ -307,12 +295,6 @@ export interface WireBot extends DefaultBotFields {
   /** The bot's model: every thread without a model of its own runs on it
    * and moves with it. Navigating tasks never changes this value. */
   modelSelection: ModelSelection;
-  /** where the bot works ("Works on"). Unset = auto. */
-  computer?: Surface | "off";
-  /** Which cloud computer backs computer: "cloud"; absent means Boat. */
-  cloudBackend?: CloudBackend;
-  /** Auto mode may prepare/start this bot's managed VPS container. */
-  autoStartVps?: boolean;
   /** This bot's own SSH config alias for its managed VPS computer; absent
    * means the default server from Settings → API keys. */
   vpsAlias?: string;
@@ -511,8 +493,6 @@ export interface WireMessage extends HelperIntroField {
     /** error rows: the installed Claude Code is too old for the model, and
      * the UI can offer to update it in place. notice rows: `rescue`, a turn that heard nothing from its AI for a while. */
     claudeUpdate?: boolean; rescue?: import("./first-reply-rescue.ts").FirstReplyRescue;
-  /** error rows: the place this turn could not use. */
-    place?: PlaceRow;
     /** error rows: epoch ms when the usage limit that stopped the turn resets. */
     limitResetsAt?: number;
     /** Provider item identity, scoped to the owning turn. */
@@ -791,7 +771,6 @@ export interface SignInRequestCardData {
 /** The open sign-in request a bot's computer plea stands for, so whichever
  * panel shows the plea can settle that card. */
 export interface ComputerHelpRef {
-  /** The asking bot: a team computer's plea reaches every member's panel. */
   botId: string;
   threadId: string;
   messageId: string;
@@ -974,10 +953,6 @@ export type ServerFrame =
   | { kind: "runtime"; event: RuntimeEvent }
   /** `surface` names what the frame shows: the bot's desktop (`computer`) or its built-in browser. */
   | { kind: "screen"; botId: string; threadId: string; png: string; mime?: string; surface?: "browser" | "computer" }
-  /** A bot's computer is being set up or woken for a turn; the chat shows
-   * one progress line until its first screen frame. `place` names a cloud
-   * computer (absent: a Local VM). */
-  | { kind: "computer"; botId: string; state: "provisioning" | "waking"; place?: "cloud" }
   | { kind: "computer-control"; botId: string; held: boolean; helpReason: string | null; help?: ComputerHelpRef | null }
   /** A bot's data sheet changed. Whole sheet each time. */
   | DataBroadcast

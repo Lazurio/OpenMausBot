@@ -31,7 +31,6 @@ it.skipIf(process.platform === "win32")("asks the person to sign in from a real 
   try {
     expect((await api("PATCH", "/api/config", { features: { browser: true } })).status).toBe(200);
     const bot = (await api("POST", "/api/bots", { name: "Signer" })).body.bot;
-    expect((await api("PATCH", `/api/bots/${bot.id}`, { computer: "browser" })).status).toBe(200);
     writeFileSync(planPath, JSON.stringify({ [bot.id]: { turns: [
       { steps: [{ tool: "request_sign_in", arguments: { site: "https://www.example.com/dashboard", reason: "The dashboard is behind a login." } }],
         reply: "I asked you to sign in to example.com; I will continue once you have." },

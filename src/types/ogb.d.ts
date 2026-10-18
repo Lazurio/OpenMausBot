@@ -59,13 +59,6 @@ const __APP_VERSION__: string;
     };
   };
 
-  interface DesktopWorkspaceBounds {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  }
-
   interface BrowserSurfaceState {
     botId: string;
     open: boolean;
@@ -79,14 +72,6 @@ const __APP_VERSION__: string;
     profile?: string | null;
     mode?: "compact" | "expanded" | null;
     code?: "renderer-gone" | "profile-deleted" | "evicted";
-  }
-
-  interface DesktopWorkspaceState {
-    contextId: string;
-    open: boolean;
-    status: "opening" | "ready" | "error" | "closed";
-    interactive: boolean;
-    code?: "load-failed" | "renderer-gone";
   }
 
   /** Whether the desktop is holding this computer awake for routines. */
@@ -301,33 +286,6 @@ const __APP_VERSION__: string;
       onOpenAppSettings?(cb: (section?: "organization" | "cloud" | "cloud-settings" | "cloud-add" | "cloud-add-howto") => void): () => void;
       /** Updates the native Dock/taskbar unread indicator. */
       setUnreadCount?(count: number): void;
-      /** Opens a live desktop as a sandboxed window owned by OpenMausBot. */
-      desktopViewer?: {
-        open(url: string, title: string, contextId: string): Promise<boolean>;
-        /** Closes the live-desktop window, but only when it belongs to this bot. */
-        close(contextId: string): Promise<boolean>;
-        /** The current viewer state, for a panel to initialize from on mount. */
-        currentState(): Promise<{ open: boolean; contextId: string | null }>;
-        onState(cb: (state: { open: boolean; contextId: string | null }) => void): () => void;
-      };
-      /** Two Local VM viewers embedded in one app window. URLs are accepted
-       * only by main-process validation and never return over this bridge. */
-      desktopWorkspace?: {
-        open(input: {
-          contextId: string;
-          url: string;
-          title: string;
-          bounds: DesktopWorkspaceBounds;
-        }): Promise<DesktopWorkspaceState>;
-        layout(items: Array<{
-          contextId: string;
-          bounds: DesktopWorkspaceBounds;
-          visible: boolean;
-        }>): Promise<boolean>;
-        setInteractive(contextId: string | null): Promise<boolean>;
-        close(contextId?: string): Promise<boolean>;
-        onState(cb: (state: DesktopWorkspaceState) => void): () => void;
-      };
       /** Native folder picker; resolves null when the user cancels. */
       pickFolder?(current?: string): Promise<string | null>;
       /** Writes the redacted diagnostics report to a user-chosen file;

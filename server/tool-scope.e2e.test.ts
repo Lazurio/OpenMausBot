@@ -81,7 +81,6 @@ it.each(["explicit", "inherited"] as const)("persists the %s tool selection befo
   });
 }, 60_000);
 
-it.each(["direct", "preview", "room", "goal"] as const)("keeps a corrupt persisted selection fail-closed while reporting the %s result", async (surface) => {
   const fixture = await launchVerificationServer();
   let restarted: ReturnType<typeof spawn> | undefined;
   const log = openSync(fixture.info.logPath, "a", 0o600);
@@ -105,12 +104,6 @@ it.each(["direct", "preview", "room", "goal"] as const)("keeps a corrupt persist
     }, { timeout: 15_000 }).toBe(true);
     const loaded = await fetch(`${fixture.info.url}/api/bots?messages=0`).then((response) => response.json()) as { bots: Array<{ id: string; toolScope?: unknown }> };
     expect(loaded.bots.find((row) => row.id === bot.id)?.toolScope).toEqual({ allow: "all" });
-    if (surface === "preview") {
-      const preview = await fetch(`${fixture.info.url}/api/bots/${bot.id}/local-computer?threadId=${storedBot.threadId}`);
-      expect(preview.status).toBe(200);
-      expect(await preview.json()).not.toHaveProperty("error");
-      expect((await fetch(`${fixture.info.url}/api/bots/${bot.id}/local-computer?threadId=not-a-task`)).status).toBe(404);
-    } else if (surface === "direct") {
       const before = await control(["messages", "--bot", bot.id, "--limit", "10"]);
       const sent = await fetch(`${fixture.info.url}/api/bots/${bot.id}/messages`, { method: "POST",
         headers: { "content-type": "application/json" }, body: JSON.stringify({ text: "Must not run." }) });

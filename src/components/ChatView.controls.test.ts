@@ -255,22 +255,6 @@ describe("header name", () => {
     fixture.advanced = true;
   });
 
-  it("marks the computer button live while a turn works in the browser, so a closed panel still shows it", () => {
-    const working = (computer: Bot["computer"], busy: boolean) => renderToStaticMarkup(createElement(ChatView, {
-      bot: { ...bot, computer, busy, tasks: (bot.tasks ?? []).map((task) => ({ ...task, busy })) },
-    }));
-    const button = (markup: string) => markup.match(/<button[^>]*data-tour="computer"[^>]*>[\s\S]*?<\/button>/)?.[0] ?? "";
-    expect(button(working("browser", true))).toContain('data-testid="computer-button-live"');
-    expect(button(working("browser", true))).toContain('aria-label="Bot&#x27;s screen, In use now"');
-    expect(button(working("browser", false))).toContain('aria-label="Bot&#x27;s screen"');
-    expect(button(working("browser", false))).not.toContain("computer-button-live");
-    expect(button(working("local", true))).not.toContain("computer-button-live");
-    const pinned = renderToStaticMarkup(createElement(ChatView, {
-      bot: { ...bot, computer: undefined, busy: true, tasks: (bot.tasks ?? []).map((task) => ({ ...task, busy: true, surface: "browser" as const })) },
-    }));
-    expect(button(pinned)).toContain('data-testid="computer-button-live"');
-  });
-
   it("centres the bot in the header's middle column, with the controls in the last", () => {
     const markup = renderToStaticMarkup(createElement(ChatView, { bot }));
     const row = markup.match(/data-chathead-row="true" class="([^"]*)"/)?.[1] ?? "";
@@ -602,8 +586,8 @@ describe("thread control placement", () => {
     expect(markup).not.toContain('aria-label="Thread settings"');
     expect(fixture.model).toMatchObject({ threadId: "selected", bot: { busy: false, modelSelection: { model: "thread-model" } } });
     expect(fixture.approval).toMatchObject({ approvalMode: "ask", busy: false, trustedModesAvailable: false });
-    fixture.approval!.onSelect("auto");
-    expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "updateTask", botId: "bot", threadId: "selected", patch: { approvalMode: "auto" } });
+    fixture.approval!.onSelect("full");
+    expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "updateTask", botId: "bot", threadId: "selected", patch: { approvalMode: "full" } });
   });
 
   it("changes a working thread's level from the composer, saying the bot is working", () => {
@@ -621,7 +605,7 @@ describe("thread control placement", () => {
     delete window.ogb;
   });
 
-  it.each([true, false])("pins a place per conversation from the composer only in Advanced (advanced: %s)", (advanced) => {
+  it.each([true, false])("offers no per-conversation place in the composer (advanced: %s)", (advanced) => {
     fixture.advanced = advanced;
     const markup = renderToStaticMarkup(createElement(ChatView, { bot }));
     const pill = markup.slice(markup.indexOf('data-tour="composer"'), markup.indexOf("<textarea"));

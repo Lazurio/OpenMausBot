@@ -17,7 +17,6 @@ vi.mock("@/state/store", () => ({
   useStore: () => ({ state: { config: fixture.config }, dispatch: fixture.dispatch }),
 }));
 
-const olderServerConfig = { rooms: { turnTimeoutMinutes: 5 }, composio: { configured: false }, box: { configured: false }, vps: { configured: false, sshAlias: "" } };
 
 let host: HTMLDivElement;
 let root: Root;

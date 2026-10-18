@@ -18,7 +18,6 @@ export interface BotLifecycleRouteDeps {
 
 export function createBotLifecycleRoutes(deps: BotLifecycleRouteDeps): RouteHandler {
   const {
-    store, interruptAllDirectThreads, cancelDirectTurnDispatch, revokeInternalCapabilitiesForThread, activeGroupTurnForBot,
     cancelGroupTurnOperations, runningTurnInstance, closeOpenApprovals, deleteBotWithLifecycle,
   } = deps;
   return async ({ req, res, path, method, json }) => {
@@ -30,7 +29,6 @@ export function createBotLifecycleRoutes(deps: BotLifecycleRouteDeps): RouteHand
       }
       await Promise.allSettled(
         store.bots
-          .filter((bot) => bot.computer === "local")
           .map(async (bot) => {
             await interruptAllDirectThreads(bot.id);
             const routineRun = routines!.activeBotRunForBot(bot.id);

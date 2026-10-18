@@ -10,7 +10,7 @@ export function cornerPopupWaits(state: AppState, updater: UpdaterState | null,
   const setup = state.welcomeOpen || state.tourOpen
     || welcomeDue(state.config, { remoteClient: false, legacyDone: emailGateDone(), ...(viewer ? { hosted: viewer.hosted, canSave: viewer.canSave, cloudHome: viewer.cloudHome } : {}) });
   return !state.connected || !state.config || setup || busy || quiet || firstChatQuiet(state)
-    || state.appSettingsOpen || state.settingsOpen || state.pluginsOpen || state.shortcutsOpen
+    || state.appSettingsOpen || state.settingsOpen || state.shortcutsOpen
     || Boolean(updater && (!["idle", "checking"].includes(updater.status) || updater.updated));
 }
 

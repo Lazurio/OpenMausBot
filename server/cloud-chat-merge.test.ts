@@ -85,7 +85,6 @@ describe("planning across bots and rooms", () => {
   it("adds a conversation My Cloud never had with only what a conversation is, and skips chats of bots and rooms it lacks", () => {
     const carried = task("new", { title: "Plan", createdAt: 100, projectId: "p1", approvalMode: "full", autoApprove: true, alwaysAllow: ["Bash"], cwd: "/Users/me/work",
       modelSelection: { instanceId: "local-llm", model: "m" }, resumeCursors: { claude: "session" }, lastInstanceId: "claude", unread: true, pinned: true,
-      surface: { kind: "this-computer" } as never, handedMessages: {}, appliedCompactionId: "x" });
     const desktop = side(
       [{ ...bots[0]!, tasks: [task("main"), carried, task("in-gone-project", { createdAt: 100, projectId: "gone" })] }, { id: "only-here", threadId: "solo", tasks: [task("solo")] }],
       [{ id: "room", threadId: "r1", tasks: [{ threadId: "r1", title: "Room", createdAt: 1 }, { threadId: "r2", title: "Second", createdAt: 100 }] },

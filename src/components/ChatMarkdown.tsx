@@ -64,7 +64,7 @@ export const localFilePath = (href?: string): string | null => {
 };
 
 export function chatUrlTransform(value: string): string {
-  if (looksLikeThreadRefUrl(value) || isUseMyComputerUrl(value)) return value;
+  if (looksLikeThreadRefUrl(value)) return value;
   // Markdown-to-HTML percent-encodes a destination's backslashes (C:%5CUsers…); restore them and leave other escapes
   // for the server's single decode.
   const url = /^[a-zA-Z]:%5C/i.test(value) ? value.replace(/%5C/gi, "\\") : value;

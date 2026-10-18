@@ -3,7 +3,6 @@ import type { Message } from "@/state/store";
 import { t } from "@/lib/i18n";
 import { AppMessage } from "./app/AppMessage";
 import { GoalRunRow } from "./GoalRunCard";
-import { HelperKeySuggestion } from "./HelperKeySuggestion";
 import { MessageBoundary } from "./MessageBoundary";
 import { WidgetMessage } from "./widget/WidgetMessage";
 
@@ -19,9 +18,7 @@ export function richRowKind(message: Message): Message["kind"] {
 export function RichMessageRow({ botId, botName, threadId, message }: { botId: string; botName: string; threadId?: string; message: Message }) {
   return (
     <MessageBoundary fallbackText={message.text ?? ""}>
-      {message.setupSuggestion
-        ? <HelperKeySuggestion threadId={threadId} message={message} />
-        : message.kind === "goal.run"
+      {message.kind === "goal.run"
           ? <GoalRunRow botId={botId} threadId={threadId} message={message} />
           : message.kind === "app"
             ? <AppMessage botId={botId} botName={botName} threadId={threadId} message={message} />

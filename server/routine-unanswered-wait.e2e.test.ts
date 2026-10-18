@@ -17,7 +17,6 @@ afterEach(async () => {
 });
 
 it("starts the next scheduled run of a routine whose sign-in nobody answered, and stops the old wait", async () => {
-  fixture = await launchVerificationServer();
   const { url, dataDir, logPath } = fixture.info;
   const raw = async (method: string, path: string, body?: unknown, token?: string) => {
     const response = await fetch(url + path, {
@@ -49,7 +48,6 @@ it("starts the next scheduled run of a routine whose sign-in nobody answered, an
   ].join("\n"), { mode: 0o700 });
   await api("PATCH", "/api/instances/claude", { cli: wrapper });
   await api("PATCH", "/api/config", { features: { browser: true } });
-  await api("PATCH", `/api/bots/${bot.id}`, { computer: "browser" });
   const { routine } = await api("POST", "/api/routines", {
     name: "Morning check", prompt: "Sign in to the site and check the dashboard.", botId: bot.id,
     schedule: { type: "cron", expression: "30 7 * * 1-5", timeZone: "Europe/London" },

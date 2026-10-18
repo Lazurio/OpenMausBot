@@ -36,7 +36,6 @@ import { ComposerAttachments, pathForFile } from "./ComposerAttachments";
 import { PointedChips } from "./app/PointedChips"; import { SetupRequestChip, setupRequestPlaceholder } from "./SetupOffer";
 import { takePointedChips } from "@/lib/pointed-chips";
 import { splitTranscriptCitations, type CitationAttachment } from "@/lib/citations";
-import { PlaceChip, usePlaceMenuItem } from "./PlaceChip";
 import { ApprovalModeSelector } from "./ApprovalModeSelector";
 import { approvalModeFor } from "../../shared/approval-mode";
 import { useOnCall } from "@/lib/call";
@@ -101,14 +100,9 @@ interface ComposerDraftSnapshot extends ComposerSendSnapshot {
 
 type PhonePlusProps = Pick<ComponentProps<typeof ComposerPlusMenu>, "onAttach" | "goal" | "teach" | "approval" | "callBotId">;
 
-function PhonePlusWithPlace({ place, ...rest }: PhonePlusProps & { place: Parameters<typeof usePlaceMenuItem>[0] }) {
-  const item = usePlaceMenuItem(place);
-  return <ComposerPlusMenu {...rest} extraItems={[item]} circle />;
-}
-
-/** The phone composer's round +: attach, Finish together, where the bot works, approval level and call mode. */
-function PhonePlus({ place, ...rest }: PhonePlusProps & { place?: Parameters<typeof usePlaceMenuItem>[0] }) {
-  return place ? <PhonePlusWithPlace place={place} {...rest} /> : <ComposerPlusMenu {...rest} circle />;
+/** The phone composer's round +: attach, Finish together, approval level and call mode. */
+function PhonePlus(props: PhonePlusProps) {
+  return <ComposerPlusMenu {...props} circle />;
 }
 
 export function Composer({
@@ -144,7 +138,6 @@ export function Composer({
   const simpleDock = !advanced && !singleRow;
   const sendKey = useSendKey();
   const sendLabel = sendKeyLabel(sendKey);
-  const remoteClient = window.ogb?.remoteClient?.active === true;
   const threadId = group?.threadId ?? bot?.threadId ?? "";
   const currentGroupTask = group?.tasks?.find((task) => task.threadId === threadId);
   const groupBusyBotId = currentGroupTask?.busyBotId ?? (currentGroupTask?.working ? group?.busyBotId : (group?.threadId === threadId ? group?.busyBotId : null));
@@ -155,7 +148,6 @@ export function Composer({
     : bot?.modelSelection.instanceId;
   const canSteer =
     state.instances.find((i) => i.instanceId === steerInstanceId)?.capabilities?.queueing === true;
-  const composerTask = profile?.tasks?.find((task) => task.threadId === threadId);
   // Visible branch only: an approval left on an abandoned branch must not block the composer.
   const approvals = pendingApprovals(group ? group.messages : bot ? visibleMessages(bot) : []);
   const approval = approvals[0];
@@ -804,12 +796,6 @@ export function Composer({
               teach={!advanced && canLearn ? teachTask : undefined}
               approval={approvalChoice && modeBot && { name: modeBot.name, choice: approvalChoice }}
               callBotId={bot && !group ? bot.id : undefined}
-              place={modeBot && !remoteClient && advanced ? {
-                bot: modeBot,
-                task: composerTask,
-                disabled: Boolean(modeBot.busy),
-                onPin: (surface) => dispatch({ type: "updateTask", botId: modeBot.id, threadId: modeBot.threadId, patch: { surface } }),
-              } : undefined}
             />
           </div>
         )}
@@ -843,15 +829,6 @@ export function Composer({
               {goal && (advanced || goal.on) && <GoalToggle {...goal} compact={simpleDock} />}
               {advanced && approvalChoice && <ApprovalModeSelector {...approvalChoice} />}
               {simpleDock && approvalChoice && profile && bot && approvalModeFor(bot) !== approvalModeFor(profile) && <ApprovalChip choice={approvalChoice} />}
-              {modeBot && !remoteClient && advanced && (
-                <PlaceChip
-                  bot={modeBot}
-                  task={composerTask}
-                  live={Boolean(modeBot.busy)}
-                  disabled={Boolean(modeBot.busy)}
-                  onPin={(surface) => dispatch({ type: "updateTask", botId: modeBot.id, threadId: modeBot.threadId, patch: { surface } })}
-                />
-              )}
             </div>
           )}
           <MentionTextarea

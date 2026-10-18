@@ -441,10 +441,9 @@ export function ApprovalCard({
     const waiting = !settled && !expired;
     const ask = yourComputerAsk(card, bot?.name ?? t("approval.someone"));
     const header = ask ? ask.line : outbound
-      ? waiting ? outbound.headline : outbound.headline.replace(/\s*[?？]$/, "")
-      : bot
-        ? t("approval.card.namedWantsTo", { name: bot.name, action: toolLabel(displayTool) })
-        : t("approval.card.wantsTo", { action: toolLabel(displayTool) });
+    const header = bot
+      ? t("approval.card.namedWantsTo", { name: bot.name, action: toolLabel(displayTool) })
+      : t("approval.card.wantsTo", { action: toolLabel(displayTool) });
     const row = (
       <CompactApprovalRow
         header={header}

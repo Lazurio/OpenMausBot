@@ -1,16 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  browserIsThePlace,
-  cloudPlaceRefusal,
-  computerSkippedNote,
-  computerToolsRefusal,
-  parseSurface,
-  placeUnavailable,
-  resolveSurface,
-  surfaceOfComputerKind,
-  surfacePrompt,
-} from "./surface.ts";
 
 describe("browserIsThePlace", () => {
   it("is true only where the conversation works on the built-in browser", () => {
@@ -116,21 +105,15 @@ describe("resolveSurface", () => {
 
 describe("surfacePrompt", () => {
   it("names both surfaces and splits the work when both are mounted", () => {
-    const text = surfacePrompt({ computer: "cloud", browser: true });
     expect(text).toMatch(/Two surfaces are mounted/);
     expect(text).toMatch(/Web tasks → the built-in browser/);
-    expect(text).toMatch(/Desktop apps, files and shell → the cloud computer tools/);
     expect(text).toMatch(/Pick one surface for a task and stay on it/);
-    expect(text).toMatch(/say which surface — the Browser tab or the cloud computer/);
   });
 
   it("names only the computer when it is the only surface", () => {
-    const text = surfacePrompt({ computer: "vm", browser: false });
-    expect(text).toMatch(/happens on the Local VM, web pages included/);
     expect(text).toMatch(/no separate built-in browser/);
     expect(text).toMatch(/say in one short sentence where you are working/);
     expect(text).not.toMatch(/Two surfaces/);
-    expect(surfacePrompt({ computer: "local", browser: false })).toMatch(/tell them it is on this computer/);
   });
 
   it("on the person's own computer, sends web work to the bot's own browser first and their screen last", () => {
@@ -153,24 +136,17 @@ describe("surfacePrompt", () => {
   it("names only the browser tab when it is the only surface", () => {
     const text = surfacePrompt({ computer: null, browser: true });
     expect(text).toMatch(/happens in the built-in browser tab/);
-    expect(text).toMatch(/no desktop, file or shell computer/);
     expect(text).toMatch(/Browser tab of the Screen panel/);
     expect(text).toMatch(/say in one short sentence where you are working/);
-    expect(text).not.toMatch(/happens on the cloud computer/);
   });
 
-  it("explains unavailable tools, and carries the pin line and the note", () => {
     expect(surfacePrompt({ computer: null, browser: false })).toContain("No computer or built-in browser tools are mounted");
-    expect(surfacePrompt({ computer: "cloud", browser: false }, { pinned: "cloud" }))
-      .toContain("This conversation is pinned to the cloud computer; changing places requires");
     expect(surfacePrompt({ computer: null, browser: false }, { note: " NOTE." })).toBe(" NOTE.");
   });
 
-  it.each(["local", "vm", "cloud", "browser"] as const)("requires observed results on the actual %s tools", (place) => {
     const text = surfacePrompt({ computer: place === "browser" ? null : place, browser: place === "browser" });
     expect(text).toContain("verify its result before claiming success");
     expect(text).toContain("Announcing an action is not performing it");
-    expect(text).toContain("never act on a different computer or describe a host window as a VM");
     expect(text).toContain("use OpenMausBot's mounted browser/computer tools first");
     expect(text).toContain("Do not substitute the provider's own desktop");
   });
@@ -233,40 +209,6 @@ describe("surfacePrompt", () => {
     for (const { mounted, opts } of shapes) {
       expect(surfacePrompt(mounted, { ...opts, cloudHome: false })).toBe(surfacePrompt(mounted, opts));
     }
-    expect(surfacePrompt({ computer: "cloud", browser: true }, { canSelect: true }))
-      .toContain("this computer is the user's host, Local VM is an isolated desktop, the cloud computer is remote");
-  });
-});
-
-describe("surface parsing", () => {
-  it("accepts only the four surfaces off the wire", () => {
-    expect(parseSurface("browser")).toBe("browser");
-    expect(parseSurface("cloud")).toBe("cloud");
-    expect(parseSurface("box")).toBeUndefined();
-    expect(parseSurface(42)).toBeUndefined();
-    expect(parseSurface(undefined)).toBeUndefined();
-  });
-
-  it("folds both cloud backends into one surface", () => {
-    expect(surfaceOfComputerKind("box")).toBe("cloud");
-    expect(surfaceOfComputerKind("vps")).toBe("cloud");
-    expect(surfaceOfComputerKind("vm")).toBe("vm");
-    expect(surfaceOfComputerKind("local")).toBe("local");
-    expect(surfaceOfComputerKind(null)).toBeNull();
-  });
-});
-
-it("does not instruct use of a selected browser when no surface is mounted", () => {
-  expect(surfacePrompt({ computer: null, browser: false }, { canSelect: true })).not.toContain("For online research");
-  expect(surfacePrompt({ computer: null, browser: true })).toContain("For online research");
-});
-
-describe("cloudPlaceRefusal", () => {
-  const engine = (patch: { computerMcp?: boolean }) => ({ name: "Llama", ...patch });
-
-  it("lets every engine with computer tools use the cloud computer, whatever it runs on", () => {
-    expect(cloudPlaceRefusal(engine({ computerMcp: true }), "works-on", "Scout")).toBeNull();
-    expect(cloudPlaceRefusal(engine({ computerMcp: true }), "routine", "Scout")).toBeNull();
   });
 
   it("refuses an engine without computer tools as one state, its fix the same whatever the source", () => {
@@ -277,7 +219,6 @@ describe("cloudPlaceRefusal", () => {
       expect(cloudPlaceRefusal(engine({}), source, "Scout")?.message).toBe(refused.message);
     }
   });
-});
 
 describe("computerToolsRefusal", () => {
   it("refuses a Tool selection without the computer with one action: the setting that changes it", () => {

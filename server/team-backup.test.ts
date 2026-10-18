@@ -68,7 +68,6 @@ describe("additive portable team backups", () => {
     const backup = createTeamBackup(store, routines.listRoutines(), "Selected tools");
     expect(backup.bots.find((bot) => bot.key === chief.id)).toHaveProperty("toolScope", scope);
     const restored = importTeamBackup(store, routines, backup, selection());
-    expect(restored.bots.find((bot) => bot.name === "Mira 2")).toMatchObject({ toolScope: scope, computer: "off", composio: false, connectorTools: {} });
     expect(approvalModeFor(restored.bots.find((bot) => bot.name === "Mira 2")!)).toBe("full");
     expect(restored.bots.find((bot) => bot.name === "Scout 2")).toHaveProperty("toolScope", { allow: [] });
     const invalid = structuredClone(backup) as unknown as { bots: Array<{ toolScope: unknown }> };
@@ -177,7 +176,6 @@ describe("additive portable team backups", () => {
     expect(importedChief.soul).toBe(chief.soul);
     expect(importedChief.soulHash).toBe(soulHash(chief.soul!));
     expect(readFileSync(soulFile(importedChief.id), "utf8")).toBe(chief.soul);
-    expect(importedChief).toMatchObject({ section: "Engineering 2", chiefOfStaff: true, description: chief.description, computer: "off", composio: false, browser: false, resumeCursors: {}, playbooks: chief.playbooks });
     expect(approvalModeFor(importedChief)).toBe("full");
     expect(result.bots.find((bot) => bot.name === "Ava 2")).toMatchObject({ section: "Operations 2", chiefOfStaff: true });
     expect(result.bots.find((bot) => bot.name === "Archived 2")).toMatchObject({ hidden: true });
@@ -322,6 +320,7 @@ describe("additive portable team backups", () => {
     expect(imported.threadId).not.toBe(chief.threadId);
     expect(imported.approvalMode).toBeUndefined();
     expect(approvalModeFor(imported)).toBe("full");
+    expect(imported).not.toHaveProperty("computer");
     expect(JSON.stringify(parseTeamBackup(backup))).not.toMatch(/live-approval|secret-session|\/etc\/passwd|approvalMode/);
   });
 

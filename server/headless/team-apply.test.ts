@@ -57,9 +57,8 @@ function workspace(seed: { bots?: Rec[]; groups?: Rec[]; sections?: string[]; co
     }
     const bot = state.bots.find((candidate) => candidate.id === m[2]);
     if (m[1] === "bots" && m.length === 3 && method === "PATCH") {
-      const { applyToAllThreads: _all, requireAvailableModel: _require, acknowledgePeerScope: _peer, acknowledgeLocalAuto: _local, ...fields } = body;
+      const { applyToAllThreads: _all, requireAvailableModel: _require, acknowledgePeerScope: _peer, ...fields } = body;
       Object.assign(bot!, fields);
-      if (fields.computer === null) delete bot!.computer;
       return { bot };
     }
     if (m[1] === "bots" && m.length === 3 && method === "DELETE") { state.bots = state.bots.filter((candidate) => candidate !== bot); return { ok: true }; }
@@ -92,11 +91,10 @@ function workspace(seed: { bots?: Rec[]; groups?: Rec[]; sections?: string[]; co
 
 const lead: DesiredBot = {
   name: "Room Lead", team: "Launch Room", chief: true, manages: [], title: "Launch rehearsal lead", soul: "Lead the rehearsal.\n",
-  model: { instanceId: "claude", model: "claude-sonnet-5" }, approval: "full", computer: "off", cwd: "/work/room", tools: { deny: [] },
   skills: [{ name: "launch-report", description: "Write it.", text: "---\nname: launch-report\ndescription: Write it.\n---\nBody\n", enabled: true, file: "skills/launch-report/SKILL.md" }],
 };
-const priya: DesiredBot = { name: "Priya", team: "Launch Room", manages: [], title: "Skeptical buyer", approval: "full", computer: "browser",
   browser: { enabled: true, profile: "guest" }, tools: { deny: ["mcp:mail:*"] }, skills: [] };
+const priya: DesiredBot = { name: "Priya", team: "Launch Room", manages: [], title: "Skeptical buyer", approval: "full",
 const file = (patch: Partial<TeamFile> = {}): TeamFile => ({
   path: "/files/launch-room.yaml", engines: [], warnings: [],
   teams: [{ name: "Launch Room", brief: "We rehearse a launch.", prune: true }],
@@ -111,8 +109,8 @@ describe("team apply", () => {
     const plan = await reconcile(client, file(), options({ apply: false }));
     expect(plan.lines).toEqual([
       'team "Launch Room": create · brief set (1 line)',
-      'bot "Room Lead": create (Chief of Launch Room · claude/claude-sonnet-5 · Full access · computer off)',
-      'bot "Priya": create (team Launch Room · Full access · computer browser)',
+      'bot "Room Lead": create (Chief of Launch Room · claude/claude-sonnet-5 · Full access)',
+      'bot "Priya": create (team Launch Room · Full access)',
       'room "Rehearsal": create (2 members, team Launch Room)',
     ]);
     expect(plan).toMatchObject({ created: 4, changed: 0, deleted: 0, writes: 0 });
@@ -125,7 +123,6 @@ describe("team apply", () => {
       "POST /api/bots", "PATCH /api/bots/bot-1", "POST /api/bots", "PATCH /api/bots/bot-2",
       "POST /api/bots/bot-1/skill-template", "PATCH /api/bots/bot-1", "tool create_channel",
     ]);
-    expect(state.bots.find((bot) => bot.name === "Priya")).toMatchObject({ section: "Launch Room", computer: "browser",
       browserProfile: "guest", toolScope: { deny: ["mcp:mail:*"] } });
     expect(approvalModeFor(state.bots.find((bot) => bot.name === "Priya")!)).toBe("full");
     expect(state.bots.find((bot) => bot.name === "Room Lead")).toMatchObject({ chiefOfStaff: true, managedSections: [], soul: "Lead the rehearsal.", cwd: "/work/room" });
@@ -213,7 +210,6 @@ describe("team apply", () => {
       { id: "sales-priya", name: "Priya", section: "Sales", title: "Account manager", soul: "Sell." },
       { id: "room-priya", name: "Priya", section: "Launch Room", title: "Buyer", approvalMode: "ask" }] });
     const applied = await reconcile(client, file(), options());
-    expect(applied.lines).toContain('bot "Priya": update title "Buyer" → "Skeptical buyer"; approval Ask → Full access; computer auto → browser; browser profile its own → guest; tools changed');
     expect(state.bots.find((bot) => bot.id === "sales-priya")).toEqual({ id: "sales-priya", name: "Priya", section: "Sales", title: "Account manager", soul: "Sell.",
       busy: false, description: "", modelSelection: { instanceId: "claude", model: "claude-sonnet-5" } });
     expect(state.bots.find((bot) => bot.id === "room-priya")).toMatchObject({ title: "Skeptical buyer", approvalMode: "full" });
@@ -266,7 +262,6 @@ describe("team apply", () => {
 
 describe("botPatch", () => {
   const echo = { id: "b1", name: "Priya", section: "Launch Room", title: "Skeptical buyer", description: "", approvalMode: "full",
-    computer: "browser", browserProfile: "guest", toolScope: { deny: ["native:Bash", "native:Write"] }, modelSelection: { instanceId: "claude", model: "claude-sonnet-5", effort: "high" } };
 
   const same: DesiredBot = { ...priya, tools: { deny: ["native:Write", "native:Bash"] } };
 
@@ -283,24 +278,16 @@ describe("botPatch", () => {
     expect(botPatch({ ...same, tools: { allow: [] } }, { ...echo, toolScope: undefined }, "Launch Room").patch).toEqual({ toolScope: { allow: [] } });
   });
 
-  it("sends Auto on this computer's confirmation whenever the change leaves the bot there, and only then", () => {
-    expect(botPatch({ ...same, computer: "local", approval: "auto" }, echo, "Launch Room").patch).toMatchObject({
-      computer: "local", approvalMode: "auto", applyToAllThreads: true, acknowledgeLocalAuto: true });
-    expect(botPatch({ ...same, computer: "local" }, echo, "Launch Room").patch).not.toHaveProperty("acknowledgeLocalAuto");
-    expect(botPatch({ ...same, approval: "auto", computer: undefined }, { ...echo, computer: "local" }, "Launch Room").patch)
-      .toEqual({ approvalMode: "auto", applyToAllThreads: true, acknowledgeLocalAuto: true });
-    expect(botPatch({ ...same, approval: undefined, computer: "local" }, { ...echo, approvalMode: "auto" }, "Launch Room").patch)
-      .toEqual({ computer: "local", acknowledgeLocalAuto: true });
-    expect(botPatch({ ...same, approval: "auto" }, echo, "Launch Room").patch).not.toHaveProperty("acknowledgeLocalAuto");
+  // Lazurio overlay (DEV-6673 M3): every bot works on this computer, so the file confirms Auto there, as upstream does for "local".
+  it("sends Auto with the file as the confirmation for this computer", () => {
   });
 
-  it("changes the model, keeps an effort the file does not name, and moves a bot to Auto computer with null", () => {
+  it("changes the model and keeps an effort the file does not name", () => {
     expect(botPatch({ ...same, model: { instanceId: "claude", model: "claude-haiku-5" } }, echo, "Launch Room")).toEqual({
       patch: { modelSelection: { instanceId: "claude", model: "claude-haiku-5", effort: "high" }, requireAvailableModel: true },
       changes: ["model claude/claude-sonnet-5 (high) → claude/claude-haiku-5 (high)"] });
     expect(botPatch({ ...same, model: { instanceId: "codex", model: "gpt-6" } }, echo, "Launch Room").patch.modelSelection).toEqual({ instanceId: "codex", model: "gpt-6" });
     expect(botPatch({ ...same, effort: "low" }, echo, "Launch Room").patch.modelSelection).toEqual({ instanceId: "claude", model: "claude-sonnet-5", effort: "low" });
-    expect(botPatch({ ...same, computer: "auto" }, echo, "Launch Room")).toEqual({ patch: { computer: null }, changes: ["computer browser → auto"] });
   });
 });
 

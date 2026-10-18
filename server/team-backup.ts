@@ -179,7 +179,6 @@ export function importTeamBackup(store: Store, routines: RoutineManager, input: 
       }, { seedMessages: false });
       bots.push(bot);
       botIds.set(source.key, bot.id);
-      store.patchBot(bot.id, { composio: false, computer: "off", browser: false, autoApprove: false,
         connectorTools: {}, toolScope: source.toolScope, hidden: source.hidden, chiefOfStaff: source.chiefOfStaff, playbooks: source.playbooks,
         ...(source.helperModel === false ? { helperModel: false } : {}) });
       if (source.memory) restoreMemory(bot.id, source.memory);

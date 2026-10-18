@@ -225,7 +225,7 @@ describe("the stall handler", () => {
       TurnWatchdog: class { options: unknown; constructor(options: { onStall: (turn: WatchedTurn) => void }) { this.options = options; } },
       store: { messagesFor: () => messages, activePath: () => messages, appendMessage() {} },
       turnResourceOwners: new Map(), directTurnGenerationByThread: new Map([["t1", "gen-1"]]), directRequestOwners: new Map(),
-      localVmThreadTargets: new Map(), liveTurnByThread: new Map([["t1", "turn-1"]]), turnUsage: new Map(), turnContext: new Map(),
+      liveTurnByThread: new Map([["t1", "turn-1"]]), turnUsage: new Map(), turnContext: new Map(),
       cancelDirectTurnDispatch() {}, revokeInternalCapabilitiesForThread() {}, repeats: { settle() {} },
       botForThread: () => ({ id: "eli" }), activeRoutineRunForThread: () => undefined,
       runningTurnInstance: () => ({ adapter: { interruptTurn: async () => {} } }),
@@ -290,7 +290,7 @@ describe("a Stop that wins against a provider dispatch", () => {
       return source.slice(start, end);
     };
     const code = ts.transpileModule(section("\nfunction markCancelledProviderHandshake", "\nfunction clearCancelledProviderHandshake") +
-      section("\nfunction cancelDirectTurnDispatch", "\nconst {") + "\nglobalThis.cancelDirectTurnDispatch = cancelDirectTurnDispatch;",
+      section("\nfunction cancelDirectTurnDispatch", "\nconst dataSheets") + "\nglobalThis.cancelDirectTurnDispatch = cancelDirectTurnDispatch;",
     { compilerOptions: { target: ts.ScriptTarget.ESNext } }).outputText;
     const quarantined: string[] = [];
     const context = vm.createContext({

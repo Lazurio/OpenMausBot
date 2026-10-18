@@ -44,7 +44,6 @@ export function PermissionsSection({
       applyFullEverywhere();
       return;
     }
-    if (mode === "auto" && bot.computer === "local") {
       setLocalAutoWarning(bot.id);
       return;
     }
@@ -175,16 +174,6 @@ export function PermissionsSection({
           dispatch({ type: "updateBot", botId: target, patch: { approvalMode: "auto", acknowledgeLocalAuto: true } });
         }}
       />
-    </div>
-  );
-}
-
-function PeersListNote({ peers, bots, onOpen }: { peers: readonly string[]; bots: readonly Bot[]; onOpen: () => void }) {
-  const names = peers.flatMap((id) => bots.find((other) => other.id === id && !other.hidden)?.name ?? []);
-  return (
-    <div className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 border-t border-hairline/40 pt-3 text-[13px] text-ink-secondary">
-      <span>{names.length ? t("permissions.peers.limited", { names: names.join(", ") }) : t("permissions.peers.none")}</span>
-      <button type="button" className="text-accent hover:underline" onClick={onOpen}>{t("permissions.peers.everyone")}</button>
     </div>
   );
 }

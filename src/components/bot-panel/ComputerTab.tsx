@@ -1,13 +1,8 @@
-import { useEffect, useState } from "react";
 
 import { writeComputerPanelView, type ComputerPanelView } from "@/lib/computer-panel-view";
 import { t } from "@/lib/i18n";
-import type { Place } from "@/lib/place";
-import { placeHasIssue, worksOnSimpleLabel } from "@/lib/place-view";
 import { BotAvatar } from "../Avatar";
 import { useDesktopCapabilities } from "../DesktopCapabilities";
-import { LocalComputerAutoWarning } from "../LocalComputerAutoWarning";
-import { usePlaceViews } from "../PlaceChip";
 import type { BotPatch, useBotSettingsDerived } from "../bot-settings/useBotSettingsDerived";
 import { useStore, type Bot } from "@/state/store";
 import { useBrowserWords } from "../LazurioBrowser";
@@ -15,8 +10,6 @@ import type { SimplePageId } from "./page-registry";
 import { Card, NavRow } from "./rows";
 
 type Derived = ReturnType<typeof useBotSettingsDerived>;
-type PlaceChoice = "auto" | Place | "off";
-
 interface PlaceOption {
   value: PlaceChoice;
   label: string;
@@ -34,7 +27,6 @@ export function useOpenComputer(bot: Pick<Bot, "id">) {
   };
 }
 
-  const { state } = useStore();
   const { capabilities } = useDesktopCapabilities();
   const { browserEnabled } = derived;
   const openPanel = useOpenBrowserPanel(bot);

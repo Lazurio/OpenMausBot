@@ -1,14 +1,12 @@
 // The editor for an automation that runs when another app sends something: who does it and what it does, with the
 // rest under More. The words a person sees never say webhook, endpoint or payload.
 import { useRef, useState } from "react";
-import { Cloud, Laptop, Loader2, X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 
 import { BotAvatar } from "@/components/Avatar";
 import { useModalDialog } from "@/hooks/use-modal-dialog";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
-import { boatCapableEngine } from "@/lib/remote-desktop";
-import type { RoutineRunOn } from "@/lib/routines";
 import { WEBHOOK_DEFAULT_MAX_PENDING_RUNS, WEBHOOK_MAX_PENDING_RUNS_LIMIT, webhookActivationDefaults, webhookMaxPendingRunsInput, type WebhookCredential, type WebhookTrigger, type WebhookTriggerInput } from "@/lib/webhooks";
 import { api, useStore, type Bot } from "@/state/store";
 
@@ -21,18 +19,16 @@ export function suggestedName(prompt: string, bot?: Bot) {
 const FIELD = "w-full rounded-xl border border-hairline/60 bg-panel px-3.5 py-2.5 text-[13px] text-ink outline-none placeholder:text-ink-tertiary focus:border-accent/70";
 
 export function WebhookEditor({ webhook, bots, initialBotId, onClose, onCredential }: { webhook?: WebhookTrigger; bots: Bot[]; initialBotId?: string; onClose: () => void; onCredential: (credential: WebhookCredential, webhookId: string) => void }) {
-  const { state, dispatch } = useStore();
+  const { dispatch } = useStore();
   const [botId, setBotId] = useState(webhook?.botId ?? (initialBotId && bots.some((bot) => bot.id === initialBotId) ? initialBotId : bots[0]?.id) ?? "");
   const [name, setName] = useState(webhook?.name ?? "");
   const [prompt, setPrompt] = useState(webhook?.prompt ?? "");
-  const [runOn, setRunOn] = useState<RoutineRunOn>(webhook?.runOn ?? "maus");
   const [eventTypes, setEventTypes] = useState((webhook?.eventTypes ?? []).join(", "));
   const [maxPendingRuns, setMaxPendingRuns] = useState(webhook?.maxPendingRuns?.toString() ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const dialogRef = useRef<HTMLDivElement>(null);
   useModalDialog(dialogRef, onClose);
-  const cloudReady = Boolean(state.config?.box.configured && boatCapableEngine(state.instances, bots.find((bot) => bot.id === botId)?.modelSelection.instanceId)?.snapshot.state === "available");
 
   const save = async () => {
     const bot = bots.find((candidate) => candidate.id === botId);
@@ -41,7 +37,7 @@ export function WebhookEditor({ webhook, bots, initialBotId, onClose, onCredenti
       setError(t("automations.editor.app.limitError", { max: WEBHOOK_MAX_PENDING_RUNS_LIMIT }));
       return;
     }
-    const input: WebhookTriggerInput = { name: name.trim() || suggestedName(prompt, bot), prompt: prompt.trim(), botId, runOn, ...webhookActivationDefaults(webhook), eventTypes: eventTypes.split(",").map((value) => value.trim()).filter(Boolean), maxPendingRuns: pendingLimit };
+    const input: WebhookTriggerInput = { name: name.trim() || suggestedName(prompt, bot), prompt: prompt.trim(), botId, runOn: "maus", ...webhookActivationDefaults(webhook), eventTypes: eventTypes.split(",").map((value) => value.trim()).filter(Boolean), maxPendingRuns: pendingLimit };
     setSaving(true);
     setError("");
     try {
@@ -83,13 +79,6 @@ export function WebhookEditor({ webhook, bots, initialBotId, onClose, onCredenti
             <summary className="cursor-pointer text-[13px] font-medium text-ink">{t("automations.more")}</summary>
             <div className="mt-4 space-y-4">
               <label className="block"><span className="mb-1.5 block text-[12px] font-medium text-ink-secondary">{t("automations.editor.app.name")}</span><input value={name} onChange={(event) => setName(event.target.value)} placeholder={suggestedName(prompt, bots.find((bot) => bot.id === botId))} className={FIELD} /></label>
-              <div>
-                <div className="mb-2 text-[12px] font-medium text-ink-secondary">{t("automations.editor.app.runOn")}</div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => setRunOn("maus")} className={cn("flex items-center gap-2 rounded-xl border p-3 text-left text-[13px] font-medium text-ink", runOn === "maus" ? "border-accent/70 bg-accent/10" : "border-hairline/50 bg-panel hover:bg-raised/60")}><Laptop size={14} />{t("automations.editor.app.thisComputer")}</button>
-                  <button type="button" disabled={!cloudReady && runOn !== "cloud"} onClick={() => setRunOn("cloud")} className={cn("flex items-center gap-2 rounded-xl border p-3 text-left text-[13px] font-medium text-ink disabled:cursor-not-allowed disabled:opacity-45", runOn === "cloud" ? "border-accent/70 bg-accent/10" : "border-hairline/50 bg-panel hover:bg-raised/60")}><Cloud size={14} />{t("automations.editor.app.cloud")}</button>
-                </div>
-              </div>
               <label className="block"><span className="mb-1.5 block text-[12px] font-medium text-ink-secondary">{t("automations.editor.app.events")}</span><input value={eventTypes} onChange={(event) => setEventTypes(event.target.value)} placeholder="push, workflow_run" className={FIELD} /><span className="mt-1.5 block text-[11px] text-ink-secondary">{t("automations.editor.app.eventsHelp")}</span></label>
               <label className="block"><span className="mb-1.5 block text-[12px] font-medium text-ink-secondary">{t("automations.editor.app.limit")}</span><input type="number" inputMode="numeric" min={1} max={WEBHOOK_MAX_PENDING_RUNS_LIMIT} step={1} value={maxPendingRuns} onChange={(event) => setMaxPendingRuns(event.target.value)} placeholder={String(WEBHOOK_DEFAULT_MAX_PENDING_RUNS)} className={FIELD} /><span className="mt-1.5 block text-[11px] text-ink-secondary">{t("automations.editor.app.limitHelp", { count: WEBHOOK_DEFAULT_MAX_PENDING_RUNS })}</span></label>
             </div>

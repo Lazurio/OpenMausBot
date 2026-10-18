@@ -111,7 +111,6 @@ export function NewBotDialog({ defaultsMode = false, onClose, onCreated, readyBo
   }, []);
   const save = async () => {
     if (!ready || savingRef.current || parent.state.botCreationPending) return;
-    if (!defaultsMode && draft.bot.approvalMode === "auto" && draft.bot.computer === "local" && !draft.consent.acknowledgeLocalAuto) { setWarning("local"); return; }
     const visibility = choosesVisibility ? visibilityFromForm(audience, people) : null;
     if (visibility && !visibility.ok) { setError(t("botSettings.visibility.needPeople")); return; }
     savingRef.current = true; setSaving(true); setError("");

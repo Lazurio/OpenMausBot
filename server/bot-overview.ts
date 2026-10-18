@@ -38,8 +38,6 @@ export interface OverviewFacts {
     | "title"
     | "description"
     | "soul"
-    | "computer"
-    | "cloudBackend"
     | "cwd"
     | "autoApprove"
     | "approvalMode"
@@ -190,28 +188,8 @@ export function grantsSummary(connectorTools: BotRecord["connectorTools"]): BotO
     .sort((a, b) => (a.slug < b.slug ? -1 : 1));
 }
 
-function computerReach(computer: BotRecord["computer"], cloudHome = false): string | null {
-  const unavailable = cloudHome ? ", which isn't available on My Cloud" : "";
-  switch (computer) {
-    case "cloud":
-      return "Computer preference: cloud computer.";
-    case "vm":
-      return `Computer preference: Local VM${unavailable}.`;
-    case "local":
-      return `Computer preference: this computer${unavailable}.`;
-    case "browser":
-      return "Computer preference: browser only.";
-    case "off":
-      return null;
-    default:
-      return "Computer preference: Auto; availability is checked when a task starts.";
-  }
-}
-
 function reachesLines(facts: OverviewFacts): string[] {
   const lines: string[] = [];
-  const computer = computerReach(facts.bot.computer, facts.cloudHome);
-  if (computer) lines.push(computer);
   lines.push(facts.bot.cwd ? `Works in ${facts.bot.cwd}.` : "Works in its private workspace.");
   const apps = facts.connectedApps;
   if (couldUseApps(facts) && apps.authoritative && apps.services.length > 0) {
@@ -220,7 +198,6 @@ function reachesLines(facts: OverviewFacts): string[] {
   } else if (couldUseApps(facts) && !apps.authoritative) {
     lines.push("Connected apps could not be checked.");
   }
-  if (facts.browserEnabled && facts.engine?.browserMcp && facts.bot.browser !== false && facts.bot.computer !== "off") lines.push("Has the built-in browser.");
   const peers = facts.sectionPeers;
   if (facts.engine?.agentsMcp && peers > 0 && facts.bot.peers?.length !== 0) {
     lines.push(Array.isArray(facts.bot.peers)
@@ -244,7 +221,6 @@ function wontLines(facts: OverviewFacts): string[] {
   if (!couldUseApps(facts) || (facts.connectedApps.authoritative && facts.connectedApps.services.length === 0)) {
     lines.push("Has no connected apps.");
   }
-  if (facts.bot.computer === "off") lines.push("Can't use a computer.");
   if (!facts.routines.some((routine) => routine.enabled)) lines.push("Won't act on a schedule.");
   if (mode !== "full") lines.push("Profile proposal cards require your approval.");
   return lines;

@@ -14,6 +14,7 @@ import { toolDetailPreview } from "./tool-summary.ts";
 
 describe("the catalog's names", () => {
   it("are every tool a turn could be given, whoever may call it, and neither of the bridge's own", () => {
+    for (const tool of ["coordinate_bots", "list_triggers", "create_trigger", "create_bot", "skill_manage", "send_voice_note", "create_options_card", "memory_log"]) {
       expect(CATALOG_TOOL_NAMES.has(tool), tool).toBe(true);
     }
     expect(CATALOG_TOOL_NAMES.has(FIND_TOOL)).toBe(false);
@@ -65,11 +66,11 @@ describe("the bot's Activity log", () => {
 
   it("names a bridged call by the tool it ran, from the event alone", () => {
     ran("mcp__agents__use_tool", { name: "list_triggers", arguments: {} });
-    ran("mcp__agents__use_tool", { name: "vm_exec", arguments: { command: "ls" } }, false);
+    ran("mcp__agents__use_tool", { name: "create_trigger", arguments: { command: "ls" } }, false);
     ran("agents_use_tool", { name: "session_search", arguments: { query: "pricing" } });
     expect(log()).toEqual([
       { tool: "mcp__agents__list_triggers", app: "Team", label: "List triggers", outcome: "ran" },
-      { tool: "mcp__agents__vm_exec", app: "Team", label: "Vm exec", outcome: "failed" },
+      { tool: "mcp__agents__create_trigger", app: "Team", label: "Create trigger", outcome: "failed" },
       { tool: "agents_session_search", app: null, label: "Agents session search", outcome: "ran" },
     ]);
   });
@@ -77,7 +78,7 @@ describe("the bot's Activity log", () => {
   it("leaves a call it cannot place as it was logged", () => {
     // named no tool of the catalog, or none at all
     ran("mcp__agents__use_tool", { name: "schedule_task" }, false);
-    ran("mcp__agents__use_tool", { arguments: { name: "vm_exec" } }, false);
+    ran("mcp__agents__use_tool", { arguments: { name: "create_trigger" } }, false);
     // a plain use_tool is not known to be this server's: Codex logs any server's tool by its name alone
     ran("use_tool", { name: "list_triggers" });
     // another server's, and the bridge's other tool

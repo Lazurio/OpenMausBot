@@ -235,7 +235,6 @@ describe("launch bundle", () => {
     expect(reached.has("components/Sidebar.tsx")).toBe(true);
     const deferred = [
       "ActivityPanel", "BotSettingsDialog", "ComputerPanel", "InspectorPanel", "KeyboardShortcutsModal",
-      "LocalVmWorkspace", "NewBotDialog", "RemoteAgentSettingsPanel", "remote-desktop-panel", "RoutineCalendarPage",
       "RoutinesPage", "SettingsModal", "TeamMapPage", "TriggersPage", "WebhookTrigger", "room-panel/RoomPanel",
     ].map((name) => `components/${name}.tsx`);
     expect(deferred.filter((file) => reached.has(file))).toEqual([]);

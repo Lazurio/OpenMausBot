@@ -15,9 +15,8 @@ it("English copy says Organization and installation, not Organisation or workspa
 const HARDCODED = [
   "electron/environments.cjs", "electron/main.mjs",
   "electron/company-backups.mjs", "electron/company-backup-schedule.mjs", "electron/managed-desktop.mjs", "electron/organization-entry.mjs",
-  "src/components/DesktopWorkspaceSwitcher.tsx", "src/components/ConnectedWorkspacesSettings.tsx", "src/components/LocalVmWorkspace.tsx",
+  "src/components/DesktopWorkspaceSwitcher.tsx", "src/components/ConnectedWorkspacesSettings.tsx",
   "src/components/VoiceSettings.tsx", "src/components/bot-settings/AccessSection.tsx", "src/components/CompanyBackupSettings.tsx",
-  "src/components/BrowserPanel.tsx", "src/lib/call-capability.ts", "server/container-computer.ts",
 ];
 const RETIRED = [
   "hosted workspace", "Switch workspace", "Could not open workspaces", "Your workspaces", "Workspace address", "Connect workspace",
@@ -27,7 +26,7 @@ const RETIRED = [
   "this workspace’s bots", "Bots from this workspace", "This workspace is no longer",
   "local workspace", "Local workspace", "workspace replacement", "Your workspace has", "The workspace changed", "The workspace could not",
   "entire workspace", "encrypted workspace backup", "when the workspace is", "Workspace default", "shared by the workspace", "workspace administrators",
-  "Private bot workspace", "durable workspace", "Local VM workspace", "two-desktop workspace", "desktop workspace bridge",
+  "Private bot workspace", "durable workspace", "two-desktop workspace", "desktop workspace bridge",
   "desktop workspace belongs", "desktop workspace is available", "The workspace stayed open",
   "Organisation sign-in", "organisation sign-in", "your organisation", "an organisation", "organisation's Admin", "organisation connection",
 ];

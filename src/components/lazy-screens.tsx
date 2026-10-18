@@ -71,7 +71,6 @@ export const ComputerPanel = lazyScreen("ComputerPanel", async () => (await impo
 export const FilesView = lazyScreen("FilesView", async () => (await import("./FilesView")).FilesView);
 export const InspectorPanel = lazyScreen("InspectorPanel", async () => (await import("./InspectorPanel")).InspectorPanel);
 export const KeyboardShortcutsModal = lazyScreen("KeyboardShortcutsModal", async () => (await import("./KeyboardShortcutsModal")).KeyboardShortcutsModal);
-export const LocalVmWorkspace = lazyScreen("LocalVmWorkspace", async () => (await import("./LocalVmWorkspace")).LocalVmWorkspace);
 export const NewBotDialog = lazyScreen("NewBotDialog", async () => (await import("./NewBotDialog")).NewBotDialog);
 export const RemoteAgentSettingsPanel = lazyScreen("RemoteAgentSettingsPanel", async () => (await import("./RemoteAgentSettingsPanel")).RemoteAgentSettingsPanel);
 export const RoomPanel = lazyScreen("RoomPanel", async () => (await import("./room-panel/RoomPanel")).RoomPanel);
@@ -81,8 +80,8 @@ export const SettingsModal = lazyScreen("SettingsModal", async () => (await impo
 export const TeamMapPage = lazyScreen("TeamMapPage", async () => (await import("./TeamMapPage")).TeamMapPage);
 
 const SCREENS = [
-  ActivityPanel, BotSettingsDialog, ComputerPanel, FilesView, InspectorPanel, KeyboardShortcutsModal, LocalVmWorkspace, NewBotDialog,
-  RemoteAgentSettingsPanel, RemoteDesktopPanel, RoomPanel, SettingsModal, TeamMapPage, TriggersPage,
+  ActivityPanel, BotSettingsDialog, InspectorPanel, KeyboardShortcutsModal, NewBotDialog,
+  RemoteAgentSettingsPanel, RoomPanel, SettingsModal, TeamMapPage, TriggersPage,
 ];
 
 if (typeof location !== "undefined" && new URLSearchParams(location.search).has("desktop-settings")) {

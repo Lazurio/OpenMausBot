@@ -82,21 +82,6 @@ export function buildSystemPrompt(
   return { text: sections.map((section) => section.text).join(""), sections, stable: halves(false), volatile: halves(true) };
 }
 
-// "box" is Boat's persisted kind literal.
-export type ComputerPromptKind = "vm-private" | "vm-shared" | "box" | "vps" | "local";
-
-export type ComputerPromptKindInput = {
-  kind: "vm" | "box" | "vps" | "local" | null;
-  vmPrivate: boolean;
-};
-
-export function resolveComputerPromptKind(input: ComputerPromptKindInput): ComputerPromptKind | null {
-  if (input.kind === "vm") return input.vmPrivate ? "vm-private" : "vm-shared";
-  if (input.kind === "box") return "box";
-  if (input.kind === "vps") return "vps";
-  if (input.kind === "local") return "local";
-  return null;
-}
 
 /** Login is allowed, not blanket authority to discover credentials or act on a webpage's instructions. A code sent to
  * the person's own inbox is theirs to give: their request for the task is the authorization, and it goes to that site only. */
@@ -108,13 +93,6 @@ export const SANDBOX_DESKTOP_INPUT =
   " On this desktop, read a window with get_window_state before acting on it and take x,y from that window's own screenshot. Pass delivery_mode \"foreground\" for keys, typing, scrolling and pixel clicks: background input is not available here, and foreground moves focus only inside this desktop, never on the user's own screen.";
 
 const COMPUTER_PARAGRAPH: Record<ComputerPromptKind, string> = {
-  "vm-private":
-    " You have your own isolated Cua sandbox: a Linux desktop in a container reserved for this bot. Only /home/cua/workspace is durable; save downloads, repositories, working files, and browser profiles there because everything else inside the VM is disposable. No other host folder is mounted. Run every command with vm_exec, which returns the exit code and the output as text; do not type commands into a terminal window and read screenshots. Create files there with vm_exec too (a shell heredoc or a script it runs); your host file tools cannot reach the VM. To give the user a file you made there (a report, image, audio, video, spreadsheet or slides), call attach_file with its path once it is saved; it reports an error if the file is missing. A path inside the VM cannot be opened from chat, so do not paste one as a link. Use the computer tools for the desktop, accessibility and windows. Inspect the desktop state before acting, prefer accessibility targets over raw coordinates, and work carefully." + SANDBOX_DESKTOP_INPUT,
-  "vm-shared":
-    " You have a shared, isolated Cua sandbox: a Linux desktop in a container on this machine. Only /home/cua/workspace is durable; save downloads, repositories, working files, and browser profiles there because everything else inside the VM is disposable. No other host folder is mounted. Run every command with vm_exec, which returns the exit code and the output as text; do not type commands into a terminal window and read screenshots. Create files there with vm_exec too (a shell heredoc or a script it runs); your host file tools cannot reach the VM. To give the user a file you made there (a report, image, audio, video, spreadsheet or slides), call attach_file with its path once it is saved; it reports an error if the file is missing. A path inside the VM cannot be opened from chat, so do not paste one as a link. Use the computer tools for the desktop, accessibility and windows. Inspect the desktop state before acting, prefer accessibility targets over raw coordinates, and work carefully." + SANDBOX_DESKTOP_INPUT,
-  box: " You control the assigned cloud computer. Inspect it with screenshots; click coordinates refer to the full image. Use the advertised computer tools for desktop actions and shell commands.",
-  vps:
-    " You have your own self-hosted remote Linux computer through the official Cua tools. This is the user's own VPS; using it does not require a Boat API key. Its filesystem is disposable: everything on it is wiped whenever its container is recreated, so keep long-lived work somewhere durable — push it to a remote, or hand the results back in chat — instead of leaving it only on that computer. Inspect the desktop state before acting, prefer accessibility targets over raw coordinates, and act carefully." + SANDBOX_DESKTOP_INPUT,
   local:
     " You can act on the user's computer through the computer tools. Discover the target app/window and inspect its state first. Prefer window-targeted accessibility actions with background delivery so the user can keep working in another app; do not bring OpenMausBot or another app to the front just to inspect it. Use the dedicated browser tools for browser work when available, keeping the user's intended browser profile/account, and OpenMausBot's configuration/proposal tools for supported bot setup rather than clicking through this app. Full-desktop input, app activation, and foreground delivery can move the real cursor, change focus, or switch desktops: use them only when the user asked for foreground control or agrees after background control reports it cannot perform the action. Do not silently retry a background refusal as foreground input, including through shell scripts, AppleScript/System Events, or another automation tool. If a background action unexpectedly changes focus, report it and stop that route rather than continuing to interrupt the user. Never promise that arbitrary desktop actions can run in the background.",
 };
@@ -147,7 +125,6 @@ export function cloudHomePrompt(sharedComputerTools: boolean, synced: ReadonlyAr
     ? ` If they ask for something on ${theirs}, check list_shared_computers: a computer they share with the Cloud is reachable through shared_computer, within the folders and apps it allows. If none is online, say so in one sentence: use its say field when it has one (it names the computer and when it was last online), otherwise give them ${useMyComputerLink(device)} to press in OpenMausBot on that ${device}: it asks them once and shares that ${device} with you.${device === "computer" ? " Call it their computer: never assume it is a Mac." : ` It is a ${device}: call it that, never a Mac unless it is one.`}`
       + ` While that ${device} is away, each folder it lends that the Cloud keeps a copy of still works from that copy: list_shared_computers lists them under away_computers (copy null means a folder only on the ${device}), every read says how fresh the copy is, and a write to a folder lent with editing is saved here and reaches the ${device} when it's on (tell them so in a few words). A file or folder that isn't in the copy is only on the ${device}: say you'll get it when it's on.`
     : ` You cannot see or use ${theirs}, its screen or its files from here. If they ask for something on it, say so in one sentence.`)
-    + " Offer what works here: the built-in browser and their cloud computer, a desktop in the cloud. Call it their cloud computer, as the app does. Never ask them to set up this computer or a Local VM; neither exists here."
     + syncedFoldersPrompt(synced);
 }
 
@@ -191,10 +168,8 @@ export const CREDENTIAL_PROMPT =
 export const BASH_MAX_TIMEOUT_MS = 600_000;
 const LONG_COMMANDS_TEXT =
   ` Long-running shell commands: a shell call is stopped after a default limit (2 minutes for a Bash call) and the output of a stopped command is lost. Before running anything that can take more than a minute, such as transcription (whisper), ffmpeg or ffprobe over long media, renders, large builds or big file transfers, either pass a longer per-call timeout (Bash takes \`timeout\` in milliseconds, up to ${BASH_MAX_TIMEOUT_MS}) or start it detached with its output in a file (\`nohup <command> > /tmp/<job>.log 2>&1 &\`) and check that file in later calls. Never scan the whole disk with \`find /\` or similar: search by name with \`mdfind -name\` on macOS, or search a specific folder such as your workspace or home with a depth limit. If a command times out, do not rerun it the same way.`;
-const VM_LONG_COMMANDS_TEXT =
-  " In your Local VM, vm_exec takes `timeout_seconds` instead (default 60, at most 300); start anything longer detached the same way, inside the VM, and check its log with later vm_exec calls.";
-export function longCommandsPrompt(computer: ComputerPromptKind | null): string {
-  return LONG_COMMANDS_TEXT + (computer === "vm-private" || computer === "vm-shared" ? VM_LONG_COMMANDS_TEXT : "");
+export function longCommandsPrompt(): string {
+  return LONG_COMMANDS_TEXT;
 }
 export const THREADS_PROMPT =
   " A thread is one conversation with its own history and its own run; a bot can have several running at once, and the person sees them as rows under that bot. Use start_thread to open one on yourself for separate work; to hand a teammate a job in a fresh thread of its own, use coordinate_bots with thread \"new\". Use list_threads to see how the ones you opened are going. When you mention a thread to the person, write its title as #Title so it links. Do not use a ticket comment, a note, or a room post as a stand-in for a thread.";

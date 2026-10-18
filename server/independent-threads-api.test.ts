@@ -685,7 +685,6 @@ describe("independent bot tasks through the isolated control surface", () => {
     const created = await tool("create_bot", { name: "Computer lease fixture", instance_id: "claude", model: models[0] });
     const botId = created.bot.id;
     const taskA = created.bot.activeTaskId;
-    expect((await api("PATCH", `/api/bots/${botId}`, { computer: "local" })).status).toBe(200);
     await control(["send", "--bot", botId, "--task", taskA, "--text", "COMPUTER_A"]);
     const launchedA = await dump(models[0]);
     const second = await tool("create_task", { target_type: "bot", target_id: botId, title: "Computer sibling" });

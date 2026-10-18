@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Check, Loader2, LockKeyhole, LogIn, RefreshCw, X } from "lucide-react";
 
 import type { ComputerHelpRef } from "../../shared/wire";
 import { signInOutcome } from "../../shared/sign-in-request";
@@ -10,8 +11,6 @@ import { ASK_CHIP, ASK_CHIP_IDLE, ASK_PRIMARY_BUTTON, ASK_QUIET_BUTTON, AskCard,
 
 const WHERE = {
   browser: "signIn.where.browser",
-  vm: "signIn.where.vm",
-  cloud: "signIn.where.cloud",
   local: "signIn.where.local",
   host: "signIn.where.host",
 } as const;
@@ -127,12 +126,10 @@ export function SignInRequestCard({
 export function SignInBanner({
   help,
   askerName,
-  takeControl,
   onError,
 }: {
   help: ComputerHelpRef;
   askerName: string;
-  takeControl?: { onClick: () => void; disabled?: boolean; pending?: boolean };
   onError?: (message: string | null) => void;
 }) {
   const [pending, setPending] = useState<"done" | "cancel" | null>(null);
@@ -155,23 +152,10 @@ export function SignInBanner({
         </div>
       )}
       <div className="mt-2 flex gap-2">
-        {takeControl && (
-          <button
-            type="button"
-            onClick={takeControl.onClick}
-            disabled={takeControl.disabled}
-            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent py-2 text-[13px] font-medium text-accent-ink hover:brightness-110 disabled:opacity-50"
-          >
-            {takeControl.pending ? <Loader2 size={14} className="animate-spin" /> : <Hand size={14} />}
-            {t("computer.takeControl")}
-          </button>
-        )}
         <button
           type="button"
           onClick={() => void answer("done")}
           disabled={pending !== null}
-          className={cn("flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-[13px] font-medium disabled:opacity-50",
-            takeControl ? "bg-control text-ink hover:bg-raised-hover" : "flex-1 bg-accent text-accent-ink hover:brightness-110")}
         >
           {pending === "done" ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
           {t("signIn.done")}

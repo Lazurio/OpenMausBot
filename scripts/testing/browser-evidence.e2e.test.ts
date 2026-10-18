@@ -272,7 +272,6 @@ describe("recorded browser steps through the real server", () => {
       expect((await api("PATCH", "/api/config", { features: { browser: true }, browserEngine: { egress: { allow: ["127.0.0.1"] } } })).status).toBe(200);
       const bot = (await api("POST", "/api/bots", { name: "Visitor" })).body.bot;
       expect((await api("PATCH", `/api/bots/${bot.id}`, { recordBrowserSteps: "yes" })).status).toBe(400);
-      expect((await api("PATCH", `/api/bots/${bot.id}`, { computer: "browser", browserProfile: "guest", recordBrowserSteps: true })).status).toBe(200);
       writeFileSync(planPath, JSON.stringify({ [bot.id]: { turns: [{ timeoutMs: 90_000, steps: [
         { server: "browser", tool: "agent_browser_open", arguments: { url: `${base}/` } },
         { server: "browser", tool: "agent_browser_click", arguments: { selector: "#signup" } },

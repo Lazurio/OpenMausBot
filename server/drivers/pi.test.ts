@@ -784,9 +784,9 @@ describe("PiDriver turns (fake CLI)", () => {
     const dir = mkdtempSync(join(tmpdir(), "omb-pi-dump-"));
     const dump = join(dir, "dump.jsonl");
     // The leak path is `...process.env`, not just input.environment.
-    const savedBoat = process.env.BOX_TOKEN;
+    const savedFish = process.env.OMB_FISH_AUDIO_API_KEY;
     const savedXai = process.env.XAI_API_KEY;
-    process.env.BOX_TOKEN = "boat-secret-value";
+    process.env.OMB_FISH_AUDIO_API_KEY = "fish-secret-value";
     process.env.XAI_API_KEY = "xai-secret-value";
     try {
       await create(undefined, {
@@ -796,8 +796,8 @@ describe("PiDriver turns (fake CLI)", () => {
       });
       await instance.dispose();
     } finally {
-      if (savedBoat === undefined) delete process.env.BOX_TOKEN;
-      else process.env.BOX_TOKEN = savedBoat;
+      if (savedFish === undefined) delete process.env.OMB_FISH_AUDIO_API_KEY;
+      else process.env.OMB_FISH_AUDIO_API_KEY = savedFish;
       if (savedXai === undefined) delete process.env.XAI_API_KEY;
       else process.env.XAI_API_KEY = savedXai;
     }
@@ -813,7 +813,7 @@ describe("PiDriver turns (fake CLI)", () => {
       expect(row.envConfigured).not.toContain("ANTHROPIC_API_KEY");
       expect(row.envConfigured).not.toContain("OPENAI_API_KEY");
       expect(row.envConfigured).not.toContain("XAI_API_KEY");
-      expect(row.envConfigured).not.toContain("BOX_TOKEN");
+      expect(row.envConfigured).not.toContain("OMB_FISH_AUDIO_API_KEY");
     }
     expect(JSON.stringify(rows)).not.toContain("anthropic-secret-value");
     expect(JSON.stringify(rows)).not.toContain("openai-secret-value");

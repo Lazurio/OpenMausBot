@@ -64,7 +64,6 @@ defaults:
   team: Launch Room
   model: claude/${model}
   approval: full
-  computer: "off"
   browser: { enabled: true, profile: guest }
   # Claude limits MCP tools only; this keeps a mail server's tools from every visitor
   tools: { deny: ["mcp:mail:*"] }

@@ -24,17 +24,14 @@ vi.mock("./DesktopCapabilities", async (importOriginal) => ({
 }));
 vi.mock("@/lib/interface-mode", () => ({ useAdvancedMode: () => fixture.advanced, setAdvancedMode: () => {} }));
 vi.mock("@/lib/use-owner-or-admin", () => ({ useOwnerOrAdmin: () => true }));
-vi.mock("./CloudScreenPreview", () => ({ CloudScreenPreview: () => null }));
 vi.mock("./AndroidDevicePanel", () => ({ AndroidDevicePanel: () => null, useAndroidUsbDevices: () => ({ devices: fixture.android ? [{ serial: "p1" }] : [] }) }));
 vi.mock("./BrowserPanel", () => ({ BrowserPanel: ({ page }: { page?: unknown }) => { fixture.page = page; return null; } }));
-vi.mock("./CloudBackendPicker", () => ({ CloudBackendPicker: () => null }));
 vi.mock("./bot-settings/RoutinesSection", () => ({ RoutinesSection: () => null }));
 vi.mock("./data/DataPanel", () => ({ DataPanel: () => createElement("div", { "data-testid": "data-panel" }) }));
 vi.mock("@/state/store", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/state/store")>(),
   api: async (path: string) => {
     if (path.startsWith("/api/bots/scout/computer/control")) return { held: false, helpReason: null };
-    if (path.startsWith("/api/bots/scout/computer?")) return { surface: "cloud", backend: "box", configured: true, box: { boxId: "bx_23456789", state: "ready" } };
     return {};
   },
 }));
@@ -51,7 +48,6 @@ const engine = (instanceId: string) => ({
 }) as InstanceInfo;
 const makeBot = (patch: Partial<Bot> = {}): Bot => ({
   id: "scout", threadId: "thread", name: "Scout", title: "", description: "", color: "green",
-  notifications: true, unread: false, busy: false, computer: "cloud", messages: [],
   modelSelection: { instanceId: "claude", model: "m" },
   tasks: [{ threadId: "thread", title: "Thread", createdAt: 1, approvalMode: "ask" }],
   ...patch,

@@ -17,8 +17,8 @@ beforeEach(() => {
 
 describe("why a key save failed", () => {
   it("calls it rejected only when the provider refused the key", () => {
-    expect(keySaveFailure(new ApiError("boat.dev rejected that key", 400, { error: "boat.dev rejected that key", code: "key_rejected" }))).toBe("rejected");
-    expect(keySaveFailure(new Error("Error invoking remote method 'credential:set': KeyRejected: That doesn't look like a Boat API key"))).toBe("rejected");
+    expect(keySaveFailure(new ApiError("composio.dev rejected that key", 400, { error: "composio.dev rejected that key", code: "key_rejected" }))).toBe("rejected");
+    expect(keySaveFailure(new Error("Error invoking remote method 'credential:set': KeyRejected: That doesn't look like a Composio API key"))).toBe("rejected");
   });
 
   it("calls every other failure an error", () => {
@@ -48,7 +48,6 @@ describe("what a saved key's check said", () => {
   });
 
   it("is ok for keys the server checks before saving, and unverified for the rest", () => {
-    for (const provider of ["boat", "composio", "elevenlabs", "fish_audio"] as const) expect(savedKeyResult(provider)).toBe("ok");
     for (const provider of ["opencode_go", "openai_image", "custom_endpoint", "xai", "other"] as const) expect(savedKeyResult(provider)).toBe("unverified");
   });
 });

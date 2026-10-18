@@ -25,7 +25,6 @@ import { phoneAppsFor } from "../phones/access.ts";
 import { profileSnapshot } from "../profile-revision.ts";
 import { recordProfileChange } from "../profile-versions.ts";
 import { clientBotPatchViolation, requestSource } from "../request-auth.ts"; import { defaultBotPatchRefusal, ownsDefaultBot } from "../default-bot.ts";
-import type { RoutineManager } from "../routines.ts";
 import type { SessionRegistry } from "../sessions.ts";
 import { parseConnectorTools } from "../connector-tools.ts";
 import { sectionKey, type BotRecord, type GroupRecord, type Store } from "../store.ts";
@@ -46,8 +45,6 @@ export interface BotPatchRouteDeps {
   cacheKeepWarm: Pick<CacheKeepWarm, "refresh">;
   hostedModels: ReturnType<typeof hostedModelPolicy>;
   supportsApprovalMode: ReturnType<typeof createApprovalModeSupport>;
-  routines(): RoutineManager | null;
-  activeVpsThreads: { has(botId: string): boolean };
   /** Full access comes only from the workspace policy. */
   hostedWorkspace: boolean;
   hostedFullAccessRefusal: string;
@@ -64,27 +61,17 @@ export interface BotPatchRouteDeps {
   checkedModelSelection(raw: unknown, current?: { selection: ModelSelection; busy: boolean }, requireAvailableModel?: boolean): ModelSelectionCheck;
   engineSwitchNeedsAsk(mode: ApprovalMode, from: ModelSelection, to: ModelSelection): boolean;
   currentBrowserSession(botId: string, profile: string | undefined): string;
-  interruptAllDirectThreads(botId: string): Promise<void>;
-  cancelGroupTurnOperations(groupId: string, threadId: string): void;
-  revokeInternalCapabilitiesForThread(threadId: string): void;
-  runningTurnInstance(bot: BotRecord | null | undefined, threadId: string): ReturnType<ProviderRegistry["get"]>;
-  closeOpenApprovals(threadId: string): void;
-  assertTeamComputerChangeIdle(before: BotRecord, after: BotRecord): void;
   forgetTemporaryBrowser(botId: string): Promise<void>;
 }
 
 export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
   const {
-    store, cfg, registry, sessions, browserRuntime, browserLive, memoryUpkeep, cacheKeepWarm, hostedModels, supportsApprovalMode, activeVpsThreads,
     hostedWorkspace: HOSTED_WORKSPACE, hostedFullAccessRefusal: HOSTED_FULL_ACCESS_REFUSAL, desktopManaged: DESKTOP_MANAGED, maxWorkspaceBots: MAX_WORKSPACE_BOTS,
     broadcast, wireBot, publicGroupState, audienceChanged, storedAvatarExists, requestedTaskBot, threadBusy, activeGroupTurnForBot,
-    checkedModelSelection, engineSwitchNeedsAsk, currentBrowserSession, interruptAllDirectThreads, cancelGroupTurnOperations,
-    revokeInternalCapabilitiesForThread, runningTurnInstance, closeOpenApprovals, assertTeamComputerChangeIdle, forgetTemporaryBrowser,
   } = deps;
   const pinnedClientThread = pinnedClientThreadGuard(store);
   return async ({ req, res, path, method, auth, json, readBody }) => {
     let m: RegExpMatchArray | null = null;
-    const routines = deps.routines();
     const requirePinnedClientThread = pinnedClientThread(auth, req);
     m = path.match(/^\/api\/bots\/([\w-]+)$/);
     if (m && method === "PATCH") {
@@ -179,23 +166,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
       }
       for (const key of ["unread", "cloudBackend", "color", "mascotExpression", "mascotBody", "pinned", "hidden", "sidebarHidden", "welcomed"] as const) {
         if (body[key] !== undefined) patch[key] = body[key];
-      }
-      const computerSpecified = Object.prototype.hasOwnProperty.call(body, "computer");
-      let requestedComputer = existingBot?.computer;
-      if (computerSpecified) {
-        if (body.computer === null) {
-          // Clients send null for Auto; the durable field is then absent.
-          requestedComputer = undefined;
-          patch.computer = undefined;
-        } else if (
-          typeof body.computer === "string" &&
-          ["cloud", "vm", "local", "browser", "off"].includes(body.computer)
-        ) {
-          requestedComputer = body.computer;
-          patch.computer = body.computer;
-        } else {
-          return json(res, 400, { error: "computer must be null (Auto), cloud, vm, local, browser, or off" });
-        }
       }
       if (normalizedSelection) patch.modelSelection = normalizedSelection;
       // null/"" clears; the id is not checked against the transcript.
@@ -351,13 +321,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
           patch.browserProfile = requestedProfile;
         } else return json(res, 400, { error: "browserProfile must name an existing browser profile" });
       }
-      if (body.cloudBackend !== undefined && !["box", "vps"].includes(String(body.cloudBackend))) {
-        return json(res, 400, { error: "cloudBackend must be box or vps" });
-      }
-      if (body.autoStartVps !== undefined) {
-        if (typeof body.autoStartVps !== "boolean") return json(res, 400, { error: "autoStartVps must be true or false" });
-        patch.autoStartVps = body.autoStartVps;
-      }
       if (body.vpsAlias !== undefined) {
         if (body.vpsAlias === null || body.vpsAlias === "") {
           patch.vpsAlias = undefined;
@@ -371,10 +334,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
       }
       if (body.chiefOfStaff !== undefined && typeof body.chiefOfStaff !== "boolean") {
         return json(res, 400, { error: "chiefOfStaff must be true or false" });
-      }
-      if (body.cloudBackend !== undefined) {
-        const backendError = cloudBackendChangeError(Boolean(existingBot?.busy), activeVpsThreads.has(m[1]));
-        if (backendError) return json(res, 409, { error: backendError });
       }
       // Moving a bot to another server is refused while its own computer still lives on the old one.
       // Resolved hosts, not raw text: pinning a bot to the server it already uses moves nothing.
@@ -500,13 +459,8 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
       }
       // Auto on this Mac hands a bot the user's real session: only the desktop's warning dialog sends
       // acknowledgeLocalAuto, so a bot curling the loopback API is refused.
-      const wantsComputer = computerSpecified ? requestedComputer : existingBot?.computer;
       const wantsAuto = requestedApprovalMode === "auto";
       const alreadyGranted =
-        existingBot?.computer === "local" && approvalModeFor(existingBot) === "auto" &&
-        (body.applyToAllThreads !== true || store.tasks(existingBot.id).every((task) =>
-          approvalModeFor(store.projectBotForTask(existingBot.id, task.threadId) ?? {}) === "auto"));
-      if (wantsComputer === "local" && wantsAuto === true && !alreadyGranted && body.acknowledgeLocalAuto !== true) {
         return json(res, 400, {
           error: "Auto mode on this computer requires confirming the warning first (acknowledgeLocalAuto)",
         });
@@ -620,18 +574,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
         }
         console.warn(`bot ${m[1]}: ${loosened.join(", ")} loosened by ${requestSource(req)} through the local API with no paired session`);
       }
-      if (existingBot?.computer === "local" && computerSpecified && requestedComputer !== "local") {
-        await interruptAllDirectThreads(existingBot.id);
-        const routine = routines!.activeBotRunForBot(existingBot.id);
-        if (routine) await routines!.cancelRun(routine.id);
-        const groupTurn = activeGroupTurnForBot(existingBot.id);
-        if (groupTurn) {
-          cancelGroupTurnOperations(groupTurn.group.id, groupTurn.threadId);
-          revokeInternalCapabilitiesForThread(groupTurn.threadId);
-          await runningTurnInstance(existingBot, groupTurn.threadId)?.adapter.interruptTurn(groupTurn.threadId).catch(() => {});
-          closeOpenApprovals(groupTurn.threadId);
-        }
-      }
       const chiefMovedSections =
         Boolean(existingBot?.chiefOfStaff) &&
         body.chiefOfStaff !== false &&
@@ -689,21 +631,18 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
         return json(res, 409, { error: "Stop the bot and release browser control before changing its profile." });
       }
       if (profile.patch.soul !== undefined) {
-        if (freshBrowserBot) assertTeamComputerChangeIdle(freshBrowserBot, { ...freshBrowserBot, ...patch } as BotRecord);
       // Runtime fields keep their fail-closed order; only the profile fields commit atomically.
         const runtimePatch = { ...patch };
         for (const field of Object.keys(profile.patch)) delete runtimePatch[field];
         if (Object.keys(runtimePatch).length) store.patchBot(m[1], runtimePatch);
         bot = store.patchBotProfile(m[1], profile.patch);
       } else {
-        if (freshBrowserBot) assertTeamComputerChangeIdle(freshBrowserBot, { ...freshBrowserBot, ...patch } as BotRecord);
         bot = store.patchBot(m[1], patch);
       }
       if (!bot) return json(res, 404, { error: "no such bot" });
       if (body.applyToAllThreads === true && requestedApprovalMode !== "custom") store.setAllThreadApprovalMode(bot.id, requestedApprovalMode);
       if (body.memoryUpkeep === false || body.memoryEnabled === false) memoryUpkeep.dropBot(bot.id);
       if (body.cacheKeepWarm !== undefined) cacheKeepWarm.refresh();
-      if (computerSpecified && requestedComputer !== undefined) store.clearAutoSurfacePins(m[1], requestedComputer);
       if (normalizedSelection && movedTask) store.patchTask(bot.id, movedTask.threadId, { modelSelection: undefined,
         ...hostedModels?.resetTask(movedTask.modelSelection, normalizedSelection) });
       if (existingBot && (bot.browserProfile !== beforeBrowserProfile || bot.browser !== beforeBrowserEnabled)) {

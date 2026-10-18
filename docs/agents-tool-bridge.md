@@ -32,7 +32,7 @@ the saved setting when it is exactly `1` or `0`.
 ## The tools that stay listed
 
 `tool_result_read`, `list_room_targets`, `coordinate_bots`, `list_bots`,
-`list_rooms`, `select_computer`, `attach_file`, `post_to_room`,
+`list_rooms`, `attach_file`, `post_to_room`,
 `request_credential`, `request_sign_in`, `memory_update`, and
 where the bot has them `send_voice_note` and Watcher's `create_options_card`.
 
@@ -122,7 +122,7 @@ entry of a pattern list and for a settings file alike. A rule **has a
 wildcard in a tool's name** when a `*` or `?` occurs outside parentheses,
 where "outside" is a single flag set at `(` and cleared at `)`, exactly as the
 CLI splits a tool list: `Bash(git *)` and `Read(./src/**)` have none,
-`mcp__a*__vm_exec`, `*exec*` and `Bash(a),*` do. No pattern is ever built from
+`mcp__a*__attach_file`, `*exec*` and `Bash(a),*` do. No pattern is ever built from
 configuration text.
 
 The files read are the ones the CLI reads. A bot's turn is launched with
