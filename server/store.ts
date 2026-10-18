@@ -14,6 +14,7 @@ import * as mdb from "./message-db.ts";
 import { forgetBotMemoryJournal, journalFile } from "./memory-journal.ts";
 import { runCommand, type Command } from "./commands.ts";
 import { workspaceDir } from "./workspace.ts";
+import { announceDefaultBotCwd, newBotCwd } from "./default-bot-cwd.ts";
 import type { Destination } from "./surface.ts";
 import { newId, type ModelSelection } from "./contracts.ts";
 import { pickBotName } from "./names.ts";
@@ -457,6 +458,7 @@ export class Store {
     this.defaultSelection = defaultSelection;
     this.completeNewBotSelection = completeNewBotSelection;
     this.driverKindOf = driverKindOf;
+    announceDefaultBotCwd();
     mkdirSync(DATA_DIR, { recursive: true });
     for (const file of [BOTS_FILE, GROUPS_FILE]) tightenRegistryFile(file);
     // An unreadable bots.json must never read as "every member was deleted".
@@ -1512,7 +1514,7 @@ export class Store {
       createdAt: Date.now(),
     };
     if (section) bot.section = section;
-    if (profile.cwd) bot.cwd = profile.cwd;
+    Object.assign(bot, newBotCwd(profile.cwd));
     bot.tasks = [{
       threadId: bot.threadId,
       title: UNTITLED_THREAD,
@@ -1561,7 +1563,7 @@ export class Store {
         const modelSelection = this.newBotSelection(operation.fields.modelSelection);
         next = { id: operation.botId, threadId: operation.threadId, name: operation.fields.name,
           title: "", description: "", soul: "", notifications: true, color: COLORS[nextBots.length % COLORS.length], unread: false,
-          resumeCursors: {}, createdAt, ...operation.fields, modelSelection,
+          resumeCursors: {}, createdAt, ...operation.fields, ...newBotCwd(operation.fields.cwd), modelSelection,
           autoApprove: false, composio: false, approvePeerComms: false,
           // Absent would mean every tool once connected apps are turned on.
           connectorTools: {},

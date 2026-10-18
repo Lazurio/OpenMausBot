@@ -83,6 +83,8 @@ release offers it.
    with:
    - `OMB_WEBHOOK_PORT` set explicitly. The webhook listener otherwise takes
      `port + 1` (4103), which Machines has not reserved.
+   - `OMB_DEFAULT_BOT_CWD` set to the Lazurio Folder of the Machine
+     operator, so new bots start there (see Overlay).
    - `PATH` including `~/.local/bin`, so the server finds the signed-in
      `codex` and `claude` CLIs of the same user, as T3 does.
    - optionally `OMB_ENVIRONMENT_LABEL` (`<Organization> / <machine>`).
@@ -107,6 +109,7 @@ release offers it.
 | Commit                                                            | Why Lazurio needs it                                                                                                                                                                                                                                    |
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lazurio: ship the open-source edition, without enterprise/` | `enterprise/` is under the OpenMausBot Enterprise License, which forbids redistribution and hosting for third parties (issue #35). Removes the folder; `lazurio/vitest.config.mjs` skips the three upstream tests that read its source. Lazurio-only. |
+| `server: OMB_DEFAULT_BOT_CWD, a default working folder for every new bot` | Bots in a Lazurio Environment start in the Lazurio Folder, read its `AGENTS.md` and work in its worktrees (decision 0169). Applies to every creation path, through the Store's `createBot` and `applyTeamSetup`; a request that names a folder, or explicitly none, decides for itself; an unusable value stops the server at start. Unset keeps upstream behaviour. Upstream-friendly; propose it upstream. |
 | `release: Lazurio distribution` | This runbook, `LAZURIO.md`, `scripts/lazurio-release-archive.sh`, the contract and CI-scope tests and the workflows `lazurio-fork-ci.yml`, `lazurio-archive.yml` and `lazurio-release.yml`. |
 
 Drop a commit as soon as upstream offers an equivalent. Upstream files the
@@ -278,8 +281,9 @@ Organization Admin can do these steps; the order matters.
    The script stamps the version (and restores `package.json`), builds,
    packs, unpacks into a temporary directory, checks that neither
    `node_modules` nor the enterprise layer is packed, starts `serve` with a
-   temporary home and data directory, and checks the health endpoint, the
-   reported version and the open-source edition.
+   temporary home, data directory and `OMB_DEFAULT_BOT_CWD`, and checks the
+   health endpoint, the reported version, the open-source edition and that
+   the first bot starts in that folder.
 3. **Canary.** After publishing, move the pins of
    [Ring 0](#ring-0-lazurioexampleorganization) first, open OpenMausBot from
    Launchpad and check the version. Where the Environment has AI, also check

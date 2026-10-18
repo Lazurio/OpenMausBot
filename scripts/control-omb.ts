@@ -167,6 +167,9 @@ export function verificationServerEnvironment(parentEnv: NodeJS.ProcessEnv, data
     // FAKE_CLAUDE_DUMP stays the launcher's: assertions read fixtureDumpPath.
     if ((key.startsWith("FAKE_CLAUDE_") || key.startsWith("FAKE_CODEX_TEXT_")) && key !== "FAKE_CLAUDE_DUMP" && value) childEnv[key] = value;
   }
+  // Lazurio: OMB_DEFAULT_BOT_CWD (server/default-bot-cwd.ts); a test passes
+  // its own temporary folder to prove the setting end to end.
+  if (parentEnv.OMB_DEFAULT_BOT_CWD) childEnv.OMB_DEFAULT_BOT_CWD = parentEnv.OMB_DEFAULT_BOT_CWD;
   // Enables POST /api/testing/org-library; the route does not exist without it.
   if (parentEnv.OMB_TEST_ORG_LIBRARY_KEY) childEnv.OMB_TEST_ORG_LIBRARY_KEY = parentEnv.OMB_TEST_ORG_LIBRARY_KEY;
   // One log line per browser call and preview frame.

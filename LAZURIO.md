@@ -54,6 +54,13 @@ Environment's means a separate Environment.
   The server reports `{"edition":"oss"}`. `lazurio/vitest.config.mjs` skips
   the three upstream tests that read the layer's source; CI, the contract
   test and the archive smoke fail if the folder comes back or is packed.
+- `OMB_DEFAULT_BOT_CWD`: new bots start in the Lazurio Folder, whichever
+  path creates them (New bot and `POST /api/bots`, the first bot on an empty
+  server, a Chief's `create_bot` and team setup, imports). A request that
+  names a folder, or explicitly none, decides for itself. Upstream's
+  `newBotDefaults.profile.cwd` covers only New bot. `server/default-bot-cwd.ts`
+  plus small hooks in the Store's two creation points; see
+  [`docs/self-hosting.md`](docs/self-hosting.md#where-new-bots-work).
 - **Release distribution**: this file, the runbook, the `lazurio-*`
   workflows, the archive script and the contract and CI-scope tests.
 

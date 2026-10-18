@@ -68,8 +68,9 @@ packed="$work/openmausbot-$VERSION.tgz"
 test -f "$packed"
 
 # Upstream's standalone proof (npm-package.yml), plus what Lazurio Machines
-# rely on: the open-source edition, the exact version and loopback-only serving.
-mkdir -p "$work/run" "$work/home" "$work/data"
+# rely on: the open-source edition, the exact version, loopback-only serving
+# and OMB_DEFAULT_BOT_CWD.
+mkdir -p "$work/run" "$work/home" "$work/data" "$work/folder"
 tar -xzf "$packed" -C "$work/run"
 pkg="$work/run/package"
 test ! -d "$pkg/node_modules"
@@ -87,7 +88,7 @@ help="$(node "$pkg/cli.js" --help)"
 grep -q "openmausbot serve" <<< "$help"
 
 port="$(node -e 'const s=require("node:net").createServer().listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})')"
-HOME="$work/home" OMB_WEBHOOK_PORT="$((port + 1))" \
+HOME="$work/home" OMB_WEBHOOK_PORT="$((port + 1))" OMB_DEFAULT_BOT_CWD="$work/folder" \
   node "$pkg/cli.js" serve --no-pair --port "$port" --data-dir "$work/data" --label lazurio-smoke \
   > "$work/serve.log" 2>&1 &
 server_pid=$!
@@ -107,6 +108,13 @@ curl -sf "http://127.0.0.1:$port/.well-known/openmausbot/environment" |
 # shellcheck disable=SC2016 # the single-quoted program is JavaScript
 curl -sf "http://127.0.0.1:$port/api/edition" |
   node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const e=JSON.parse(s).edition;if(e!=="oss"){console.error(`server reports the ${e} edition, expected oss`);process.exit(1)}})'
+node -e '
+  const bots = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+  if (bots.length !== 1 || bots[0].cwd !== process.argv[2]) {
+    console.error("the first bot did not start in OMB_DEFAULT_BOT_CWD:", JSON.stringify(bots.map((bot) => bot.cwd)));
+    process.exit(1);
+  }
+' "$work/data/bots.json" "$work/folder"
 kill "$server_pid"
 wait "$server_pid" 2>/dev/null || true
 server_pid=""

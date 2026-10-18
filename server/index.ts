@@ -15504,7 +15504,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         if (body.cwd !== undefined) {
           const checkedCwd = validateBotCwd(body.cwd);
           if (!checkedCwd.ok) return json(res, 400, { error: checkedCwd.error });
-          cwd = checkedCwd.cwd ?? undefined;
+          cwd = checkedCwd.cwd ?? ""; // Lazurio: an explicit empty folder stays private, never OMB_DEFAULT_BOT_CWD
         }
         // Discovery can yield; check current authority and capacity again before writing.
         if (store.bot(chief.id) !== chief || chief.hidden || !chief.chiefOfStaff || !connectorThread(chief.id, fromThreadId)) {
