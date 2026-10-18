@@ -123,6 +123,10 @@ jobs:
             scripts/check-skin-contrast.mjs
             src/lib/bot-identity.test.ts
             src/lib/user-bubble-tone.test.ts
+            # (six more lines in the ratchet). --show-secret prints a webhook's
+            # secret past the CLI's redaction (context.ts, output.ts).
+            server/headless/context.ts
+            server/headless/output.ts
           )
           # Lazurio ships the open-source edition: upstream's enterprise/
           # folder (OpenMausBot Enterprise License, no redistribution or
@@ -131,6 +135,15 @@ jobs:
             echo "enterprise/ must not be in the Lazurio distribution" >&2
             exit 1
           fi
+          # Upstream features Lazurio removes from the code (issue #35): each
+          # file deleted as a whole is listed in a manifest in lazurio/removals/,
+          removed_by_lazurio="$(jq -r '.files[]' lazurio/removals/*.json)"
+          for file in $removed_by_lazurio; do
+            if [ -e "$file" ] || [ -z "$(git ls-tree --name-only "$UPSTREAM_SHA" -- "$file")" ]; then
+              echo "lazurio/removals lists $file, which must exist upstream and be deleted here" >&2
+              exit 1
+            fi
+          done
           if [ -n "$unexpected" ]; then
             echo "Fork overlay changed upstream files outside allowed_upstream_changes:" >&2
             echo "$unexpected" >&2

@@ -117,6 +117,10 @@ NodeTest.test("CI is read-only and pins the exact upstream base", () => {
 });
 
 NodeTest.test("the overlay may change only listed upstream files", () => {
+  // Deletions of whole upstream files only as the removal manifests list them (issue #35).
+  NodeAssert.match(ci, /removed_by_lazurio="\$\(jq -r '\.files\[\]' lazurio\/removals\/\*\.json\)"/);
+  NodeAssert.match(ci, /git ls-tree --name-only "\$UPSTREAM_SHA" -- "\$file"/);
+  NodeAssert.match(ci, /scripts\/lazurio-removals\.node-test\.mjs/);
   NodeAssert.match(ci, /if \[ -n "\$unexpected" \]; then[^]*?exit 1/);
   const list = /allowed_upstream_changes=\(\n([^]*?)\n\s*\)\n/.exec(ci)?.[1];
   NodeAssert.ok(list, "the guard must declare allowed_upstream_changes");

@@ -58,8 +58,6 @@ function fixture(url: string, ai: boolean, bots: number): unknown {
   if (path === "/api/notifications") return { notifications: [] };
   if (path === "/api/webhooks") return { webhooks: [], attempts: [], ingress: null };
   if (path === "/api/phones") return { phones: [] };
-  if (path === "/api/connectors/connected") return { services: {} };
-  if (path === "/api/connectors/catalog") return { cards: [] };
   return {};
 }
 

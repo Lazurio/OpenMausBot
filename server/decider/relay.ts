@@ -83,6 +83,7 @@ function shapeFits(seam: DeciderSeam, state: unknown, questions: Record<string, 
 }
 
 export function relayAccepts(seam: DeciderSeam, state: unknown, questions: Record<string, DeciderQuestion>): boolean {
+export function decisionFits(seam: DeciderSeam, state: unknown, questions: Record<string, DeciderQuestion>): boolean {
   try {
     if (!shapeFits(seam, state, questions)) return false;
     return Buffer.byteLength(JSON.stringify(state)) <= RELAY_MAX_STATE_BYTES &&

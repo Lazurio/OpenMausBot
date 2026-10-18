@@ -158,72 +158,7 @@ Restart OpenMausBot after installing or signing in to a CLI.
 ## Xorg and Wayland
 
 The shell, chat, cloud computers, connected apps, and preview-only capture work in both GNOME session types.
-The Wayland chooser/select/persistent-stream/cancel/end/retry lifecycle has been validated in a real Ubuntu
-24.04 GNOME Wayland session. OpenMausBot detects Wayland before XWayland when both `WAYLAND_DISPLAY` and
-`DISPLAY` exist, so capture cannot accidentally bypass portal-mediated behavior.
-
-Open the Computer panel and use the separate **Preview this computer** card. Capture never starts when the app
-or panel opens.
-
-- **Xorg:** **Start preview** captures the primary monitor directly.
-- **Wayland:** **Choose a screen** opens the GNOME portal chooser once. The selected stream stays open until
-  you press **Stop preview**, close the panel, end sharing from GNOME, or quit the app.
-
-Cancelling or ending Wayland sharing returns to a calm **Try again** state and never reopens the chooser
-automatically. OpenMausBot does not capture screen audio, remember the selected monitor after restart, or
-offer an **Open Settings** action on Linux.
-
-Local computer control is independent from preview. It is available after explicit opt-in on Xorg and remains
-fail-closed on Wayland. XWayland's `DISPLAY` never bypasses the Wayland safety gate.
-
-## Enable local control
-
-Installed `.deb` and AppImage builds include the certified **Cua Driver 0.19.3** CLI and cursor-theme sidecar.
-On GNOME Xorg, open Settings, choose **Enable local control (Beta)**, wait for **Ready**, then explicitly assign a bot
-to **This computer**. No driver download, terminal command, `chmod`, or daemon setup is required. The owned daemon
-starts with `--no-overlay`, so Cua's decorative full-screen X11 cursor surface is never created. OpenMausBot also
-uses Electron software rendering when the NVIDIA driver is loaded, to avoid the reproduced NVIDIA/libGLES
-GPU-process failure that could leave an invisible focused app window receiving input. Other GPUs keep hardware
-acceleration, because software rendering costs about a CPU core while the window animates. Set `OMB_LINUX_GPU=off`
-to force software rendering or `OMB_LINUX_GPU=on` to force the GPU.
-
-Cua actions use a private logical cursor. With the decorative overlay disabled, `move_cursor` does not move the
-user's physical pointer; approved click and typing actions still target the requested window, while the user's own
-mouse remains under their control.
-
-On GNOME Wayland, **This computer** remains unavailable and an older persisted opt-in is reset to off with private
-file permissions. Sign out and choose **Ubuntu on Xorg** from the login-screen session menu, or continue using Chat,
-preview-only capture, Cloud, or Local VM. Wayland re-enablement requires its own real-seat evidence and will not be
-controlled by an environment override.
-
-The upstream release has no signature or GitHub artifact attestation and is not immutable, so the build uses an
-explicit reviewed digest as its trust anchor:
-
-- source commit: `a1672e7b11951275ecfba3384264d4530185d0db`;
-- archive SHA-256: `3db9d4257d84bacaf7eb104d225f85613ce67edbb20d6eeb83c1384b6d8a5b10`;
-- packaged driver SHA-256: `ed5844fadf07b9b72c4a3b3802e1c47233c166d66d6198608d5991f807aab4ac`;
-- packaged cursor-theme SHA-256: `e589b2b7521bbfeaf9e2bfce668a38e80ed1b9790b1327b13d374fc331d8312a`.
-
-Packaging verifies the exact archive size, checksum, member names/types/sizes, and inner hashes before extracting
-only those two executables. The app performs no runtime driver download or self-update. Cua's MIT license, the
-embedded Inter font's SIL OFL 1.1 notice, full dependency license texts, MPL source locations, and a CycloneDX
-inventory ship beside the binary; the reviewed source records live in [`third_party/cua-driver`](../third_party/cua-driver/).
-The reviewed native runtime adds roughly 11–13 MiB to a compressed Ubuntu artifact. The ELF
-requires glibc 2.30 or newer plus the standard Ubuntu X11/XInput/xkbcommon libraries already present on the supported
-Ubuntu 24.04 desktop; the package verifier executes the exact binary from every artifact layout.
-
-AppImage's pinned SquashFS toolchain can emit root-owned directories as `0755` or `0775`; the package verifier
-requires one of those modes consistently across the reviewed resource tree. Before execution, AppImage copies only
-the pinned binaries into a private `0700` stage and verifies their hashes again. DEB upgrades repair their exact
-package-owned path to `root:root 0755` automatically.
-
-The packaged runtime remains outside ASAR for deterministic provenance and validation. In packaged builds neither a
-`CUA_DRIVER_PATH` value nor an ambient PATH candidate can replace it; on Wayland neither can bypass the safety gate.
-
-The Xorg runtime uses private sockets, standard permission mode, per-action OpenMausBot approvals,
-telemetry/update-check suppression, strict driver identity, overlay-free startup, and lifecycle cleanup tests. Those
-defenses remain necessary, but none substitutes for the real-seat acceptance evidence required to enable Wayland. Linux
-**Auto** never routes to the user's desktop, and no Cloud or Local VM approval can authorize it.
+The shell and chat work in both GNOME session types.
 
 ## Validate a package change
 

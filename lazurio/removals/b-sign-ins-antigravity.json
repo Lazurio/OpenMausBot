@@ -1,0 +1,10 @@
+    "apps/docs/content/docs/providers/antigravity.mdx",
+    "server/antigravity-account-api.test.ts",
+    "server/drivers/antigravity-account.test.ts",
+    "server/drivers/antigravity-account.ts",
+    "server/drivers/antigravity-runtime.ts",
+    "server/drivers/antigravity-temp.ts",
+    "server/drivers/antigravity.test.ts",
+    "server/drivers/antigravity.ts",
+    "server/routes/antigravity-leftovers.ts",
+    "src/components/AntigravityFreeSpace.tsx"

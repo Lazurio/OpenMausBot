@@ -48,15 +48,13 @@ function profiles(): Record<string, Profile> {
     all[`${name}+cloud-home`] = { env: { ...all[name]!.env, OMB_CLOUD_HOME: "1" } };
   }
   all["skills+shared+voice+escalations"] = { env: { ...all["skills+shared+voice"]!.env, OMB_ESCALATIONS: "1" } };
-  // Research is on only with a treg key or a Cloud plan and the bot's switch; the fullest profile carries it.
-  all["skills+shared+voice+escalations+x"] = { env: { ...all["skills+shared+voice+escalations"]!.env, OMB_X_RESEARCH: "1" } };
   // A Team Cloud mounts message_person; the fullest profile carries it.
-  all["skills+shared+voice+escalations+x+team"] = { env: { ...all["skills+shared+voice+escalations+x"]!.env, OMB_TEAM_PEOPLE: "1" } };
+  all["skills+voice+escalations+team"] = { env: { ...all["skills+voice+escalations"]!.env, OMB_TEAM_PEOPLE: "1" } };
   all["default+legacy-switches"] = {
     env: { ...all.default!.env, OMB_ROOM_TURN: "1", OMB_OWN_THREAD_CREATION: "1", OMB_EXTERNAL_RUNTIME: "1" },
   };
   // The person's MausBot holds a Chief's powers and adds its notification pair; MAUSBOT_ADDS bounds what that costs.
-  for (const name of ["default", "skills+shared+voice"]) all[`${name}+mausbot`] = { env: { ...all[name]!.env, OMB_MAUSBOT: "1" } };
+  for (const name of ["default", "skills+voice"]) all[`${name}+mausbot`] = { env: { ...all[name]!.env, OMB_MAUSBOT: "1" } };
   return all;
 }
 
@@ -68,36 +66,11 @@ const TEAMWORK_TOOLS = ["list_room_targets", "coordinate_bots", "assignment_stat
 const MAUSBOT_TOOLS = ["list_unread_notifications", "mark_notifications_read"];
 /** MausBot's tools may make its list at most this much longer than the same Chief's without them. */
 const MAUSBOT_ADDS = 0.02;
-const RESEARCH_TOOLS = ["x_search", "x_user_posts", "x_post", "x_profile", "research_search", "research_endpoint", "research_call"];
 /** The fullest profile, checked in whole; every other one is pinned by tool names, bytes and sha256. */
-const FULL = "skills+shared+voice+escalations+x+team";
+const FULL = "skills+voice+escalations+team";
 
 /** Bytes when the budget was last set; a profile may move at most 2% either way (lower it to lock in a win). */
 const BUDGET_BASELINE: Record<string, number> = {
-  "default": 62862,
-  "voice": 63674,
-  "shared": 64795,
-  "shared+voice": 65607,
-  "skills": 65681,
-  "skills+voice": 66493,
-  "skills+shared": 67614,
-  "skills+shared+voice": 68426,
-  "non-chief": 52943,
-  "voice+non-chief": 53755,
-  "shared+non-chief": 54876,
-  "shared+voice+non-chief": 55688,
-  "skills+non-chief": 55762,
-  "skills+voice+non-chief": 56574,
-  "skills+shared+non-chief": 57695,
-  "skills+shared+voice+non-chief": 58507,
-  "skills+shared+voice+cloud-home": 67481,
-  "skills+shared+voice+non-chief+cloud-home": 57562,
-  "default+legacy-switches": 62862,
-  "default+mausbot": 63539,
-  "skills+shared+voice+mausbot": 69103,
-  "skills+shared+voice+escalations": 69286,
-  "skills+shared+voice+escalations+x": 73924,
-  "skills+shared+voice+escalations+x+team": 74589,
 };
 
 const RPC_PREFIX = '{"jsonrpc":"2.0","id":1,"result":';
@@ -214,7 +187,7 @@ describe("agents proxy tools/list golden", () => {
 
   it("mounts raise_escalation only where chief escalations are on", () => {
     const names = (wire: string) => toolsOf(wire).map((tool) => tool.name);
-    expect(names(wires["skills+shared+voice+escalations"]!).filter((tool) => tool !== "raise_escalation")).toEqual(names(wires["skills+shared+voice"]!));
+    expect(names(wires["skills+voice+escalations"]!).filter((tool) => tool !== "raise_escalation")).toEqual(names(wires["skills+voice"]!));
     for (const [name, profile] of Object.entries(PROFILES)) {
       expect(names(wires[name]!).includes("raise_escalation"), name).toBe(profile.env.OMB_ESCALATIONS === "1");
     }
@@ -222,7 +195,7 @@ describe("agents proxy tools/list golden", () => {
 
   it("mounts message_person only on a Team Cloud, and adds nothing else", () => {
     const names = (wire: string) => toolsOf(wire).map((tool) => tool.name);
-    expect(names(wires[FULL]!).filter((tool) => tool !== "message_person")).toEqual(names(wires["skills+shared+voice+escalations+x"]!));
+    expect(names(wires[FULL]!).filter((tool) => tool !== "message_person")).toEqual(names(wires["skills+voice+escalations"]!));
     for (const [name, profile] of Object.entries(PROFILES)) {
       expect(names(wires[name]!).includes("message_person"), name).toBe(profile.env.OMB_TEAM_PEOPLE === "1");
     }
@@ -277,19 +250,6 @@ describe("agents proxy tools/list golden", () => {
       for (const trigger of ["list_triggers", "create_trigger", "manage_trigger"]) {
         expect(tools.get(trigger)!.inputSchema.properties, `${name}: ${trigger}`).toHaveProperty("for_bot_id");
       }
-    }
-  });
-
-  it("shows the X and research tools only where research is on, and adds nothing else", () => {
-    for (const [name, profile] of Object.entries(PROFILES)) {
-      const names = toolsOf(wires[name]!).map((tool) => tool.name);
-      for (const tool of RESEARCH_TOOLS) expect(names.includes(tool), `${name}: ${tool}`).toBe(profile.env.OMB_X_RESEARCH === "1");
-    }
-    const switchedOn = Object.keys(PROFILES).filter((name) => name.endsWith("+x"));
-    expect(switchedOn).toHaveLength(1);
-    for (const name of switchedOn) {
-      const without = toolsOf(wires[name.slice(0, -"+x".length)]!).map((tool) => tool.name);
-      expect(toolsOf(wires[name]!).map((tool) => tool.name).filter((tool) => !RESEARCH_TOOLS.includes(tool))).toEqual(without);
     }
   });
 

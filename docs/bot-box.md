@@ -75,8 +75,7 @@ drops whatever credential header the client sent, adds the real key, and forward
 (the base URL the server had, or the provider's default); the box cannot choose the upstream. A URL MCP server's
 headers ride the same way (`server/bot-box/broker-mcp.ts`): the turn's server list carries
 `http://127.0.0.1:18080/b/<token>/mcp-<name>` with no headers, and that token is kept for the conversation's later
-turns while the servers are the same, so a long-lived engine process keeps its MCP sessions. Connected apps (Composio,
-HighLevel) were already behind the harness (`/api/internal/connectors/*` with a per-turn bearer) and stay there.
+turns while the servers are the same, so a long-lived engine process keeps its MCP sessions.
 
 A key whose CLI takes no base URL from the environment (xAI, Mistral, Groq, Cerebras, MiniMax, Kimi, Cursor, Factory,
 Cline, OpenCode, OpenRouter's own variable) stays raw in that box, and the report names it under `broker.unbrokered`,

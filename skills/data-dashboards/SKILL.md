@@ -1,12 +1,12 @@
 ---
 name: data-dashboards
-description: "Build a fast, good-looking page: a data dashboard, or any page made with show_html (a landing page, a pricing page, a tool), in this chat or at a public link with publish_page. Use when the person asks for a dashboard, charts or KPIs on a page, a page or mock-up to look at, or a data page to share or keep up to date."
+description: "Build a fast, good-looking page: a data dashboard, or any page made with show_html (a landing page, a pricing page, a tool), in this chat. Use when the person asks for a dashboard, charts or KPIs on a page, a page or mock-up to look at, or a data page to keep up to date."
 ---
 
 # Data dashboards and pages
 
 A page made with `show_html` shows in the chat as one card. The person watches it appear, steps back through
-its versions, opens it full screen, shares it at a public link, and points at a part to change: their next
+its versions, opens it full screen, and points at a part to change: their next
 message then says what they pointed at (a tag, its text, a CSS selector and a bit of its HTML). Change exactly
 that with `update_html`; the same card refreshes.
 
@@ -16,15 +16,13 @@ that with `update_html`; the same card refreshes.
 |---|---|
 | A quick answer or one chart | No page. Use the Data tools (`data_sql`, `data_show`) or a markdown table. |
 | A small summary to look at here | A chat page (`show_html`) with pre-aggregated rows embedded as CSV. |
-| To explore bigger data, or a link to share | Query with the Data tools, export the slice with `data_export` (`format: "parquet"`) into a folder beside `index.html`, show the folder in the chat with `show_html` `path`, and `publish_page` it when the person wants a link: the same card gains it. |
-| "Keep it up to date" | The shared page, plus a schedule (`create_trigger`, `when=schedule`) whose instructions re-run the export, set `CONFIG.updated`, and publish the same folder again. Publishing the same path keeps the same link. |
-
-Publish only when the person asks to share. A published page is public: never put secrets, personal details or rows they didn't ask to share in it.
+| To explore bigger data | Query with the Data tools, export the slice with `data_export` (`format: "parquet"`) into a folder beside `index.html`, and show the folder in the chat with `show_html` `path`. |
+| "Keep it up to date" | The folder page, plus a schedule (`create_trigger`, `when=schedule`) whose instructions re-run the export, set `CONFIG.updated`, and show the same folder again with `update_html`. |
 
 ## Start from the template
 
 `dashboard.html` sits next to this guide, in the folder named by this skill's `root`. It is tested in the chat
-sandbox and on published pages, in light and dark, at phone and desktop widths. Copy it to your working folder as
+sandbox, in light and dark, at phone and desktop widths. Copy it to your working folder as
 `index.html` (a small chat page sends its text as `html`; a folder page is shown with `path`) and change only what the
 data needs:
 
@@ -41,10 +39,10 @@ Cut cards rather than adding a fifth chart.
 ## Data
 
 - **Aggregate first.** Ship the smallest table that answers the questions: one row per day and dimension, not raw events. Do the heavy work with the Data tools, then export.
-- **Size.** Keep data at or under about 5 MB (a published page holds 5 MB in all). A chat page is at most 256 KB including the template (about 28 KB), so embed at most about 200 KB of CSV.
+- **Size.** Keep data at or under about 5 MB. A chat page is at most 256 KB including the template (about 28 KB), so embed at most about 200 KB of CSV.
 - **A page sent as `html` reads embedded CSV only.** A folder page (`show_html` `path`) loads the files beside its
-  index.html, Parquet included, so it shows inline exactly as it will publish.
-- **Published pages:** prefer Parquet. It is often 10 to 20 times smaller than CSV; DuckDB fetches its Parquet reader (about 0.5 MB) on first load. CSV works too.
+  index.html, Parquet included.
+- **Folder pages:** prefer Parquet. It is often 10 to 20 times smaller than CSV; DuckDB fetches its Parquet reader (about 0.5 MB) on first load. CSV works too.
 - **Types.** Dates as DATE (Parquet) or `YYYY-MM-DD` (CSV). Cast sums and counts to DOUBLE in SQL so they arrive as plain numbers.
 - Put filter values into SQL only through the template's `quote()`.
 - Check one or two numbers on the page against a direct query before you show it.
@@ -91,7 +89,7 @@ Cut cards rather than adding a fifth chart.
 
 - Look at it, light and dark, wide and narrow: labels must not collide or clip.
 - First load takes 1 to 3 seconds (DuckDB is about 7 MB, cached afterwards). Never chart more than about 10,000 marks; aggregate in SQL.
-- For a shared page, give the link and say how it stays current (the schedule, if any).
+- For a page kept up to date, say how it stays current (the schedule).
 
 ## Make a page
 

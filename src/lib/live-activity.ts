@@ -20,7 +20,6 @@ const FALLBACK_LABELS: Array<[RegExp, LocaleKey]> = [
   [/\blist_rooms\b/i, "chat.activity.rooms"],
   [/\bpost_to_room\b/i, "chat.activity.postRoom"],
   [/\bmessage_person\b/i, "chat.activity.messagePerson"],
-  [/\bpublish_page\b/i, "chat.activity.publishPage"],
   [/\bdelegate_bot\b/i, "chat.activity.handoff"],
   [/\b(?:ask_bot|send_message)\b/i, "chat.activity.askTeammate"],
 ];

@@ -6,7 +6,7 @@ import { readFile, stat } from "node:fs/promises";
 import { extname } from "node:path";
 
 import type { Decider } from "../decider/index.ts";
-import { relayAccepts } from "../decider/relay.ts";
+import { decisionFits } from "../decider/relay.ts";
 import type { DeciderAnswer, DeciderFailure, DeciderProvider, DeciderQuestion } from "../decider/types.ts";
 import { EXTRACT_LIMITS, extractRequestProblem } from "../extractor/contract.ts";
 import type { Extractor } from "../extractor/index.ts";
@@ -120,7 +120,7 @@ export function createHelperToolRoutes(deps: HelperToolDeps) {
       const questions = botQuestions(body.questions);
       if (typeof questions === "string") return void ctx.json(ctx.res, 400, { error: questions });
       const state = typeof body.state === "string" ? body.state : "";
-      if (!relayAccepts("botDecide", state, questions)) return void ctx.json(ctx.res, 400, { error: HELPER_MESSAGES.decideShape });
+      if (!decisionFits("botDecide", state, questions)) return void ctx.json(ctx.res, 400, { error: HELPER_MESSAGES.decideShape });
       const result = await deps.decider.ask("botDecide", state, questions, { careful: true, timeoutMs: HELPER_TOOL_TIMEOUT_MS });
       if (!result.ok) {
         const off = result.reason === "disabled" || result.reason === "no_key";

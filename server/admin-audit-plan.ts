@@ -14,9 +14,6 @@ export interface AuditPlan {
   roomId?: string;
 }
 
-const ACCOUNT_ADD_ENGINES = new Map([["/api/instances/claude-accounts", "claude"], ["/api/instances/chatgpt-accounts", "chatgpt"],
-  ["/api/instances/antigravity-accounts", "antigravity"]]);
-
 export function adminAuditPlan(method: string, path: string, sharedComputers: boolean): AuditPlan | null {
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
   if (path.startsWith("/api/internal/") || path.startsWith("/api/testing/")) return null;
@@ -35,9 +32,7 @@ export function adminAuditPlan(method: string, path: string, sharedComputers: bo
   if (m && method === "DELETE") plan.sessionId = m[1];
   m = /^\/api\/groups\/([\w-]+)$/.exec(path);
   if (m && method === "PATCH") plan.roomId = m[1];
-  m = /^\/api\/instances\/([\w.-]+)\/(install|auth\/complete|auth\/sign-out|claude-update|leftover-files\/remove)$/.exec(path);
+  m = /^\/api\/instances\/([\w.-]+)\/(install|claude-update)$/.exec(path);
   if (m && method === "POST") plan.engineAction = { id: m[1]!, action: m[2]!.replace("/", "-") };
-  const accountAdd = method === "POST" ? ACCOUNT_ADD_ENGINES.get(path) : undefined;
-  if (accountAdd) plan.engineAction = { id: accountAdd, action: "account-add" };
   return plan.config || plan.botId || plan.createsBots || plan.deletesBot || plan.createsWebhook || plan.webhookId || plan.sessionId || plan.pairing || plan.engineAction || plan.roomId ? plan : null;
 }

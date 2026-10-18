@@ -1,0 +1,13 @@
+    "server/outbound-hold.test.ts",
+    "server/outbound-hold.ts",
+    "peer approval is required",
+    "startsOnAsk",
+    "newBot.startsOnAsk",
+    "botSettings.simple.custom",
+    "botPanel.acts.custom",
+    "approvalMode.customLocalOnlyDot"
+    "server/routes/internal-tools.ts",
+    "src/components/thread-approval.tsx",
+    "src/lib/ai-switch.ts",
+    "src/lib/i18n.test.ts",
+    "src/lib/new-bot.ts"

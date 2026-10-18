@@ -101,10 +101,7 @@ cap, busy bots, and Run now. The others:
 
 ## Looking at it in the real renderer
 
-1. Start the fixture from a script that starts the fake connected-apps service
-   and calls `launchVerificationServer` with `OMB_COMPOSIO_BROKER_URL` and
-   `OMB_COMPOSIO_BROKER_TOKEN` set to it (the launcher passes a loopback
-   `http://127.0.0.1:PORT` through). Drive it as the end-to-end test does:
+1. Start the fixture with `control-omb launch`. Drive it as the end-to-end test does:
    `POST /api/presence/active`, then `POST /api/routines/<watch>/run`.
 2. Serve the renderer against it:
    `OMB_PORT=<fixture port> pnpm exec vite --port 19872 --strictPort`.

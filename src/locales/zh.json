@@ -3117,7 +3117,6 @@
   "chat.helperSuggestion.addKey": "添加密钥",
   "chat.helperSuggestion.notNow": "暂时不用",
   "chat.helperSuggestion.declined": "好的，我不会再问了。",
-  "chat.activity.publishPage": "正在发布页面",
   "chat.turnStoppedByYou": "已由你停止。",
   "chat.rescue.waiting": "{bot} 尚未收到 {ai} 的回复。",
   "chat.rescue.over": "{bot} 没有收到 {ai} 的回复。",

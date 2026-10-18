@@ -1,0 +1,113 @@
+    "apps/docs/content/docs/troubleshooting/google-sign-in-cloud-browser.mdx",
+    "docs/superpowers/plans/2026-10-26-cloud-my-chrome.md",
+    "docs/superpowers/specs/2026-10-26-cloud-my-chrome-design.md",
+    "electron/device-chrome.d.mts",
+    "electron/device-chrome.mjs",
+    "electron/device-chrome.node-test.mjs",
+    "scripts/bench-browser-stream.ts",
+    "scripts/testing/browser-passkey.e2e.test.ts",
+    "server/browser-dialogs.test.ts",
+    "server/browser-dialogs.ts",
+    "server/browser/audience.test.ts",
+    "server/browser/audience.ts",
+    "server/browser/backends.test.ts",
+    "server/browser/cdp/navigations.ts",
+    "server/browser/cdp/passkeys.ts",
+    "server/browser/egress/home-sites.test.ts",
+    "server/browser/egress/home-sites.ts",
+    "server/browser/lent-chrome.test.ts",
+    "server/browser/lent-chrome.ts",
+    "server/browser/passkey-notice.test.ts",
+    "server/browser/passkey-notice.ts",
+    "server/browser/passkey-wall.e2e.test.ts",
+    "server/browser/viewers/popups.ts",
+    "server/browser/viewers/stream-v2.e2e.test.ts",
+    "server/browser/viewers/stream-v2.ts",
+    "server/browser/viewers/viewport.ts",
+    "server/cloud-lending-browser.e2e.test.ts",
+    "server/cloud-lending-chrome.e2e.test.ts",
+    "server/cloud-team-browser.e2e.test.ts",
+    "server/local-vm-browser-profiles.test.ts",
+    "server/routes/browser-viewers.test.ts",
+    "server/routes/browser-viewers.ts",
+    "shared/browser-held.ts",
+    "shared/passkey-wall.test.ts",
+    "shared/passkey-wall.ts",
+    "src/components/BrowserPanel.dom.test.ts",
+    "src/components/browser/AgentCursor.tsx",
+    "src/components/browser/AuthPrompt.tsx",
+    "src/components/browser/ChromeRow.tsx",
+    "src/components/browser/MoreMenu.tsx",
+    "src/components/browser/PasskeyNotice.tsx",
+    "src/components/browser/SelectPopup.tsx",
+    "src/components/browser/StreamSurface.test.ts",
+    "src/components/browser/StreamSurface.tsx",
+    "src/lib/browser-pip.ts",
+    "src/lib/browser-stream-client.test.ts",
+    "src/lib/browser-stream-client.ts",
+    "src/lib/browser-stream-v1.test.ts",
+    "src/lib/browser-stream-v1.ts",
+    "src/lib/team-browser.test.ts",
+    "src/lib/team-browser.ts"
+  ],
+  "forbidden": [
+    "agent_browser_open",
+    "restart_browser",
+    "attachCdpUrl",
+    "/browser/live",
+    "/browser/action",
+    "/api/browser-sites",
+    "/api/browser-engine",
+    "/api/internal/browser",
+    "OMB_AGENT_BROWSER_PATH",
+    "OMB_BROWSER_TIMING",
+    "openmausbot browser install",
+    "builtInBrowserEnabled",
+    "browserMcp",
+    "preloadBrowserTools",
+    "BUILT_IN_BROWSER_SYSTEM_PROMPT",
+    "createBrowserHost",
+    "Has the built-in browser",
+    "chrome-headless-shell",
+    "My Chrome",
+    "OMB_MCP_TOKEN_BROWSER",
+    "harness-mcp-proxy browser"
+  ],
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/bots/:bot/browser/live"
+    },
+    {
+      "method": "POST",
+      "path": "/api/bots/:bot/browser/action",
+      "body": {
+        "viewerId": "fixture",
+        "type": "restart"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/browser-sites?bot=:bot"
+    },
+    {
+      "method": "POST",
+      "path": "/api/browser-sites/sign-out",
+      "body": {
+        "bot": ":bot"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/threads/fixture/evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/threads/fixture/evidence.tar"
+    },
+    {
+      "method": "POST",
+      "path": "/api/browser-engine/install"
+    }
+    "server/engine-homes/layout.ts",
+    "server/host/team-member-left.ts",

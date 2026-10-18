@@ -70,7 +70,7 @@ const APP_WORD_CHARS = 5;
 type Owner = { botId?: string; groupId?: string };
 /** A card's fields that tell a question for the person from an approval, a receipt or an offer to switch engines. */
 type QuestionCard = NonNullable<Parameters<typeof isPersistentQuestionCard>[0]> & {
-  requestId?: string; title?: string; subtitle?: string; questionRequest?: QuestionRequestCardData; outboundRequest?: unknown; quotaSwitch?: unknown;
+  requestId?: string; title?: string; subtitle?: string; questionRequest?: QuestionRequestCardData; quotaSwitch?: unknown;
   teamMemoryRequest?: unknown; autoApplied?: boolean;
 };
 
@@ -269,7 +269,7 @@ function needsYou(sources: TodaySources, viewer: TodayViewer, owners: Map<string
     if (row.kind === "options") {
       const card = parse<QuestionCard>(row.card);
       const botId = botOf(row);
-      if (!card || !botId || card.outboundRequest || card.quotaSwitch || card.teamMemoryRequest || card.autoApplied) continue;
+      if (!card || !botId || card.quotaSwitch || card.teamMemoryRequest || card.autoApplied) continue;
       const approval = viewer.asks !== undefined && (card.requestType === "permission" || Boolean(card.tool));
       if (!(approval || isPersistentQuestionCard(card)) || (viewer.asks && !viewer.asks(botId, row.threadId))) continue;
       const earlier = card.requestId ? askedIn.get(card.requestId) : undefined;

@@ -1,0 +1,52 @@
+{
+  "area": "Published pages",
+  "why": "A bot's page stays in the Environment: shown in the chat from the bot's folder, never uploaded to upstream's mausbot.page host with a MausBot account.",
+  "files": [
+    "electron/included-pages.mjs",
+    "electron/included-pages.test.mjs",
+    "server/drivers/agents-pages-tools.ts",
+    "server/pages/access.ts",
+    "server/pages/client.ts",
+    "server/pages/published-pages.test.ts",
+    "server/pages/publisher.ts",
+    "server/pages/service.ts",
+    "server/pages/store.ts",
+    "server/published-pages.e2e.test.ts",
+    "server/routes/published-pages.test.ts",
+    "server/routes/published-pages.ts",
+    "server/testing/fake-pages.ts",
+    "shared/published-page.ts",
+    "src/components/PublishedPageCard.test.ts",
+    "src/components/PublishedPageCard.tsx",
+    "src/lib/page-open.test.ts",
+    "src/lib/page-open.ts"
+  ],
+  "forbidden": [
+    "mausbot.page",
+    "publish_page",
+    "unpublish_page",
+    "/api/published-pages",
+    "/api/internal/pages",
+    "/api/cloud/pages/token",
+    "omb_pd_",
+    "openmausbot:included-pages",
+    "PublishedPageCard",
+    "publishedBotHtml",
+    "jsxPublishedHtml",
+    "usePageShare",
+    "\"chat.page.",
+    "chat.activity.publishPage",
+    "botPanel.library.pages"
+  ],
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/api/published-pages/aaaaaaaaaaaaaaaaaaaa/unpublish"
+    }
+  ],
+  "changes": [
+    "shared/app-frame/jsx-page.test.ts",
+    "src/components/ChatMarkdown.test.ts",
+    "src/components/widget/WidgetMessage.test.ts"
+  ]
+}

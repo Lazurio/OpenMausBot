@@ -139,7 +139,7 @@ export async function runBoxSelfCheck(options: SelfCheckOptions): Promise<SelfCh
     env: {
       PATH: [engineBin, process.env.PATH].filter(Boolean).join(delimiter), HOME: home, LANG: process.env.LANG, TMPDIR: "/tmp",
       // What must not get in: a control-plane secret, a workspace credential and an unlisted name, each holding the marker.
-      OMB_CLOUD_BOOTSTRAP_SECRET: marker, COMPOSIO_API_KEY: marker, SOME_OTHER_SECRET: marker,
+      OMB_CLOUD_BOOTSTRAP_SECRET: marker, OMB_OPENAI_LIVE_KEY: marker, SOME_OTHER_SECRET: marker,
       // The real-looking key the broker takes over; its upstream is the fixture server, which answers 200 only to the real key.
       ...(credentials ? { ANTHROPIC_API_KEY: brokerKey, ANTHROPIC_BASE_URL: `http://127.0.0.1:${serverPort}/v1` } : {}),
     },

@@ -1,6 +1,5 @@
-// POST <OMB_CLOUD_DECIDER_URL>/v1/extract, shared with Cloud's Admin through fixtures/extract-relay.json: change both
-// together. { seam, fields, input } → { values, model }. A request that breaks a rule here never goes through the
-// included token, and an answer that breaks one is malformed: a value is never taken on trust.
+// The extraction contract, held by fixtures/extract-relay.json: { seam, fields, input } → { values, model }. A request
+// that breaks a rule here is never sent, and an answer that breaks one is malformed: a value is never taken on trust.
 import type { ExtractedValues, ExtractImage, ExtractInput, ExtractSeam, FieldSchema, FieldSpec, FieldType, FieldValue } from "./types.ts";
 import { FIELD_TYPES } from "./types.ts";
 
@@ -94,8 +93,8 @@ export function extractRequestProblem(fields: unknown, input: unknown): string |
 
 const sameSchema = (fields: FieldSchema, expected: FieldSchema): boolean => JSON.stringify(fields) === JSON.stringify(expected);
 
-/** Whether Cloud's relay takes this request: the general rules, then the seam's own shape. */
-export function relayAcceptsExtract(seam: ExtractSeam, fields: FieldSchema, input: ExtractInput): boolean {
+/** Whether a request fits: the general rules, then the seam's own shape. */
+export function extractFits(seam: ExtractSeam, fields: FieldSchema, input: ExtractInput): boolean {
   try {
     if (!SEAMS.has(seam) || extractRequestProblem(fields, input) !== null) return false;
     if (seam === "keyCheck") return sameSchema(fields, EXTRACT_KEY_CHECK.fields) && JSON.stringify(input) === JSON.stringify(EXTRACT_KEY_CHECK.input);

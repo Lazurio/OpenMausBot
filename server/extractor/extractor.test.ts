@@ -6,7 +6,7 @@ import type { AppConfig } from "../config.ts";
 import relayFixtures from "./fixtures/extract-relay.json" with { type: "json" };
 import workersFixture from "./fixtures/workers-ai-clairic.json" with { type: "json" };
 import {
-  EXTRACT_LIMITS, extractRequestProblem, INBOX_FIELDS, parseExtractResponse, relayAcceptsExtract,
+  EXTRACT_LIMITS, extractRequestProblem, INBOX_FIELDS, parseExtractResponse, extractFits,
 } from "./contract.ts";
 import { createExtractor, describeExtractor, extractorAccount } from "./index.ts";
 import { openrouterExtractSchema } from "./remote.ts";
@@ -45,7 +45,7 @@ afterEach(() => {
 describe("the /v1/extract contract, from the fixtures shared with Cloud's Admin", () => {
   it.each(relayFixtures.requests.map((fixture) => [fixture.name, fixture] as const))("request: %s", (_name, fixture) => {
     const { fields, input } = fixture.body as unknown as { fields: FieldSchema; input: ExtractInput };
-    expect(relayAcceptsExtract(fixture.seam as ExtractSeam, fields, input)).toBe(fixture.accepts);
+    expect(extractFits(fixture.seam as ExtractSeam, fields, input)).toBe(fixture.accepts);
   });
 
   it.each(relayFixtures.responses.map((fixture) => [fixture.name, fixture] as const))("answer: %s", (_name, fixture) => {
@@ -114,30 +114,12 @@ describe("Clairic and Clef on the person's own Workers AI account", () => {
   });
 });
 
-describe("whose key reads: own Workers AI, Cloud's relay, OpenRouter, nothing", () => {
+describe("whose key reads: own Workers AI, OpenRouter, nothing", () => {
   it("on Cloud, the person's own Workers AI key wins over the relay", async () => {
     cloud();
     const fetchImpl = workersAi();
     await extractor(OWN, fetchImpl).extract("botExtract", { total: { type: "number" } }, INPUT);
     expect(sent(fetchImpl).url).toBe(`${CF_RUN}/clairic`);
-  });
-
-  it("with no own key, Cloud's relay gets { seam, fields, input } with the included token", async () => {
-    cloud();
-    const fetchImpl = vi.fn<typeof fetch>(async () => json({ values: { total: 1080, currency: "USD" }, model: "clairic" }));
-    const fields: FieldSchema = { total: { type: "number" }, currency: { type: "enum", options: ["USD", "EUR"] } };
-    const result = await extractor({}, fetchImpl).extract("botExtract", fields, INPUT);
-    expect(result).toMatchObject({ ok: true, provider: "jev", values: { total: 1080, currency: "USD" }, model: "clairic" });
-    expect(sent(fetchImpl)).toEqual({ url: `${RELAY}/v1/extract`, auth: `Bearer ${INCLUDED}`, seam: "botExtract", body: { seam: "botExtract", fields, input: INPUT } });
-    expect(describeExtractor({})).toEqual({ provider: "jev", included: true, ready: true });
-  });
-
-  it("a request the relay would refuse never goes through the included token", async () => {
-    cloud();
-    const fetchImpl = vi.fn<typeof fetch>();
-    const result = await extractor({}, fetchImpl).extract("inboxTriage", { ...INBOX_FIELDS, body: { type: "string" } }, { text: "x" });
-    expect(result).toEqual({ ok: false, reason: "misconfigured" });
-    expect(fetchImpl).not.toHaveBeenCalled();
   });
 
   it("…and goes to OpenRouter instead when the person has an OpenRouter key", async () => {
@@ -177,17 +159,4 @@ describe("whose key reads: own Workers AI, Cloud's relay, OpenRouter, nothing", 
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
-  it("the relay's 413 is too large, and is asked once", async () => {
-    cloud();
-    const fetchImpl = vi.fn<typeof fetch>(async () => new Response("too big", { status: 413 }));
-    await expect(extractor({}, fetchImpl).extract("botExtract", FIELDS, INPUT)).resolves.toMatchObject({ ok: false, reason: "too_large", status: 413 });
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
-  });
-
-  it("the key check is one fixed extraction, through the relay too", async () => {
-    cloud();
-    const fetchImpl = vi.fn<typeof fetch>(async () => json({ values: { ok: true }, model: "clairic" }));
-    await expect(extractor({}, fetchImpl).testKey()).resolves.toMatchObject({ ok: true, values: { ok: true } });
-    expect(sent(fetchImpl).body).toEqual(relayFixtures.requests.find((fixture) => fixture.seam === "keyCheck" && fixture.accepts)!.body);
-  });
 });

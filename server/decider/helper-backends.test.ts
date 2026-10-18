@@ -8,7 +8,7 @@ import relayFixtures from "./fixtures/relay-seams.json" with { type: "json" };
 import { createDecider, deciderAccount, deciderReady, deciderSavePatch, describeDecider } from "./index.ts";
 import { inboxTriageRequest } from "./inbox-triage.ts";
 import { jevRequestBody, RELAY_SEAM_HEADER } from "./jev.ts";
-import { relayAccepts } from "./relay.ts";
+import { decisionFits } from "./relay.ts";
 import type { DeciderQuestion, DeciderSeam } from "./types.ts";
 import { clefRequestBody, workersAiEndpoint } from "./workers-ai.ts";
 
@@ -173,7 +173,7 @@ function fromWire(body: { state: unknown; questions: Record<string, { type: stri
 describe("the relay's seams, from the fixtures shared with Cloud's Admin", () => {
   it.each(relayFixtures.cases.map((fixture) => [fixture.name, fixture] as const))("%s", (_name, fixture) => {
     const { state, questions } = fromWire(fixture.body as never);
-    expect(relayAccepts(fixture.seam as DeciderSeam, state, questions)).toBe(fixture.accepts);
+    expect(decisionFits(fixture.seam as DeciderSeam, state, questions)).toBe(fixture.accepts);
     // The fixture is exactly what OMB puts on the wire.
     expect(jevRequestBody(state, questions)).toEqual(fixture.body);
   });

@@ -41,14 +41,14 @@ interface SignInSnapshot {
   state: string;
   authenticated?: boolean;
   account?: { email?: string; organization?: string; method?: string };
-  chatgptPlan?: boolean;
   freeFallback?: boolean;
 }
 
-/** Who an AI is signed in as: a test result holds until this changes. */
+/** Who an AI is signed in as: a test result holds until this changes. Saved results hold this key, so its positions
+ * never move. */
 export function aiSignInKey(snapshot: SignInSnapshot): string {
   return JSON.stringify([
     snapshot.state, snapshot.authenticated ?? null, snapshot.account?.email ?? null, snapshot.account?.organization ?? null,
-    snapshot.account?.method ?? null, snapshot.chatgptPlan === true, snapshot.freeFallback === true,
+    snapshot.account?.method ?? null, false, snapshot.freeFallback === true,
   ]);
 }

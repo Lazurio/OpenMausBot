@@ -401,11 +401,6 @@ describe("a Team Cloud's audiences", () => {
     expect(bot).toEqual({ kind: "bot", bot: { id: "pub", threadId: "t-pub", visibility: "everyone", tasks: [{ threadId: "t-pub" }] } });
     const group = { kind: "group", group: { id: "room-pub", audienceFloor: "admins" } };
     expect(frameForMember(group, ctx, seen)).toBe(group);
-    // A plea for a hand from Ada's chat: the computer is held, nothing more.
-    expect(frameForMember({ kind: "computer-control", botId: "pub", held: true, helpReason: "Sign in to the bank", help: { botId: "pub", threadId: "t-pub-2", site: "bank.test" } }, ctx, seen))
-      .toEqual({ kind: "computer-control", botId: "pub", held: true, helpReason: null });
-    const teams = { kind: "computer-control", botId: "pub", held: true, helpReason: "Sign in", help: { botId: "pub", threadId: "t-pub", site: "x.test" } };
-    expect(frameForMember(teams, ctx, seen)).toBe(teams);
     expect(routineRunVisible({ botId: "pub", threadId: "t-pub-2" }, admin)).toBe(false);
     expect(routineRunVisible({ botId: "pub", threadId: "t-pub", resultsThreadId: "t-pub-2" }, admin)).toBe(false);
     expect(routineRunVisible({ botId: "pub", threadId: "t-pub" }, admin)).toBe(true);

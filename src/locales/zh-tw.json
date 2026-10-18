@@ -4138,7 +4138,6 @@
   "chat.helperSuggestion.addKey": "新增金鑰",
   "chat.helperSuggestion.notNow": "暫時不要",
   "chat.helperSuggestion.declined": "好的，我不會再問了。",
-  "chat.activity.publishPage": "正在發佈頁面",
   "chat.turnStoppedByYou": "已由你停止。",
   "chat.rescue.waiting": "{bot} 尚未收到 {ai} 的回覆。",
   "chat.rescue.over": "{bot} 沒有收到 {ai} 的回覆。",

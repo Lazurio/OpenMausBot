@@ -31,12 +31,10 @@ Bots have tools:
 
 - the engine's shell and file tools;
 - a per-bot Chrome (agent-browser) whose traffic goes through an egress gate;
-- computer use: the local desktop, a local VM, and paid cloud computers;
 - MCP servers, both custom ones and the harness's own;
-- Composio connected apps, through `cloudflare/composio-broker/`;
 - routines (scheduled turns), rooms (several bots in one conversation),
-  webhooks and app-event triggers;
-- file-based memory, saved website logins and 1Password;
+  webhooks;
+- file-based memory;
 - a phone companion (`companion/`), reached over the LAN, Tailscale, or a
   managed Cloudflare tunnel (`cloudflare/control-plane/`,
   `electron/managed-companion-tunnel.mjs`).
@@ -105,8 +103,6 @@ Bots have tools:
      `browserEngine.egress.allow` lists it, and always closed on Cloud.
    - Other loopback ports open only to servers the bot's own processes
      started.
-   - The full table is in `docs/browser-packaging.md`, under "What a bot's
-     browser can reach".
 7. **Untrusted content reaching tools.** All of these are untrusted, and may
    try to steer a bot (prompt injection):
    - web pages a bot opens;
@@ -138,10 +134,9 @@ Bots have tools:
     - Each Cloud customer has its own Fly app, volume and private network.
       Pairing on a home opens only for a request signed with that machine's
       secret (`/api/cloud/pairing`).
-    - The Cloudflare Workers `cloudflare/control-plane/` and
-      `cloudflare/composio-broker/` serve every installation. One
-      installation's credential must never read or act on another's
-      endpoints, tunnels, Composio sessions or trigger events.
+    - The Cloudflare Worker `cloudflare/control-plane/` serves every
+      installation. One installation's credential must never read or act on
+      another's endpoints or tunnels.
 11. **Webhook ingress.**
     - Webhooks arrive on a separate listener (`OMB_WEBHOOK_PORT`;
       `server/webhook-ingress.ts`, `server/webhooks.ts`).
@@ -307,7 +302,6 @@ pnpm exec vitest run server/request-auth.test.ts server/request-auth.e2e.test.ts
 pnpm exec vitest run server/browser/egress/
 pnpm exec vitest run companion/
 pnpm exec vitest run server/webhooks.test.ts server/webhook-ingress.test.ts
-pnpm broker:test                                             # composio-broker Worker
 pnpm --filter @openmausbot/control-plane test                # control-plane Worker
 ```
 

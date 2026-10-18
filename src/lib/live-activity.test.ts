@@ -139,7 +139,6 @@ describe("turnNowPhrases: what the status line says is happening now", () => {
     expect(turnNowPhrases({ activity: "read", file: "notes.md" })?.phrases[0]).toBe("Reading notes.md");
     expect(turnNowPhrases({ activity: "thinking" })?.phrases[0]).toBe("Thinking");
     expect(turnNowPhrases({ activity: "reply" })?.phrases[0]).toBe("Writing a reply");
-    expect(turnNowPhrases({ activity: "tool", tool: "mcp__agents__publish_page" })?.phrases[0]).toBe("Publishing a page");
   });
 
   it("falls back to the running chip, then to nothing, so the line is its timer alone", () => {
