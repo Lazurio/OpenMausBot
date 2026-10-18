@@ -160,9 +160,38 @@ NodeTest.test("the Lazurio shell slot survives a rebuild on a new upstream tag",
   // Same-origin loader that Vite leaves alone; the Environment's Launchpad serves it.
   NodeAssert.match(page, /<script type="module" src="\/\.lazurio\/shell\.js" vite-ignore><\/script>/);
   // Padding, not margin: #root is full width under an overflow-hidden body.
+  // Upstream's own safe-area inset stays inside the rail's padding.
+  NodeAssert.match(page, /body > #root \{ box-sizing: border-box; padding-left: calc\(var\(--lazurio-rail-width, 0px\) \+ env\(safe-area-inset-left, 0px\)\); \}/);
   // The column head is the first thing in the sidebar's top bar, above the upstream top row.
   NodeAssert.match(sidebar, /<GlassBar edge="top">\n(?:\s*\{\/\*[^\n]*\*\/\}\n)?\s*\{createElement\("lazurio-column-head", \{ active: "automate" \}\)\}/);
   NodeAssert.equal(sidebar.match(/lazurio-column-head/g)?.length, 1);
+});
+
+// Issue #37: upstream's `#root { padding: env(safe-area-inset-*) }` (v0.1.115)
+// loads after index.html and reset the rail's padding, so the sidebar sat
+// under the rail. The rail's rule must outrank every upstream #root rule that
+// sets padding, whatever order the stylesheets load in.
+NodeTest.test("the rail's padding on #root outranks upstream's #root padding (#37)", async () => {
+  const [page, styles] = await Promise.all([read("index.html"), read("src/styles.css")]);
+  const specificity = (selector) => {
+    const bare = selector.replace(/::[\w-]+/g, "");
+    return [
+      (bare.match(/#[\w-]+/g) ?? []).length,
+      (bare.match(/\.[\w-]+|\[[^\]]*\]|:[\w-]+/g) ?? []).length,
+      (bare.replace(/#[\w-]+|\.[\w-]+|\[[^\]]*\]|:[\w-]+/g, " ").match(/(?:^|[\s>+~])[a-z][\w-]*/gi) ?? []).length,
+    ];
+  };
+  const outranks = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+  const rail = /<style>([^{<]*#root[^{<]*)\{[^}]*--lazurio-rail-width[^}]*\}<\/style>/.exec(page)?.[1]?.trim();
+  NodeAssert.ok(rail, "index.html pads #root by the rail's width");
+  const upstream = [...styles.matchAll(/([^{}]*)\{([^{}]*)\}/g)]
+    .filter(([, , body]) => /(^|[\s;])padding(-left)?\s*:/.test(body))
+    .flatMap(([, selectors]) => selectors.replace(/\/\*[^]*?\*\//g, "").split(",").map((s) => s.trim()))
+    .filter((selector) => /#root\b/.test(selector));
+  NodeAssert.ok(upstream.length > 0, "src/styles.css still pads #root (otherwise this check is moot; review it)");
+  for (const selector of upstream) {
+    NodeAssert.ok(outranks(specificity(rail), specificity(selector)) > 0, `"${rail}" outranks "${selector}"`);
+  }
 });
 
 NodeTest.test("the shell takes the active skin's colours through its roles", async () => {

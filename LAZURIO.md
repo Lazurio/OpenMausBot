@@ -92,6 +92,7 @@ The slot is two upstream files, each its own line in
 `allowed_upstream_changes`:
 
 - `index.html`: `<script type="module" src="/.lazurio/shell.js" vite-ignore>`
+  `body > #root { box-sizing: border-box; padding-left: calc(var(--lazurio-rail-width, 0px) + env(safe-area-inset-left, 0px)); }`
   (padding, not margin, so the app never overflows past the right edge; the
 - `src/components/Sidebar.tsx`: `<lazurio-column-head active="automate">` as
   the first child of the sidebar's top bar, above upstream's own top row,
