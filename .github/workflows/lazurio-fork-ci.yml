@@ -1,0 +1,209 @@
+name: Lazurio Fork CI
+
+# Read-only CI for the Lazurio overlay on upstream OpenMausBot. Upstream
+# workflows publish to npm, GHCR and release mirrors and are disabled in this
+# repository's Actions settings; see docs/operations/lazurio-fork-release.md.
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: none
+
+concurrency:
+  group: lazurio-fork-ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  UPSTREAM_TAG: v0.1.115
+  UPSTREAM_SHA: 351c04d9c7a21f407622d3a4c7cd3bec9f583b7b
+  UPSTREAM_REPOSITORY: https://github.com/milind-soni/OpenMausBot.git
+
+jobs:
+  overlay:
+    name: Overlay, typecheck and lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      vitest_scope: ${{ steps.scope.outputs.vitest_scope }}
+      vitest_related: ${{ steps.scope.outputs.vitest_related }}
+    steps:
+      - name: Fetch exact source and upstream base without credentials
+        env:
+          SOURCE_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+          SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add source "https://github.com/${SOURCE_REPOSITORY}.git"
+          git fetch --filter=blob:none source "$SOURCE_REF"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$SOURCE_REF"
+
+          git remote add upstream "$UPSTREAM_REPOSITORY"
+          git fetch --filter=blob:none upstream \
+            "refs/tags/$UPSTREAM_TAG:refs/tags/upstream-$UPSTREAM_TAG"
+          test "$(git rev-parse "refs/tags/upstream-$UPSTREAM_TAG^{commit}")" = "$UPSTREAM_SHA"
+          git merge-base --is-ancestor "$UPSTREAM_SHA" HEAD
+          test "$(git rev-list --merges "$UPSTREAM_SHA..HEAD" --count)" = 0
+
+          # A pull request's tests are chosen against its base; without it,
+          # scripts/lazurio-ci-scope.mjs runs the whole suite.
+          if [ -n "$BASE_SHA" ]; then
+            git remote add base "https://github.com/${GITHUB_REPOSITORY}.git"
+            git fetch --filter=blob:none base "$BASE_SHA" ||
+              echo "::warning::Cannot fetch the pull request's base $BASE_SHA"
+          fi
+
+          # The overlay adds Lazurio files and changes only the upstream files
+          # below. Each entry is a reviewed decision; a change to any other
+          # upstream file, or deleting or renaming one, fails.
+          allowed_upstream_changes=(
+            # The open-source edition: upstream's shard weights drop the
+            # removed enterprise/server/workspace-access.test.ts, and the
+            # documents that describe the layer say it is upstream's and link there.
+            scripts/testing/vitest-shard-weights.json
+            LICENSING.md
+            README.md
+            docs/verification/enterprise-license.md
+            docs/verification/hosted-workspaces.md
+          )
+          # Lazurio ships the open-source edition: upstream's enterprise/
+          # folder (OpenMausBot Enterprise License, no redistribution or
+          # hosting for third parties) is deleted as a whole, never changed.
+          removed_upstream_enterprise="$(git diff --name-only --diff-filter=D "$UPSTREAM_SHA..HEAD" -- enterprise/)"
+          if [ -n "$(git ls-files -- enterprise)" ]; then
+            echo "enterprise/ must not be in the Lazurio distribution" >&2
+            exit 1
+          fi
+          unexpected="$(git diff --name-only --diff-filter=MDRT "$UPSTREAM_SHA..HEAD" |
+            grep -vxF -f <(printf '%s\n' "${allowed_upstream_changes[@]}" $removed_upstream_enterprise) || true)"
+          if [ -n "$unexpected" ]; then
+            echo "Fork overlay changed upstream files outside allowed_upstream_changes:" >&2
+            echo "$unexpected" >&2
+            exit 1
+          fi
+
+      - name: Upstream workflows stay disabled
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          active="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows?per_page=100" \
+            --jq '.workflows[] | select(.state == "active") | select(.path | test("^\\.github/workflows/lazurio-") | not) | .path')"
+          if [ -n "$active" ]; then
+            echo "Upstream workflows are enabled in this fork; disable them (runbook: Automation boundary):" >&2
+            echo "$active" >&2
+            exit 1
+          fi
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Choose the vitest files
+        id: scope
+        run: node scripts/lazurio-ci-scope.mjs
+
+      - name: Install locked dependencies
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate the Lazurio release contract and test selection
+        run: node --test scripts/lazurio-release-contract.node-test.mjs scripts/lazurio-ci-scope.node-test.mjs
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+  # Upstream's own suite in four shards, split by upstream's duration
+  # sequencer (vite.config.ts), without the tests of the enterprise layer
+  # Lazurio does not ship (lazurio/vitest.config.mjs). A pull request that changes only Lazurio
+  # files, documentation or tests runs the overlay's own tests and what
+  # `vitest related` relates to its diff; pushes to main, manual runs and
+  # pull requests that change upstream code, CI, the upstream pin, the test
+  # runner, dependencies or shared test helpers run everything
+  # (scripts/lazurio-ci-scope.mjs).
+  vitest:
+    name: vitest (shard ${{ matrix.shard }}/4)
+    needs: overlay
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - name: Fetch exact source without credentials
+        env:
+          SOURCE_REF: ${{ github.event.pull_request.head.sha || github.sha }}
+          SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add source "https://github.com/${SOURCE_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 source "$SOURCE_REF"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$SOURCE_REF"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare Electron test runtime
+        run: node --input-type=commonjs -e "require('electron')"
+
+      - name: Run tests
+        env:
+          SHARD: ${{ matrix.shard }}/4
+          VITEST_SCOPE: ${{ needs.overlay.outputs.vitest_scope }}
+          VITEST_RELATED: ${{ needs.overlay.outputs.vitest_related }}
+        run: |
+          set -euo pipefail
+          options=(--config lazurio/vitest.config.mjs "--shard=$SHARD" --reporter=default --reporter=github-actions)
+          if [ "$VITEST_SCOPE" = related ]; then
+            related="$(jq -er '.[]' <<<"$VITEST_RELATED")"
+            mapfile -t files <<<"$related"
+            pnpm exec vitest related --run "${options[@]}" "${files[@]}"
+          else
+            pnpm exec vitest run "${options[@]}"
+          fi
+
+      - name: Broker and Electron unit tests
+        if: matrix.shard == 1
+        run: pnpm broker:test && pnpm test:electron
+
+  # The same archive build and smoke the release runs, under the
+  # never-released version <upstream>-lazurio.0. Keep it in step with UPSTREAM_TAG.
+  archive:
+    name: Archive
+    uses: ./.github/workflows/lazurio-archive.yml
+    with:
+      version: 0.1.115-lazurio.0
+      source_sha: ${{ github.event.pull_request.head.sha || github.sha }}
+      source_repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
