@@ -61,6 +61,12 @@ Environment's means a separate Environment.
   `newBotDefaults.profile.cwd` covers only New bot. `server/default-bot-cwd.ts`
   plus small hooks in the Store's two creation points; see
   [`docs/self-hosting.md`](docs/self-hosting.md#where-new-bots-work).
+- **GitHub intake**: model-free polling under the Environment's signed-in
+  `gh` that hands a bot only real pull request work, a review on a new head
+  or an explicitly activated assignment handoff, through the webhook queue
+  ([`docs/lazurio-github-intake.md`](docs/lazurio-github-intake.md)). Off
+  unless `OMB_GITHUB_INTAKE=1`. Wired through the route module
+  `server/routes/github-intake.ts`.
 - **Release distribution**: this file, the runbook, the `lazurio-*`
   workflows, the archive script and the contract and CI-scope tests.
 

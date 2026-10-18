@@ -88,6 +88,10 @@ release offers it.
    - `PATH` including `~/.local/bin`, so the server finds the signed-in
      `codex` and `claude` CLIs of the same user, as T3 does.
    - optionally `OMB_ENVIRONMENT_LABEL` (`<Organization> / <machine>`).
+   - optionally the GitHub intake (`OMB_GITHUB_INTAKE=1`,
+     `OMB_GITHUB_INTAKE_BOT` and its scope settings), with `gh` signed in
+     as the same user; see
+     [`docs/lazurio-github-intake.md`](../lazurio-github-intake.md).
 
    The server always listens on `127.0.0.1` only. The gateway serves it at
    `https://mausbot.<vm>.<org>.lazurio.io/` and must require the
@@ -110,6 +114,7 @@ release offers it.
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lazurio: ship the open-source edition, without enterprise/` | `enterprise/` is under the OpenMausBot Enterprise License, which forbids redistribution and hosting for third parties (issue #35). Removes the folder; `lazurio/vitest.config.mjs` skips the three upstream tests that read its source. Lazurio-only. |
 | `server: OMB_DEFAULT_BOT_CWD, a default working folder for every new bot` | Bots in a Lazurio Environment start in the Lazurio Folder, read its `AGENTS.md` and work in its worktrees (decision 0169). Applies to every creation path, through the Store's `createBot` and `applyTeamSetup`; a request that names a folder, or explicitly none, decides for itself; an unusable value stops the server at start. Unset keeps upstream behaviour. Upstream-friendly; propose it upstream. |
+| `server: GitHub intake, model-free pull request triggers for a bot` | Lazurio Environments hand GitHub review and publication work to a bot team without a model polling (decision 0169). Off unless `OMB_GITHUB_INTAKE=1`. Lazurio-only files, `WebhookManager.deliver()` and a route module that `server/index.ts` builds, pushes into `ROUTES`, starts and stops; see [`docs/lazurio-github-intake.md`](../lazurio-github-intake.md). Upstream-friendly apart from the Lazurio publish marker. |
 | `release: Lazurio distribution` | This runbook, `LAZURIO.md`, `scripts/lazurio-release-archive.sh`, the contract and CI-scope tests and the workflows `lazurio-fork-ci.yml`, `lazurio-archive.yml` and `lazurio-release.yml`. |
 
 Drop a commit as soon as upstream offers an equivalent. Upstream files the

@@ -15,7 +15,7 @@ const HARD_CAP = 2000;
 const LISTED_FROM = 1000;
 
 const LINES: Record<string, number> = {
-  "server/index.ts": 17324,
+  "server/index.ts": 17331,
   "src/state/store.tsx": 3604,
   "electron/main.mjs": 3470,
   "server/store.ts": 2477,
@@ -47,6 +47,8 @@ const LINES: Record<string, number> = {
   "src/components/ChatMarkdown.tsx": 1039,
   "src/components/PluginsPanel.tsx": 1113,
   "server/org-library.ts": 1003,
+  // Lazurio overlay: the GitHub intake, one Lazurio-only module (LAZURIO.md).
+  "server/github-intake.ts": 1040,
   "src/components/TeamLibraryPanel.tsx": 1120,
   "src/components/AttachmentPreview.tsx": 1044,
 };

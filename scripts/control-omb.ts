@@ -170,6 +170,11 @@ export function verificationServerEnvironment(parentEnv: NodeJS.ProcessEnv, data
   // Lazurio: OMB_DEFAULT_BOT_CWD (server/default-bot-cwd.ts); a test passes
   // its own temporary folder to prove the setting end to end.
   if (parentEnv.OMB_DEFAULT_BOT_CWD) childEnv.OMB_DEFAULT_BOT_CWD = parentEnv.OMB_DEFAULT_BOT_CWD;
+  // Lazurio: the GitHub intake (server/github-intake.ts); a test points
+  // OMB_GITHUB_INTAKE_GH at a fake gh so no real GitHub is reached.
+  for (const [key, value] of Object.entries(parentEnv)) {
+    if (key.startsWith("OMB_GITHUB_INTAKE") && value) childEnv[key] = value;
+  }
   // Enables POST /api/testing/org-library; the route does not exist without it.
   if (parentEnv.OMB_TEST_ORG_LIBRARY_KEY) childEnv.OMB_TEST_ORG_LIBRARY_KEY = parentEnv.OMB_TEST_ORG_LIBRARY_KEY;
   // One log line per browser call and preview frame.
