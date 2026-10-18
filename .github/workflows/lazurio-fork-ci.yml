@@ -100,6 +100,9 @@ jobs:
             # and stop) also changes server/index.ts, scripts/control-omb.ts and
             # the file-size ratchet (index.ts, the new github-intake.ts), listed above.
             server/webhooks.ts
+            # The Lazurio shell slot (issue #16): the loader, the rail, the
+            index.html
+            src/components/Sidebar.tsx
           )
           # Lazurio ships the open-source edition: upstream's enterprise/
           # folder (OpenMausBot Enterprise License, no redistribution or

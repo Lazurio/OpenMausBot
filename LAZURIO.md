@@ -46,6 +46,8 @@ Folder, read its agent instructions and call the `composio` CLI the operator
   The server reports `{"edition":"oss"}`. `lazurio/vitest.config.mjs` skips
   the three upstream tests that read the layer's source; CI, the contract
   test and the archive smoke fail if the folder comes back or is packed.
+- **Release distribution**: this file, the runbook, the `lazurio-*`
+  workflows, the archive script and the contract and CI-scope tests.
 - `OMB_DEFAULT_BOT_CWD`: new bots start in the Lazurio Folder, whichever
   path creates them (New bot and `POST /api/bots`, the first bot on an empty
   server, a Chief's `create_bot` and team setup, imports). A request that
@@ -73,6 +75,59 @@ Folder, read its agent instructions and call the `composio` CLI the operator
   start on it and nothing needs setting; Full also survives an engine
   change. Questions and missing credentials still reach a person; GitHub
   rights and branch rules stay the limit.
+
+## The Lazurio shell
+
+**Decided on 2026-10-03 (the Lazurio shell decisions); in the overlay since
+issue #16.** The overlay adds only a slot for the Lazurio
+shell: the rail on the left, the column head (the Environment picker, the
+Settings gear and the switch Chat · Apps · Automate) at the top of MausBot's
+own sidebar, and the floating Buddy bubble. The shell is Web Components with
+Shadow DOM (`<lazurio-rail>`, `<lazurio-column-head>`, `<lazurio-buddy>`)
+defined by `/.lazurio/shell.js`, which the Environment's Launchpad serves on
+this origin behind the Environment's gateway, with its data in
+`/.lazurio/shell.json` (LazurioPlatform decision F36). MausBot knows nothing
+
+The slot is two upstream files, each its own line in
+`allowed_upstream_changes`:
+
+- `index.html`: `<script type="module" src="/.lazurio/shell.js" vite-ignore>`
+  (padding, not margin, so the app never overflows past the right edge; the
+- `src/components/Sidebar.tsx`: `<lazurio-column-head active="automate">` as
+  the first child of the sidebar's top bar, above upstream's own top row,
+  which stays with all its controls, in the Simple and the full sidebar
+  alike (upstream #3008; 0179 point 6: upstream's look and brand stay).
+
+The release contract test checks both, so a rebuild on a new upstream tag
+that loses the slot fails CI. The switch and the rail are plain links to the
+Environment's other origins, so MausBot's router does not change. Nothing
+renders outside Lazurio: without `/.lazurio/shell.js` the elements stay
+
+### Colours of the shell
+
+**Decided on 2026-10-04.** The shell's elements take the colours of the app
+they sit in, through colour roles: custom properties the host sets on its
+document root, which the elements' shadow roots inherit. `index.html` sets
+them from the active skin's own tokens, and a skin is the `data-skin`
+attribute on `<html>`, so the roles follow every skin, live:
+
+| Role | MausBot token |
+| --- | --- |
+| `--lazurio-surface` (the rail, the column behind the head) | `--color-panel`, the sidebar |
+| `--lazurio-ink`, `--lazurio-overlay-ink` | `--color-ink` |
+| `--lazurio-ink-muted` | `--color-ink-secondary` |
+| `--lazurio-line` | `--color-hairline` at 40 % over the panel |
+| `--lazurio-line-strong` | `--color-hairline` |
+| `--lazurio-hover` | `--color-raised` at 40 % over the panel |
+| `--lazurio-selected` | `--color-raised` at 70 % over the panel |
+| `--lazurio-control` | `--color-inset` |
+| `--lazurio-raised` | `--color-raised` |
+| `--lazurio-overlay` | `--color-menu` |
+| `--lazurio-focus` | `--color-focus` |
+
+The mixes are the sidebar's own (`hover:bg-raised/40`, `bg-raised/70`,
+`border-hairline/40`). The rail is the sidebar's panel, so the two read as
+one surface with no line between them; the sidebar has no left border. The
 
 How to release, rebuild on a new upstream tag, what the overlay contains and
 how Machines consume a release:
