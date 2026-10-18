@@ -815,8 +815,30 @@
   --color-warning: var(--lz-warning, #ff9800);
   --color-scrollbar: var(--lz-line, #3d3d3d);
   --color-maus-line: var(--lz-ink-muted, #fcfcfc);
-  /* Bots' name colours: Meadow's, the tones upstream fits to a white thread,
-     which the Lazurio theme's surface is */
+  /* Bots' name colours follow the thread they sit on: Midnight's here, as
+     every fallback; the rules after this block take them to the theme's */
+  --identity-green: #009957;
+  --identity-blue: #377FE6;
+  --identity-red: #D94B52;
+  --identity-orange: #E78531;
+  --identity-purple: #8963cc;
+  --identity-cyan: #0EA5C6;
+  --identity-pink: #D84F8B;
+  --identity-yellow: #D8A729;
+  --identity-teal: #01A492;
+  --identity-coral: #E5634E;
+
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Segoe UI", system-ui, sans-serif;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+}
+
+/* Lazurio: with the Environment theme, bots' names take the tones upstream
+   fits to a white thread (Meadow's), which the theme's light values are; where
+   the theme's dark values apply (a dark device, data-lazurio-appearance on
+   "device"), Midnight's again. */
+[data-skin="environment"][data-lazurio-environment-theme] {
   --identity-green: #00884e;
   --identity-blue: #2573e4;
   --identity-red: #d63f47;
@@ -827,11 +849,20 @@
   --identity-yellow: #93721b;
   --identity-teal: #018577;
   --identity-coral: #db3a20;
-
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text",
-    "Segoe UI", system-ui, sans-serif;
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
+}
+@media (prefers-color-scheme: dark) {
+  [data-skin="environment"][data-lazurio-environment-theme][data-lazurio-theme-dark] {
+    --identity-green: #009957;
+    --identity-blue: #377FE6;
+    --identity-red: #D94B52;
+    --identity-orange: #E78531;
+    --identity-purple: #8963cc;
+    --identity-cyan: #0EA5C6;
+    --identity-pink: #D84F8B;
+    --identity-yellow: #D8A729;
+    --identity-teal: #01A492;
+    --identity-coral: #E5634E;
+  }
 }
 
 /* Shiki emits both palettes so cached blocks follow the nearest skin without
