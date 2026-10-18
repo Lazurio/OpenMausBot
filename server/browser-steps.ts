@@ -285,7 +285,7 @@ function labelFocus(before: Focus | null, after: Focus | null): Focus | null {
 interface SessionSteps {
   running: boolean;
   refs: RefIndex;
-  /** After fill_login typed a one-time code: no screenshot until this time or until the page leaves `codeUrl`. */
+  /** After a sign-in typed a one-time code: no screenshot until this time or until the page leaves `codeUrl`. */
   codeUntil: number;
   codeUrl: string | null;
   /** Typed into a secret-looking field in a cross-origin frame (a card field): no screenshot until the page leaves this address. */
@@ -598,7 +598,7 @@ export class BrowserSteps {
     const action = outcome.ok
       ? `Signed in with the saved login for ${sanitizePageText(outcome.host ?? "this site", 120)}${what.length ? ` (${what.join(" and ")})` : ""}`
       : `Could not sign in with a saved login${outcome.host ? ` on ${sanitizePageText(outcome.host, 120)}` : ""}`;
-    return this.note(ctx, { tool: "fill_login", action, ok: outcome.ok });
+    return this.note(ctx, { tool: "sign_in", action, ok: outcome.ok });
   }
 
   async note(ctx: StepContext | undefined, fact: { tool: string; action?: string; ok: boolean }): Promise<number | null> {

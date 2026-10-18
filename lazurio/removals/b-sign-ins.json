@@ -1,0 +1,81 @@
+{
+  "area": "Own sign-ins",
+  "why": "Bots sign in with the Environment's own sessions and accounts; MausBot keeps no password store, no 1Password connection and no fill tool of its own (issue #35).",
+  "files": [
+    "server/login-store.ts",
+    "server/login-store.test.ts",
+    "server/bot-logins.ts",
+    "server/bot-logins.test.ts",
+    "server/login-fill.ts",
+    "server/login-fill.test.ts",
+    "server/routes/logins.ts",
+    "server/routes/logins.test.ts",
+    "server/saved-login.e2e.test.ts",
+    "server/totp.ts",
+    "server/totp.test.ts",
+    "server/onepassword.ts",
+    "server/onepassword.test.ts",
+    "server/testing/fake-onepassword.ts",
+    "server/testing/fake-login-page.ts",
+    "shared/logins.ts",
+    "shared/logins.test.ts",
+    "src/lib/logins.ts",
+    "src/components/LoginsSettings.tsx",
+    "src/components/LoginsSettings.test.ts",
+    "src/components/LoginForm.tsx",
+    "third_party/onepassword-sdk/LICENSE"
+  ],
+  "forbidden": [
+    "fill_login",
+    "/api/logins",
+    "/api/internal/fill-login",
+    "save-login",
+    "logins.json.enc",
+    "LoginStore",
+    "BotLogins",
+    "OnePasswordLogins",
+    "@1password/sdk",
+    "onepassword-sdk",
+    "Connect 1Password",
+    "Settings → Logins",
+    "Save a login",
+    "LoginsSettings",
+    "settings.logins.",
+    "settings.section.logins",
+    "signIn.saveLogin",
+    "signIn.save.",
+    "signIn.settled.saved",
+    "savedLoginsPrompt",
+    "savedLoginResumePrompt"
+  ],
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/logins"
+    },
+    {
+      "method": "POST",
+      "path": "/api/logins",
+      "body": {
+        "site": "example.com",
+        "username": "a",
+        "password": "b"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/logins/1password",
+      "body": {
+        "token": "ops_test"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/logins/1password/refresh"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/logins/1password"
+    }
+  ]
+}

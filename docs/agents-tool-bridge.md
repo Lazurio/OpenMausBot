@@ -33,7 +33,7 @@ the saved setting when it is exactly `1` or `0`.
 
 `tool_result_read`, `list_room_targets`, `coordinate_bots`, `list_bots`,
 `list_rooms`, `select_computer`, `attach_file`, `post_to_room`,
-`request_credential`, `request_sign_in`, `fill_login`, `memory_update`, and
+`request_credential`, `request_sign_in`, `memory_update`, and
 where the bot has them `send_voice_note` and Watcher's `create_options_card`.
 
 Two of these can never be reached through `use_tool`: `post_to_room` and

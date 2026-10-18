@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import type { AppConfig } from "../config.ts";
 import { browserEngineAttachCdpUrl, browserProfilePartitionTarget, builtInBrowserEnabled, DATA_DIR } from "../config.ts";
 import { BrowserRuntime, TransportError, attachesToChrome, browserRuntimeEnv, formatBrowserTiming } from "../browser-runtime.ts";
-import { RelayTimeout, relayCommand, relayInput } from "../browser-relay.ts";
+import { RelayTimeout, relayCommand } from "../browser-relay.ts";
 import { browserSteps } from "../browser-steps.ts";
 import { BrowserLive } from "../browser-live.ts";
 import { browserEgress } from "../browser/egress/registry.ts";
@@ -18,7 +18,6 @@ import {
   clearBrowserSessionState,
   closeBrowserSession,
   browserEngineStatus,
-  inRunningBrowser,
   browserSessionId, isTemporaryBrowserSession,
   noteBrowserEngineUnavailable,
   setBrowserViewport,
@@ -31,7 +30,6 @@ import { ChromeEngine, chromeTarget, LiveRouter, profileKey, RuntimeRouter } fro
 import { CHROME_BROWSER_SYSTEM_PROMPT } from "../browser/prompt.ts";
 import { augmentedPath } from "../env-path.ts";
 import { harnessMcpTokenEnv } from "../harness-mcp-token.ts";
-import type { FillLoginDeps } from "../login-fill.ts";
 import { AGENTS_NODE_FLAG, SPAWNED_PROXIES } from "../proxy-paths.ts";
 import type { Store } from "../store.ts";
 import type { TurnResources } from "../turn-resources.ts";
@@ -214,14 +212,6 @@ export function createBrowserHost(deps: BrowserHostDeps) {
     const session = currentBrowserSession(botId, profile);
     return { session, spec: usedBrowserSessions.get(session) ?? browserSessionSpec(engine.binaryPath, session, browserProfileIdOf(profile), await browserEgress.open(session)) };
   }
-  /** fill_login's reads and typing, on whichever engine runs the session. */
-  function loginInput(session: string, spec: Spec, env: NodeJS.ProcessEnv): Pick<FillLoginDeps, "engine" | "insertText" | "press" | "click"> {
-    if (chromeTarget(session, spec)) {
-      const deps = chromeEngine.loginDeps(session);
-      if (deps) return deps;
-    }
-    return { engine: (args) => inRunningBrowser(spec.command, env, args), ...relayInput(spec, session) };
-  }
   function browserSystemPrompt(profile: string | undefined): string {
     return onChrome(profile) ? CHROME_BROWSER_SYSTEM_PROMPT : BUILT_IN_BROWSER_SYSTEM_PROMPT;
   }
@@ -263,7 +253,7 @@ export function createBrowserHost(deps: BrowserHostDeps) {
   return {
     browserRuntime, browserLive, usedBrowserSessions, browserSweep, temporaryBrowserSessions,
     currentBrowserSession, forgetTemporaryBrowser, myChromeAvailable, usesMyChrome, browserSessionSpec, browserIntegration,
-    browserReady, currentBrowserSpec, loginInput, browserSystemPrompt, signedInSitesRefusal, closeBrowser, browserEngineSwitched,
+    browserReady, currentBrowserSpec, browserSystemPrompt, signedInSitesRefusal, closeBrowser, browserEngineSwitched,
     eraseChromeBrowser, engineSummary,
   };
 }

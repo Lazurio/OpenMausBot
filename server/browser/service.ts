@@ -14,7 +14,6 @@ import { BrowserLanes } from "../browser-lane.ts";
 import { BROWSER_CALL_DEFAULTS, type BrowserTiming } from "../browser-runtime.ts";
 import { SecretHolds, type SecretHold } from "../browser-secret-hold.ts";
 import { scrubBrowserResult } from "../browser-tool-shape.ts";
-import type { FillLoginDeps } from "../login-fill.ts";
 import type { Backend, OpenedBrowser } from "./backends.ts";
 import type { CdpBrowser } from "./cdp/browser.ts";
 import type { Download } from "./cdp/downloads.ts";
@@ -519,7 +518,7 @@ export class BrowserService {
     profile.reopened = null;
   }
 
-  // Preview frames and fill_login.
+  // Preview frames and secret input.
 
   /** Never starts a browser, and never while a bot call, a person or a filled secret is on it. */
   async previewFrame(session: string): Promise<{ png: string; format: "jpeg" }> {
@@ -549,28 +548,6 @@ export class BrowserService {
     }, this.#options.laneWaitMs);
     if (outcome === null) throw new Error(LANE_BUSY);
     return outcome;
-  }
-
-  /** fill_login's reads and typing, on the tab in front. */
-  loginDeps(target: BrowserTarget): Pick<FillLoginDeps, "engine" | "insertText" | "press" | "click"> {
-    const profile = this.profile(target);
-    const tab = () => {
-      const active = profile.run ? profile.active() : null;
-      if (!active) throw new Error("The browser has no page open.");
-      return active;
-    };
-    return {
-      engine: async (args) => {
-        const active = profile.run ? profile.active() : null;
-        if (!active) return null;
-        if (args[0] === "get" && args[1] === "url") return { url: active.page.url() };
-        if (args[0] === "eval" && typeof args[1] === "string") return { result: await active.page.evaluate(args[1]) };
-        return null;
-      },
-      insertText: (text) => tab().page.keyboard.insertText(text),
-      press: async (key) => { await tab().page.press(key); },
-      click: async (selector) => { await tab().page.click({ selector }); },
-    };
   }
 
   // People.

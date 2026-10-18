@@ -1,5 +1,5 @@
 // One bot call per browser at a time, from its first page read to its last, so another call's console clear never lands
-// between an action and its read, and fill_login's typing never shares the browser with a capture.
+// between an action and its read, and a secret's typing never shares the browser with a capture.
 export class BrowserLanes {
   private lanes = new Map<string, Promise<void>>();
 
