@@ -21,9 +21,9 @@ function render(authenticated: boolean, options: { email?: string; signOut?: boo
     driverKind: "codexAgent",
     displayName: "Codex",
     cliDefault: "codex",
-    snapshot: { state: "available", authenticated, ...(options.email ? { account: { email: options.email } } : {}) },
+    snapshot: { state: "available", authenticated, chatgptPlan: true, ...(options.email ? { account: { email: options.email } } : {}) },
     models: { default: "model", options: [] },
-    authentication: { method: "device-code", ...(options.signOut ? { signOut: true } : {}) },
+    authentication: { method: "browser-pkce", ...(options.signOut ? { signOut: true } : {}) },
     install: { signInCommand: "codex login" },
   }];
   fixture.bots = options.assigned ? [{ modelSelection: { instanceId: "codex" } } as Bot] : [];
@@ -67,25 +67,17 @@ describe("Settings → Engines → Grok", () => {
       instanceId: "grok", driverKind: "grokAgent", displayName: "Grok", cliDefault: "grok",
       snapshot: { state: "available", authenticated, version: "grok 1.0.41" },
       models: { default: "grok-4.7", options: [] },
-      authentication: { method: "device-code", signOut: false },
       install: { command: { linux: "curl -fsSL https://x.ai/cli/install.sh | bash" }, signInCommand: "grok login" },
     }];
     fixture.bots = [];
     return renderToStaticMarkup(createElement(EnginesSettings));
   }
 
-  it("signs in from Settings with a code, never ChatGPT's card", () => {
+  it("signs in with Grok's own command on this computer, never an in-app code", () => {
     const html = renderGrok(false);
-    expect(html).toContain('data-device-sign-in="grok"');
-    expect(html).toContain("Sign in to Grok");
-    expect(html).not.toContain("ChatGPT");
-  });
-
-  it("says Grok is connected once it is, in Grok's words", () => {
-    const html = renderGrok(true);
-    expect(html).toContain("Grok connected on this server");
-    expect(html).not.toContain("ChatGPT");
-    expect(html).not.toContain("Sign in to Grok");
+    expect(html).toContain("grok login");
+    expect(html).not.toContain("data-device-sign-in");
+    expect(html).toContain("Finish signing in to your account in Terminal");
   });
 });
 
@@ -145,7 +137,7 @@ describe("Settings → Engines → setup cards", () => {
     fixture.instances = ["claudeAgent", "codex", "openai-compat"].map((driverKind) => ({
       instanceId: `company.fixture.${driverKind}`, displayName: `Company ${driverKind}`, driverKind, readOnly: true,
       snapshot: { state: "available", authenticated: true }, models: { default: "model", options: [] },
-      authentication: { method: "device-code", signOut: true }, install: { signInCommand: "fixture login" },
+      authentication: { method: "browser", signOut: true }, install: { signInCommand: "fixture login" },
     }));
     const companyOnly = renderToStaticMarkup(createElement(EnginesSettings));
     for (const driver of ["claudeAgent", "codex", "openai-compat"]) expect(companyOnly).toContain(`Company ${driver}`);
@@ -305,7 +297,6 @@ describe("Settings → Engines → Claude accounts", () => {
       access: "subscription",
       snapshot: { state: "available", authenticated, ...(authenticated ? { account: { email: `${displayName.toLowerCase()}@example.test`, organization: "Studio" } } : {}) },
       models: { default: "sonnet", options: [] },
-      authentication: { method: "paste-code", signOut: true },
       claudeAccount: { configDir: `/profiles/${instanceId}`, signInCommand: `CLAUDE_CONFIG_DIR=/profiles/${instanceId} claude auth login`, signInShell: "sh", isDefault: instanceId === "claude" },
       ...extra,
     };
@@ -343,10 +334,9 @@ describe("Settings → Engines → Claude accounts", () => {
     expect(accountActions("claude", keyed).signOut).toBe(false);
   });
 
-  it("keeps the default account and signs out only a signed-in account the server can sign out", () => {
-    expect(accountActions("claude", claude("claude", "Personal", true))).toEqual({ signOut: true, remove: false });
+  it("keeps the default account and never signs Claude out from here", () => {
+    expect(accountActions("claude", claude("claude", "Personal", true))).toEqual({ signOut: false, remove: false });
     expect(accountActions("claude", claude("claude-work", "Work", false))).toEqual({ signOut: false, remove: true });
-    expect(accountActions("claude", claude("claude-work", "Work", true, { authentication: { method: "paste-code", signOut: false } }))).toEqual({ signOut: false, remove: true });
   });
 
   it("shows Claude Code's setup instead of accounts while it is missing", () => {

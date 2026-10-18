@@ -7,7 +7,6 @@ import { parse as parseYaml } from "yaml";
 
 import type { ModelCatalog } from "../../contracts.ts";
 import { harnessHome, splitCliString } from "../../env-path.ts";
-import type { DeviceSignIn } from "../device-auth.ts";
 import { decodeInjectId, hostApiKey, localHost, mergeLocalInject } from "../local-inject.ts";
 import { createAcpDriver, type AcpSupport } from "./core.ts";
 import type { AcpQuestionRequest } from "./question-requests.ts";
@@ -33,32 +32,6 @@ export function grokHome(env: Record<string, string | undefined> = process.env):
 export function grokSignedIn(env: Record<string, string | undefined>): boolean {
   return existsSync(join(grokHome(env), "auth.json"));
 }
-
-function grokLoginFailure(output: string): string {
-  if (/(unexpected argument|unrecognized (argument|option)|unknown option).*device-(auth|code)/i.test(output)) {
-    return "This server's Grok is too old to sign in with a code. Update Grok on the server, then try again.";
-  }
-  if (/device-code login is not available/i.test(output)) {
-    return "This Grok account can't sign in with a code. Use an xAI API key instead.";
-  }
-  if (/expired/i.test(output)) return "The Grok sign-in code expired. Start sign-in again for a new code.";
-  if (/denied|rejected/i.test(output)) return "Grok sign-in was declined in the browser. Start sign-in again to try once more.";
-  return "Grok sign-in did not finish. Check the server's connection, then try again.";
-}
-
-/** `grok login --device-auth` on the grok.com subscription (grok 1.0.25 and 1.0.41). Grok has no
- * status command, so nothing is checked first. */
-export const GROK_DEVICE_SIGN_IN: DeviceSignIn = {
-  provider: "grok",
-  product: "Grok",
-  account: "Grok",
-  homeEnv: "GROK_HOME",
-  homeDir: ".grok",
-  loginArgs: ["login", "--device-auth"],
-  install: "Install it with xAI's installer (https://x.ai/cli), then try again.",
-  failure: grokLoginFailure,
-  signedIn: grokSignedIn,
-};
 
 function unquote(raw: string): string {
   const value = raw.trim();
@@ -379,7 +352,7 @@ const support: AcpSupport = {
   effortLevels: ["low", "medium", "high"],
   defaultCli: "grok",
   nativeSource: "grok.acp",
-  loginNote: "Grok is not signed in to your grok.com account — choose Sign in to Grok in engine setup",
+  loginNote: "Grok is not signed in to your grok.com account — run grok login on this computer",
 
   // No Windows one-liner: the installer is a POSIX shell script.
   install: {
@@ -390,7 +363,6 @@ const support: AcpSupport = {
     docsUrl: "https://x.ai/cli",
     signInCommand: "grok login",
   },
-  deviceSignIn: GROK_DEVICE_SIGN_IN,
 
   // With the instance HOME/GROK_HOME: ensureGrokInjectSlug defaults to process.env.
   resolveTurnModel: (model, env) => (model ? ensureGrokInjectSlug(model, env) : model),

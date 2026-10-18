@@ -5,8 +5,7 @@ import { t } from "@/lib/i18n";
 import { cn } from "@/lib/cn";
 import type { LocaleKey } from "@/locales";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { ClaudeSignIn } from "./ClaudeSignIn";
-import { DeviceSignIn, deviceSignInProvider } from "./DeviceSignIn";
+import { DeviceSignIn } from "./DeviceSignIn";
 import { ChatGptPlanStatus } from "./ChatGptPlanStatus";
 import { EngineCard, engineReady, providerName, type EngineCardSummary } from "./EngineLibrary";
 import { CommandRow, EngineSetup, EngineUpdateNotice, EngineWarningNotice } from "./EngineSetup";
@@ -17,8 +16,7 @@ export type AccountGroup = "claude" | "chatgpt";
 export function accountGroupOf(instance: InstanceInfo): AccountGroup | null {
   if (instance.readOnly || instance.trialCredit || instance.access === "custom" || instance.access === "api") return null;
   if (instance.driverKind === "claudeAgent") return "claude";
-  const method = instance.authentication?.method;
-  return instance.snapshot.chatgptPlan === true || ((method === "device-code" || method === "browser-pkce") && deviceSignInProvider(instance.driverKind) === "codex")
+  return instance.snapshot.chatgptPlan === true || (instance.authentication?.method === "browser-pkce" && instance.driverKind === "codex")
     ? "chatgpt" : null;
 }
 
@@ -222,17 +220,12 @@ function AccountRow({ group, instance, signingIn, onSignIn, onSignInDone }: {
       </div>
       {signingIn && (
         <div className="pl-9">
+          {/* Lazurio overlay (DEV-6673 M3): Claude signs in on the machine itself, with its own command. */}
           {group === "claude"
-            ? <>
-              <ClaudeSignIn instanceId={instance.instanceId} autoStart onDone={onSignInDone} />
-              {instance.claudeAccount?.signInCommand && (
-                <details className="mt-2 text-[11.5px] text-ink-secondary">
-                  <summary className="cursor-pointer select-none hover:text-ink">{t("engineSetup.preferTerminal")}</summary>
-                  <CommandRow command={instance.claudeAccount.signInCommand} actionLabel={t("engineSetup.openSignIn")} compact />
-                </details>
-              )}
-            </>
-            : <DeviceSignIn instanceId={instance.instanceId} provider="codex" browserPkce={instance.authentication?.method === "browser-pkce"} autoStart onDone={onSignInDone} />}
+            ? instance.claudeAccount?.signInCommand && (
+              <CommandRow command={instance.claudeAccount.signInCommand} actionLabel={t("engineSetup.openSignIn")} compact />
+            )
+            : <DeviceSignIn instanceId={instance.instanceId} autoStart onDone={onSignInDone} />}
         </div>
       )}
       {group === "chatgpt" && state === "signedIn" && instance.snapshot.chatgptPlan && (

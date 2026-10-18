@@ -77,7 +77,6 @@ const claude = (authenticated = true, options: Option[] = claudeModels): Instanc
   snapshot: { state: "available", version: "2.1.300", authenticated },
   models: { default: "claude-opus-5-5", options },
   capabilities: { effortLevels: levels },
-  authentication: { method: "paste-code", signOut: true },
   install: { command: { darwin: "npm i -g @anthropic-ai/claude-code", linux: "npm i -g @anthropic-ai/claude-code", win32: "npm i -g @anthropic-ai/claude-code" }, signInCommand: "claude" },
 });
 const engine = (instanceId: string, driverKind: string, displayName: string, access: InstanceInfo["access"], options: Option[]): InstanceInfo => ({

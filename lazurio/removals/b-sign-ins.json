@@ -1,6 +1,6 @@
 {
   "area": "Own sign-ins",
-  "why": "Bots sign in with the Environment's own sessions and accounts; MausBot keeps no password store, no 1Password connection and no fill tool of its own (issue #35).",
+  "why": "Bots sign in with the Environment's own sessions and accounts, and engines with the machine's own logins; MausBot keeps no password store, no 1Password connection, no fill tool and no in-app engine login of its own (issue #35).",
   "files": [
     "server/login-store.ts",
     "server/login-store.test.ts",
@@ -23,6 +23,24 @@
     "src/components/LoginsSettings.tsx",
     "src/components/LoginsSettings.test.ts",
     "src/components/LoginForm.tsx",
+    "server/drivers/codex-device-auth.ts",
+    "server/drivers/codex-device-auth.test.ts",
+    "server/drivers/device-auth.ts",
+    "server/drivers/claude-login-auth.ts",
+    "server/drivers/claude-login-auth.test.ts",
+    "server/drivers/acp/grok-device-auth.test.ts",
+    "server/grok-sign-in-api.test.ts",
+    "server/testing/fake-codex-login-cli.ts",
+    "server/testing/fake-grok-login-cli.ts",
+    "shared/device-sign-in.ts",
+    "scripts/verify-codex-account.ts",
+    "scripts/verify-claude-account.ts",
+    "docs/verification/codex-account.md",
+    "docs/verification/claude-account.md",
+    "src/components/ClaudeSignIn.tsx",
+    "src/components/ClaudeSignIn.test.ts",
+    "src/components/ClaudeSignIn.interaction.test.ts",
+    "src/components/GrokSignIn.interaction.test.ts",
     "third_party/onepassword-sdk/LICENSE"
   ],
   "forbidden": [
@@ -46,7 +64,25 @@
     "signIn.save.",
     "signIn.settled.saved",
     "savedLoginsPrompt",
-    "savedLoginResumePrompt"
+    "savedLoginResumePrompt",
+    "CodexDeviceAuthController",
+    "ClaudeLoginController",
+    "DeviceAuthController",
+    "GROK_DEVICE_SIGN_IN",
+    "DEVICE_SIGN_IN_COPY",
+    "deviceSignInProvider",
+    "ClaudeSignIn",
+    "codex-device-auth",
+    "claude-login-auth",
+    "shared/device-sign-in",
+    "fake-codex-login-cli",
+    "fake-grok-login-cli",
+    "verify-codex-account",
+    "verify-claude-account",
+    "engineSetup.claude.",
+    "engineSetup.grok.start",
+    "Connect ChatGPT",
+    "data-device-sign-in"
   ],
   "routes": [
     {
@@ -76,6 +112,14 @@
     {
       "method": "DELETE",
       "path": "/api/logins/1password"
+    },
+    {
+      "method": "POST",
+      "path": "/api/instances/claude/auth/start"
+    },
+    {
+      "method": "POST",
+      "path": "/api/instances/claude/auth/sign-out"
     }
   ]
 }
