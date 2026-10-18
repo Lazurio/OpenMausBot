@@ -2,7 +2,7 @@
 // subtree.
 import { useState } from "react";
 import { Check } from "lucide-react";
-import { SKINS, applySkin, readSkin, type SkinId } from "@/lib/skins";
+import { applySkin, offeredSkins, readSkin, type SkinId } from "@/lib/skins";
 import { cn } from "@/lib/cn";
 
 function Miniature({ skin }: { skin: SkinId }) {
@@ -55,7 +55,7 @@ export function SkinPicker() {
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {SKINS.map((skin) => {
+      {offeredSkins().map((skin) => {
         const selected = skin.id === active;
         return (
           <button

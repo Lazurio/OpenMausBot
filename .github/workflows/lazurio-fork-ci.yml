@@ -100,6 +100,25 @@ jobs:
             # Launchpad; without it nothing renders and nothing reads the roles.
             index.html
             src/components/Sidebar.tsx
+            # The Environment skin (Lazurio decision 0208), added the way
+            # upstream adds a skin: its block in styles.css and its line in
+            # skins.ts, which also makes it the default on an Environment and
+            # moves each browser there once, and the picker offering it only
+            # there. Its colours come from the Environment theme at runtime,
+            # so upstream's checks that measure a skin's values (the faded
+            # text test, the window chrome test, the bots' name contrast test
+            # and the contrast script) leave it out, the code scheme test takes its scheme from the
+            # theme, and the count of skin blocks includes it. index.html,
+            # listed above, lets the theme's dark values follow the device.
+            src/styles.css
+            src/lib/skins.ts
+            src/components/SkinPicker.tsx
+            src/lib/skins.test.ts
+            src/lib/faded-text.test.ts
+            src/lib/glass-surface.test.ts
+            electron/skin-overlay.test.mjs
+            scripts/check-skin-contrast.mjs
+            src/lib/bot-identity.test.ts
           )
           # Lazurio ships the open-source edition: upstream's enterprise/
           # folder (OpenMausBot Enterprise License, no redistribution or
