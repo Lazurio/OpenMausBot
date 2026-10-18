@@ -109,6 +109,8 @@ jobs:
             # moves each browser there once, and the picker offering it only
             # there. Its colours come from the Environment theme at runtime,
             # so upstream's checks that measure a skin's values (the faded
+            # text test, the window chrome test, the bots' name and bubble
+            # contrast tests and the contrast script) leave it out, the code scheme test takes its scheme from the
             # theme, and the count of skin blocks includes it. index.html,
             # listed above, lets the theme's dark values follow the device.
             src/styles.css
@@ -120,6 +122,7 @@ jobs:
             electron/skin-overlay.test.mjs
             scripts/check-skin-contrast.mjs
             src/lib/bot-identity.test.ts
+            src/lib/user-bubble-tone.test.ts
           )
           # Lazurio ships the open-source edition: upstream's enterprise/
           # folder (OpenMausBot Enterprise License, no redistribution or

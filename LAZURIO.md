@@ -164,6 +164,11 @@ back to Midnight's, so without the shell the skin is Midnight:
 | `--code-color-scheme` | `--lazurio-color-scheme`, dark without it |
 
 The type and corners stay Midnight's: the Environment theme is a colour
+theme. Bots' name colours (`--identity-*`) follow the thread they sit on:
+Midnight's in the block, like every fallback; with the theme's light values
+Meadow's, the tones upstream fits to a white thread; and where the theme's
+dark values apply (a dark device), Midnight's again. Two short rules after
+the block set them, keyed on the theme's marks.
 
 - **The default on an Environment.** When the shell declares the
   Environment theme it marks `<html data-lazurio-environment-theme>`: with
@@ -194,6 +199,8 @@ The type and corners stay Midnight's: the Environment theme is a colour
 
 Its colours exist only at runtime, so upstream's checks that measure a
 skin's values leave it out (`src/lib/faded-text.test.ts`,
+`src/lib/bot-identity.test.ts`, `src/lib/user-bubble-tone.test.ts`,
+`electron/skin-overlay.test.mjs`, `pnpm check:contrast`). The release
 contract test checks that the block reads only promised names, each with
 Midnight's value as its fallback, that nothing else in `src/styles.css`
 reads the theme, and the mark in `index.html`;

@@ -1055,10 +1055,32 @@
   --color-warning: var(--lz-warning, #ff9800);
   --color-scrollbar: var(--lz-line, #3d3d3d);
   --color-maus-line: var(--lz-ink-muted, #f5f5f5);
+  /* Bots' name colours follow the thread they sit on: Midnight's here, as
+     every fallback; the rules after this block take them to the theme's */
+  --identity-green: #009957;
+  --identity-blue: #377FE6;
+  --identity-red: #D94B52;
+  --identity-orange: #E78531;
   --identity-purple: #8d69ce;
+  --identity-cyan: #0EA5C6;
+  --identity-pink: #D84F8B;
+  --identity-yellow: #D8A729;
+  --identity-teal: #01A492;
+  --identity-coral: #E5634E;
   --identity-silver: #A8ADB4;
   --identity-chrome: #B3BAC4;
+
   --font-sans: "Geist Variable", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", system-ui, sans-serif;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+}
+
+/* Lazurio: with the Environment theme, bots' names take the tones upstream
+   fits to a white thread (Meadow's), which the theme's light values are; where
+   the theme's dark values apply (a dark device, data-lazurio-appearance on
+   "device"), Midnight's again. */
+[data-skin="environment"][data-lazurio-environment-theme] {
   --identity-green: #00884e;
   --identity-blue: #2573e4;
   --identity-red: #d63f47;
@@ -1071,9 +1093,22 @@
   --identity-coral: #db3a20;
   --identity-silver: #707782;
   --identity-chrome: #6b778a;
+}
+@media (prefers-color-scheme: dark) {
+  [data-skin="environment"][data-lazurio-environment-theme][data-lazurio-theme-dark] {
+    --identity-green: #009957;
+    --identity-blue: #377FE6;
+    --identity-red: #D94B52;
+    --identity-orange: #E78531;
     --identity-purple: #8d69ce;
+    --identity-cyan: #0EA5C6;
+    --identity-pink: #D84F8B;
+    --identity-yellow: #D8A729;
+    --identity-teal: #01A492;
+    --identity-coral: #E5634E;
     --identity-silver: #A8ADB4;
     --identity-chrome: #B3BAC4;
+  }
 }
 
 /* Shiki emits both palettes so cached blocks follow the nearest skin without

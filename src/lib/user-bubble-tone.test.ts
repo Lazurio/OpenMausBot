@@ -60,7 +60,9 @@ describe("user bubble tone", () => {
     expect(contrastRatio(tone.ink, tone.deep)).toBeGreaterThanOrEqual(BUBBLE_TEXT_MIN);
   });
 
-  it.each(SKIN_IDS.flatMap((id) => MAUS_COLOR_NAMES.map((color) => [id, color] as const)))(
+  // Lazurio's Environment skin takes its thread from the Environment theme at
+  // runtime (LAZURIO.md "The Environment skin").
+  it.each(SKIN_IDS.filter((id) => id !== "environment").flatMap((id) => MAUS_COLOR_NAMES.map((color) => [id, color] as const)))(
     "clears AA for %s × %s, including the pieces inside the bubble",
     (id, color) => {
       const tone = userBubbleTone(color);

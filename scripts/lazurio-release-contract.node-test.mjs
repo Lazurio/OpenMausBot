@@ -263,6 +263,15 @@ NodeTest.test("the Environment skin names the Environment theme, with Midnight a
       NodeAssert.equal(value, midnight.get(name), name);
     }
   }
+  // Bots' names follow the thread they sit on: Midnight's in the block, as every
+  // fallback; with the theme's light values Meadow's tones (upstream fits them to
+  // a white thread); where its dark values apply Midnight's again. Only those names.
+  const identity = (map) => new Map([...map].filter(([name]) => name.startsWith("--identity-")));
+  const light = /\n\[data-skin="environment"\]\[data-lazurio-environment-theme\] \{\n([^}]*)\n\}/.exec(styles);
+  const dark = /@media \(prefers-color-scheme: dark\) \{\n {2}\[data-skin="environment"\]\[data-lazurio-environment-theme\]\[data-lazurio-theme-dark\] \{\n([^}]*)\n {2}\}\n\}/.exec(styles);
+  NodeAssert.ok(light && dark, "the light and the dark rule after the block");
+  NodeAssert.deepEqual(declarations(light[1]), identity(meadow));
+  NodeAssert.deepEqual(declarations(dark[1]), identity(midnight));
   NodeAssert.equal(identity(meadow).size, 12);
   // Outside the Environment skin MausBot reads neither the theme nor the shell's roles.
   NodeAssert.doesNotMatch(styles.replace(environmentRule, "").replace(/\/\*[^]*?\*\//g, ""), /--lz-|--lazurio-/);
