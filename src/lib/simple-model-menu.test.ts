@@ -107,10 +107,9 @@ describe("the Simple model menu", () => {
     const missing = { ...cursor, snapshot: { state: "unavailable" as const, reason: "not found" } };
     const signedOut = { ...codex, snapshot: { state: "available" as const, authenticated: false } };
     const managed = { ...openaiKey, policy: { organizationName: "Acme", reason: "Company models only." } };
-    const plan = engine("chatgpt", "codex", "ChatGPT plan", "subscription", [], { snapshot: { state: "available", authenticated: true, chatgptPlan: true } });
-    const built = menu([claude(), missing, signedOut, managed, plan]);
+    const built = menu([claude(), missing, signedOut, managed]);
     expect(Object.fromEntries(built.groups.map((group) => [group.instance.instanceId, group.body]))).toMatchObject({
-      cursor: { kind: "setUp" }, codex: { kind: "signIn" }, openai: { kind: "policy", organization: "Acme" }, chatgpt: { kind: "empty", loading: false },
+      cursor: { kind: "setUp" }, codex: { kind: "signIn" }, openai: { kind: "policy", organization: "Acme" },
     });
   });
 

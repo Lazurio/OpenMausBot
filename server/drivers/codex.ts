@@ -45,7 +45,6 @@ import { commandSummary, toolDetailPreview } from "../tool-summary.ts";
 import { codexDeveloperInstructions, syncCodexInstructions } from "./codex-instructions.ts";
 import { volatileContextNote, withContextNote } from "./prompt-split.ts";
 import type { ApprovalMode } from "../../shared/approval-mode.ts";
-import { CodexDeviceAuthController } from "./codex-device-auth.ts";
 import { codexAccountEmail, codexHome } from "./codex-identity.ts";
 import { CODEX_MISSING_CREDENTIALS, CODEX_SIGN_IN_EXPIRED, codexLimitFacts, codexNotSignedIn, codexSignInExpired, codexSignInRefused, codexUserError, type CodexRoute } from "./codex-errors.ts";
 import { codexLoginCheck, codexLoginStatus, storedCodexLogin } from "./codex-login.ts";
@@ -577,12 +576,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
     const loginRefused = () => { const mark = loginMark(); if (mark) noteKeyRejected(...mark); };
     const loginAccepted = (mark = loginMark()) => { if (mark) noteKeyAccepted(...mark); };
     const loginRejected = () => { const mark = loginMark(); return mark !== null && keyRejected(...mark); };
-    const authentication = new CodexDeviceAuthController({
-      cli: config.cli,
-      environment: childEnv,
-      signInRejected: loginRejected,
-      onAuthenticated: async () => { loginAccepted(); await refreshModels(); },
-    });
     const listeners = new Set<RuntimeEventListener>();
     interface Turn {
       stop: () => Promise<boolean>;
@@ -1739,39 +1732,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
     refreshModels,
     ...(startupModelRefresh ? { startupModelRefresh } : {}),
     generateMemoryText,
-    ...(plan ? { authenticationMethod: "browser-pkce" as const } : {}),
-    startAuthentication: async () => {
-      if (planUnavailable) throw new Error(planUnavailable);
-      if (planSigningOut || disposed) throw new Error("This account is being disconnected. Wait before signing in again.");
-      return (planAuth ?? authentication).start();
-    },
-    getAuthentication: async (flowId) => {
-      const result = await (planAuth ?? authentication).get(flowId);
-      if (planAuth && result.phase === "succeeded") planWarning = undefined;
-      if (planAuth && result.phase === "succeeded" && !models.options.length) await refreshModels();
-      return result;
-    },
-    cancelAuthentication: () => (planAuth ?? authentication).cancel(),
-    signOut: async () => {
-      if (!planAuth) {
-        const mark = loginMark();
-        await authentication.signOut();
-        loginAccepted(mark);
-        return;
-      }
-      planSigningOut = true;
-      planGeneration++;
-      try {
-        const stopped = await Promise.all([...active.values()].map(({ stop }) => stop()));
-        if (stopped.some(value => !value)) throw new Error("A ChatGPT task could not stop safely. Stop the task before signing out.");
-        models = { default: "", options: [] };
-        await planAuth.signOut();
-        planWarning = undefined;
-      } catch (error) {
-        if ((error as { code?: string }).code !== "chatgpt_revocation_unconfirmed") throw error;
-        planWarning = (error as Error).message;
-      } finally { planSigningOut = false; }
-    },
     snapshot,
     adapter: {
       provider: DRIVER_KIND,
@@ -1819,7 +1779,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
     dispose: async () => {
       disposed = true;
       planGeneration++;
-      await authentication.dispose();
       await planAuth?.dispose();
       await Promise.all([...active.values()].map(({ stop }) => stop()));
       listeners.clear();

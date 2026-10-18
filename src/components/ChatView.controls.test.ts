@@ -421,12 +421,12 @@ describe("thread control placement", () => {
       instanceId: "claude", driverKind: "claudeAgent", displayName: "Claude",
       snapshot: { state: "available", authenticated: false },
       install: { command: { darwin: "x", linux: "x", win32: "x" }, signInCommand: "claude /login", server: { package: "@anthropic-ai/claude-code" } },
-      authentication: { method: "paste-code" },
       models: { default: "sonnet", options: [] },
     } as InstanceInfo;
     const markup = renderToStaticMarkup(createElement(FailedTurnRow, { tool: { name: "error: Not logged in · Please run /login", ok: false, setup: true }, engine: claude, onRetry: () => {} }));
     expect(markup).toContain(">Claude isn&#x27;t signed in yet. Sign in below, then send your message again.</span>");
-    expect(markup).toContain("Sign in to Claude</button>");
+    expect(markup).toContain("Sign in to Claude");
+    expect(markup).toContain('title="claude /login"');
     expect(markup).toMatch(/<summary[^>]*>Details<\/summary><p[^>]*>Not logged in · Please run \/login<\/p>/);
     expect(markup).not.toContain(">Retry<");
     const update = { name: "error: Claude Code 2.1.268 does not support this model", ok: false, setup: true, claudeUpdate: true };

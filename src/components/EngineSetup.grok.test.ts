@@ -13,7 +13,6 @@ const NOT_INSTALLED = "Grok with your grok.com subscription isn't installed here
 const grok = (snapshot: InstanceInfo["snapshot"]): InstanceInfo => ({
   instanceId: "grok", driverKind: "grokAgent", displayName: "Grok",
   models: { default: "grok-4.7", options: [] }, snapshot,
-  authentication: { method: "device-code", signOut: false },
   install: { command: { darwin: CURL, linux: CURL }, docsUrl: "https://x.ai/cli", signInCommand: "grok login" },
 });
 const signedOut = grok({ state: "available", authenticated: false, version: "grok 1.0.41" });
@@ -45,31 +44,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("signed out: the in-app code", () => {
-  it("signs in with xAI's code on a server's page, with no terminal command", () => {
-    const html = render(signedOut, undefined);
-    expect(html).toContain('data-device-sign-in="grok"');
-    expect(html).toContain("Sign in with your grok.com account so your bots can use Grok");
-    expect(html).toContain("Sign in to Grok");
-    expect(html).not.toContain("grok login");
-    expect(html).not.toContain("Prefer a terminal?");
-    expect(html).not.toMatch(/Connect ChatGPT|ChatGPT security settings/);
-  });
-
-  it("keeps `grok login` behind Prefer a terminal? in the desktop app's own window", () => {
+describe("signed out: Grok's own sign-in on this computer", () => {
+  it("offers `grok login`, never an in-app code", () => {
     const html = render(signedOut, desktop);
-    expect(html).toContain('data-device-sign-in="grok"');
-    expect(html).toContain("Prefer a terminal?");
     expect(html).toContain("grok login");
-  });
-
-  it.each([
-    ["a desktop paired to another server", pairedDesktop, false],
-    ["My Cloud in the desktop app's window", desktop, true],
-  ] as const)("never hands %s a terminal command", (_where, ogb, cloudHome) => {
-    const html = render(signedOut, ogb, cloudHome);
-    expect(html).toContain('data-device-sign-in="grok"');
-    expect(html).not.toContain("grok login");
+    expect(html).not.toContain("data-device-sign-in");
+    expect(html).toContain("Finish signing in to your account in Terminal");
   });
 });
 

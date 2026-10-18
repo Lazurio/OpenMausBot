@@ -97,8 +97,7 @@ export type RailProvider = {
 export function railProviders(instances: InstanceInfo[], selectedInstance: InstanceInfo | undefined,
   claudeInstance: InstanceInfo | undefined, openaiInstance: InstanceInfo | undefined) {
   const firstOf: Record<SignInFamily, InstanceInfo | undefined> = {
-    claude: instances.find((instance) => isClaudeAccount(instance) && instance.claudeAccount?.isDefault)
-      ?? instances.find(isClaudeAccount),
+    claude: instances.find(isClaudeAccount),
     openai: instances.find((instance) => signInFamily(instance) === "openai"),
   };
   const opensOn: Record<SignInFamily, InstanceInfo | undefined> = { claude: claudeInstance, openai: openaiInstance };

@@ -29,7 +29,6 @@ const claude = {
   instanceId: "claude", driverKind: "claudeAgent", displayName: "Claude",
   snapshot: { state: "available", authenticated: false },
   install: { command: { darwin: "npm i -g x", linux: "npm i -g x", win32: "npm i -g x" }, signInCommand: "claude /login", server: { package: "@anthropic-ai/claude-code" } },
-  authentication: { method: "paste-code" },
   models: { default: "sonnet", options: [] },
 } as InstanceInfo;
 fixture.instances = [claude];
@@ -45,12 +44,12 @@ const room = (message: Message) => renderToStaticMarkup(createElement(RoomToolCh
 describe("a member's failed turn in a room", () => {
   const signedOut = failed("error: Not logged in · Please run /login", { setup: true });
 
-  it("says the engine is signed out and offers the sign-in, not the CLI's /login text", () => {
+  it("says the engine is signed out and offers its own sign-in on this computer", () => {
     const markup = room(signedOut);
     expect(markup).toContain("Claude isn&#x27;t signed in yet. Sign in below, then send your message again.");
     expect(markup).toContain("Sign in to Claude");
     expect(markup).not.toContain('data-testid="tool-activity"');
-    expect(markup).not.toContain("truncate font-mono");
+    expect(markup).toContain('title="claude /login"');
     const details = markup.indexOf("<details");
     expect(details).toBeGreaterThan(-1);
     expect(markup.indexOf("Not logged in")).toBeGreaterThan(details);

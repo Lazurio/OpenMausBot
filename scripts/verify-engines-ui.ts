@@ -41,7 +41,6 @@ const instances: InstanceInfo[] = [
 }));
 instances[0].snapshot.account = { email: "personal@example.test" };
 instances[0].claudeAccount = { configDir: "", isDefault: true, signInCommand: "echo 'Preview only'", signInShell: "sh" };
-instances[1].authentication = { method: "device-code", signOut: true };
 instances[1].snapshot.account = { email: "work@example.test" };
 instances[4].install = { managed: { label: "Install Antigravity", downloadBytes: 200_000_000 } };
 instances[5].install!.server = { package: "kimi-fixture" };

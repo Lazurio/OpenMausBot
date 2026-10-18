@@ -21,9 +21,7 @@ function render(authenticated: boolean, options: { email?: string; signOut?: boo
     driverKind: "codexAgent",
     displayName: "Codex",
     cliDefault: "codex",
-    snapshot: { state: "available", authenticated, ...(options.email ? { account: { email: options.email } } : {}) },
     models: { default: "model", options: [] },
-    authentication: { method: "device-code", ...(options.signOut ? { signOut: true } : {}) },
     install: { signInCommand: "codex login" },
   }];
   fixture.bots = options.assigned ? [{ modelSelection: { instanceId: "codex" } } as Bot] : [];
@@ -70,25 +68,17 @@ describe("Settings → Engines → Grok", () => {
       instanceId: "grok", driverKind: "grokAgent", displayName: "Grok", cliDefault: "grok",
       snapshot: { state: "available", authenticated, version: "grok 1.0.41" },
       models: { default: "grok-4.7", options: [] },
-      authentication: { method: "device-code", signOut: false },
       install: { command: { linux: "curl -fsSL https://x.ai/cli/install.sh | bash" }, signInCommand: "grok login" },
     }];
     fixture.bots = [];
     return renderToStaticMarkup(createElement(EnginesSettings));
   }
 
-  it("signs in from Settings with a code, never ChatGPT's card", () => {
+  it("signs in with Grok's own command on this computer, never an in-app code", () => {
     const html = renderGrok(false);
-    expect(html).toContain('data-device-sign-in="grok"');
-    expect(html).toContain("Sign in to Grok");
-    expect(html).not.toContain("ChatGPT");
-  });
-
-  it("says Grok is connected once it is, in Grok's words", () => {
-    const html = renderGrok(true);
-    expect(html).toContain("Grok connected");
-    expect(html).not.toContain("ChatGPT");
-    expect(html).not.toContain("Sign in to Grok");
+    expect(html).toContain("grok login");
+    expect(html).not.toContain("data-device-sign-in");
+    expect(html).toContain("Finish signing in to your account in Terminal");
   });
 });
 
@@ -142,18 +132,6 @@ describe("Settings → Engines → setup cards", () => {
     expect(renderToStaticMarkup(createElement(EnginesSettings))).not.toContain("account email unavailable");
   });
 
-  it("offers removal for an added Antigravity account only", () => {
-    vi.stubGlobal("window", {});
-    vi.stubGlobal("navigator", { userAgent: "Linux" });
-    fixture.bots = [];
-    const account = (instanceId: string): InstanceInfo => ({
-      instanceId, driverKind: "antigravityAgent", displayName: "Google account", cliDefault: "agy_acp_server",
-      snapshot: { state: "available", authenticated: true }, models: { default: "gemini", options: [] },
-    });
-    fixture.instances = [account("antigravity")];
-    expect(renderToStaticMarkup(createElement(EnginesSettings))).not.toContain(">Remove<");
-    fixture.instances = [account("antigravity-work")];
-    expect(renderToStaticMarkup(createElement(EnginesSettings))).toContain(">Remove<");
   });
 
   it("shows every Company provider as read-only while preserving personal controls", () => {
@@ -162,7 +140,6 @@ describe("Settings → Engines → setup cards", () => {
     fixture.instances = ["claudeAgent", "codex", "openai-compat"].map((driverKind) => ({
       instanceId: `company.fixture.${driverKind}`, displayName: `Company ${driverKind}`, driverKind, readOnly: true,
       snapshot: { state: "available", authenticated: true }, models: { default: "model", options: [] },
-      authentication: { method: "device-code", signOut: true }, install: { signInCommand: "fixture login" },
     }));
     const companyOnly = renderToStaticMarkup(createElement(EnginesSettings));
     for (const driver of ["claudeAgent", "codex", "openai-compat"]) expect(companyOnly).toContain(`Company ${driver}`);
@@ -322,7 +299,6 @@ describe("Settings → Engines → Claude accounts", () => {
       access: "subscription",
       snapshot: { state: "available", authenticated, ...(authenticated ? { account: { email: `${displayName.toLowerCase()}@example.test`, organization: "Studio" } } : {}) },
       models: { default: "sonnet", options: [] },
-      authentication: { method: "paste-code", signOut: true },
       claudeAccount: { configDir: `/profiles/${instanceId}`, signInCommand: `CLAUDE_CONFIG_DIR=/profiles/${instanceId} claude auth login`, signInShell: "sh", isDefault: instanceId === "claude" },
       ...extra,
     };
@@ -353,22 +329,8 @@ describe("Settings → Engines → Claude accounts", () => {
     for (const gone of ["Check account", "Manage account and sign-in", "claude auth login", "Default account"]) expect(html).not.toContain(gone);
   });
 
-  it("names an API key instead of a person and never signs it out", () => {
-    const keyed = claude("claude-work", "Work", true);
-    keyed.snapshot.account = { method: "api-key" };
-    expect(renderClaude(keyed)).toContain("Uses an API key");
-    expect(accountActions("claude", keyed).signOut).toBe(false);
-  });
-
-  it("keeps the default account and signs out only a signed-in account the server can sign out", () => {
-    expect(accountActions("claude", claude("claude", "Personal", true))).toEqual({ signOut: true, remove: false });
-    expect(accountActions("claude", claude("claude-work", "Work", false))).toEqual({ signOut: false, remove: true });
-    expect(accountActions("claude", claude("claude-work", "Work", true, { authentication: { method: "paste-code", signOut: false } }))).toEqual({ signOut: false, remove: true });
-    expect(renderClaude(claude("claude-work", "Work", true))).toContain(">Remove<");
-  });
-
-  it("shows Claude Code's setup instead of accounts while it is missing", () => {
-    const html = renderClaude(claude("claude", "Personal", undefined, { snapshot: { state: "unavailable", reason: "`claude` CLI not found" } }));
+  it("shows Claude Code's setup while it is missing", () => {
+    const html = renderClaude(claude(undefined, { snapshot: { state: "unavailable", reason: "`claude` CLI not found" } }));
     expect(html).not.toContain("data-accounts");
     expect(html).toContain("CLI not found");
     expect(html).toContain("Needs setup");
@@ -389,10 +351,10 @@ describe("Settings → AI in Simple mode", () => {
   };
   const rows = (html: string) => [...html.matchAll(/data-simple-engine="([^"]+)"/g)].map((match) => match[1]);
 
-  it("lists each ready provider, and each one signed in by subscription, as a row with Manage or Set up", () => {
+  it("lists each ready provider, and each one the Environment settings sign in, as a row with Manage or Set up", () => {
     fixture.instances = [
       engine("claude", "claudeAgent", true),
-      engine("codex", "codexAgent", false, { authentication: { method: "device-code" } }),
+      engine("codex", "codex", false),
       engine("kimi", "kimiAgent", false),
     ];
     const html = simple();

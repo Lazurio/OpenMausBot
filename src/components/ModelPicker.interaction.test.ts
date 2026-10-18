@@ -68,7 +68,6 @@ const claudeInstall = {
 const claude = (snapshot: InstanceInfo["snapshot"], options: InstanceInfo["models"]["options"] = official): InstanceInfo => ({
   instanceId: "claude", driverKind: "claudeAgent", displayName: "Claude", access: "subscription", snapshot,
   models: { default: "claude-opus-5-5", options }, install: claudeInstall,
-  authentication: { method: "paste-code", signOut: true },
 });
 const signedOut = () => claude({ state: "available", version: "2.1.300", authenticated: false });
 const signedIn = () => claude({ state: "available", version: "2.1.300", authenticated: true });
@@ -148,7 +147,6 @@ describe("ModelPicker with a signed-out or missing Claude", () => {
     (rail(opened)!.props.onSelect as (instance: InstanceInfo) => void)(fixture.instances[1]);
     const browsing = menu(render(onCodex).html);
     expect(browsing).toContain("Sign in to Claude");
-    expect(browsing).toContain("data-claude-sign-in");
     expect(browsing).toContain("2 models will appear after setup.");
     expect(browsing).not.toContain(">Opus 5.5<");
     expect(browsing).not.toContain(">Sonnet 5<");

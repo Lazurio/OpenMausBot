@@ -1,6 +1,6 @@
 // Real server, fake Claude CLI that logs each status probe: an engine's CLI is probed once per answer, not once per reader.
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -105,9 +105,9 @@ it("probes again after a sign-out, a model refresh, a saved key and a Claude upd
   expect(claudeStatus(await engines())).toMatchObject({ authenticated: true, account: { email: "fixture@example.test" } });
   let step = await reused();
 
-  // The sign-out confirms itself with its own `auth status`; the engine list it answers with is read after it.
-  const signedOut = await server.call("POST", "/api/instances/claude/auth/sign-out", {});
-  expect(claudeStatus(signedOut)).toMatchObject({ authenticated: false });
+  // Signed out in a terminal (no sign-out from here): Settings' Check reads it at once.
+  rmSync(join(home, ".claude", "fake-auth.json"));
+  expect(claudeStatus(await server.call("POST", "/api/instances/claude/refresh-models", {}))).toMatchObject({ authenticated: false });
   expect(probeCount(probes, "auth")).toBeGreaterThan(step.before);
 
   // Signed in again in a terminal: Settings' Check reads it at once.

@@ -130,31 +130,13 @@ plain foreground process. For unattended use, follow the
 release and runs its binary directly. Restarting that service does not
 implicitly download a new release.
 
-## Connect ChatGPT from the browser
+## Signing the engines in
 
-A browser paired with Full access can connect an installed Codex CLI without opening a
-terminal: **Settings → Engines → Codex → Connect ChatGPT**. OMB starts
-`codex login --device-auth` on the server and shows a one-time code. Choose
-**Open ChatGPT sign-in**, enter the code on OpenAI's page, and complete sign-in
-with your own account. OMB checks for completion and refreshes the model list.
-You can cancel or request a fresh code after it expires.
-
-The server still needs Codex installed and runs it as the same operating-system
-user as OMB. Your password never goes through OMB; Codex stores its credentials
-on the server. Treat server access and backups as sensitive. Device-code login
-may need enabling in ChatGPT security settings or by your workspace admin; see
-[OpenAI's headless authentication guide](https://learn.chatgpt.com/docs/auth#login-on-headless-devices).
-Subscription limits still apply. This browser flow is currently for Codex;
-other providers retain their existing sign-in methods.
-
-Once connected, Settings shows the account email when Codex can report it.
-To switch accounts, open **Manage account and sign-in** under that line
-and choose **Sign out of ChatGPT**: OMB runs `codex logout` on the server as
-the same user and confirms with `codex login status`. New ChatGPT tasks need
-a connected account. Stop running Codex tasks before switching: sign-out does
-not cancel work already in progress. API-key logins are not removed by this
-ChatGPT-specific action. A sign-in another browser is still completing is never
-pulled away; finish or cancel it first.
+Engines sign in on the computer that runs OMB, as the same operating-system
+user, with their own commands: `codex login` (or `codex login --device-auth`
+over SSH), `claude`, `grok login`. Settings → Engines shows the command for an
+engine that is not signed in and reads its status again on **Check again**;
+OMB itself never runs an engine's login or sign-out.
 
 ## Connect a custom domain in Settings
 
@@ -406,25 +388,6 @@ in with an emailed code. `OMB_LICENSE_KEY` in the environment (or
 `--license-key`) is carried into every workspace so a partner's white-label
 key covers them all. Not root? Every command prints the exact steps to run as
 root instead, and `--dry-run` always prints.
-
-## Signing the engines in without a terminal
-
-On a hosted server, the engine CLIs sign in from Settings → Engines:
-
-- **Codex**: "Connect ChatGPT" shows a one-time code to enter on OpenAI's
-  device page. Once connected, Settings names the account and offers
-  **Sign out of ChatGPT** so a different person can connect their own.
-- **Claude Code**: "Sign in to Claude" opens Anthropic's own sign-in page in
-  your browser; after you sign in it shows a code, which you paste back into
-  Settings. The server hands that code to the unmodified `claude` CLI once and
-  never stores it; the login lands where Claude Code keeps it for the account
-  that runs your bots. This is the sign-in Anthropic permits for a hosted,
-  unmodified Claude Code with your own subscription; the bots then share that
-  subscription's usage limits. Once signed in, **Manage account and sign-in →
-  Sign out of Claude** runs `claude auth logout` for that account's
-  configuration directory, confirmed with `claude auth status`, so a different
-  person can sign in with their own subscription. Stop running Claude tasks
-  before switching accounts: signing out does not cancel them.
 
 ## Using it from your computer
 

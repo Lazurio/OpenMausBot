@@ -257,14 +257,11 @@ reports into the bot's chat as one captioned bot message, that quiet runs write
 nothing, that a run's question is answered in that chat, and the concurrency
 rule with the person's own turn, in the real renderer and end to end.
 
-The [server settings recipe](server-settings.md) checks browser provider sign-in
-with an offline CLI and custom-domain validation without touching live accounts.
+The [server settings recipe](server-settings.md) checks custom-domain validation
+without touching live accounts.
 
 The [engine library fixture](engines-ui.md) checks onboarding and Settings cards,
 responsive layouts, theme contrast, and status refreshes without losing drafts.
-
-The [Claude account recipe](claude-account.md) checks sign-out, cancellation and
-retry against an offline Claude CLI confined to a disposable home.
 
 The [provider recovery recipe](provider-recovery.md) verifies real Grok image
 transport and Claude authentication against loopback APIs, plus scoped thread
@@ -277,9 +274,6 @@ conversation, approval level and Stop/new-message precedence.
 The [skill approval lifecycle recipe](skill-approval-lifecycle.md) checks Deny,
 missing staged records and active-thread deletion in two isolated app windows,
 including the surviving conversation and sending again without deleting the bot.
-
-The [Codex account recipe](codex-account.md) checks account switching against an
-offline Codex CLI whose identity is synthetic and whose credential directory is empty.
 
 The [ChatGPT plan recipe](chatgpt-plan.md) checks the separate official OAuth
 flow, credential rotation, account ownership, and native Responses routing.

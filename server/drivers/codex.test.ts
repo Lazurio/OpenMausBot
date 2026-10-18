@@ -519,7 +519,6 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
     expect(recorder.events.some((event) => event.type === "runtime.error" && event.message.includes("automatic review"))).toBe(false);
   });
 
-  it("names the signed-in ChatGPT account from Codex's protocol and offers sign-out", async () => {
     const codexHome = join(scratch, ".codex");
     mkdirSync(codexHome, { recursive: true });
     const claims = Buffer.from(JSON.stringify({ email: "stale-file@example.test" })).toString("base64url");
@@ -530,7 +529,6 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
     const connected = await instance.snapshot();
     expect(connected).toMatchObject({ state: "available", authenticated: true, account: { email: "ada@example.test" } });
     expect(JSON.stringify(connected)).not.toContain("fixture");
-    expect(instance.signOut).toBeTypeOf("function");
     process.env.FAKE_CODEX_MODE = "logged-out";
     const signedOut = await instance.snapshot();
     expect(signedOut).toMatchObject({ state: "available", authenticated: false });

@@ -129,7 +129,7 @@ function currentRow(input: SimpleMenuInput): MenuCurrent {
   if (bot.follows === true) return { ...row, meta: t("model.simple.botsModel", { name: bot.name }) };
   const family = signInFamily(active);
   const accounts = family ? instances.filter((instance) => signInFamily(instance) === family).length : 0;
-  if (accounts > 1 || active.snapshot.chatgptPlan) return { ...row, meta: active.displayName };
+  if (accounts > 1) return { ...row, meta: active.displayName };
   return option?.provider ? { ...row, meta: option.provider } : row;
 }
 
