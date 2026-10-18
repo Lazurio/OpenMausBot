@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CloudAccountState, CloudPlanSnapshot } from "../../electron/cloud-account.mjs";
 import { CHECKOUT_SOURCES } from "../../electron/cloud-account.mjs";
 import type { CloudCredit, CloudOffer, CloudOfferPlan, CloudTrial } from "../../electron/cloud-home.mjs";
-import { buyOfferAllowed, CLOUD_SOURCES, cloudAddView, cloudCreditLine, cloudIntroView, cloudNoticeKind, cloudPlanLine, cloudPlanView, cloudTrialNotice, cloudTrialView,
+import { buyOfferAllowed, CLOUD_SOURCES, cloudPlanFromAccount, cloudPlanFromSnapshot, cloudAddView, cloudCreditLine, cloudIntroView, cloudNoticeKind, cloudPlanLine, cloudPlanView, cloudTrialNotice, cloudTrialView,
   cloudBeatTerms, dueToday, moneyBackLine, offerPlan, offerTrialDays, personalAmount, planRow, planTerms, sameTerms, trialTimeline, usd, type CloudSignInPhase } from "./cloud-plan";
 import { setLocale } from "./i18n";
 
@@ -315,5 +315,33 @@ describe("why a step of the dialog ended without going on", () => {
     expect(cloudAddView({ status: "signed-out" }, OFFER, at)).toMatchObject({ kind: "offer", notice: null });
     const free: CloudAccountState = { status: "connected", account: { id: "a", email: "person@example.test" }, entitlement: { plan: "free", status: "inactive", expiresAt: null, version: 1 } };
     expect(cloudAddView(free, OFFER, { ...at, conflict: true })).toMatchObject({ kind: "offer", notice: "preparing" });
+  });
+});
+
+describe("the Cloud plan", () => {
+  const trial = { state: "active", tier: "pro", endsAt: 1, amount: 4900, chargeAt: 1, holdUntil: null };
+  const entitlement = (patch: Record<string, unknown>) => ({ plan: "pro", status: "active", expiresAt: null, version: 1, ...patch });
+
+  it("reads a desktop's Cloud account: unknown while it cannot tell, none when signed out or not paying", () => {
+    expect(cloudPlanFromAccount({ status: "signed-out", message: "restoring" })).toEqual({ plan: "unknown" });
+    expect(cloudPlanFromAccount({ status: "signed-out" })).toEqual({ plan: "none" });
+    for (const status of ["connecting", "reauth-required", "unavailable"] as const) expect(cloudPlanFromAccount({ status }), status).toEqual({ plan: "unknown" });
+    expect(cloudPlanFromAccount(null)).toEqual({ plan: "unknown" });
+    const connected = (patch: Record<string, unknown>, extra: Record<string, unknown> = {}) => cloudPlanFromAccount({ status: "connected", entitlement: entitlement(patch), ...extra } as never);
+    expect(connected({})).toEqual({ plan: "pro", trial: false });
+    expect(connected({ tier: "personal" }, { trial })).toEqual({ plan: "personal", trial: true });
+    expect(connected({ tier: "a-tier-from-a-newer-admin" })).toEqual({ plan: "other", trial: false });
+    expect(connected({ tier: "max", status: "inactive" })).toEqual({ plan: "none", trial: false });
+    expect(connected({ plan: "free" }, { trial })).toEqual({ plan: "none", trial: true });
+  });
+
+  it("reads a Cloud page's own plan, where a paid plan whose payment needs attention counts as none", () => {
+    expect(cloudPlanFromSnapshot({ status: "paid" })).toEqual({ plan: "pro", trial: false });
+    expect(cloudPlanFromSnapshot({ status: "paid", tier: "max" })).toEqual({ plan: "max", trial: false });
+    expect(cloudPlanFromSnapshot({ status: "paid", tier: "a-tier-from-a-newer-admin" })).toEqual({ plan: "other", trial: false });
+    expect(cloudPlanFromSnapshot({ status: "attention", tier: "pro", trial } as never)).toEqual({ plan: "none", trial: true });
+    expect(cloudPlanFromSnapshot({ status: "none" })).toEqual({ plan: "none", trial: false });
+    for (const status of ["checking", "signin"] as const) expect(cloudPlanFromSnapshot({ status }), status).toEqual({ plan: "unknown" });
+    expect(cloudPlanFromSnapshot(undefined)).toEqual({ plan: "unknown" });
   });
 });

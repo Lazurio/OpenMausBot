@@ -1,0 +1,31 @@
+{
+  "area": "Telemetry to upstream",
+  "why": "Upstream sends product analytics, and the e-mail its welcome tour asks for, to its own PostHog project; an Environment's data never goes to upstream or a third party.",
+  "files": [
+    "apps/docs/content/docs/security/analytics.mdx",
+    "docs/analytics.md",
+    "scripts/testing/analytics-docs.test.ts",
+    "src/components/AnalyticsRow.tsx",
+    "src/components/onboarding/reel/scenes/Hands.test.ts",
+    "src/components/onboarding/reel/scenes/Hands.tsx",
+    "src/components/onboarding/reel/scenes/Terminal.tsx",
+    "src/hooks/use-usage-snapshot.test.ts",
+    "src/hooks/use-usage-snapshot.ts",
+    "src/lib/analytics.test.ts",
+    "src/lib/analytics.wire.test.ts",
+    "src/lib/usage-snapshot.test.ts",
+    "src/lib/usage-snapshot.ts"
+  ],
+  "forbidden": [
+    "posthog-js",
+    "us.i.posthog.com",
+    "phc_m2hP39w8y2gLPvHgDvSXAu6xcZ3agjf4ruL56rGcMZEe",
+    "let you know when big things ship",
+    "real work on their own computer",
+    "settings.analytics.",
+    "onboarding.reel.hands.",
+    "onboarding.reel.terminal.",
+    "Settings → General → Usage analytics"
+  ],
+  "routes": []
+}

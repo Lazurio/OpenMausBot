@@ -453,9 +453,8 @@ see [Other model providers](apps/docs/content/docs/providers/model-providers.mdx
 
 ## Privacy
 
-Usage analytics are optional and anonymous: product events and a once-a-day count of what is set up, never keys,
-names, addresses or conversations. Turn them off in Settings → General → Usage analytics;
-[`docs/analytics.md`](docs/analytics.md) lists every event and property.
+Lazurio's distribution (`Lazurio/OpenMausBot`) sends no usage analytics: it ships neither upstream's analytics
+client nor its key, and the welcome tour asks for no name or e-mail.
 
 ## Support the project
 

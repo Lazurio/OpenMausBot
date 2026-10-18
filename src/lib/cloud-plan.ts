@@ -1,5 +1,6 @@
 import type { CloudAccountState, CloudPlanSnapshot } from "../../electron/cloud-account.mjs";
 import type { CloudCredit, CloudOffer, CloudOfferPlan, CloudSetupStep, CloudTrial, CloudTrialState } from "../../electron/cloud-home.mjs";
+import { allow, CLOUD_TIER } from "@/lib/analytics-allowlist";
 import { activeLocale, t } from "@/lib/i18n";
 
 const PLAN_LABEL: Record<string, string> = { personal: "Personal", pro: "Pro", max: "Max" };
@@ -298,4 +299,22 @@ export function cloudAddView(account: CloudAccountState | null | undefined, offe
     }
     default: return { kind: "settings" };
   }
+}
+
+// Lazurio overlay (DEV-6673 M3): moved here from the removed usage snapshot (upstream's analytics).
+export type CloudPlanFacts = { plan: "personal" | "pro" | "max" | "other" | "none" | "unknown"; trial?: boolean };
+
+const tierPlan = (tier: string | undefined): CloudPlanFacts["plan"] => tier === undefined ? "pro" : allow(tier, CLOUD_TIER);
+
+export function cloudPlanFromAccount(account: CloudAccountState | null | undefined): CloudPlanFacts {
+  if (account?.status === "signed-out" && account.message !== "restoring") return { plan: "none" };
+  if (account?.status !== "connected") return { plan: "unknown" };
+  const paid = account.entitlement?.plan === "pro" && account.entitlement.status === "active";
+  return { plan: paid ? tierPlan(account.entitlement?.tier) : "none", trial: trialRunning(account.trial) };
+}
+
+export function cloudPlanFromSnapshot(snapshot: CloudPlanSnapshot | null | undefined): CloudPlanFacts {
+  if (snapshot?.status === "paid") return { plan: tierPlan(snapshot.tier), trial: trialRunning(snapshot.trial) };
+  if (snapshot?.status === "none" || snapshot?.status === "attention") return { plan: "none", trial: trialRunning(snapshot.trial) };
+  return { plan: "unknown" };
 }
