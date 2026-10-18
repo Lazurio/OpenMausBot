@@ -1,7 +1,6 @@
 {
   "companion/test/mdns.test.ts": 5,
   "companion/test/proxy.test.ts": 6,
-  "enterprise/server/workspace-access.test.ts": 7,
   "evals/evals.test.ts": 37,
   "evals/golden/golden.test.ts": 5,
   "evals/runners/run-skill-bench.test.ts": 23,

@@ -1,5 +1,7 @@
 # Hosted workspace sign-in and revocation
 
+> **Upstream only.** Lazurio's distribution (`Lazurio/OpenMausBot`) ships the open-source edition without `enterprise/` (see `LAZURIO.md`), so the steps below that use the enterprise layer run only in an upstream OpenMausBot checkout.
+
 This repository ships the workspace-side protocol adapter, not a hosted
 administration console. The adapter is optional, belongs to the licensed
 `enterprise/` layer, and does not add dependencies to the desktop or ordinary

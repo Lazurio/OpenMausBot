@@ -1,5 +1,7 @@
 # Enterprise layer loading and license expiry
 
+> **Upstream only.** Lazurio's distribution (`Lazurio/OpenMausBot`) ships the open-source edition without `enterprise/` (see `LAZURIO.md`), so the steps below that use the enterprise layer run only in an upstream OpenMausBot checkout.
+
 ## Sub-features
 
 - Find the bundled enterprise layer in every shipped layout: a checkout
