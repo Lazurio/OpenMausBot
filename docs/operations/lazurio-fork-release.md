@@ -28,12 +28,15 @@ The archive is **upstream's own npm package**, built from this source by
 upstream's `scripts/build-npm-package.mjs` exactly as upstream's
 `npm-package.yml` builds `openmausbot` for npm, and packed with `npm pack`.
 Its layout is therefore the npm layout: everything under `package/`
-(`cli.js`, `dist-server/`, `dist/`, `skills/`, `package.json`, `LICENSE`,
-`README.md`), no `node_modules`, run with Node 24 or newer. The differences
-from the upstream npm tarball are the version in `package/package.json` (the
-release version), the Lazurio overlay in the code, and no `enterprise/` layer:
-this fork ships the open-source edition, because the Enterprise License
-forbids redistribution and hosting for third parties. The same bytes also install with
+(`cli.js`, `dist-server/`, `dist/`, `skills/`, `lazurio/teams/`,
+`package.json`, `LICENSE`, `README.md`), no `node_modules`, run with Node 24
+or newer. The differences from the upstream npm tarball are the version in
+`package/package.json` (the release version), the Lazurio overlay in the
+code, `lazurio/teams/` with the Steward team file
+(`package/lazurio/teams/steward.openmaus.json`), which an Environment imports
+from the installed release, and no `enterprise/` layer: this fork ships the
+open-source edition, because the Enterprise License forbids redistribution
+and hosting for third parties. The same bytes also install with
 `npm install -g ./openmausbot-<version>-linux-x64.tar.gz`.
 
 The JavaScript is platform independent; `linux-x64` names the platform the
@@ -115,6 +118,7 @@ release offers it.
 | `lazurio: ship the open-source edition, without enterprise/` | `enterprise/` is under the OpenMausBot Enterprise License, which forbids redistribution and hosting for third parties (issue #35). Removes the folder; `lazurio/vitest.config.mjs` skips the three upstream tests that read its source. Lazurio-only. |
 | `server: OMB_DEFAULT_BOT_CWD, a default working folder for every new bot` | Bots in a Lazurio Environment start in the Lazurio Folder, read its `AGENTS.md` and work in its worktrees (decision 0169). Applies to every creation path, through the Store's `createBot` and `applyTeamSetup`; a request that names a folder, or explicitly none, decides for itself; an unusable value stops the server at start. Unset keeps upstream behaviour. Upstream-friendly; propose it upstream. |
 | `server: GitHub intake, model-free pull request triggers for a bot` | Lazurio Environments hand GitHub review and publication work to a bot team without a model polling (decision 0169). Off unless `OMB_GITHUB_INTAKE=1`. Lazurio-only files, `WebhookManager.deliver()` and a route module that `server/index.ts` builds, pushes into `ROUTES`, starts and stops; see [`docs/lazurio-github-intake.md`](../lazurio-github-intake.md). Upstream-friendly apart from the Lazurio publish marker. |
+| `lazurio: Steward team for the GitHub intake` | The team Lazurio Organizations run behind the intake: leader Henry (Chief of Staff, delegating through `coordinate_bots`) and three workers with exact-head review and explicit-publication rules, as a portable team file (`lazurio/teams/steward.openmaus.json`) the archive ships. Lazurio-only; never proposed upstream. |
 | `release: Lazurio distribution` | This runbook, `LAZURIO.md`, `scripts/lazurio-release-archive.sh`, the contract and CI-scope tests and the workflows `lazurio-fork-ci.yml`, `lazurio-archive.yml` and `lazurio-release.yml`. |
 
 Drop a commit as soon as upstream offers an equivalent. Upstream files the
