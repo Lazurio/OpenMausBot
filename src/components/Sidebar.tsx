@@ -1150,7 +1150,6 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
   };
 
   const macInset = capabilities.windowChrome === "mac-inset";
-  const browser = capabilities.host.label === "Browser";
   const draggableChrome = macInset || capabilities.windowChrome === "win-caption";
   // SAFETY: Electron's -webkit-app-region is not in React's CSSProperties type; the renderer accepts it as an inline
   // style.
