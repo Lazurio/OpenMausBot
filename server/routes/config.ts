@@ -507,46 +507,31 @@ export function createConfigRoutes(deps: ConfigRouteDeps): RouteHandler {
       let configWriteCommitted = false;
       const enginesBefore = engineLaunches(providerConfigs());
       const externalSecretStorage = url.searchParams.get("secretStorage") === "external";
-      try {
-        // Before the provider commit, so a failed write never leaves a foreign voice id to speak.
-        if (changingVoiceProvider) store.clearVoiceSelections();
-        if (externalSecretStorage) {
-          // Supplied credentials are already in the OS-encrypted store: tombstone them so no older plaintext survives the merge.
-          const persisted = structuredClone(patch);
-          if (persisted.xai?.key !== undefined) persisted.xai.key = "";
           if (persisted.composio?.apiKey !== undefined) persisted.composio.apiKey = "";
           if (persisted.box?.token !== undefined) persisted.box.token = "";
-          if (persisted.opencodeGo?.apiKey !== undefined) persisted.opencodeGo.apiKey = "";
-          if (persisted.tts?.key !== undefined) persisted.tts.key = "";
-          if (persisted.tts?.fishKey !== undefined) persisted.tts.fishKey = "";
-          if (persisted.decider?.key !== undefined) persisted.decider.key = "";
-          if (persisted.decider?.openrouterKey !== undefined) persisted.decider.openrouterKey = "";
-          if (persisted.decider?.workersAiToken !== undefined) persisted.decider.workersAiToken = "";
-          if (persisted.imageGen?.key !== undefined) persisted.imageGen.key = "";
-          if (persisted.imageGen?.customApiKey !== undefined) persisted.imageGen.customApiKey = "";
-          if (persisted.live?.key !== undefined) persisted.live.key = "";
-          if (persisted.treg?.key !== undefined) persisted.treg.key = "";
-          saveConfig(persisted);
-          configWriteCommitted = true;
-          syncCredentialEnv(patch);
-          Object.assign(cfg, loadConfig());
-        } else {
-          saveConfig(patch);
-          configWriteCommitted = true;
-          // loadConfig prefers env over the file for credentials, so the env must follow the save.
-          syncCredentialEnv(patch);
-          Object.assign(cfg, loadConfig());
-        }
-      } catch (error) {
-        if (configWriteCommitted) {
-          for (const request of browserCleanupRequests) {
-            const committed = browserCleanup.commit(request);
-            void browserCleanup.ensure(committed);
-          }
-        } else {
-          for (const request of browserCleanupRequests) browserCleanup.abort(request);
-        }
-        throw error;
+      // Before the provider commit, so a failed write never leaves a foreign voice id to speak.
+      if (changingVoiceProvider) store.clearVoiceSelections();
+      if (externalSecretStorage) {
+        // Supplied credentials are already in the OS-encrypted store: tombstone them so no older plaintext survives the merge.
+        const persisted = structuredClone(patch);
+        if (persisted.xai?.key !== undefined) persisted.xai.key = "";
+        if (persisted.opencodeGo?.apiKey !== undefined) persisted.opencodeGo.apiKey = "";
+        if (persisted.tts?.key !== undefined) persisted.tts.key = "";
+        if (persisted.tts?.fishKey !== undefined) persisted.tts.fishKey = "";
+        if (persisted.decider?.key !== undefined) persisted.decider.key = "";
+        if (persisted.decider?.openrouterKey !== undefined) persisted.decider.openrouterKey = "";
+        if (persisted.decider?.workersAiToken !== undefined) persisted.decider.workersAiToken = "";
+        if (persisted.imageGen?.key !== undefined) persisted.imageGen.key = "";
+        if (persisted.imageGen?.customApiKey !== undefined) persisted.imageGen.customApiKey = "";
+        if (persisted.live?.key !== undefined) persisted.live.key = "";
+        saveConfig(persisted);
+        syncCredentialEnv(patch);
+        Object.assign(cfg, loadConfig());
+      } else {
+        saveConfig(patch);
+        // loadConfig prefers env over the file for credentials, so the env must follow the save.
+        syncCredentialEnv(patch);
+        Object.assign(cfg, loadConfig());
       }
       for (const key of resetKeys) if (key) forgetKey(key);
       // A saved key reaches an engine through the environment its status read uses, often with no reload.
@@ -588,45 +573,13 @@ export function createConfigRoutes(deps: ConfigRouteDeps): RouteHandler {
           browserReferenceCleanupError = error;
         }
       }
-      const changedEngines = new Set(changedInstanceIds(enginesBefore, engineLaunches(providerConfigs())));
-      // Revoked before any await: a changed engine's old children are invalid at once.
-      revokeEngineCapabilities(changedEngines);
-      // Commit failures wait until every mandatory effect has run: no journal failure may leave a bearer or stale engines active.
-      const finalized = await finalizeBrowserCleanupMutation({
-        requests: browserCleanupRequests,
-        referenceError: browserReferenceCleanupError,
-        commit: (request) => browserCleanup.commit(request),
-        ensure: (request) => browserCleanup.ensure(request),
-        mandatory: async () => {
-          let mandatoryError: unknown = null;
-          if (disablingBuiltInBrowser) {
-            try {
-            } catch (error) {
-              mandatoryError = error;
-            }
-          }
-          if (changedEngines.size > 0) {
-            try {
-              await reloadProviders(enginesBefore);
-            } catch (error) {
-              if (!mandatoryError) mandatoryError = error;
-            }
-          }
-          const status = configStatus();
-          broadcast({ kind: "config", ...status });
-          if (patch.threads !== undefined) {
-            drainQueuedSends();
-          }
-          if (mandatoryError) throw mandatoryError;
-          return status;
-        },
-      });
-      // Asserted after every mandatory post-commit effect, so the runtime matches the config even on a 503.
-      requireBrowserCleanupAcknowledged(
-        finalized.acknowledgements.every(Boolean),
-        removedBrowserProfileIds.length === 1 ? "The browser profile" : "The browser profiles",
-      );
-      return json(res, 200, configForAccess(finalized.value, auth));
+      const status = configStatus();
+      broadcast({ kind: "config", ...status });
+      if (patch.threads !== undefined) {
+        drainQueuedSends();
+      }
+      if (reloadError) throw reloadError;
+      return json(res, 200, configForAccess(status, auth));
       } finally {
         for (const provider of transitioningProviders) computerProviderConfigTransitions.delete(provider);
         if (changingLocalVmMode) localVmModeChangeBusy.set(false);

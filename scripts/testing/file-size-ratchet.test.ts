@@ -46,6 +46,8 @@ const LINES: Record<string, number> = {
   "server/cli.ts": 1080,
   "src/components/PluginsPanel.tsx": 1034,
   "server/org-library.ts": 1003,
+  // Lazurio overlay: the GitHub intake, one Lazurio-only module (LAZURIO.md).
+  "server/github-intake.ts": 1040,
   "src/components/AttachmentPreview.tsx": 1044,
 };
 

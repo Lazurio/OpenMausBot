@@ -715,9 +715,6 @@ export function sharedComputersEnabled(cfg: AppConfig): boolean {
 
 export function claudeUserMcpEnabled(cfg: Pick<AppConfig, "features">): boolean {
   return cfg.features?.claudeUserMcp === true;
-}
-
-
 export function engineLaunches(configs: InstanceConfigMap, env: Record<string, string | undefined> = process.env): Record<string, unknown> {
   return Object.fromEntries(Object.entries(configs).map(([id, entry]) =>
     [id, { ...entry, fallbackEnv: Object.fromEntries(fallbackEnv(entry).map((name) => [name, env[name]])) }]));

@@ -580,6 +580,21 @@ export class WebhookManager {
     }
   }
 
+  /** A delivery from a trusted producer inside this server (the Lazurio GitHub intake): the
+   * same dispatch as an HTTP delivery (dedupe by delivery id, limits, attempt log, queued run and the UNTRUSTED event
+   * wrapping), without the capability secret. Null for an unknown webhook; a room webhook posts only through its URL. */
+  deliverTrusted(id: string, event: WebhookEvent): WebhookReceiveResult | null {
+    const trigger = this.webhooks.find((candidate) => candidate.id === id);
+    if (!trigger) return null;
+    if (trigger.delivery === "post" && trigger.groupId) fail(400, "a room webhook posts through its webhook URL");
+    try {
+      return this.dispatch(trigger, event, false);
+    } catch (error) {
+      this.rejectAttempt(trigger, event, error);
+      throw error;
+    }
+  }
+
   /** A room post synthesizes audio, so only that branch is a Promise; every other delivery stays synchronous. */
   private deliver(trigger: StoredWebhookTrigger, event: WebhookEvent, byPerson: boolean): WebhookReceiveResult | Promise<WebhookReceiveResult> {
     return trigger.delivery === "post" && trigger.groupId ? this.deliverRoom(trigger, event, byPerson) : this.dispatch(trigger, event, byPerson);

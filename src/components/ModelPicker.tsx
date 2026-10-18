@@ -905,10 +905,8 @@ export function ModelPicker({
                     <p className="mt-2 px-1.5 text-[12px] leading-4 text-ink-tertiary">
                       {railInstance.claudeAccount.signInShell === "powershell" && `${t("engines.account.powershell")} `}
                       {t("engines.account.signInHint")}
-                    </p>
-                  )}
                   <p className="mt-2 text-center text-[12px] leading-4 text-ink-tertiary">
-                    {railInstance.snapshot.chatgptPlan ? t("engineSetup.chatgpt.modelsAfterSignIn") : pane === "main" && official.length > 0
+                    {pane === "main" && official.length > 0
                       ? official.length === 1
                         ? t("model.afterSetupOne")
                         : t("model.afterSetupMany", { count: official.length })

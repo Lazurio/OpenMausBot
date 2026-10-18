@@ -95,6 +95,11 @@ jobs:
             server/index.ts
             server/routes/bots-create.ts
             server/store.ts
+            # The GitHub intake: WebhookManager.deliver() hands its events to
+            # the webhook queue in-process. Its wiring (one route module, start
+            # and stop) also changes server/index.ts, scripts/control-omb.ts and
+            # the file-size ratchet (index.ts, the new github-intake.ts), listed above.
+            server/webhooks.ts
           )
           # Lazurio ships the open-source edition: upstream's enterprise/
           # folder (OpenMausBot Enterprise License, no redistribution or

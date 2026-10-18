@@ -1293,9 +1293,6 @@ function syncManagedComposioCredentials() {
     });
   } catch (error) {
     slog(`connected-apps credential sync failed: ${error?.message ?? error}`);
-  }
-}
-
 let cuaReady = Promise.resolve({ mode: "unavailable", reason: "not-started" });
 const androidDevice = createAndroidDeviceController({ resourcesPath: process.resourcesPath });
 const displayMediaGuard = createDisplayMediaGuard();

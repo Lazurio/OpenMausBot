@@ -53,6 +53,12 @@ Folder, read its agent instructions and call the `composio` CLI the operator
   `newBotDefaults.profile.cwd` covers only New bot. `server/default-bot-cwd.ts`
   plus small hooks in the Store's two creation points; see
   [`docs/self-hosting.md`](docs/self-hosting.md#where-new-bots-work).
+- **GitHub intake**: model-free polling under the Environment's signed-in
+  `gh` that hands a bot only real pull request work, a review on a new head
+  or an explicitly activated assignment handoff, through the webhook queue
+  ([`docs/lazurio-github-intake.md`](docs/lazurio-github-intake.md)). Off
+  unless `OMB_GITHUB_INTAKE=1`. Wired through the route module
+  `server/routes/github-intake.ts`.
 
 How to release, rebuild on a new upstream tag, what the overlay contains and
 how Machines consume a release:

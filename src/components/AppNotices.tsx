@@ -6,27 +6,13 @@ import { api, useStore } from "@/state/store";
 import { APP_REPOSITORY } from "@/lib/app-links";
 import { track } from "@/lib/analytics";
 import { brandStatus } from "@/lib/brand";
-import { buyOfferAllowed, cloudNoticeKind, cloudPlanView, cloudTrialNotice, cloudTrialView, offerTrialDays } from "@/lib/cloud-plan";
-import { jobRoutine, useCloudIntent } from "@/lib/cloud-intent";
-import { CLOUD_INTENT_GIVEN, cloudSetupStage } from "@/lib/cloud-setup";
 import { cornerPopupWaits, firstReplyPending } from "@/lib/corner-popup";
-import { CLOUD_INTRO, CLOUD_NOTICE, CLOUD_PRO_UPDATE_NOTICE, CLOUD_TRIAL_NOTICE, dismissNotice, introShown, introStage, nextNotice, noticeSeen, PRODUCT_HUNT_NOTICE, PRODUCT_HUNT_UNTIL, PRODUCT_HUNT_URL, STAR_NOTICE, UPDATES_CONSENT_NOTICE, USE_MY_COMPUTER_NOTICE, usedBefore } from "@/lib/notices";
-import { cloudSignInDue, onboardingCloudOffered, welcomeFinishedThisLaunch, type WelcomeViewer } from "@/lib/onboarding";
-import { launchDialogShown, markLaunchDialog } from "@/lib/launch-dialogs";
+import { dismissNotice, nextNotice, noticeSeen, PRODUCT_HUNT_NOTICE, PRODUCT_HUNT_UNTIL, PRODUCT_HUNT_URL, STAR_NOTICE, usedBefore } from "@/lib/notices";
+import type { WelcomeViewer } from "@/lib/onboarding";
 import { useUpdaterState } from "@/lib/updater";
-import { activeLocale, t } from "@/lib/i18n";
-import { useUseMyComputerDue } from "@/lib/use-my-computer-notice";
-import { engineReady } from "./EngineLibrary";
-import { CLOUD_NOTICE_CARD, cloudNoticeStep, CloudNoticeCard } from "./CloudNotice";
-import { CLOUD_PRO_POPUP_SOURCE, CloudProPopup, cloudProCloudPageView, cloudProPopupView, reportCloudProPopup, useDesktopNotices, useOtherDialogOpen,
-  type CloudProPopupAction } from "./CloudProPopup";
-import { CloudTrialIntroCard } from "./CloudTrialIntro";
-import { useMoveQuiet } from "./CloudSendStrip";
-import { CloudTrialNoticeCard, useCloudPlanSnapshot } from "./CloudTrialNotice";
-import { LinkButton, NoticeCard, NoticeToast, NotNowButton } from "./NoticeCard";
+import { t } from "@/lib/i18n";
+import { LinkButton, NoticeCard, NotNowButton } from "./NoticeCard";
 import { localDesktopPage } from "./onboarding/WelcomeGate";
-import { UpdatesConsentDialog, updatesConsentBridge, useUpdatesConsent } from "./UpdatesConsent";
-import { useMausBotWelcomeDue } from "./MausBotWelcome";
 
 function StarCard({ onDismiss }: { onDismiss: () => void }) {
   return <NoticeCard titleId="github-star-title" notice="github-star" icon={Star} title={t("star.title")} onDismiss={onDismiss}>
@@ -102,103 +88,11 @@ export function AppNotices({ quiet = false, viewer = null, now = Date.now }: { q
   }, []);
   const view = bridge ? cloudPlanView(account) : null;
   const record = state.config?.onboarding;
-  const introAllowed = Boolean(bridge) && brandStatus().source !== "file" && organization !== true && !onboardingCloudOffered(record);
-  const stage = introStage(record, now());
-  const trialDue = cloudTrialNotice(plan);
-  const popupHere = Boolean(desktop) && (local ? Boolean(bridge) : viewer?.cloudHome === true) && brandStatus().source !== "file";
-  const seenHere = local && (noticeSeen(record, CLOUD_PRO_UPDATE_NOTICE) || onboardingCloudOffered(record));
-  const popupPending = popupHere && !seenHere && (!desktopState
-    || (desktopState.cloud && !desktopState.seen.includes(CLOUD_PRO_UPDATE_NOTICE)));
-  const wantOffer = Boolean(bridge?.offer) && ((introAllowed && view !== null && buyOfferAllowed(view) && stage !== "done")
-    || (popupPending && view !== null && buyOfferAllowed(view)));
-  const offerKey = wantOffer ? `${view?.kind}:${JSON.stringify(account?.offer ?? null)}` : null;
-  useEffect(() => {
-    if (!offerKey || !bridge?.offer) return;
-    let active = true;
-    const answer = (next: CloudOffer | null) => { if (active) { setOffer(next); setOfferFor(offerKey); } };
-    void bridge.offer().then(answer, () => answer(null));
-    return () => { active = false; };
-  }, [offerKey, bridge]);
-  useEffect(() => {
-    if (seenHere && desktopState && !desktopState.seen.includes(CLOUD_PRO_UPDATE_NOTICE)) void desktop?.seen(CLOUD_PRO_UPDATE_NOTICE).catch(() => {});
-  }, [seenHere, desktopState]);
-  const page = local ? "local" : "my_cloud";
-  const popupState = !popupPending ? null : !desktopState || !viewer ? "loading"
-    : bridge ? cloudProPopupView(account, !bridge.offer ? null : offerFor === offerKey ? offer : undefined)
-    : planBridge ? cloudProCloudPageView(plan) : "loading";
-  const popupView = typeof popupState === "object" ? popupState : null;
-  const popupBlocked = useOtherDialogOpen(popupPending) || Boolean(state.liveCall && state.liveCall.status !== "ended");
-  const consentDue = consent.state?.available === true && consent.state.due && !consentDone;
-  const consentBlocked = useOtherDialogOpen(consentDue) || Boolean(state.liveCall && state.liveCall.status !== "ended");
-  const consentFact = !consentHere || consentDone ? false : consent.state === undefined ? null : consentDue ? (consentBlocked ? null : true) : false;
-
-  const trial = plan?.trial;
-  const key = trial ? trialKey(trial) : null;
-  const setupRecord = record && (intent.pending || intent.sent) ? { ...record, hintsSeen: [...record.hintsSeen, CLOUD_INTENT_GIVEN] } : record;
-  const setupHere = cloudSignInDue(viewer, state, engineReady)
-    || ["waiting", "shown"].includes(cloudSetupStage({ viewer, connected: state.connected, enginesKnown: state.instances.length > 0,
-      engineReady: state.instances.some(engineReady), onboarding: setupRecord, planned: Boolean(jobRoutine(state.routines, intent.sent)) }));
-  const waits = cornerPopupWaits(state, updater, { quiet, idle: true, viewer }) || Boolean(state.cloudAdd) || state.cloudHowTo || setupHere;
-  const kind = view ? cloudNoticeKind(view, account) : null;
-  const introDue = (): boolean | null => {
-    if (!introAllowed || !view) return false;
-    if (view.kind === "unknown" || view.kind === "connecting" || organization === null) return null;
-    if (!buyOfferAllowed(view) || !usedBefore(state.bots)) return false;
-    if (offer === undefined) return null;
-    if (offerTrialDays(offer) === null) return false;
-    return introOpen || stage === "due" ? true : null;
-  };
-  const cards = Boolean(bridge || planBridge);
-  // Promotions never land on a new install's first chat: they wait for its first reply, and the full-screen Cloud Pro popup
-  // also for a launch after the one whose welcome just finished. Account and billing notices keep their own rules.
-  // Unknown (null) until the bots have loaded, so nothing lower in the queue flashes up before them.
+  const waits = cornerPopupWaits(state, updater, { quiet, idle: true, viewer });
   const firstChat = firstReplyPending(state);
-  // MausBot's first-launch card goes first: the popup and the question wait while it is due. The popup skips a launch the
-  // card used; the question may follow the card once it closes, as it follows the popup.
-  const afterWelcome = welcomeFinishedThisLaunch() || launchDialogShown() === "mausbot" || firstChat;
-  const consentWaits = welcomeFinishedThisLaunch() || firstChat;
-  const mausBotFirst = mausBot.due;
-  const consentNow = consentWaits === true || consentFact === false ? false : consentWaits === null || mausBotFirst ? null : consentFact;
-  // After a closed popup only the product-updates question may follow in this launch; nothing else does.
-  // Main's Use my Mac popup is full-screen too: it waits and skips a launch as the Cloud Pro popup does.
-  const notice = waits ? null : closed ? (consentNow === true ? UPDATES_CONSENT_NOTICE : null) : cards || popupHere || consentHere || Boolean(lending?.ask) ? nextNotice({
-    [USE_MY_COMPUTER_NOTICE]: moving || macDue === false || afterWelcome === true ? false
-      : macDue === null || moving === null || afterWelcome === null || mausBotFirst || macBlocked ? null : true,
-    [CLOUD_PRO_UPDATE_NOTICE]: !popupPending || moving || afterWelcome === true ? false
-      : afterWelcome === null || mausBotFirst || popupState === "loading" || moving === null || (popupView !== null && popupBlocked) ? null : popupView !== null,
-    [UPDATES_CONSENT_NOTICE]: consentNow,
-    [PRODUCT_HUNT_NOTICE]: !cards || moving || firstChat === true || brandStatus().source === "file" || now() >= PRODUCT_HUNT_UNTIL ? false
-      : organization === null || moving === null || firstChat === null ? null : !organization,
-    [CLOUD_INTRO]: moving ? false : moving === null ? null : introDue(),
-    [CLOUD_TRIAL_NOTICE]: planBridge && plan === null ? null : Boolean(key && (trialDue || trialOpen === key)),
-    [CLOUD_NOTICE]: !view ? false : view.kind === "unknown" ? null
-      : Boolean(kind && !noticeSeen(record, CLOUD_NOTICE_CARD[kind].dismissed)),
-    [STAR_NOTICE]: !bridge || moving || brandStatus().source === "file" || !usedBefore(state.bots) ? false : moving === null ? null : true,
-  }, id => id === CLOUD_INTRO ? stage === "done" && !introOpen
-    : id === STAR_NOTICE || id === PRODUCT_HUNT_NOTICE ? noticeSeen(record, id) : false) : null;
-
-  const shownKey = notice === CLOUD_TRIAL_NOTICE ? key : notice;
-  useEffect(() => {
-    if (!shownKey) return;
-    // The popups and the question own this launch: MausBot's first-launch card waits for a later one.
-    if (shownKey === USE_MY_COMPUTER_NOTICE || shownKey === CLOUD_PRO_UPDATE_NOTICE || shownKey === UPDATES_CONSENT_NOTICE) markLaunchDialog("notices");
-    if (shownKey === CLOUD_INTRO) {
-      setIntroOpen(true);
-      track("cloud_card_shown", { variant: view?.kind === "signed-out" ? "signed_out" : "free" });
-      const patch = introShown(record, now());
-      if (patch) void api("/api/config", { method: "PUT", body: JSON.stringify(patch) }).then(config => dispatch({ type: "configStatus", config })).catch(() => {});
-    } else if (notice === CLOUD_TRIAL_NOTICE && trialOpen !== shownKey) {
-      setTrialOpen(shownKey);
-      void planBridge?.noticeSeen?.().catch(() => {});
-    } else if (shownKey === USE_MY_COMPUTER_NOTICE && !macAsking) {
-      // Main draws this popup itself: the page only says now, and waits for it to be answered or put off.
-      setMacAsking(true);
-      void lending?.ask?.(activeLocale()).catch(() => {}).finally(() => { setMacAsked(true); close(); });
-    } else if (shownKey === CLOUD_PRO_UPDATE_NOTICE && !popupShown && popupView) {
-      setPopupShown(true);
-      void desktop?.shown(CLOUD_PRO_UPDATE_NOTICE).then(first => { if (first) reportCloudProPopup("shown", popupView, page); }, () => {});
-    }
-  }, [shownKey]);
+  const notice = !closed && !waits && cards ? nextNotice({
+    [STAR_NOTICE]: brandStatus().source !== "file" && usedBefore(state.bots),
+  }, id => noticeSeen(record, id)) : null;
 
   const save = (id: string) => {
     const patch = dismissNotice(record, id);

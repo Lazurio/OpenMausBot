@@ -627,6 +627,7 @@ import { createComputerRoutes } from "./routes/computers.ts";
 import { createStatusRoutes } from "./routes/status.ts";
 import { findAntigravityLeftovers, removeAntigravityLeftovers } from "./drivers/antigravity-temp.ts";
 import { createLiveRoutes } from "./routes/live.ts";
+import { createLazurioGithubIntake } from "./routes/github-intake.ts";
 import { createNotificationRoutes } from "./routes/notifications.ts";
 import { createTodayRoutes } from "./routes/today.ts"; import { createSidebarSectionRoutes } from "./routes/sidebar-sections.ts";
 import { createToolTimingRoute, createUsageRoutes } from "./routes/usage.ts";
@@ -12916,6 +12917,10 @@ ROUTES.push(createDataRoutes({
   compileChart, validateVegaLite, renderer: chartRenderer,
   exportRoots: dataExportRoots,
 }));
+// Lazurio GitHub intake (server/routes/github-intake.ts): off unless OMB_GITHUB_INTAKE=1.
+const githubIntake = createLazurioGithubIntake({ dataDir: DATA_DIR, webhooks, bots: () => store.bots, maintenance: workspaceMaintenance,
+  runState: (runId) => routines!.listRuns().find((run) => run.id === runId) ?? null });
+ROUTES.push(githubIntake.routes);
 ROUTES.push(createLiveRoutes({
   calls: liveCalls,
   resolveTarget: (botId, threadId) => {
@@ -16033,6 +16038,7 @@ server.listen(PORT, "127.0.0.1", async () => {
   moveFreeze.hold(() => { routines!.start(); proactive.start(); }, () => { routines!.stop(); proactive.stop(); });
   limitClock.start();
   moveFreeze.hold(() => memoryUpkeep.start(), () => memoryUpkeep.stop());
+  githubIntake.start();
 });
 
 // Tunnel requests have no peer address, which request-auth treats as proxied: a session is required, never loopback trust.
@@ -16094,6 +16100,7 @@ const gracefulShutdown = createGracefulShutdown({
       routines?.close(); void appTriggers.stop();
       calendarCalls?.stop();
       memoryUpkeep.stop();
+      githubIntake.stop();
       cacheKeepWarm.dispose();
       skillReview.stop();
       webhookIngress?.server.close();
