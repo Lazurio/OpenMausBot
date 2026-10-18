@@ -11,7 +11,6 @@ import { decodeInjectId, hostApiKey, localHost, mergeLocalInject } from "../loca
 import { createAcpDriver, type AcpSupport } from "./core.ts";
 import type { AcpQuestionRequest } from "./question-requests.ts";
 import { allowsTool, canUseMcpServer, narrowsNativeTools, parseToolScope } from "../../../shared/tool-scope.ts";
-import { OWN_APPS_SERVER } from "../../../shared/own-apps.ts";
 import { MAX_QUESTIONS, parseProtocolAskQuestions, pickedOptionLabels, questionAnswersById, repeatsQuestionText } from "../../../shared/ask-question.ts";
 
 export const STATIC_GROK_MODELS: ModelCatalog = {
@@ -394,36 +393,7 @@ const support: AcpSupport = {
   toolScopeCacheKey: ({ config, env, cwd }) => JSON.stringify(grokInheritedProfile(config.cli, env, cwd) ?? null),
 
   // -m on argv is not enough: session/new still starts on [models].default.
-  async configureSession({ request, sessionId, turn, currentModelId }) {
-    if (turn.toolScope !== undefined) {
-      const available = new Set([
-        ...(turn.integrations?.agents ? ["agents"] : []), ...(turn.integrations?.composio ? ["composio"] : []), ...(turn.integrations?.composioOwn ? [OWN_APPS_SERVER] : []),
-        ...(turn.integrations?.browser ? ["browser"] : []), ...(turn.integrations?.localComputer ? ["computer"] : []),
-        ...(turn.integrations?.data ? ["data"] : []), ...(turn.integrations?.highlevel ? ["highlevel"] : []), ...(turn.integrations?.device ? ["device"] : []),
-        ...Object.keys(turn.integrations?.custom ?? {}),
-      ].filter((name) => canUseMcpServer(turn.toolScope, name)));
-      const deadline = Date.now() + 10_000;
-      for (;;) {
-        const reply = await request("_x.ai/mcp/list", { sessionId, cache: true }, 10_000);
-        const catalog = reply?.result;
-        if (!Array.isArray(catalog?.servers)) throw new Error("Grok could not confirm its MCP catalog. No prompt was sent.");
-        for (const server of catalog.servers) {
-          if (server?.session?.enabled === false) continue;
-          if (!available.has(server?.name)) throw new Error("Grok has an MCP connection outside the bot's selection. Disable native MCP connections before using tool selection. No prompt was sent.");
-          if (Array.isArray(server?.session?.tools) && server.session.tools.some((tool: { name?: unknown }) => typeof tool.name !== "string" || !allowsTool(turn.toolScope, { kind: "mcp", server: server.name, name: tool.name }))) {
-            throw new Error("Grok could not enforce the selected MCP catalog. No prompt was sent.");
-          }
-        }
-        if (catalog.sessionMcpResolved === true) {
-          if ([...available].some((name) => !catalog.servers.some((server: { name?: string; session?: { enabled?: boolean; status?: string } }) => server.name === name && server.session?.enabled === true && server.session.status === "ready"))) {
-            throw new Error("Grok could not connect a selected MCP server. No prompt was sent.");
-          }
-          break;
-        }
-        if (Date.now() >= deadline) throw new Error("Grok did not confirm its selected MCP catalog in time. No prompt was sent.");
-        await delay(50);
-      }
-    }
+  async configureSession({ request, sessionId, turn }) {
     if (!turn.model) return;
     if (narrowsNativeTools(turn.toolScope)) {
       if (currentModelId !== turn.model) {

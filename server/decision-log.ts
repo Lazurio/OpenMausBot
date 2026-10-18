@@ -23,7 +23,7 @@ export type DecisionKind =
 
 /** `level`: a bot's change applied below Full access with no card; `self`: a bot's own routine applied that way (older rows
  * use it for every own change); `question`: cards a rule may never answer; `auto-fallback`: a card shown after delivery
- * failed; connector-scope: the person pre-decided it by editing a bot's connectorTools. */
+ * failed; connector-scope: the person pre-decided it by editing a bot's connected-app grants (no longer written). */
 export type DecisionSource =
   | AutoVerdictSource
   | "level"

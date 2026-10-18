@@ -7,7 +7,6 @@ import type { MemoryDoc } from "@/lib/memory";
 import type { Bot, BotSettingsSection, InstanceInfo } from "@/state/store";
 import { AVATAR_FOCUS_CENTER, AVATAR_ZOOM_MIN } from "../../shared/bot-avatar";
 import type { ManagedSkill } from "./bot-settings/SkillsSection";
-import type { BotApps } from "./bot-settings/useBotApps";
 
 // Hook-by-call-order harness: component state survives between renders, effects never run, and handlers are read off
 // the element tree.
@@ -40,7 +39,6 @@ const fixture = vi.hoisted(() => {
     saveMemory: (() => Promise.resolve({ ok: true })) as (...args: unknown[]) => Promise<unknown>,
     openExternal: (() => Promise.resolve()) as (url: string) => Promise<void>,
     derived: {} as Record<string, unknown>,
-    apps: { phase: "ready", apps: [], connectedSlugs: [] } as BotApps,
   };
 });
 vi.mock("react", async (original) => ({
@@ -89,10 +87,6 @@ vi.mock("./bot-settings/SkillsSection", async (importOriginal) => ({
   useManagedSkills: () => ({ ...fixture.skills, setReviewing: () => {}, enableReviewed: () => Promise.resolve() }),
 }));
 vi.mock("./bot-panel/use-memory-doc", () => ({ useMemoryDoc: () => fixture.memory }));
-vi.mock("./bot-settings/useBotApps", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./bot-settings/useBotApps")>()),
-  useBotApps: () => fixture.apps,
-}));
 vi.mock("@/state/store", async (importOriginal) => {
   const store = await importOriginal<typeof import("@/state/store")>();
   return {
@@ -121,7 +115,7 @@ const { PageBody, AppsPage, RoutinesPage, MemoryPage, SkillsPage, FolderPage, Br
 const { BrowserLogins } = await import("./bot-panel/browser-logins");
 const { PAGES, sectionTarget } = await import("./bot-panel/page-registry");
 const { openBotSettings } = await import("./bot-panel/panel-link");
-const { PageHeader } = await import("./bot-panel/rows");
+const { PageHeader, SwitchRow } = await import("./bot-panel/rows");
 const { ChatShareMenu } = await import("./ChatMoreMenu");
 const { SoulField } = await import("./SoulField");
 const { LocalComputerAutoWarning } = await import("./LocalComputerAutoWarning");
@@ -218,9 +212,6 @@ const routine = (extra: Partial<Routine> = {}): Routine => ({
   schedule: { type: "daily", time: "09:00", weekdays: [1, 2, 3, 4, 5] }, durationMinutes: 15,
   nextRunAt: Date.UTC(2099, 0, 5, 9), createdAt: 1, updatedAt: 1, ...extra,
 });
-const app = (slug: string, scope: "read" | "write" | null) => ({
-  slug, label: slug[0]!.toUpperCase() + slug.slice(1), blurb: `${slug} things`, card: { logo: null, domain: null, label: slug }, scope,
-});
 const engine = (extra: Partial<InstanceInfo> & { capabilities?: Record<string, unknown> } = {}) => ({
   instanceId: "claude", driverKind: "claudeAgent", snapshot: { state: "available", authenticated: true },
   capabilities: { effortLevels: ["low", "medium", "high", "max"] }, ...extra,
@@ -252,9 +243,6 @@ beforeEach(() => {
   fixture.derived = {
     patch, approvalMode: "ask", engine: engine(), trustedModesAvailable: false, activeState: "idle",
     botRoutines: [], canCoordinate: true, sectionName: "General", mascotMotion: null,
-    canUseConnectedApps: true, connectedAppsConfigured: true, connectedAppsEnabled: true, browserEnabled: true,
-  };
-  fixture.apps = { phase: "ready", apps: [], connectedSlugs: [] };
   };
   (window as unknown as { ogb?: unknown }).ogb = undefined;
 });
@@ -382,6 +370,8 @@ describe("the bot panel in Simple mode", () => {
   // App tool grants (PluginsPanel) and the working folder (the files pane) name a Simple page; MCP and tool
   // selection name none, so they land where Access does.
   it.each([["apps", "apps"], ["folder", "folder"], ["mcp", undefined], ["tools", undefined]] as const)("lands an Access link naming %s on %s", (page, landing) => {
+  // The working folder (the files pane) names a Simple page.
+  it.each([["folder", "folder"]] as const)("lands an Access link naming %s on %s", (page, landing) => {
     try {
       openBotSettings(fixture.dispatch, "access", { page });
       const rendered = panel(makeBot(), "access");
@@ -735,10 +725,6 @@ describe("the Bot settings page", () => {
     expect(rowValue(empty, "apps")).toBe("None yet");
     click(find(empty, "data-panel-page", "apps"));
     expect(onOpen).toHaveBeenLastCalledWith("apps");
-    fixture.apps = { phase: "ready", connectedSlugs: ["gmail", "notion", "slack"], apps: [app("gmail", "write"), app("notion", null), app("slack", "read")] };
-    expect(rowValue(settingsPage(makeBot()), "apps")).toBe("Gmail, Slack");
-  });
-
   it("edits the bot's job: saved on blur, Enter leaves the field, Escape puts it back", () => {
     const bot = makeBot();
     const job = () => find(settingsPage(bot), "data-panel-job");

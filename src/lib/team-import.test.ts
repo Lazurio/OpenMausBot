@@ -148,7 +148,6 @@ Create the team.`);
       routines: 2,
       skills: ["pricing-policy", "research-brief"],
       offeredSkills: ["objection-handling"],
-      connections: [{ label: "CRM", url: "https://mcp.example.com/crm", values: 1 }],
       notes: 2,
       presets: ["Support agent"],
       apps: [{ label: "HubSpot", optional: false }],

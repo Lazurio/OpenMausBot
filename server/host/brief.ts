@@ -217,13 +217,6 @@ export function createBrief(deps: BriefDeps) {
     return state.important.filter((row) => !dismissed.has(row.messageId) && at - row.judgedAt <= IMPORTANT_DAYS_MS);
   }
 
-  /** The page a run published, from its live card in the run's chat: the brief opens the page itself, not a prompt. */
-  function publishedPage(run: RoutineRun): string | undefined {
-    if (!run.threadId) return undefined;
-    const from = run.startedAt ?? run.createdAt, to = run.finishedAt ?? Number.POSITIVE_INFINITY;
-    return deps.store.messagesFor(run.threadId).findLast((row) => row.publishedPage?.state === "live" && row.at >= from && row.at <= to)?.publishedPage?.url;
-  }
-
   function routineRows(since: number, w: BriefWords): { needs: NeedRow[]; done: BriefRow[] } {
     const needs: NeedRow[] = [], done: BriefRow[] = [];
     const latest = new Map<string, RoutineRun>();
@@ -239,8 +232,7 @@ export function createBrief(deps: BriefDeps) {
       if (!bot || bot.hidden) continue;
       const open = run.threadId && deps.store.taskByThread(run.botId, run.threadId) ? { botId: run.botId, threadId: run.threadId } : undefined;
       const name = oneLine(run.routineName, 80);
-      const page = run.status === "completed" && open ? publishedPage(run) : undefined;
-      if (run.status === "completed") done.push({ text: name, note: clip(firstSentence(run.output ?? "") || w.finished, 140), ...(open ? { open } : {}), ...(page ? { page } : {}) });
+      if (run.status === "completed") done.push({ text: name, note: clip(firstSentence(run.output ?? "") || w.finished, 140), ...(open ? { open } : {}) });
       else needs.push({ key: `routine:${name}:${run.status}`, text: run.status === "missed" ? w.missed(name) : w.failed(name), note: clip(oneLine(run.error ?? "", 140) || w.didNotFinish, 140), ...(open ? { open } : {}) });
     }
     return { needs, done };
@@ -254,9 +246,7 @@ export function createBrief(deps: BriefDeps) {
       switch (item.kind) {
         case "signed-out": { const engine = deps.engineName(item.instanceId); return row(engine, w.signedOut(engine), w.signInAgain); }
         case "usage-limit": return row("", w.usageLimit, clip(item.text, 140));
-        case "out-of-credit": return row("", w.outOfCredit, w.ownAccount);
         case "connection": return row(item.app, w.reconnecting(item.app), clip(item.text, 140));
-        case "place": return row("", w.unreachable, w.chooseAnother);
         case "question": { const bot = deps.store.bot(item.botId)?.name; return row(bot ?? "", w.asked(bot ?? w.aBot), clip(item.text, 140)); }
         case "message": return row(item.from, w.asked(item.from), clip(item.text, 140));
       }

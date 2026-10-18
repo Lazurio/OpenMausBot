@@ -1,5 +1,5 @@
-// The stdio MCP servers a turn hands an agent (harness proxies and the person's own), shared by the ACP
 // family and Muse Code so the owner's tool selection applies alike.
+// The stdio MCP servers a turn hands an agent (the harness proxies), shared by the ACP
 import type { SendTurnInput } from "../contracts.ts";
 import { canUseMcpServer } from "../../shared/tool-scope.ts";
 import { harnessMcpTokenEnv } from "../harness-mcp-token.ts";
@@ -17,7 +17,6 @@ export interface TurnStdioMcpServer {
   env: Record<string, string>;
 }
 
-/** URL servers always go through OpenMausBot's remote proxy: agents' own MCP clients add capability
 /** Under a schema profile OpenMausBot fits every tool list: its own proxies and gates read the profile. */
 export function turnStdioMcpServers(turn: SendTurnInput, options: { schemaProfile?: ToolSchemaProfileId; toolBudget?: number } = {}): TurnStdioMcpServer[] {
   const { schemaProfile, toolBudget } = options;
@@ -26,23 +25,9 @@ export function turnStdioMcpServers(turn: SendTurnInput, options: { schemaProfil
     if (server) servers.push({ name, command: server.command, args: server.args, env: server.env ?? {} });
   };
   add("agents", turn.integrations?.agents);
-  add("composio", turn.integrations?.composio);
   add("browser", turn.integrations?.browser);
   add("data", turn.integrations?.data);
-  add("highlevel", turn.integrations?.highlevel);
   add("computer", turn.integrations?.localComputer);
-  // User servers after the built-ins: a residual name collision keeps the built-in.
-  for (const [name, server] of Object.entries(turn.integrations?.custom ?? {})) {
-    if (servers.some((existing) => existing.name === name)) continue;
-    const apps = appMountFor(name, turn);
-    if (apps && !("url" in server)) observedCommands.set(name, apps);
-    const stdio = "url" in server ? mcpStdioServer(server, { nodeEnv: { ELECTRON_RUN_AS_NODE: "1" }, ...(apps ? { apps } : {}) })
-      : (apps || schemaProfile) && turn.toolScope === undefined
-        ? gateServer({ name, server, threadId: turn.threadId, budget: 0, nodeEnv: { ELECTRON_RUN_AS_NODE: "1" }, ...(apps ? { apps } : {}), schemaProfile })
-      : server;
-    if (!stdio) continue;
-    servers.push({ name, command: stdio.command, args: stdio.args ?? [], env: stdio.env ?? {} });
-  }
   const fitted = schemaProfile
     ? servers.map((server) => ({ ...server, env: { ...server.env, [TOOL_SCHEMA_PROFILE_ENV]: schemaProfile } }))
     : servers;
@@ -50,7 +35,7 @@ export function turnStdioMcpServers(turn: SendTurnInput, options: { schemaProfil
 }
 
 /** OpenMausBot's proxies and gates that cap their list at OMB_TOOL_LIMIT. */
-const LIMITING_PROXY = /(?:^|[\\/])(?:agents-proxy|harness-mcp-proxy|connector-proxy|mcp-gate|mcp-remote-proxy)\.[jt]s$/;
+const LIMITING_PROXY = /(?:^|[\\/])(?:agents-proxy|harness-mcp-proxy|mcp-gate|mcp-remote-proxy)\.[jt]s$/;
 
 /** Each server's share of `budget` tools in its environment, the agents server's whole list first; a server that would
  * not read its share goes behind a gate that does. */

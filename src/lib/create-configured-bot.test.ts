@@ -39,10 +39,10 @@ describe("configured bot creation", () => {
 
   it("names who a new team bot reports to in the creation request, and nobody anywhere else", async () => {
     const team = fixture("ask");
-    await createConfiguredBot(team.draft, team.request, persistBotUpdate, team.approvals, undefined, "bob@acme.test");
+    await createConfiguredBot(team.draft, team.request, persistBotUpdate, undefined, "bob@acme.test");
     expect(team.bodies[0]).toMatchObject({ reportsTo: "bob@acme.test" });
     const solo = fixture("ask");
-    await createConfiguredBot(solo.draft, solo.request, persistBotUpdate, solo.approvals);
+    await createConfiguredBot(solo.draft, solo.request, persistBotUpdate);
     expect(solo.bodies[0]).not.toHaveProperty("reportsTo");
   });
 
@@ -67,7 +67,7 @@ describe("configured bot creation", () => {
   it("asks for no AI when none is set up, so the server makes the bot without one", async () => {
     const f = fixture("ask");
     f.draft.setModel({ instanceId: "", model: "" });
-    await createConfiguredBot(f.draft, f.request, persistBotUpdate, f.approvals);
+    await createConfiguredBot(f.draft, f.request, persistBotUpdate);
     expect(f.bodies[0]).not.toHaveProperty("modelSelection");
     expect(f.bodies[0]).not.toHaveProperty("requireAvailableModel");
     expect(f.events).not.toContain("DELETE /api/bots/created");

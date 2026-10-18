@@ -38,16 +38,6 @@ export function buildSrcdoc(input: { html: string; csp: string; botHelper?: bool
   return `${head}${base}${helper}${stripDocumentPreamble(input.html)}`;
 }
 
-/** `window.mausbot` on a published page, where no chat answers it: send and setContext do nothing, open opens a tab. */
-const PUBLISHED_MAUSBOT = "window.mausbot={theme:matchMedia(\"(prefers-color-scheme: dark)\").matches?\"dark\":\"light\"," +
-  "send:function(){return Promise.resolve()},setContext:function(){return Promise.resolve()}," +
-  "open:function(u){window.open(String(u),\"_blank\",\"noopener\");return Promise.resolve()}};";
-
-/** A bot's HTML page as a published page serves it: the theme colours the chat would give it, and a quiet mausbot. */
-export function publishedBotHtml(html: string): string {
-  return `<!DOCTYPE html><style>${APP_THEME_STYLE}</style><script>${PUBLISHED_MAUSBOT}</script>${stripDocumentPreamble(html)}`;
-}
-
 export const BOT_HTML_CAN: AppCan = { serverTools: false, serverResources: false, message: true, openLinks: true, modelContext: true };
 
 /** `format: "jsx"`: `html` is a React component file, served inside the page shell. `files`: a folder page, whose

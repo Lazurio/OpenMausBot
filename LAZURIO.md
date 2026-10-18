@@ -76,6 +76,48 @@ Folder, read its agent instructions and call the `composio` CLI the operator
   change. Questions and missing credentials still reach a person; GitHub
   rights and branch rules stay the limit.
 
+  a saved config). Since v0.1.130 also treg research and the X card with
+  their keys, the phone's apps as bot tools, app-event Automations (app
+  triggers, `list_trigger_events`), MCP app connections, a team's shared
+  connections, apps a bot inherits from its Chief and the suggestion to add
+  a helper-model key. Every Claude bot gets the Environment's user-scope MCP
+  own configuration folders, the Cursor sign-in for a Grok Bot import (the
+  paste import stays), and with them the server's sign-in sessions and
+- **Own computers**: Local VMs (Cua containers) with their image updates, the
+  Boat cloud computer, VPS computers and a bot's VPS alias, lent, shared and
+  team computers with the team map's computer screens, "Works on" and
+  `select_computer`, and lending this computer to My Cloud ("Let your bots use
+  this Mac", lent folders, drives and terminal), in the server, the web app
+  and the desktop app. Bots work on the host and in the browser.
+- **MausBot Cloud**: purchase and upsell, the Pro plan and its pop-up, Cloud
+  credit, the usage meter and plan cards, sleep and wake, a Cloud's first
+  hour, what a Cloud's bots say to connect and the keys it holds, the Team
+  Cloud dashboard, the Cloud's included decision and extraction relay, moving
+  to and syncing with Cloud (Send everything, Keep up to date, Keep here, a
+  bot's move into a team, Cloud files sync in the desktop app), and the
+  OpenMausBot account sign-in (`openmausbot login`). The cloud-home and Team
+  Cloud server modes themselves, upstream's own hosting, stay for now: they
+  are woven into owner and guest checks and do nothing on an Environment.
+- **Published pages**: publishing a bot's page to upstream's `*.mausbot.page`
+  host with a MausBot account (`publish_page`, `unpublish_page`, Share on a
+  page's card, the published-page card). A page shows in the chat from the
+  bot's folder, as before.
+  (`approvePeerComms`) with its approval cards; since v0.1.130 also the "Send
+  on your behalf?" hold on a bot's outbound messages, the Ask a new bot was
+  started on, and the "Allow once?" before a bot used this computer. A saved
+  Custom level, grant
+- **Telemetry to upstream**: upstream's PostHog analytics, the welcome
+  tour's name and e-mail form, the `@devs` bug report to the MausBot team
+  (`report_bug`) with the recent log it attached, and the "Product updates by
+  email" question in the web and desktop apps. `src/lib/analytics.ts` keeps upstream's
+`localVm`, `composio`, `treg`, `mcpServers`, `features.sharedComputers`,
+`browser`, `browserProfile`, `recordBrowserSteps`, `vpsAlias`,
+`appsFromCreator`, `xResearch` or `phoneApps`. Every bot and thread
+its own Cloud, desktop-viewer and Cua driver code is left as upstream has it,
+apart from what the server no longer answers (lending, Cloud files sync, the
+product-updates question, published pages and the X research token); the
+forbidden strings leave its own Cloud files (`electron/cloud-*`) out of the
+scan.
 ## The Lazurio shell
 
 **Decided on 2026-10-03 (the Lazurio shell decisions); in the overlay since

@@ -44,7 +44,6 @@ import {
   mergeLocalInject,
 } from "./local-inject.ts";
 import { appendNative } from "./native.ts";
-import { allowsTool, parseToolScope } from "../../shared/tool-scope.ts";
 import { buildMcpServers } from "./pi-mcp-servers.ts";
 
 const DRIVER_KIND = "piAgent";
@@ -1059,12 +1058,10 @@ export const PiDriver: ProviderDriver<PiConfig> = {
           // pi core has no MCP client of its own.
           agentsMcp: true,
           computerMcp: true,
-          composioMcp: true,
           phoneMcp: true,
-          customMcp: true,
           browserMcp: true,
-          dataMcp: true, highlevelMcp: true, deviceMcp: true,
           localComputerMcp: true,
+          dataMcp: true,
           images: true,
           nativeImageInput: true,
           // pi rejects an unsupported level and the turn keeps the engine default.

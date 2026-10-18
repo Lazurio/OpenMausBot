@@ -10,7 +10,6 @@ import { SIMPLE_ADVANCED_ONLY } from "./SettingsSimplePages";
 const fixture = vi.hoisted(() => ({
   section: "general" as AppSettingsSection,
   advancedMode: false,
-  config: { features: { browser: false }, browserEngine: { kind: "bundled", installable: true }, composio: { mode: "self" } } as Record<string, unknown>,
   api: vi.fn(),
   dispatch: vi.fn(),
   switches: [] as ComponentProps<typeof Switch>[],
@@ -81,7 +80,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   fixture.section = "general";
   fixture.advancedMode = false;
-  fixture.config = { features: { browser: false }, browserEngine: { kind: "bundled", installable: true }, composio: { mode: "self" } };
   fixture.switches = [];
   fixture.ownerOrAdmin = null;
   fixture.updater = null;
@@ -179,6 +177,7 @@ describe("Settings in Simple mode", () => {
     for (const shown of ["Check for updates", "Replay welcome tour", "Diagnostics"]) expect(placement(html, shown), shown).toBe("shown");
   it("keeps the Claude Code skills switch under MCP calls in Advanced, with no switch for the MCP servers Claude bots always load", () => {
     fixture.advancedMode = true;
+    const html = render();
   });
 
   it("checks the server's version from a browser", () => {

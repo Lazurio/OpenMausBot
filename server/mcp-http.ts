@@ -33,7 +33,7 @@ export class McpRpcError extends McpHttpError {
   }
 }
 
-/** Whop's official server lists 425 tools in 1.2 MB of JSON (one tool ~51 KB), so a 1 MB cap refused it. */
+/** Some official servers list hundreds of tools in over 1 MB of JSON (one tool ~51 KB), so a 1 MB cap refused them. */
 export const MAX_REMOTE_MCP_BYTES = 32 * 1024 * 1024;
 const PROTOCOL_VERSION = "2025-06-18";
 

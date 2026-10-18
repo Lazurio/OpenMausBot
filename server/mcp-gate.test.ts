@@ -69,6 +69,26 @@ createInterface({ input: process.stdin }).on("line", (line) => {
 });
 `;
 
+/** Two pages of tools; every call is appended to SCRIPT.calls and answers with the script's text. */
+const PAGED_UPSTREAM = `
+const { createInterface } = require("node:readline");
+const { appendFileSync, readFileSync } = require("node:fs");
+const script = JSON.parse(readFileSync(process.env.SCRIPT, "utf8"));
+const send = (id, result) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\\n");
+const catalog = (params) => params?.cursor === "second"
+  ? { tools: [{ name: "write", inputSchema: { type: "object" } }] }
+  : { tools: [{ name: "read", inputSchema: { type: "object" } }, { name: "write", inputSchema: { type: "object" } }], nextCursor: "second" };
+createInterface({ input: process.stdin }).on("line", (line) => {
+  const msg = JSON.parse(line);
+  if (msg.method === "tools/list") return send(msg.id, catalog(msg.params));
+  if (msg.method === "tools/call") {
+    appendFileSync(process.env.SCRIPT + ".calls", msg.params.name + "\\n");
+    return send(msg.id, { content: [{ type: "text", text: script.text ?? "executed" }] });
+  }
+  send(msg.id, {});
+});
+`;
+
 describe("mcp-gate", () => {
   let scratch: string;
   let gate: ChildProcessWithoutNullStreams | undefined;
@@ -325,7 +345,6 @@ describe("mcp-gate", () => {
     expect(existsSync(join(scratch, "reply.json.calls"))).toBe(false);
   });
 
-  // Lists the directory's three names beside a plain tool and answers every call with a long text, recording what it ran.
   const DIRECTORY_UPSTREAM = `
 const { createInterface } = require("node:readline");
 const { appendFileSync } = require("node:fs");
@@ -396,6 +415,7 @@ createInterface({ input: process.stdin }).on("line", (line) => {
 
     it("lists query_result beside the server's tools only while it trims", async () => {
       start({ text: full }, {}, SCOPED_UPSTREAM);
+      start({ text: full }, {}, PAGED_UPSTREAM);
       send({ jsonrpc: "2.0", id: 1, method: "tools/list" });
       const first = JSON.parse(await nextLine()).result;
       expect(first.tools.map((tool: { name: string }) => tool.name)).toEqual(["read", "write"]);
@@ -407,12 +427,14 @@ createInterface({ input: process.stdin }).on("line", (line) => {
 
     it("never lists it when the budget is zero", async () => {
       start({ text: full }, { OMB_GATE_BUDGET: "0" }, SCOPED_UPSTREAM);
+      start({ text: full }, { OMB_GATE_BUDGET: "0" }, PAGED_UPSTREAM);
       send({ jsonrpc: "2.0", id: 1, method: "tools/list", params: { cursor: "second" } });
       expect(JSON.parse(await nextLine()).result.tools.map((tool: { name: string }) => tool.name)).toEqual(["write"]);
     });
 
     it("holds the whole result and answers a query locally with just the selection", async () => {
       start({ text: full }, {}, SCOPED_UPSTREAM);
+      start({ text: full }, {}, PAGED_UPSTREAM);
       const shaped: string = (await call("read")).result.content[0].text;
       expect(shaped.startsWith("⚠️ SHAPED by OpenMausBot:")).toBe(true);
       expect(shaped).toContain('query_result {"result":"r1","query":');
@@ -428,6 +450,7 @@ createInterface({ input: process.stdin }).on("line", (line) => {
 
     it("cuts a query answer to the same budget, so the whole thing never comes back", async () => {
       start({ text: full }, { OMB_GATE_BUDGET: "2000" }, SCOPED_UPSTREAM);
+      start({ text: full }, { OMB_GATE_BUDGET: "2000" }, PAGED_UPSTREAM);
       await call("read");
       const answer = await query({ result: "r1", query: "@" }, 2);
       expect(answer.result.content[0].text.length).toBeLessThan(2_400);
@@ -436,6 +459,7 @@ createInterface({ input: process.stdin }).on("line", (line) => {
 
     it("answers a bad handle or query as a tool error without touching upstream", async () => {
       start({ text: full }, {}, SCOPED_UPSTREAM);
+      start({ text: full }, {}, PAGED_UPSTREAM);
       expect((await query({ result: "r9", query: "@" }, 1)).result).toMatchObject({ isError: true });
       expect((await query({ query: "@" }, 2)).result).toMatchObject({ isError: true });
       expect(existsSync(join(scratch, "reply.json.calls"))).toBe(false);

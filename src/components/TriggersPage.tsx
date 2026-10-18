@@ -8,9 +8,7 @@ import { t } from "@/lib/i18n";
 import { isRoutineProblemRun } from "@/lib/routines";
 import { saveWebhookCredential, webhookCredentialStore } from "@/lib/webhook-credentials";
 import { useStore } from "@/state/store";
-import { useAppTriggers } from "@/lib/app-triggers";
-import { AppEventEditor } from "./automations/AppEventEditor";
-import { useAllAutomationActions } from "./automations/app-actions";
+import { useAutomationActions } from "./automations/actions";
 import { AutomationPanel } from "./automations/AutomationPanel";
 import { AutomationsCalendar } from "./automations/AutomationsCalendar";
 import { LimitWarnings } from "./automations/LimitWarnings";
@@ -28,8 +26,7 @@ const FILTER_FROM = 9;
 export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpenRoom: (id: string) => void }) {
   const { state, dispatch } = useStore();
   const { capabilities } = useDesktopCapabilities();
-  const actions = useAllAutomationActions();
-  const appTriggers = useAppTriggers();
+  const actions = useAutomationActions();
   const backButtonRef = useRef<HTMLButtonElement>(null);
   const focus = state.routinesFocus;
   const view = focus?.view === "calendar" ? "calendar" : "list";
@@ -48,8 +45,8 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
   }, [focus]);
   useEffect(() => { backButtonRef.current?.focus({ preventScroll: true }); }, []);
 
-  const all = useMemo(() => automationsFrom({ routines: state.routines, webhooks: routinesOnly ? [] : state.webhooks, appTriggers: appTriggers.triggers, runs: state.routineRuns, bots: state.bots }),
-    [state.routines, state.webhooks, appTriggers.triggers, state.routineRuns, state.bots, routinesOnly]);
+  const all = useMemo(() => automationsFrom({ routines: state.routines, webhooks: routinesOnly ? [] : state.webhooks, runs: state.routineRuns, bots: state.bots }),
+    [state.routines, state.webhooks, state.routineRuns, state.bots, routinesOnly]);
   const showFilter = all.length >= FILTER_FROM && new Set(all.map((automation) => automation.botId)).size > 1;
   const listed = orderAutomations(all.filter((automation) => !showFilter || botFilter === "all" || automation.botId === botFilter));
   const open = all.find((automation) => automation.id === openId) ?? null;
@@ -65,7 +62,6 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
   const windowNoDragStyle = macInset ? ({ WebkitAppRegion: "no-drag" } as CSSProperties) : undefined;
   const editRoutine = editing?.kind === "schedule" ? state.routines.find((routine) => routine.id === editing.id) : undefined;
   const editWebhook = editing?.kind === "webhook" ? state.webhooks.find((webhook) => webhook.id === editing.id) : undefined;
-  const editApp = editing?.kind === "app" ? appTriggers.triggers.find((trigger) => trigger.id === editing.id) : undefined;
 
   return (
     <main className="flex h-full min-w-0 flex-1 flex-col bg-app animate-workspace-in">
@@ -146,7 +142,6 @@ export function TriggersPage({ onBack, onOpenRoom }: { onBack: () => void; onOpe
       {editing?.kind === "webhook" && (editWebhook || !editing.id) && (
         <WebhookEditor webhook={editWebhook} bots={visibleBots} initialBotId={editing.botId} onClose={() => setEditing(null)} onCredential={(credential, id) => { saveWebhookCredential(webhookCredentialStore(), id, credential); setOpenId(id); }} />
       )}
-      {editing?.kind === "app" && (editApp || !editing.id) && <AppEventEditor trigger={editApp} bots={visibleBots} initialBotId={editing.botId} onClose={() => setEditing(null)} onSaved={(trigger) => setOpenId(trigger.id)} />}
     </main>
   );
 }

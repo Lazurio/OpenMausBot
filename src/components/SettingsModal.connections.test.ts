@@ -51,7 +51,6 @@ describe("Settings → Connections", () => {
   it("sends nobody on a Cloud to a terminal, only to the keys for other providers", async () => {
     const { configStatusFromFrame } = await import("@/state/store");
     fixture.config = configStatusFromFrame({
-      composio: { configured: false },
       rooms: { turnTimeoutMinutes: 10 },
       mcp: { callTimeoutMinutes: 10 },
       cloudHome: true,

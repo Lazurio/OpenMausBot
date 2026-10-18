@@ -11,8 +11,6 @@ describe("toolStepLabel", () => {
     [{ name: "mcp__omb__screenshot" }, "Look at the screen"],
     [{ name: "mcp__claude_ai_Gmail__list_bots" }, "Check the team"],
     [{ name: "agent_browser_click" }, "Use the browser"],
-    [{ name: "GITHUB_GET_A_COMMIT" }, "Get a commit"],
-    [{ name: "mcp__composio__LINEAR_CREATE_LINEAR_COMMENT" }, "Create linear comment"],
     [{ name: "mcp__notes__query_database" }, "Query database"],
     [{ name: "NotebookRead" }, "Notebook read"],
     [{ name: "tool" }, "Use a tool"],

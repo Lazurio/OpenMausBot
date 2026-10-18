@@ -137,34 +137,6 @@ desktop's preload bridge are not exercised here; they are covered by
 `server/one-home.e2e.test.ts` and
 `src/components/cloud-welcome/CloudWelcome.test.ts`.
 
-## Bring what you already use (Oct 16 2026)
-
-Skills and MCP servers another AI tool keeps on this computer, brought in with
-one button: in Settings → Import, and offered by MausBot's first messages as a
-"Bring in your skills" chip when its look around finds some within two seconds.
-Desktop app only.
-
-```sh
-pnpm exec vitest run server/setup-import.test.ts server/imported-skills.test.ts server/toml-lite.test.ts server/routes/setup-import.test.ts server/setup-import.e2e.test.ts src/components/ImportSettings.test.ts src/components/HelperIntro.test.ts src/lib/setup-import.test.ts
-```
-
-Every test builds its own temporary home; none reads the real `~/.claude`,
-`~/.codex` or other dotfiles. The detector test plants credential, session,
-history and transcript files holding a sentinel, records every path the step
-touches, and checks that none of them was listed or opened and that the
-sentinel reaches no answer, saved server or copied skill. The route test
-refuses a paired device, a service loopback and a hosted or Cloud server; the
-end-to-end test runs the real server from `launchVerificationServer` against a
-planted home, as the desktop app runs it (`OMB_TEST_DESKTOP_OWNER_TOKEN`), checks
-that a headless server (`openmausbot serve`) refuses the step, and checks that the starter bot and a bot made afterwards both
-get the skills in their turn's index, task folder links and `/name`, that a
-Claude turn with "Also use my Claude Code skills" on sees a Claude Code skill
-once, and that a bot can switch one off for itself. The rows, working, failed
-and with their result, are covered in Settings by
-`src/components/ImportSettings.test.ts`; the chip by
-`src/components/HelperIntro.test.ts`. Not covered here: the packaged Electron
-window itself.
-
 ## Two screens, then the chat (Oct 27 2026)
 
 ```sh

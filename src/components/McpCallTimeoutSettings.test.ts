@@ -17,6 +17,7 @@ vi.mock("@/state/store", () => ({
   useStore: () => ({ state: { config: fixture.config }, dispatch: fixture.dispatch }),
 }));
 
+const olderServerConfig = { rooms: { turnTimeoutMinutes: 5 } };
 
 let host: HTMLDivElement;
 let root: Root;

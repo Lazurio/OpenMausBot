@@ -8,7 +8,7 @@ export interface BotOverview {
 }
 
 export interface SetupStep {
-  id: "identity" | "soul" | "folder" | "apps" | "schedule";
+  id: "identity" | "soul" | "folder" | "schedule";
   label: string;
   done: boolean;
   section?: "identity" | "soul" | "access" | "routines";

@@ -14,7 +14,6 @@ import {
   clashes, emailSince, fingerprint, keepNewest, LOOKAHEAD_MS, mergeMeetings, nextMeetingDue, planMail, planMeetings, pruneMeetings, type MeetingRecord,
 } from "./check-plan.ts";
 import { checkedPrompt, watchPrompt, type CheckItems } from "./check-prompts.ts";
-import type { InboxTriage } from "./inbox-triage.ts";
 
 const MINUTE = 60_000;
 const CHECK_MS = 15 * MINUTE;
@@ -79,10 +78,9 @@ export interface CheckReport {
 
 export interface RoutineChecksDeps {
   dataDir: string;
-  reads: ConnectedReads;
+  /** The reader of the calendar and mail checks; without one they read nothing. */
+  reads?: ConnectedReads;
   now?: () => number;
-  /** Connected apps are on for this bot and its app switches let it read this app. */
-  mayRead(botId: string, app: ReadApp): boolean;
   /** The bot's AI refuses every tool outside a run's allowlist, so a read-and-draft run is safe on it. */
   fenced(botId: string): boolean;
   timeZone(): string | undefined;
@@ -91,8 +89,6 @@ export interface RoutineChecksDeps {
   /** The person's recent dismissals of mail from these senders, newest first. */
   dismissedFrom(): string[];
   report(report: CheckReport): void | Promise<void>;
-  /** The helper models' inbox triage (server/host/inbox-triage.ts); absent or not ready means an AI run sorts mail. */
-  inbox?: Pick<InboxTriage, "ready" | "triage">;
   /** Emails a routine's checks had sorted: by a run whose answer was kept, or by the helper models. */
   sorted?(routineId: string, count: number): void;
 }
@@ -214,18 +210,19 @@ export function createRoutineChecks(deps: RoutineChecksDeps): RoutineChecks & {
     const pending: Omit<Pending, "at"> = { mail: [], prep: [], replies: [] };
     const held = new Set(Object.values(entry.pending ?? {}).flatMap((one) => [...one.mail, ...one.prep]));
     let wakeAt: number | undefined;
-    const apps = checks.includes("calendar") || checks.includes("mail") ? await deps.reads.connected().catch(() => null) : null;
-    const session = deps.reads.session();
-    report.session = session;
-    const readable = (app: ReadApp): boolean => apps?.[app] === true && deps.mayRead(routine.botId, app) && !trouble.some((one) => one.app === app) &&
+    const reads = deps.reads;
+    const apps = reads && (checks.includes("calendar") || checks.includes("mail")) ? await reads.connected().catch(() => null) : null;
+    const session = reads?.session();
+    if (session) report.session = session;
+    const readable = (app: ReadApp): boolean => Boolean(session) && apps?.[app] === true && !trouble.some((one) => one.app === app) &&
       (context.manual || !readsBackOff(entry, app));
     if (readable("gmail") && entry.address === undefined) {
-      try { entry.address = await session.address(); } catch (error) { trouble.push(failed(entry, "gmail", error)); }
+      try { entry.address = await session!.address(); } catch (error) { trouble.push(failed(entry, "gmail", error)); }
     }
 
     if (checks.includes("calendar") && readable("googlecalendar")) {
       try {
-        const meetings = mergeMeetings(await session.events(at - 60 * MINUTE, at + LOOKAHEAD_MS), entry.address);
+        const meetings = mergeMeetings(await session!.events(at - 60 * MINUTE, at + LOOKAHEAD_MS), entry.address);
         succeeded(entry, "googlecalendar");
         entry.meetings = pruneMeetings(entry.meetings ?? {}, at);
         const records = entry.meetings;
@@ -260,29 +257,13 @@ export function createRoutineChecks(deps: RoutineChecksDeps): RoutineChecks & {
     if (checks.includes("mail") && readable("gmail")) {
       try {
         const since = emailSince({ now: at, emailCursor: entry.mailCursor });
-        const { emails, more } = await session.emails(since, MAIL_READ_LIMIT);
+        const { emails, more } = await session!.emails(since, MAIL_READ_LIMIT);
         succeeded(entry, "gmail");
         const judged = new Set([...(entry.judged ?? []), ...held]);
         const plan = planMail({ now: at, emails, judged });
         const waiting = plan.waiting.length;
         const advanced = waiting || more ? undefined : at;
-        const helpers = brief && deps.inbox?.ready() === true;
-        if (helpers) report.helpersSort = true;
-        const picked = helpers && plan.batch.length ? await deps.inbox!.triage(plan.batch, deps.dismissedFrom()) : null;
-        if (picked) {
-          // Sorted with no AI turn: every email of the batch is judged, and the picks become brief rows.
-          report.picked = picked.flatMap((pick) => {
-            const email = plan.batch.find((one) => one.id === pick.id);
-            return email ? [{ email, why: pick.why, needsReply: pick.needsReply }] : [];
-          });
-          entry.judged = keepNewest([...new Set([...(entry.judged ?? []), ...plan.batch.map((email) => email.id), ...plan.quiet.map((email) => email.id)])], MAX_JUDGED);
-          if (plan.batch.length) deps.sorted?.(routine.id, plan.batch.length);
-          // Mail an earlier run still holds keeps the cursor back, so a failed run's mail is read again.
-          const heldMail = Object.values(entry.pending ?? {}).some((one) => one.mail.length > 0);
-          if (advanced !== undefined && !heldMail) entry.mailCursor = advanced;
-        } else if (helpers && plan.batch.length && !aiAllowed) {
-          // The helper models did not answer this time and no fenced AI may sort: the mail waits for the next check.
-        } else if (plan.batch.length && aiAllowed) {
+        if (plan.batch.length && aiAllowed) {
           items.mail = plan.batch;
           pending.mail = [...plan.batch.map((email) => email.id), ...plan.quiet.map((email) => email.id)];
           pending.replies = plan.batch.map((email) => ({ threadId: email.threadId, to: addressOf(email.from) }));

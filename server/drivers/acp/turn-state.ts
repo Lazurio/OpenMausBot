@@ -16,7 +16,6 @@ export interface AcpTurn {
   turnId: string;
   turn: SendTurnInput;
   turnConfig: AcpConfig;
-  controlsHost: boolean;
   state: {
     settled: boolean; promptSent: boolean; text: string; textMessageId: string | null; producedItem: boolean; startupActivity: boolean; stopped: boolean;
     usagePeak: number | null;

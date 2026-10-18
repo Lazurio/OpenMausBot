@@ -96,6 +96,9 @@
     "Connect ChatGPT",
     "/auth/status",
     "CURSOR_CLI_CLIENT_ID",
+    "onePasswordToken",
+    "cursor-session",
+    "/api/team-library/cursor"
   ],
   "routes": [
     {

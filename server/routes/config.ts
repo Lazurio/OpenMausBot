@@ -5,7 +5,6 @@ import { finalizeBrowserCleanupMutation, requireBrowserCleanupAcknowledged } fro
 import type { BrowserLive } from "../browser-live.ts";
 import type { BrowserRuntime } from "../browser-runtime.ts";
 import { CLOUD_PERSONAL_REFUSAL } from "../cloud-owner.ts";
-import * as composio from "../composio.ts";
 import {
   browserProfilePartitionTarget,
   browserProfileReplacementConflict,
@@ -21,7 +20,7 @@ import {
 } from "../config.ts";
 import type { InstanceConfigMap, ModelSelection } from "../contracts.ts";
 import type { RequestAuth } from "../request-auth.ts";
-import { DECIDER_KEY_REJECTED, deciderIncludedHere, deciderPatchKey, deciderSavePatch, deciderSharedKeyUsable, type Decider } from "../decider/index.ts";
+import { DECIDER_KEY_REJECTED, deciderPatchKey, deciderSavePatch, deciderSharedKeyUsable, type Decider } from "../decider/index.ts";
 import type { ProviderRegistry } from "../harness/registry.ts";
 import { HOSTED_PROVIDER_SETTINGS_ERROR } from "../hosted-models.ts";
 import { forgetKey } from "../key-rejections.ts";
@@ -197,20 +196,6 @@ export function createConfigRoutes(deps: ConfigRouteDeps): RouteHandler {
       providerConfigBusy.set(true);
       try {
 
-
-      const requestedComposioKey = patch.composio?.apiKey;
-      if (requestedComposioKey !== undefined) {
-        if (requestedComposioKey.trim()) {
-          try {
-            const prepared = await composio.prepareProjectSession(requestedComposioKey, cfg.composio);
-            patch.composio = { ...patch.composio, ...prepared };
-          } catch (error) {
-            return json(res, 400, { error: error instanceof Error ? error.message : String(error) });
-          }
-        } else {
-          patch.composio = { ...patch.composio, apiKey: "", sessionId: "" };
-        }
-      }
       // Validated against each voice provider's own credential, so no service is ever sent another's key.
       const newTts = patch.tts;
       if (newTts?.key?.trim()) {
@@ -280,7 +265,6 @@ export function createConfigRoutes(deps: ConfigRouteDeps): RouteHandler {
       let configWriteCommitted = false;
       const enginesBefore = engineLaunches(providerConfigs());
       const externalSecretStorage = url.searchParams.get("secretStorage") === "external";
-          if (persisted.composio?.apiKey !== undefined) persisted.composio.apiKey = "";
       // Before the provider commit, so a failed write never leaves a foreign voice id to speak.
       if (changingVoiceProvider) store.clearVoiceSelections();
       if (externalSecretStorage) {

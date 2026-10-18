@@ -110,7 +110,6 @@ describe("Cline ACP driver", () => {
     };
     const first = await run("cline-one", {
       agents: { command: "fixture-mcp", args: [], env: { TOKEN: "first-fixture-token" } },
-      custom: { hidden: { command: "must-not-run", args: [], env: {} } },
     }, { allow: ["native:*", "mcp:agents:*"] });
     expect(Object.keys(first.settings.mcpServers)).toEqual(["agents"]);
     expect(JSON.stringify(first.settings)).toContain("first-fixture-token");

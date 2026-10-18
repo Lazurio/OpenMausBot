@@ -1,6 +1,5 @@
 // What saving a credential from the desktop changes in the server config, by credential name.
 export const CREDENTIAL_PATCH = {
-  composioApiKey: (value) => ({ composio: { apiKey: value } }),
   xaiApiKey: (value) => ({ xai: { key: value } }),
   opencodeGoApiKey: (value) => ({ opencodeGo: { apiKey: value } }),
   ttsKey: (value) => ({ tts: { key: value } }),

@@ -10,7 +10,7 @@ import { UI_TOOLS_DIR } from "./control-omb-ui.ts";
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const enabled = process.env.OMB_UI_E2E === "1" || Boolean(resolveAgentBrowserBinary({ dataDir: UI_TOOLS_DIR, env: process.env }));
 interface FixtureInfo { ui: string; url: string; logPath: string }
-interface SavedBot { id: string; name: string; modelSelection: { instanceId: string; model: string }; outbound?: unknown; connectorScopes?: unknown; fallback?: unknown }
+interface SavedBot { id: string; name: string; modelSelection: { instanceId: string; model: string }; fallback?: unknown }
 
 describe("trust controls in the real renderer", () => {
   let child: ChildProcess | undefined;
@@ -19,7 +19,7 @@ describe("trust controls in the real renderer", () => {
     await waitForExit(child, { graceMs: 30_000 });
   });
 
-  (enabled ? it : it.skip)("refreshes receipts, saves intersecting limits and serializes memory edits", async () => {
+  (enabled ? it : it.skip)("refreshes receipts, clears the fallback list and serializes memory edits", async () => {
     let output = "", errors = "";
     let info!: FixtureInfo;
     const launcher = new URL("./control-omb-ui.ts", import.meta.url).href;
@@ -73,37 +73,6 @@ describe("trust controls in the real renderer", () => {
       .find(([, entry]) => entry.role === "button" && entry.name === "Open Pepper's profile");
     expect(profile).toBeDefined();
     await ui("click", "--ref", `@${profile![0]}`);
-    await click("Permissions");
-    await click("Allow a daily amount");
-    await type("Daily outbound limit", "7");
-    await ui("press", "--keys", "Tab");
-    await expect.poll(async () => (await saved()).outbound, { timeout: 10_000 }).toEqual({ policy: "allow", dailyCap: 7 });
-    await click("Ask every time");
-    await expect.poll(async () => (await saved()).outbound, { timeout: 10_000 }).toEqual({ policy: "ask", dailyCap: 7 });
-
-    // Only this page's inventory reads are synthetic; policy writes still
-    // pass through the real bot queue and server validation.
-    await evaluate(`(async () => {
-      const original = window.fetch.bind(window);
-      window.fetch = (input, init) => String(input) === '/api/connectors/connected'
-        ? Promise.resolve(new Response(JSON.stringify({ services: { gmail: { connected: true } } }), { headers: {'content-type':'application/json'} }))
-        : String(input) === '/api/connectors/tools'
-          ? Promise.resolve(new Response(JSON.stringify({ configured: true, services: { gmail: [] } }), { headers: {'content-type':'application/json'} }))
-          : original(input, init);
-      await (await import('/src/components/PluginsPanel.tsx')).preloadConnectedApps(true);
-      return true;
-    })()`);
-    await click("Access");
-    await expect.poll(snapshot, { timeout: 10_000 }).toContain("Limit this bot to specific apps");
-    await click("Limit this bot to specific apps");
-    await expect.poll(async () => (await saved()).connectorScopes, { timeout: 10_000 }).toEqual({ apps: {} });
-    await click("Read");
-    await expect.poll(async () => (await saved()).connectorScopes, { timeout: 10_000 }).toEqual({ apps: { gmail: "read" } });
-    expect(await snapshot()).toContain("Per-app tools");
-    await click("Read & write");
-    await expect.poll(async () => (await saved()).connectorScopes, { timeout: 10_000 }).toEqual({ apps: { gmail: "write" } });
-    await click("Limit this bot to specific apps");
-    await expect.poll(async () => (await saved()).connectorScopes, { timeout: 10_000 }).toBeUndefined();
     // Seed a saved chain without any real account/auth or execution. The
     // actual Model control must remove it via the existing bot patch queue.
     const seeded = await fetch(`${info.url}/api/bots/${bot.id}`, {

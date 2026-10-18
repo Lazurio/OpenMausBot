@@ -1895,8 +1895,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
                   ? t("sidebar.presetsImported", { count: result.presets })
                   : result.members === 1
                   ? t("sidebar.teamImportedOne")
-                  : t("sidebar.teamImportedMany", { count: result.members })) +
-                (result.connections ? ` · ${t("sidebar.connectionsToFinish", { count: result.connections })}` : ""),
+                  : t("sidebar.teamImportedMany", { count: result.members })),
             });
           }}
         />

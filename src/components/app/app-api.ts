@@ -1,6 +1,5 @@
 import { api, ApiError } from "@/state/store";
 import type { AppBlockedReason, AppDocument } from "../../../shared/app";
-import type { PublishedPageCard } from "../../../shared/published-page";
 import { RPC_HOST_REFUSED, type AppContextUpdate, type AppRpcMethod, type JsonRpcError } from "../../../shared/app-frame/bridge";
 
 export function appDocumentPath(threadId: string, messageId: string): string {
@@ -113,26 +112,3 @@ export async function sendAppMessage(args: { botId: string; threadId: string; me
   }
 }
 
-export type PagePublishOutcome = { ok: true; card: PublishedPageCard } | { ok: false; error: string; card?: PublishedPageCard };
-
-/** Publishes the version on screen to a public link, the same link every time. */
-export async function publishAppPage(threadId: string, messageId: string, rev: number): Promise<PagePublishOutcome> {
-  try {
-    const body = await api<{ card: PublishedPageCard }>(`${appDocumentPath(threadId, messageId)}/publish`, { method: "POST", body: JSON.stringify({ rev }) });
-    return { ok: true, card: body.card };
-  } catch (error) {
-    if (!(error instanceof ApiError)) return { ok: false, error: OFFLINE_ERROR.message };
-    const card = isRecord(error.body) && isRecord(error.body.card) ? error.body.card as unknown as PublishedPageCard : undefined;
-    return { ok: false, error: error.message, ...(card ? { card } : {}) };
-  }
-}
-
-/** Takes a published page down; its card says so once the server has patched it. */
-export async function unpublishPage(pageId: string): Promise<boolean> {
-  try {
-    await api(`/api/published-pages/${encodeURIComponent(pageId)}/unpublish`, { method: "POST", body: "{}" });
-    return true;
-  } catch {
-    return false;
-  }
-}

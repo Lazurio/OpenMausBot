@@ -108,7 +108,7 @@ A Chief also adds a specialist on its own when a job needs one: an ongoing area 
 
 A Chief of Staff can create a specialist in its own department with `create_bot`. On a team, the new specialist reports to the Chief's own person. Ask for a particular engine, model and reasoning effort if you want to choose them. The Chief can look up exact available choices with `list_team_setup` and pass `modelSelection` with `instanceId`, `model`, and optionally `effort` or a supported `variant` (not both).
 
-When no model selection is supplied, the new bot uses the workspace's default model selection, including its reasoning effort; it does not copy the Chief's model. An invalid explicit choice is rejected rather than silently replaced. The new bot starts with connected apps disabled and at Full access, like any new bot, and existing bots keep their models. Combined team changes still use the reviewed team-setup flow.
+When no model selection is supplied, the new bot uses the workspace's default model selection, including its reasoning effort; it does not copy the Chief's model. An invalid explicit choice is rejected rather than silently replaced. The new bot starts at Full access, like any new bot, and existing bots keep their models. Combined team changes still use the reviewed team-setup flow.
 
 ## Rewind and branches
 

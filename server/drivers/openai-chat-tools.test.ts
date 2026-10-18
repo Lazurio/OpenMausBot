@@ -12,8 +12,6 @@ import { BUILT_IN_DATA_SYSTEM_PROMPT } from "../data/instructions.ts";
 import type { ProviderInstance, SendTurnInput } from "../contracts.ts";
 import { removeTempDir } from "../testing/cleanup.ts";
 import { recordEvents } from "../testing/events.ts";
-import { startFakeHttpMcp } from "../testing/fake-http-mcp-server.ts";
-import { whopLikeCatalog } from "../testing/whop-like-catalog.ts";
 import { GrokDriver } from "./grok.ts";
 import { CerebrasDriver } from "./cerebras.ts";
 import { MinimaxDriver } from "./minimax.ts";
@@ -43,7 +41,7 @@ function deferred<T = void>() {
 
 const chunk = (delta: unknown, finishReason: string | null = null) =>
   ({ choices: [{ index: 0, delta, finish_reason: finishReason }] });
-const toolCall = (name = "audit_write", args = '{"name":"receipt","value":"done"}', id = "call_write") =>
+const toolCall = (name = "data_write", args = '{"name":"receipt","value":"done"}', id = "call_write") =>
   ({ index: 0, id, type: "function", function: { name, arguments: args } });
 
 function sse(response: ServerResponse, chunks: unknown[], done = true) {
@@ -129,9 +127,9 @@ async function fixture(script: Script, provider: Provider = "openai-compat", api
     });
   const recorder = recordEvents(instance.adapter);
   const threadId = randomUUID();
-  const integrations: SendTurnInput["integrations"] = {
-    custom: { audit: { command: process.execPath, args: [helper, directory, origin], env: {} } },
-  };
+  // The fixture stands in for the Data harness server: the chat runtime mounts no other MCP servers.
+  const mcpServer = { command: process.execPath, args: [helper, directory, origin], env: {} as Record<string, string> };
+  const integrations: SendTurnInput["integrations"] = { data: mcpServer };
   cleanups.push(async () => {
     recorder.stop();
     await instance.dispose();
@@ -143,7 +141,7 @@ async function fixture(script: Script, provider: Provider = "openai-compat", api
     ? readFileSync(join(directory, "effects.ndjson"), "utf8").trim().split("\n").map((line) => JSON.parse(line))
     : [];
   return {
-    instance, recorder, requests, threadId, directory, integrations, effects, rpcStarted,
+    instance, recorder, requests, threadId, directory, server: mcpServer, integrations, effects, rpcStarted,
     start: (input: Partial<SendTurnInput> = {}) => instance.adapter.sendTurn({
       threadId, text: "Store the synthetic receipt.", model: "fixture-model", integrations, ...input,
     }),
@@ -229,42 +227,17 @@ describe("bounded action announcement recovery", () => {
   });
 });
 
-describe("a searched MCP catalog", () => {
-  it("asks about the tool call_tool runs, and never about a search", async () => {
-    const remote = await startFakeHttpMcp({ tools: whopLikeCatalog(300) });
-    cleanups.push(() => remote.close());
-    const f = await fixture((_body, response, round) => {
-      if (round === 1) sse(response, [chunk({ content: null, tool_calls: [toolCall("whop_search_tools", '{"query":"list payments"}', "call_search")] }, "tool_calls")]);
-      else if (round === 2) sse(response, [chunk({ content: null, tool_calls: [toolCall("whop_call_tool", '{"name":"payments_list","arguments":{"company_id":"biz_1"}}', "call_run")] }, "tool_calls")]);
-      else answer(response);
-    });
-    await f.start({ integrations: { custom: { whop: { type: "http", url: remote.url, headers: {} } } } });
-    const opened = await f.recorder.until((event) => event.type === "request.opened");
-    expect(opened).toMatchObject({ requestType: "permission", tool: "whop_payments_list", summary: expect.stringContaining("biz_1") });
-    expect(remote.calls).toEqual([]);
-    await f.instance.adapter.respondToRequest(f.threadId, opened.requestId!, { behavior: "allow" });
-    expect(await f.completed()).toMatchObject({ ok: true });
-    expect(f.recorder.events.filter((event) => event.type === "request.opened")).toHaveLength(1);
-    expect(remote.calls).toEqual([{ name: "payments_list", arguments: { company_id: "biz_1" } }]);
-    expect(f.recorder.events.flatMap((event) => event.type === "item.started" && event.itemType === "tool" ? [event.title] : []))
-      .toEqual(["whop_search_tools", "whop_payments_list"]);
-    const names = f.requests[0].tools!.map((tool) => tool.function.name);
-    expect(names.filter((name) => name.startsWith("whop_"))).toEqual(["whop_search_tools", "whop_describe_tool", "whop_call_tool"]);
-    expect(f.requests[1].messages.at(-1)).toMatchObject({ role: "tool", tool_call_id: "call_search", content: expect.stringContaining("payments_list") });
-  });
-});
-
 describe("approvals that follow the other engines", () => {
-  it("runs OpenMausBot's own agents tools without a card, while a configured server's tool still asks", async () => {
+  it("runs OpenMausBot's own agents tools without a card, while another server's tool still asks", async () => {
     const f = await fixture((_body, response, round) => {
       if (round === 1) sse(response, [chunk({ tool_calls: [toolCall("agents_write", '{"name":"peer","value":"sent"}', "call_agents")] }, "tool_calls")]);
-      else if (round === 2) sse(response, [chunk({ tool_calls: [toolCall("audit_write", '{"name":"receipt","value":"done"}', "call_audit")] }, "tool_calls")]);
+      else if (round === 2) sse(response, [chunk({ tool_calls: [toolCall("data_write", '{"name":"receipt","value":"done"}', "call_audit")] }, "tool_calls")]);
       else answer(response);
     });
-    const agents = f.integrations!.custom!.audit as NonNullable<SendTurnInput["integrations"]>["agents"];
+    const agents = { ...f.server };
     await f.start({ integrations: { ...f.integrations, agents } });
     const opened = await f.recorder.until((event) => event.type === "request.opened");
-    expect(opened).toMatchObject({ requestType: "permission", tool: "audit_write" });
+    expect(opened).toMatchObject({ requestType: "permission", tool: "data_write" });
     expect(f.effects()).toEqual([{ name: "peer", value: "sent" }]);
     await f.instance.adapter.respondToRequest(f.threadId, opened.requestId!, { behavior: "allow" });
     expect(await f.completed()).toMatchObject({ ok: true });
@@ -274,10 +247,10 @@ describe("approvals that follow the other engines", () => {
 
   it("keeps \"Always allow this session\" for that exact tool for the rest of the conversation", async () => {
     const calls = [
-      toolCall("audit_write", '{"name":"one","value":"1"}', "call_1"), toolCall("audit_write", '{"name":"two","value":"2"}', "call_2"), null,
-      toolCall("audit_write", '{"name":"three","value":"3"}', "call_3"), toolCall("audit_fail", '{"name":"four","value":"4"}', "call_4"), null,
-      toolCall("audit_write", '{"name":"guest","value":"g"}', "call_g"), toolCall("audit_write", '{"name":"guest2","value":"g"}', "call_g2"), null,
-      toolCall("audit_write", '{"name":"five","value":"5"}', "call_5"), null,
+      toolCall("data_write", '{"name":"one","value":"1"}', "call_1"), toolCall("data_write", '{"name":"two","value":"2"}', "call_2"), null,
+      toolCall("data_write", '{"name":"three","value":"3"}', "call_3"), toolCall("data_fail", '{"name":"four","value":"4"}', "call_4"), null,
+      toolCall("data_write", '{"name":"guest","value":"g"}', "call_g"), toolCall("data_write", '{"name":"guest2","value":"g"}', "call_g2"), null,
+      toolCall("data_write", '{"name":"five","value":"5"}', "call_5"), null,
     ];
     const f = await fixture((_body, response, round) => {
       const call = calls[round - 1];
@@ -287,7 +260,7 @@ describe("approvals that follow the other engines", () => {
     const opened = () => f.recorder.events.filter((event) => event.type === "request.opened");
     await f.start();
     const first = await f.recorder.until((event) => event.type === "request.opened");
-    expect(first).toMatchObject({ tool: "audit_write", allowSession: true });
+    expect(first).toMatchObject({ tool: "data_write", allowSession: true });
     expect(await f.instance.adapter.respondToRequest(f.threadId, first.requestId!, { behavior: "allow", always: true })).toBe("allowed-once");
     expect(await f.completed()).toMatchObject({ ok: true });
     expect(opened()).toHaveLength(1);
@@ -296,7 +269,7 @@ describe("approvals that follow the other engines", () => {
     f.recorder.events.splice(0);
     await f.start();
     const other = await f.recorder.until((event) => event.type === "request.opened");
-    expect(other).toMatchObject({ tool: "audit_fail", allowSession: true });
+    expect(other).toMatchObject({ tool: "data_fail", allowSession: true });
     expect(f.effects().map((effect) => effect.name)).toEqual(["one", "two", "three"]);
     await f.instance.adapter.respondToRequest(f.threadId, other.requestId!, { behavior: "deny" });
     await f.completed();
@@ -304,10 +277,10 @@ describe("approvals that follow the other engines", () => {
     f.recorder.events.splice(0);
     await f.start({ guestConfined: true });
     const guest = await f.recorder.until((event) => event.type === "request.opened");
-    expect(guest).toMatchObject({ tool: "audit_write", allowSession: false });
+    expect(guest).toMatchObject({ tool: "data_write", allowSession: false });
     expect(await f.instance.adapter.respondToRequest(f.threadId, guest.requestId!, { behavior: "allow", always: true })).toBe("allowed-once");
     const again = await f.recorder.until((event) => event.type === "request.opened" && event.requestId !== guest.requestId);
-    expect(again).toMatchObject({ tool: "audit_write", allowSession: false });
+    expect(again).toMatchObject({ tool: "data_write", allowSession: false });
     await f.instance.adapter.respondToRequest(f.threadId, again.requestId!, { behavior: "deny" });
     await f.completed();
     expect(f.effects().map((effect) => effect.name)).toEqual(["one", "two", "three", "guest"]);
@@ -315,7 +288,7 @@ describe("approvals that follow the other engines", () => {
     f.recorder.events.splice(0);
     await f.instance.adapter.sendTurn({ threadId: randomUUID(), text: "Store it here too.", model: "fixture-model", integrations: f.integrations });
     const elsewhere = await f.recorder.until((event) => event.type === "request.opened");
-    expect(elsewhere).toMatchObject({ tool: "audit_write" });
+    expect(elsewhere).toMatchObject({ tool: "data_write" });
     await f.instance.adapter.respondToRequest(elsewhere.threadId, elsewhere.requestId!, { behavior: "deny" });
     await f.completed();
     expect(f.effects().map((effect) => effect.name)).toEqual(["one", "two", "three", "guest"]);
@@ -325,10 +298,10 @@ describe("approvals that follow the other engines", () => {
 describe("whose allow \"Always allow this session\" keeps", () => {
   it("keeps it for the bot it was given to on that server: not a roommate on the same thread, nor a changed server", async () => {
     const calls = [
-      toolCall("audit_write", '{"name":"mira","value":"1"}', "call_1"), null,
-      toolCall("audit_write", '{"name":"clive","value":"2"}', "call_2"), null,
-      toolCall("audit_write", '{"name":"mira2","value":"3"}', "call_3"), null,
-      toolCall("audit_write", '{"name":"changed","value":"4"}', "call_4"), null,
+      toolCall("data_write", '{"name":"mira","value":"1"}', "call_1"), null,
+      toolCall("data_write", '{"name":"clive","value":"2"}', "call_2"), null,
+      toolCall("data_write", '{"name":"mira2","value":"3"}', "call_3"), null,
+      toolCall("data_write", '{"name":"changed","value":"4"}', "call_4"), null,
     ];
     const f = await fixture((_body, response, round) => {
       const call = calls[round - 1];
@@ -345,7 +318,7 @@ describe("whose allow \"Always allow this session\" keeps", () => {
     f.recorder.events.splice(0);
     await f.start({ botId: "clive" });
     const roommate = await f.recorder.until((event) => event.type === "request.opened");
-    expect(roommate).toMatchObject({ tool: "audit_write", allowSession: true });
+    expect(roommate).toMatchObject({ tool: "data_write", allowSession: true });
     await f.instance.adapter.respondToRequest(f.threadId, roommate.requestId!, { behavior: "deny" });
     await f.completed();
 
@@ -354,12 +327,11 @@ describe("whose allow \"Always allow this session\" keeps", () => {
     await f.completed();
     expect(opened()).toHaveLength(0);
 
-    // the person pointed "audit" at another launch of the server
-    const audit = f.integrations!.custom!.audit as { command: string; args: string[]; env: Record<string, string> };
+    // the server is launched differently under the same name
     f.recorder.events.splice(0);
-    await f.start({ botId: "mira", integrations: { custom: { audit: { ...audit, env: { ...audit.env, AUDIT_PROFILE: "other" } } } } });
+    await f.start({ botId: "mira", integrations: { data: { ...f.server, env: { ...f.server.env, AUDIT_PROFILE: "other" } } } });
     const changed = await f.recorder.until((event) => event.type === "request.opened");
-    expect(changed).toMatchObject({ tool: "audit_write", allowSession: true });
+    expect(changed).toMatchObject({ tool: "data_write", allowSession: true });
     await f.instance.adapter.respondToRequest(f.threadId, changed.requestId!, { behavior: "deny" });
     await f.completed();
     expect(f.effects().map((effect) => effect.name)).toEqual(["mira", "mira2"]);
@@ -372,7 +344,7 @@ describe("built-in Data provider parity", () => {
       if (round === 1) sse(response, [chunk({ tool_calls: [toolCall("data_write")] }, "tool_calls")]);
       else answer(response);
     }, provider);
-    const data = f.integrations!.custom!.audit as NonNullable<SendTurnInput["integrations"]>["data"];
+    const data = f.server;
     expect(f.instance.adapter.capabilities.dataMcp).toBe(true);
     await f.start({ integrations: { data }, system: BUILT_IN_DATA_SYSTEM_PROMPT });
     await f.decide();
@@ -381,29 +353,6 @@ describe("built-in Data provider parity", () => {
     expect(f.requests[0].messages).toContainEqual({ role: "system", content: BUILT_IN_DATA_SYSTEM_PROMPT });
     expect(f.effects()).toEqual([{ name: "receipt", value: "done" }]);
     expect(f.requests[1].messages).toContainEqual(expect.objectContaining({ role: "tool", tool_call_id: "call_write", content: expect.stringContaining("Stored receipt=done") }));
-  });
-});
-
-describe("a searched MCP catalog's misses", () => {
-  it("are guidance the model recovers from, so the turn still succeeds", async () => {
-    const remote = await startFakeHttpMcp({ tools: whopLikeCatalog(300) });
-    cleanups.push(() => remote.close());
-    const f = await fixture((_body, response, round) => {
-      if (round === 1) sse(response, [chunk({ content: null, tool_calls: [
-        toolCall("whop_describe_tool", '{"name":"payments_teleport"}', "call_unknown"),
-        { ...toolCall("whop_search_tools", '{"limit":"eight"}', "call_empty"), index: 1 },
-      ] }, "tool_calls")]);
-      else answer(response, "There is no such tool; I searched for the right one instead.");
-    });
-    await f.start({ integrations: { custom: { whop: { type: "http", url: remote.url, headers: {} } } } });
-    expect(await f.completed()).toMatchObject({ ok: true });
-    expect(f.recorder.events.some((event) => event.type === "request.opened")).toBe(false);
-    const results = f.requests[1].messages.filter((message) => message.role === "tool").map((message) => JSON.parse(message.content as string));
-    expect(results).toEqual([
-      { ok: true, result: expect.stringContaining("No tool named") },
-      { ok: true, result: expect.stringContaining("search_tools needs") },
-    ]);
-    expect(remote.calls).toEqual([]);
   });
 });
 
@@ -464,7 +413,7 @@ describe("optional built-in question compatibility", () => {
       await f.start(network ? { integrations: undefined } : {});
       expect(await f.completed()).toMatchObject({ ok: false });
       expect(f.requests).toHaveLength(1);
-      if (!network) expect(f.requests[0].tools?.some(tool => tool.function.name === "audit_write")).toBe(true);
+      if (!network) expect(f.requests[0].tools?.some(tool => tool.function.name === "data_write")).toBe(true);
       expect(f.effects()).toEqual([]);
     }
   });
@@ -519,7 +468,6 @@ describe("OpenAI-compatible computer images", () => {
     ));
     const imagePath = join(f.directory, "input.png");
     writeFileSync(imagePath, Buffer.from(png, "base64"));
-    await f.start({ integrations: { [source]: f.integrations!.custom!.audit }, images: [{ path: imagePath, mime: "image/png", bytes: Buffer.from(png, "base64").length }] });
     await f.decide();
     expect(await f.completed()).toMatchObject({ ok: true });
     expect(f.effects()).toHaveLength(1);
@@ -550,7 +498,6 @@ describe("OpenAI-compatible computer images", () => {
     ));
     const imagePath = join(f.directory, "input.png");
     writeFileSync(imagePath, Buffer.from(png, "base64"));
-    const browser = f.integrations!.custom!.audit as { command: string; args: string[]; env: Record<string, string> };
     await f.start({ model, integrations: { browser }, images: [{ path: imagePath, mime: "image/png", bytes: Buffer.from(png, "base64").length }] });
     await f.decide();
     expect(await f.completed()).toMatchObject({ ok: true });
@@ -620,7 +567,6 @@ describe("OpenAI-compatible computer images", () => {
     const stop = f.instance.adapter.onEvent(event => {
       if (event.type === "request.opened") void f.instance.adapter.respondToRequest(f.threadId, event.requestId!, { behavior: "allow" });
     });
-    await f.start({ integrations: { localComputer: f.integrations!.custom!.audit as NonNullable<SendTurnInput["integrations"]>["localComputer"] } });
     expect(await f.completed()).toMatchObject({ ok: true });
     stop();
     expect(f.effects()).toHaveLength(2);
@@ -639,7 +585,6 @@ describe("OpenAI-compatible computer images", () => {
       if (round === 1) sse(response, [chunk({ tool_calls: [{ ...toolCall(), function: { ...toolCall().function, name: "computer_write" } }] }, "tool_calls")]);
       else answer(response, "The action was denied.");
     });
-    await f.start({ integrations: { localComputer: f.integrations!.custom!.audit as NonNullable<SendTurnInput["integrations"]>["localComputer"] } });
     await f.decide("deny");
     expect(await f.completed()).toMatchObject({ ok: false });
     expect(f.effects()).toEqual([]);
@@ -680,7 +625,7 @@ describe.each<Provider>(["openai-compat", "grok", "minimax"])("%s structured too
     expect(f.requests[0].tools).toContainEqual({
       type: "function",
       function: expect.objectContaining({
-        name: "audit_write",
+        name: "data_write",
         parameters: expect.objectContaining({ required: ["name", "value"] }),
       }),
     });
@@ -696,11 +641,11 @@ describe.each<Provider>(["openai-compat", "grok", "minimax"])("%s structured too
     expect(started?.itemId).toEqual(expect.any(String));
     expect(f.recorder.events).toContainEqual(expect.objectContaining({ type: "item.completed", itemType: "tool", itemId: started?.itemId, ok: true }));
     expect(f.recorder.events.at(-1)).toMatchObject({ type: "turn.completed", ok: true });
-    expect(f.instance.adapter.capabilities).toMatchObject({ agentsMcp: true, composioMcp: true, customMcp: true });
+    expect(f.instance.adapter.capabilities).toMatchObject({ agentsMcp: true, dataMcp: true });
   });
 
   it("preserves ordinary transcript chat and leaves textual tool imitations as text", async () => {
-    const imitation = '<tool_call>{"name":"audit_write","arguments":{"value":"pretend"}}</tool_call>';
+    const imitation = '<tool_call>{"name":"data_write","arguments":{"value":"pretend"}}</tool_call>';
     const f = await fixture((_body, response) => answer(response, imitation), provider);
     await f.start({ integrations: undefined, system: "Fixture persona", transcript: [{ role: "user", text: "Earlier question" }, { role: "assistant", text: "Earlier answer" }] });
     expect(await f.completed()).toMatchObject({ ok: true });
@@ -993,7 +938,7 @@ describe("structured tool execution boundaries", () => {
   it("redacts a configured credential echoed by a tool from events, diagnostics, and the returned tool result", async () => {
     ensureDirs();
     const f = await fixture((_body, response, round) => round === 1
-      ? sse(response, [chunk({ tool_calls: [toolCall("audit_write", JSON.stringify({ name: "receipt", value: API_KEY_CANARY }))] }, "tool_calls")])
+      ? sse(response, [chunk({ tool_calls: [toolCall("data_write", JSON.stringify({ name: "receipt", value: API_KEY_CANARY }))] }, "tool_calls")])
       : answer(response), "grok");
     await f.start();
     await f.decide();
@@ -1006,11 +951,11 @@ describe("structured tool execution boundaries", () => {
   });
 
   it("never promotes textual tool syntax into execution, even when that tool is mounted", async () => {
-    const imitation = '<tool_call>{"name":"audit_write","arguments":{"name":"receipt","value":"pretend"}}</tool_call>';
+    const imitation = '<tool_call>{"name":"data_write","arguments":{"name":"receipt","value":"pretend"}}</tool_call>';
     const f = await fixture((_body, response) => answer(response, imitation));
     await f.start();
     expect(await f.completed()).toMatchObject({ ok: true });
-    expect(f.requests[0].tools?.some((tool) => tool.function.name === "audit_write")).toBe(true);
+    expect(f.requests[0].tools?.some((tool) => tool.function.name === "data_write")).toBe(true);
     expect(f.recorder.events.some((event) => event.type === "request.opened" || event.type === "item.started")).toBe(false);
     expect(f.effects()).toEqual([]);
     expect(f.requests).toHaveLength(1);
@@ -1020,7 +965,7 @@ describe("structured tool execution boundaries", () => {
     const f = await fixture((_body, response, round) => {
       if (round > 1) return answer(response);
       sse(response, [
-        chunk({ tool_calls: [toolCall("audit_write", '{"name":"first",', "call_first"), { ...toolCall("audit_write", '{"name":"second",', "call_second"), index: 1 }] }),
+        chunk({ tool_calls: [toolCall("data_write", '{"name":"first",', "call_first"), { ...toolCall("data_write", '{"name":"second",', "call_second"), index: 1 }] }),
         chunk({ tool_calls: [{ index: 1, id: null, type: null, function: { name: null, arguments: '"value":"two"}' } }] }),
         chunk({ tool_calls: [{ index: 0, function: { arguments: '"value":"one"}' } }] }, "tool_calls"),
       ]);
@@ -1047,7 +992,7 @@ describe("structured tool execution boundaries", () => {
     const f = await fixture((_body, response, round) => sse(response, [{
       model: `router-backend-${round}`,
       ...chunk(round <= 2
-        ? { tool_calls: [toolCall("audit_write", JSON.stringify({ name: `step-${round}`, value: "done" }), `call-${round}`)] }
+        ? { tool_calls: [toolCall("data_write", JSON.stringify({ name: `step-${round}`, value: "done" }), `call-${round}`)] }
         : { content: "Both operations completed." }, round <= 2 ? "tool_calls" : "stop"),
     }]));
     await f.start({ approvalMode: "full" });
@@ -1097,10 +1042,10 @@ describe("structured tool execution boundaries", () => {
   });
 
   it.each([
-    ["invalid JSON", "audit_write", '{"name":'],
-    ["non-object arguments", "audit_write", '[]'],
-    ["arguments outside the advertised schema", "audit_write", '{"name":"receipt","value":42}'],
-    ["unknown tool", "audit_unknown", '{"name":"receipt","value":"done"}'],
+    ["invalid JSON", "data_write", '{"name":'],
+    ["non-object arguments", "data_write", '[]'],
+    ["arguments outside the advertised schema", "data_write", '{"name":"receipt","value":42}'],
+    ["unknown tool", "data_unknown", '{"name":"receipt","value":"done"}'],
   ])("reports %s without granting permission or executing", async (_scenario, name, args) => {
     const f = await fixture((_body, response, round) => round === 1
       ? sse(response, [chunk({ tool_calls: [toolCall(name, args)] }, "tool_calls")]) : answer(response));
@@ -1130,7 +1075,7 @@ describe("structured tool execution boundaries", () => {
 
   it("returns an MCP tool failure and preserves its unsuccessful operation status", async () => {
     const f = await fixture((_body, response, round) => round === 1
-      ? sse(response, [chunk({ tool_calls: [toolCall("audit_fail")] }, "tool_calls")]) : answer(response));
+      ? sse(response, [chunk({ tool_calls: [toolCall("data_fail")] }, "tool_calls")]) : answer(response));
     await f.start();
     await f.decide();
     expect(await f.completed()).toMatchObject({ ok: false });
@@ -1192,7 +1137,7 @@ describe("structured tool execution boundaries", () => {
 
   it("finishes a tool-heavy task that needs more than sixteen steps", async () => {
     const f = await fixture((_body, response, round) => round <= 40
-      ? sse(response, [chunk({ tool_calls: [toolCall("audit_write", `{"name":"step","value":"${round}"}`, `call_${round}`)] }, "tool_calls")])
+      ? sse(response, [chunk({ tool_calls: [toolCall("data_write", `{"name":"step","value":"${round}"}`, `call_${round}`)] }, "tool_calls")])
       : answer(response));
     await f.start({ approvalMode: "full" });
     expect(await f.completed()).toMatchObject({ ok: true });
@@ -1203,7 +1148,7 @@ describe("structured tool execution boundaries", () => {
 
   it("stops a model that keeps requesting tools after 64 steps, with one next action that does not repeat the steps that ran", async () => {
     const f = await fixture((_body, response, round) => sse(response, [
-      chunk({ tool_calls: [toolCall("audit_write", '{"name":"receipt","value":"done"}', `call_${round}`)] }, "tool_calls"),
+      chunk({ tool_calls: [toolCall("data_write", '{"name":"receipt","value":"done"}', `call_${round}`)] }, "tool_calls"),
     ]));
     const stop = f.instance.adapter.onEvent((event) => {
       if (event.type === "request.opened") void f.instance.adapter.respondToRequest(f.threadId, event.requestId!, { behavior: "allow" });
@@ -1247,7 +1192,7 @@ describe("structured tool execution boundaries", () => {
   it("stops at 200 tool calls in one turn without running the batch that crosses it", async () => {
     const f = await fixture((_body, response, round) => sse(response, [chunk({
       tool_calls: Array.from({ length: 25 }, (_, index) => ({
-        ...toolCall("audit_write", `{"name":"r${round}","value":"${index}"}`, `call_${round}_${index}`), index,
+        ...toolCall("data_write", `{"name":"r${round}","value":"${index}"}`, `call_${round}_${index}`), index,
       })),
     }, "tool_calls")]));
     await f.start({ approvalMode: "full" });
@@ -1264,7 +1209,7 @@ describe("structured tool execution boundaries", () => {
     ensureDirs();
     const large = "note ".repeat(4_000);
     const f = await fixture((_body, response, round) => round <= 20
-      ? sse(response, [chunk({ tool_calls: [toolCall("audit_write", JSON.stringify({ name: `step${round}`, value: large }), `call_${round}`)] }, "tool_calls")])
+      ? sse(response, [chunk({ tool_calls: [toolCall("data_write", JSON.stringify({ name: `step${round}`, value: large }), `call_${round}`)] }, "tool_calls")])
       : answer(response), "grok");
     await f.start({ approvalMode: "full" });
     expect(await f.completed()).toMatchObject({ ok: true });
@@ -1280,10 +1225,10 @@ describe("structured tool execution boundaries", () => {
     const heldResponse = deferred();
     const f = await fixture((_body, response, round) => {
       if (stage === "stream") {
-        sse(response, [chunk({ tool_calls: [toolCall("audit_write", '{"name":')] })], false);
+        sse(response, [chunk({ tool_calls: [toolCall("data_write", '{"name":')] })], false);
         heldResponse.resolve();
       } else if (round === 1) {
-        sse(response, [chunk({ tool_calls: [toolCall(stage === "rpc" ? "audit_wait" : "audit_write")] }, "tool_calls")]);
+        sse(response, [chunk({ tool_calls: [toolCall(stage === "rpc" ? "data_wait" : "data_write")] }, "tool_calls")]);
       } else {
         sse(response, [chunk({ content: "Finishing" })], false);
         heldResponse.resolve();
@@ -1306,26 +1251,6 @@ describe("structured tool execution boundaries", () => {
     const pending = f.recorder.events.find((event) => event.type === "request.opened");
     if (pending) expect(await f.instance.adapter.respondToRequest(f.threadId, pending.requestId!, { behavior: "allow" })).toBe("unavailable");
     expect(f.recorder.events.filter((event) => event.type === "turn.completed")).toHaveLength(1);
-  });
-});
-
-describe("a configured MCP server that cannot mount", () => {
-  it("is skipped with a notice, and the turn runs with the remaining servers", async () => {
-    const f = await fixture((_body, response) => answer(response));
-    const broken = join(f.directory, "broken-mcp.mjs");
-    // Answers initialize with an error, as a server needing sign-in or refusing its credential (401) does.
-    writeFileSync(broken, `process.stdin.setEncoding("utf8");let b="";process.stdin.on("data",(c)=>{b+=c;let n;while((n=b.indexOf("\\n"))!==-1){const m=JSON.parse(b.slice(0,n));b=b.slice(n+1);if(m.id!==undefined)process.stdout.write(JSON.stringify({jsonrpc:"2.0",id:m.id,error:{code:-32001,message:"401 Unauthorized"}})+"\\n");}});`);
-    const warn = console.warn;
-    console.warn = () => {};
-    try {
-      await f.start({ integrations: { custom: { ...f.integrations!.custom, slack: { command: process.execPath, args: [broken], env: {} } } } });
-      expect(await f.completed()).toMatchObject({ ok: true });
-    } finally { console.warn = warn; }
-    expect(f.recorder.events).toContainEqual(expect.objectContaining({ type: "runtime.notice", message: expect.stringContaining(`MCP server "slack" was skipped`) }));
-    expect(f.recorder.events.some((event) => event.type === "runtime.error")).toBe(false);
-    const names = f.requests[0].tools!.map((tool) => tool.function.name);
-    expect(names).toContain("audit_write");
-    expect(names.some((name) => name.startsWith("slack_"))).toBe(false);
   });
 });
 

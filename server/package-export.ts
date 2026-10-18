@@ -21,7 +21,6 @@ import {
   SEED_MAX_FILES,
   utf8Bytes,
   type PackageAgent,
-  type PackageConnection,
   type PackageDefinition,
   type PackageDocument,
   type PackagePreset,
@@ -297,7 +296,6 @@ export interface TeamExportInput {
   skillSelection?: "all" | "chosen";
   memoryByBot?: ReadonlyMap<string, ReadonlyArray<{ path: string; text: string }>>;
   avatars?: Readonly<Record<string, unknown>>;
-  mcpServers?: Readonly<Record<string, unknown>>;
   skipped?: readonly TeamExportSkip[];
   preset?: DefaultsPreset | null;
 }
@@ -311,7 +309,6 @@ export interface TeamExportResult {
 }
 
 const KEY_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
-const CONNECTION_KEY = /^[a-z][a-z0-9_-]{0,27}$/;
 const SEMVER = /^(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})$/;
 const DATA_URL = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/;
 
@@ -347,23 +344,6 @@ export function picture(value: unknown): { mime: "image/png" | "image/jpeg" | "i
   if (bytes.length > AVATAR_MAX_BYTES) return "picture_too_large";
   if (!pictureMatchesMime(bytes, match[1]!)) return "picture_invalid";
   return { mime: match[1] as "image/png" | "image/jpeg" | "image/webp", data: match[2]! };
-}
-
-function remoteServer(raw: unknown): { transport: "http" | "sse"; url: string; valueNames: string[] } | "stdio" | null {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const server = raw as { url?: unknown; type?: unknown; headers?: unknown; command?: unknown };
-  if (typeof server.url !== "string") return typeof server.command === "string" ? "stdio" : null;
-  const headers = server.headers && typeof server.headers === "object" && !Array.isArray(server.headers) ? Object.keys(server.headers) : [];
-  return { transport: server.type === "sse" ? "sse" : "http", url: server.url, valueNames: headers };
-}
-
-function sharableAddress(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" || (url.protocol === "http:" && (url.hostname === "localhost" || url.hostname === "[::1]" || /^127(?:\.\d{1,3}){3}$/.test(url.hostname)));
-  } catch {
-    return false;
-  }
 }
 
 const TOKEN_RUN = /[A-Za-z0-9_-]{16,}/g;
@@ -516,52 +496,6 @@ export function createTeamPackageExport(input: TeamExportInput): TeamExportResul
   if (crowded) throw new TeamExportError(`${crowded.name} has more than ${AGENT_MAX_SKILLS} skills. Choose fewer skills and try again.`);
   const requirements = requiredApps(bots);
 
-  // Addresses and header names only; values stay on this computer.
-  const connections: PackageConnection[] = [];
-  const connectionKeyByServer = new Map<string, string>();
-  const connectionUsers = new Map<string, string[]>();
-  const connectionKeys = new Set<string>();
-  const agentConnections = new Map<string, string[]>();
-  const addressRedactions: string[] = [];
-  for (const bot of bots) {
-    const assigned: string[] = [];
-    for (const name of bot.mcpServers ?? []) {
-      if (!connectionKeyByServer.has(name)) {
-        const server = remoteServer(input.mcpServers?.[name]);
-        if (!server) continue;
-        const part = `connections[${name}]`;
-        if (server === "stdio") {
-          if (!skipped.some((skip) => skip.part === part)) skipped.push({ part, reason: "stdio_server" });
-          continue;
-        }
-        if (!sharableAddress(server.url)) {
-          if (!skipped.some((skip) => skip.part === part)) skipped.push({ part, reason: "insecure_address" });
-          continue;
-        }
-        let key = CONNECTION_KEY.test(name) ? name : portableKey(name, "connection", new Set()).replace(/^[^a-z]+/, "").slice(0, 28) || "connection";
-        const stem = key.slice(0, 25);
-        for (let suffix = 2; connectionKeys.has(key); suffix++) key = `${stem}-${suffix}`;
-        connectionKeys.add(key);
-        connectionKeyByServer.set(name, key);
-        const address = shareableAddress(server.url);
-        if (address.changed) addressRedactions.push(`connections[${key}].mcp.url`);
-        connections.push({
-          key,
-          label: name.slice(0, 100),
-          reason: "",
-          mcp: { transport: server.transport, url: address.url, valueNames: server.valueNames },
-        });
-      }
-      const key = connectionKeyByServer.get(name);
-      if (!key) continue;
-      if (!assigned.includes(key)) assigned.push(key);
-      connectionUsers.set(key, [...(connectionUsers.get(key) ?? []), bot.name]);
-    }
-    agentConnections.set(bot.id, assigned);
-  }
-  for (const connection of connections) {
-    connection.reason = `Used by ${[...new Set(connectionUsers.get(connection.key) ?? [])].join(", ")}`.slice(0, 240);
-  }
 
   const agents: PackageAgent[] = bots.map((bot) => {
     const key = botKeys.get(bot.id)!;
@@ -588,8 +522,6 @@ export function createTeamPackageExport(input: TeamExportInput): TeamExportResul
     if (assignedPlaybooks?.length) agent.playbooks = assignedPlaybooks;
     const assignedSkills = agentSkills.get(bot.id);
     if (assignedSkills?.length) agent.skills = assignedSkills;
-    const assignedConnections = agentConnections.get(bot.id);
-    if (assignedConnections?.length) agent.connections = assignedConnections;
     const memory: Record<string, string> = {};
     let files = 0;
     let total = 0;
@@ -664,7 +596,7 @@ export function createTeamPackageExport(input: TeamExportInput): TeamExportResul
     author: { name: input.authorName?.trim() || "OpenMausBot user" },
     license: "Unspecified",
     outcomes: ["Recreate this team without copying chat history or private settings."],
-    setupMinutes: Math.min(240, Math.max(2, bots.length + requirements.size * 2 + connections.length * 2)),
+    setupMinutes: Math.min(240, Math.max(2, bots.length + requirements.size * 2)),
     requirements: { apps: [...requirements.values()], capabilities: [] },
     team: {
       name: (team || displayName).slice(0, 60).trim(),
@@ -678,7 +610,6 @@ export function createTeamPackageExport(input: TeamExportInput): TeamExportResul
   if (playbooks.length) definition.playbooks = playbooks;
   if (input.preset) definition.presets = [withPresetSkills(input.preset, packageSkills, skipped)];
   if (packageSkills.size) definition.skills = { version: 1, entries: [...packageSkills.values()].map((skill) => ({ ...skill })) };
-  if (connections.length) definition.connections = connections;
 
   const { document: redactedDocument, redacted } = redactPackageSecrets({
     format: PACKAGE_FORMAT, version: PACKAGE_VERSION, package: definition,
@@ -697,7 +628,7 @@ export function createTeamPackageExport(input: TeamExportInput): TeamExportResul
   return {
     document,
     filename: `${document.package.id}-${document.package.release}.openmaus.json`,
-    redacted: [...new Set([...addressRedactions, ...redacted])],
+    redacted: [...new Set(redacted)],
     skipped,
     published: {
       packageId,

@@ -4,11 +4,10 @@ import { recoveryCapabilityError } from "./automatic-recovery.ts";
 describe("automatic recovery capabilities", () => {
   const engine = { driverKind: "qwenAgent", capabilities: {
     sessionModelSwitch: "unsupported" as const, agentsMcp: true, browserMcp: true,
-    customMcp: true, dataMcp: true, highlevelMcp: true, images: true,
+    dataMcp: true, images: true,
   } };
   it("keeps a compatible local workspace and rejects losing a tool or attachment", () => {
     expect(recoveryCapabilityError(engine, { ...engine, driverKind: "claudeAgent" })).toBeUndefined();
-    for (const key of ["agentsMcp", "browserMcp", "customMcp", "dataMcp", "highlevelMcp", "images"] as const) {
       expect(recoveryCapabilityError(engine, { ...engine, capabilities: { ...engine.capabilities, [key]: false } })).toMatch(/tools and attachments/);
     }
   });

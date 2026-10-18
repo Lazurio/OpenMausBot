@@ -11,11 +11,6 @@ export interface ConfigStatus {
   groq?: { configured: boolean };
   deepseek?: { configured: boolean };
   meta?: { configured: boolean };
-  /** X research comes with MausBot Cloud plans: `included` while this server holds the plan's relay credential;
-   * `unavailable` when the Admin said no to this desktop's paid sign-in. */
-  xResearch?: { included: boolean; unavailable?: boolean };
-  /** The person's own treg key for research: configured or not, never the key. */
-  treg?: { configured: boolean };
   /** `everyClaudeBot`: the key runs every Claude bot, not only "Claude (API key)". */
   anthropic?: { configured: boolean; everyClaudeBot?: boolean };
   openai?: { configured: boolean };
@@ -33,7 +28,6 @@ export interface ConfigStatus {
   fleet?: { available: boolean };
   budgets?: { monthlyUsd?: number; warnAtPercent?: number };
   billing?: { currency?: string; prices?: Record<string, { inputPerMillion: number; outputPerMillion: number; cachedInputPerMillion?: number }> };
-  composio: { configured: boolean; mode?: "managed" | "self-hosted" | "unavailable" };
   rooms: { turnTimeoutMinutes: number };
   /** Per-call ceiling (minutes) for a bot's MCP tools. Absent from servers
    * older than the setting; read it with mcpCallTimeoutMinutes(). */
@@ -128,7 +122,6 @@ export interface ManagedPolicySummary {
   version: number;
   companyModelsOnly: boolean;
   allowedEngines: "all" | string[];
-  mcp: { allowCustom: boolean; allowlist: string[] };
   computers: { thisComputer: boolean };
   remoteAccess: boolean;
 }

@@ -15,8 +15,6 @@ const MASCOT: Record<TourStep["id"], MausState> = {
   "tour.computer": "working",
   "tour.computer-browser": "curious",
   "tour.tools": "curious",
-  "tour.apps": "happy",
-  "tour.apps-panel": "proud",
   "tour.automations": "happy",
   "tour.automations-page": "drowsy",
   "tour.done": "celebrate",
@@ -76,12 +74,6 @@ export function GuidedTour() {
           if (trigger && trigger.getAttribute("aria-expanded") !== "true") trigger.click();
           return;
         }
-        case "openApps":
-          if (!press("nav-apps")) dispatch({ type: "togglePlugins", open: true });
-          return;
-        case "closeApps":
-          dispatch({ type: "togglePlugins", open: false });
-          return;
         case "openAutomations":
           if (!press("nav-automations") && readAdvancedMode()) dispatch({ type: "showRoutines" });
           return;
@@ -132,11 +124,10 @@ export function GuidedTour() {
     closed.current = true;
     setDismissed(true);
     if (state.computerOpen) run("closeComputer");
-    if (state.pluginsOpen) run("closeApps");
     run("backToChat");
     void save(true).catch(() => {});
     dispatch({ type: "toggleTour", open: false });
-  }, [state.computerOpen, state.pluginsOpen, run, save, dispatch]);
+  }, [state.computerOpen, run, save, dispatch]);
 
   // Only ever started from Settings (Replay app tour): the welcome no longer hands over to it, now or after a reload.
   const active = !dismissed && state.tourOpen && Boolean(record?.completedAt) && !state.welcomeOpen && step !== null;
@@ -167,7 +158,7 @@ export function GuidedTour() {
   }, [active, step, advance, run]);
 
   useEffect(() => {
-    if (!active || !step?.anchor || step.id === "tour.apps-panel" || step.id === "tour.automations-page" || step.id === "tour.done") return;
+    if (!active || !step?.anchor || step.id === "tour.automations-page" || step.id === "tour.done") return;
     const onClick = (event: MouseEvent) => {
       const target = event.target as Element | null;
       if (target?.closest(`[data-tour="${step.anchor}"]`)) advance(true);

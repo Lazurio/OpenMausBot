@@ -6,9 +6,9 @@
 
 **Goal:** Close the gap between what OpenMausBot already is (an engine-neutral harness
 that owns memory, skills, permissions, and computers) and what it is not yet packaged
-as (a portable Bot Profile, a real connections surface, and a machine that stays on).
+as (a portable Bot Profile and a machine that stays on).
 
-**Why these seven and not the community's list verbatim:** the community proposal asks
+**Why these plans and not the community's list verbatim:** the community proposal asks
 for a multi-engine architecture, harness-level memory, engine-independent learning, and
 a vendor-neutral control plane. Those exist today — `server/contracts.ts` makes the model
 a data value rather than a service binding, `server/workspace.ts` owns memory outside any
@@ -37,7 +37,6 @@ codebase already enforces; a task that violates one is wrong even if its tests p
   (`server/redact.ts`) before it reaches disk.
 - **The capability rule.** Never offer a control, tool, or attachment a driver
   cannot actually mount. `ProviderAdapter.capabilities` exists for this — see
-  `agentsMcp`, `computerMcp`, `composioMcp`, `images` in `server/contracts.ts:205`.
   A new integration means a new capability flag, and the UI reads the flag.
 - **Unknown config round-trips.** A config written by a newer build must load in an
   older one and degrade to "unavailable" rather than throwing. `InstanceConfig.driver`
@@ -48,7 +47,7 @@ codebase already enforces; a task that violates one is wrong even if its tests p
   exception is the private team backup (`server/team-backup.ts`): it exists to
   move a person's own fleet between their own machines, so it carries transcripts
   and memory — redacted — and is never a shareable package.
-- **Imports land disabled.** Skills, connectors, routines, and MCP servers arriving
+- **Imports land disabled.** Skills and routines arriving
   from outside are inert until a person enables them after reading. See the policy
   comment at the top of `server/skills.ts`.
 - **Audit what you authorize.** Any new allow/deny decision writes a row through
@@ -63,7 +62,6 @@ codebase already enforces; a task that violates one is wrong even if its tests p
 P1 usage-accounting-and-budgets ──┬─▶ P2 bot-profile ──┬─▶ P6 memory-review-loop
                                   │                    │
                                   └─▶ P7 task-board ◀──┘
-P3 mcp-registry ──▶ P4 connector-scopes
 P5 headless-harness  (independent)
 ```
 
@@ -71,8 +69,6 @@ P5 headless-harness  (independent)
 |---|---|---|---|
 | 1 | [Usage accounting and budgets](2026-08-31-01-usage-accounting-and-budgets.md) | — | Budgets built on today's `input` field would cap on cache reads. Must split the number before anything enforces on it. |
 | 2 | [Bot Profile](2026-08-31-02-bot-profile.md) | P1 | The keystone. Consolidates five stores into one addressable, versioned object. P6 and P7 both write into its version log. |
-| 3 | [MCP registry](2026-08-31-03-mcp-registry.md) | — | Independent of P1/P2. Promotes MCP from plumbing to product surface. |
-| 4 | [Connector scopes](2026-08-31-04-connector-scopes.md) | P3 | Reuses the per-tool policy gate P3 builds into `createGateInterceptor`. |
 | 5 | [Headless harness](2026-08-31-05-headless-harness.md) | — | Largest, fully independent. Can run in parallel with 1–4 by a second worker. |
 | 6 | [Memory review loop](2026-08-31-06-memory-review-loop.md) | P2 | Needs the profile version log to record an approved memory diff. |
 | 7 | [Delegation task board](2026-08-31-07-delegation-task-board.md) | P1, P2 | Needs budgets for concurrency caps and the profile for supervisor roles. |
@@ -105,8 +101,6 @@ comparison. Routing rules come after, driven by that data.
 
 ## What is deliberately NOT in scope
 
-- **Rebuilding Composio as the architecture.** It stays one connection method. P3
-  makes direct MCP a peer of it, which is the community's actual ask.
 - **A hosted multi-tenant backend.** P5 ships a daemon the user runs. The existing
   `cloudflare/control-plane` worker keeps its current job — identity, installation
   ownership, and one managed tunnel per install — and gains nothing that stores bots,

@@ -517,33 +517,6 @@ describe("thread control placement", () => {
     }
   });
 
-  it("offers the matching macOS Settings and relaunch actions only for a named CUA permission failure", () => {
-    fixture.platform = "darwin";
-    fixture.localMessage = "Screen Recording required";
-    window.ogb = { platform: "darwin", permOpenSettings: vi.fn(), relaunch: vi.fn() } as unknown as NonNullable<Window["ogb"]>;
-    const screen = renderToStaticMarkup(createElement(ErrorRow, {
-      message: "OpenMausBot can't use this computer yet — embedded host failed: Screen Recording required. Relaunch OpenMausBot after granting any missing macOS permission.",
-    }));
-    expect(screen).toContain("Open Screen Recording Settings");
-    expect(screen).toContain("Relaunch OpenMausBot");
-    expect(screen).not.toContain("Open Accessibility Settings");
-    fixture.localMessage = "Accessibility required";
-    const accessibility = renderToStaticMarkup(createElement(ErrorRow, {
-      message: "OpenMausBot can't use this computer yet — Accessibility required",
-    }));
-    expect(accessibility).toContain("Open Accessibility Settings");
-    expect(accessibility).not.toContain("Open Screen Recording Settings");
-    expect(renderToStaticMarkup(createElement(ErrorRow, {
-      message: "OpenMausBot can't use this computer yet — Screen Recording required",
-    }))).not.toContain("Open Screen Recording Settings");
-    expect(renderToStaticMarkup(createElement(ErrorRow, { message: "Network timeout" }))).not.toContain("Open Screen Recording Settings");
-    fixture.localReasonCode = "remote-server";
-    expect(renderToStaticMarkup(createElement(ErrorRow, { message: "OpenMausBot can't use this computer yet — Screen Recording required" }))).not.toContain("Open Screen Recording Settings");
-    fixture.localReasonCode = "cua-driver-unavailable";
-    fixture.platform = "other";
-    fixture.localMessage = "";
-    delete window.ogb;
-  });
   it.each([
     "شغّل الاختبارات\nThen run typecheck\nوبعدها ارفع الفرع",
     "שלום עולם\nThen run typecheck\nתודה רבה",
@@ -585,7 +558,7 @@ describe("thread control placement", () => {
     expect(markup.indexOf("data-test-approval-control")).toBeLessThan(markup.indexOf("<textarea"));
     expect(markup).not.toContain('aria-label="Thread settings"');
     expect(fixture.model).toMatchObject({ threadId: "selected", bot: { busy: false, modelSelection: { model: "thread-model" } } });
-    expect(fixture.approval).toMatchObject({ approvalMode: "ask", busy: false, trustedModesAvailable: false });
+    expect(fixture.approval).toMatchObject({ approvalMode: "ask", busy: false });
     fixture.approval!.onSelect("full");
     expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "updateTask", botId: "bot", threadId: "selected", patch: { approvalMode: "full" } });
   });
@@ -609,8 +582,8 @@ describe("thread control placement", () => {
     fixture.advanced = advanced;
     const markup = renderToStaticMarkup(createElement(ChatView, { bot }));
     const pill = markup.slice(markup.indexOf('data-tour="composer"'), markup.indexOf("<textarea"));
-    expect(pill.match(/data-testid="place-chip"/g) ?? []).toHaveLength(advanced ? 1 : 0);
-    expect(markup.includes("Where this conversation works")).toBe(advanced);
+    expect(pill.match(/data-testid="place-chip"/g) ?? []).toHaveLength(0);
+    expect(markup).not.toContain("Where this conversation works");
     fixture.advanced = true;
   });
 });

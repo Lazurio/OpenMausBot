@@ -28,7 +28,7 @@ function fixture() {
   const otherChief = store.createBot({ name: "Ava", section: "Operations" }, { seedMessages: false });
   const archived = store.createBot({ name: "Archived" }, { seedMessages: false });
   store.patchBot(archived.id, { hidden: true });
-  store.patchBot(chief.id, { chiefOfStaff: true, autoApprove: true, approvalMode: "full", alwaysAllow: ["Bash"], cwd: "/private/old-workspace", composio: true,
+  store.patchBot(chief.id, { chiefOfStaff: true, autoApprove: true, approvalMode: "full", alwaysAllow: ["Bash"], cwd: "/private/old-workspace",
     playbooks: [{ key: "research", name: "Research", summary: "Find evidence", triggers: ["research"], instructions: "Cite sources" }] });
   store.setChiefOfStaff(otherChief.id);
   const root = store.appendMessage(chief.threadId, { role: "user", kind: "text", text: "Original question", at: 100 });
@@ -219,20 +219,15 @@ describe("additive portable team backups", () => {
     expect(store.bot(importedChief.id)).toEqual(importedChief);
   });
 
-  it("carries connector grants in the private backup but lands imported bots grant-less", () => {
+  it("still reads an older backup with connector grants, and drops them", () => {
     const { store, routines, chief } = fixture();
-    store.patchBot(chief.id, { connectorTools: { gmail: { tools: ["GMAIL_SEND_EMAIL", "GMAIL_SEND_EMAIL"] } } });
     const backup = createTeamBackup(store, routines.listRoutines(), "Granted team");
-    expect(backup.bots.find((bot) => bot.key === chief.id)?.connectorTools).toEqual({
-      gmail: { tools: ["GMAIL_SEND_EMAIL"] },
-    });
-    const result = importTeamBackup(store, routines, JSON.parse(JSON.stringify(backup)), selection());
-    const imported = result.bots.find((bot) => bot.name === "Mira 2")!;
-    expect(imported.composio).toBe(false);
-    expect(imported.connectorTools).toEqual({});
-    const tampered = JSON.parse(JSON.stringify(backup)) as { bots: { key: string; connectorTools: unknown }[] };
-    tampered.bots[0].connectorTools = { gmail: { tools: [] } };
-    expect(() => parseTeamBackup(tampered)).toThrow();
+    const older = JSON.parse(JSON.stringify(backup)) as { bots: Array<{ key: string; connectorTools?: unknown }> };
+    older.bots.find((bot) => bot.key === chief.id)!.connectorTools = { gmail: { tools: ["GMAIL_SEND_EMAIL"] } };
+    expect(parseTeamBackup(older).bots.find((bot) => bot.key === chief.id)).not.toHaveProperty("connectorTools");
+    const imported = importTeamBackup(store, routines, older, selection()).bots.find((bot) => bot.name === "Mira 2")!;
+    expect(imported).not.toHaveProperty("connectorTools");
+    expect(imported).not.toHaveProperty("composio");
   });
 
   it("keeps first-message title markers armed-once through backup and restore", () => {
@@ -321,6 +316,7 @@ describe("additive portable team backups", () => {
     expect(imported.approvalMode).toBeUndefined();
     expect(approvalModeFor(imported)).toBe("full");
     expect(imported).not.toHaveProperty("computer");
+    expect(imported).not.toHaveProperty("composio");
     expect(JSON.stringify(parseTeamBackup(backup))).not.toMatch(/live-approval|secret-session|\/etc\/passwd|approvalMode/);
   });
 

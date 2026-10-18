@@ -3,8 +3,6 @@ import { browserAvailable, builtInBrowserEnabled } from "@/lib/feature-flags";
 import { stateForBot } from "@/lib/mascot";
 import { useStore, type Bot } from "@/state/store";
 import { approvalModeFor } from "../../../shared/approval-mode";
-import { connectorGrantsState, type ConnectorGrantsState } from "@/lib/connector-grants";
-import { highLevelConnected, useHighLevelStatus } from "@/lib/highlevel-status";
 
 export type BotPatch = Partial<
   Pick<
@@ -26,26 +24,19 @@ export type BotPatch = Partial<
     | "alwaysAllow"
     | "autoApprove"
     | "approvalMode"
-    | "outbound"
     | "fallback"
     | "speakReplies"
     | "replyStyle"
     | "memoryEnabled"
-    | "xResearch"
     | "voice"
     | "chiefOfStaff"
     | "managedSections"
     | "approvePeerComms"
-    | "composio"
     | "browser"
     | "recordBrowserSteps"
-    | "mcpServers"
     | "modelSelection"
   >
 > & {
-  connectorTools?: Bot["connectorTools"] | null;
-  connectorScopes?: Bot["connectorScopes"] | null;
-  phoneApps?: Bot["phoneApps"] | null;
   peers?: string[] | null;
   acknowledgeLocalAuto?: boolean;
   acknowledgePeerScope?: boolean;
@@ -61,13 +52,6 @@ export function useBotSettingsDerived(bot: Bot) {
   const approvalMode = approvalModeFor(bot);
   const trustedModesAvailable = Boolean(window.ogb?.approvals && capabilities.host.packaged);
   const canCoordinate = engine?.capabilities?.agentsMcp === true;
-  // Connected apps reach a bot through Composio's MCP or the native HighLevel one; either lets the switch work.
-  const canUseConnectedApps = engine?.capabilities?.composioMcp === true || engine?.capabilities?.highlevelMcp === true;
-  // A native HighLevel connection counts as a connected app even where the Composio service is not set up (a Cloud home).
-  const highlevel = useHighLevelStatus();
-  const connectedAppsConfigured = state.config?.composio?.configured === true || highLevelConnected(highlevel);
-  const connectedAppsEnabled = bot.composio !== false;
-  const connectorGrantState: ConnectorGrantsState = connectorGrantsState(bot);
   const canUseBrowser = engine?.capabilities?.browserMcp === true;
   const desktopBrowser = browserAvailable(state.config);
   const browserBlockedOnWindows = window.ogb?.platform === "win32" && !desktopBrowser;
@@ -89,10 +73,6 @@ export function useBotSettingsDerived(bot: Bot) {
     approvalMode,
     trustedModesAvailable,
     canCoordinate,
-    canUseConnectedApps,
-    connectedAppsConfigured,
-    connectedAppsEnabled,
-    connectorGrantState,
     canUseBrowser,
     desktopBrowser,
     browserBlockedOnWindows,

@@ -273,7 +273,7 @@ describe("an MCP app", () => {
     expect(find("[data-app-strip]")).toBeNull();
   });
 
-  it("says sign in again when its server signed the person out", async () => {
+  it("says sign in again when its server signed the person out, with no sign-in of its own", async () => {
     fetchMock.mockImplementation(async (path) => /\/app(\?|$)/.test(path) ? json(200, mcpDoc())
       : json(401, { error: { code: -32000, message: "Sign in to Excalidraw again" }, signIn: { server: "excalidraw" } }));
     await mount(row(mcpPayload()));
@@ -282,8 +282,7 @@ describe("an MCP app", () => {
     await settle();
     expect(toView.find((message) => message.id === "r1")).toEqual({ jsonrpc: "2.0", id: "r1", error: { code: -32000, message: "Sign-in needed" } });
     expect(find("[data-app-strip]")!.textContent).toContain("Sign in to Excalidraw again");
-    await act(async () => button("Sign in")!.click());
-    expect(dispatch).toHaveBeenCalledWith({ type: "togglePlugins", open: true, surface: "mcp" });
+    expect(button("Sign in")).toBeUndefined();
   });
 
   it("draws the document's own reason under a read-only frame", async () => {

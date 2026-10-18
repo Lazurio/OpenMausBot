@@ -71,7 +71,7 @@ describe("Connect your phone in the account menu", () => {
     const entry = connectPhoneEntry("cloud", access(member, false));
     expect(entry).toMatchObject({ target: "cloud", team: "Acme" });
     expect(t("sidebar.menu.connectPhone.team", { team: entry!.team! })).toBe("to Acme");
-    expect(phoneDestinations(entry, null)).toEqual([{ ...entry, id: "here" }]);
+    expect(phoneDestinations(entry)).toEqual([{ ...entry, id: "here" }]);
   });
 
   it("on another server: to the bots here, only for a session that may make a pairing code", () => {

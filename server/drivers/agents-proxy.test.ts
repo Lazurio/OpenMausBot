@@ -593,8 +593,6 @@ describe("agents-proxy MCP surface", () => {
       "update_widget",
       "show_html",
       "update_html",
-      "publish_page",
-      "unpublish_page",
       "post_to_room",
       "create_bot",
       "list_team_setup",
@@ -607,14 +605,12 @@ describe("agents-proxy MCP surface", () => {
       "request_sign_in",
       "decide",
       "extract",
-      "report_bug",
       "memory_update",
       "retry_thread",
       "memory_log",
       "session_search",
       "session_read",
       "list_triggers",
-      "list_trigger_events",
       "create_trigger",
       "manage_trigger",
       "propose_profile",
@@ -622,7 +618,6 @@ describe("agents-proxy MCP surface", () => {
       "propose_team_memory",
       "skills_list",
       "skill_manage",
-      "add_mcp_server",
     ]);
     const tool = (name: string) => list.result.tools.find((entry: { name: string }) => entry.name === name);
     const coordinate = tool("coordinate_bots");
@@ -646,7 +641,7 @@ describe("agents-proxy MCP surface", () => {
     }
     const credential = tool("request_credential");
     expect(credential.description).toContain("the app shows a secure entry card, as does a freshly QR-paired phone");
-    expect(credential.description).toContain("1Password service account token (onePasswordToken)");
+    expect(credential.description).not.toContain("1Password");
     expect(credential.description).toContain("Never claim a secure field opened unless this request succeeds");
   });
 
@@ -656,7 +651,7 @@ describe("agents-proxy MCP surface", () => {
       "tool_result_read",
       "assignment_status", "list_bots", "list_rooms", "list_threads",
       "list_team_setup",
-      "session_search", "session_read", "list_triggers", "list_trigger_events", "skills_list",
+      "session_search", "session_read", "list_triggers", "skills_list",
     ];
     expect(list.result.tools.filter((tool: any) => tool.annotations?.readOnlyHint)
       .map((tool: any) => tool.name)).toEqual(readNames);
@@ -678,7 +673,7 @@ describe("agents-proxy MCP surface", () => {
     const list = await rpc("tools/list");
     const create = list.result.tools.find((t: { name: string }) => t.name === "create_trigger");
     expect(create.inputSchema.required).toEqual(["when", "name", "instructions"]);
-    expect(create.inputSchema.properties.when.enum).toEqual(["schedule", "app_event", "webhook", "limit_reset"]);
+    expect(create.inputSchema.properties.when.enum).toEqual(["schedule", "webhook", "limit_reset"]);
     expect(create.inputSchema.properties.repeat.enum).toEqual(["once", "every_reset"]);
     const schedule = create.inputSchema.properties.schedule;
     expect(JSON.stringify(create.inputSchema)).not.toMatch(/"oneOf"|"anyOf"|"allOf"|"const"/);
@@ -2055,7 +2050,7 @@ describe("with computer sharing off and no Chief of Staff (the defaults)", () =>
   });
 
   it("refuses the handlers if a model calls them by name anyway", async () => {
-    for (const name of ["list_shared_computers", "shared_computer"]) {
+    for (const name of ["shared_computer"]) {
       const refused = await gatedRpc("tools/call", { name, arguments: { computer_id: "x", action: "list_files" } });
       expect(refused.error?.message ?? refused.result?.content?.[0]?.text).toMatch(/unknown tool|turned off/i);
     }
@@ -2200,7 +2195,7 @@ describe("tool bridge", () => {
   /** The main child's switches: a Chief with skills and shared computers. */
   const CHIEF = { OMB_SKILL_AUTHORING_ENABLED: "1", OMB_CHIEF_OF_STAFF: "1" };
   const CHIEF_ONLY = ["create_bot", "list_team_setup", "propose_team_setup", "propose_bot_deletion", "create_room", "manage_room", "retry_thread"];
-  const HOT = ["tool_result_read", "list_room_targets", "coordinate_bots", "list_bots", "list_rooms", "select_computer", "attach_file", "publish_page", "post_to_room", "request_credential", "request_sign_in", "fill_login", "memory_update"];
+  const HOT = ["tool_result_read", "list_room_targets", "coordinate_bots", "list_bots", "list_rooms", "attach_file", "post_to_room", "request_credential", "request_sign_in", "memory_update"];
   let chief: Rpc;
   let plain: Rpc;
   let off: Rpc;
@@ -2290,7 +2285,7 @@ describe("tool bridge", () => {
   });
 
   it("find_tool never returns a tool outside this turn's profile", async () => {
-    const profile = new Set((await listed(off)).map((tool) => tool.name).filter((name) => !CHIEF_ONLY.includes(name) && !["skills_list", "skill_manage", "list_shared_computers", "shared_computer"].includes(name)));
+    const profile = new Set((await listed(off)).map((tool) => tool.name).filter((name) => !CHIEF_ONLY.includes(name) && !["skills_list", "skill_manage", "shared_computer"].includes(name)));
     for (const query of ["create a new specialist bot", "delete a teammate", "set up the team", "save a reusable skill", ...CHIEF_ONLY, "skill_manage", "shared_computer"]) {
       const matches = matchesOf(await find(plain, query));
       for (const match of matches) {

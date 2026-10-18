@@ -9,6 +9,7 @@
 <sub>OpenMausBot is an open-source Grok Bot alternative: an independent project inspired by **Grok Bot**, and the open-source alternative to **Meta Muse**, **OpenAI dots** and **Cue by Manus** — bring-your-own-agent, local-first, on the models you already have. Also known as **MausBot**; formerly **OpenGrokBot**. Not affiliated with xAI, Meta, OpenAI or Manus.</sub>
 
 Every bot in the sidebar is a real agent — Claude or Codex running locally under the hood — with its own
+personality, its own model.
 Talk to them like contacts. Watch them work. Approve what matters.
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
@@ -130,18 +131,6 @@ permission broker turns every risky action into a decision you make, for cloud a
 </td>
 <td width="50%" valign="top">
 
-### 🔌 Connected apps
-
-A one-click marketplace over Composio Sessions: Gmail, Slack, GitHub, Notion, Linear and hundreds more.
-OAuth once, and every bot can use them as tools.
-
-<img src="docs/screenshots/marketplace.png" alt="Connected apps marketplace" width="100%">
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
 ### 🗂 Manage bots like chats
 
 Right-click any bot: pin, mark unread, edit profile, duplicate, copy conversation ID, hide, delete. It's a
@@ -150,6 +139,8 @@ messaging app — your agents behave like contacts.
 <img src="docs/screenshots/context-menu.png" alt="Bot context menu" width="100%">
 
 </td>
+</tr>
+<tr>
 <td width="50%" valign="top">
 
 ### 🔑 Keys once, everything lights up
@@ -178,8 +169,8 @@ See [docs/decision-model.md](docs/decision-model.md).
 ### 📦 Install a complete team from one Markdown file
 
 Browse outcome-driven teams on [BotMRR](https://botmrr.io), then choose **Add to OpenMausBot**. The app
-opens a review screen before creating the bots, Chief of Staff, channels, playbooks, connector checklist,
-and suggested routines. You can also import the same `.md` file from disk or paste its public GitHub URL
+opens a review screen before creating the bots, Chief of Staff, channels, playbooks, and suggested
+routines. You can also import the same `.md` file from disk or paste its public GitHub URL
 in **Teams → Import**.
 
 The format stays portable: OpenMausBot reads the structured YAML frontmatter for a reliable one-click
@@ -233,7 +224,6 @@ expressions · screenshots of the bot's work folded into the transcript.
 ![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)
 ![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-0F172A?logo=tailwindcss&logoColor=38BDF8)
-![Composio](https://img.shields.io/badge/Composio-e6493a)
 ![Cua](https://img.shields.io/badge/Cua%20Driver-1f2937)
 ![ElevenLabs](https://img.shields.io/badge/ElevenLabs-000000?logo=elevenlabs&logoColor=white)
 ![Fish Audio](https://img.shields.io/badge/Fish%20Audio-2563eb)
@@ -246,7 +236,6 @@ expressions · screenshots of the bot's work folded into the transcript.
 | **Claude · Codex · Grok** | The agents behind every bot, run through their local CLIs |
 | **Electron** | Desktop shells for macOS, Windows, and Ubuntu |
 | **React + Vite + Tailwind CSS** | The chat app UI and its build |
-| **Composio** | Connected apps — Gmail, Slack, GitHub, and more |
 | **Cua Driver** | Native computer use on your own machine |
 | **ElevenLabs · Fish Audio** | Hosted voices for bots that talk back |
 | **GitHub Sponsors** | One-time and monthly project support |
@@ -275,14 +264,12 @@ flowchart LR
     BUS -- "one SSE stream" --> UI
     REG --> CL & CX & GR
     CL & CX & GR -- "permission requests" --> BROKER
-    server -- "Composio Session" --> APPS[("Gmail · Slack · GitHub · …")]
 ```
 
 | Layer | Where | What it does |
 |---|---|---|
 | Drivers | `server/drivers/` | One per provider: Claude, Codex, and Grok Build over their local CLIs (stream-JSON / JSON-RPC / ACP), plus a cloud-computer agent. Unknown drivers degrade to "unavailable", never crash the fleet. |
 | Harness | `server/harness/` | Registry (configs → live instances) and the fan-in event bus every client folds. |
-| API | `server/index.ts` | Bots, turns, approvals, model catalog, computer lifecycle, connectors, config — HTTP + SSE. |
 | Voice | `server/tts/` | ElevenLabs, Fish Audio, Grok (xAI), built-in Mac voices, or local Chatterbox. Cloud keys stay on the harness; markdown is rewritten into something worth hearing before it is spoken. |
 | App | `src/` | The chat shell. Server-backed store, one reducer, zero client-side transports. |
 | Desktop | `electron/` | macOS, Windows, and Ubuntu shells with an embedded harness and platform capabilities; Apple speech stays macOS-only, Ubuntu Xorg has opt-in local control, and Wayland remains fail-closed. |
@@ -374,10 +361,8 @@ in the sidebar footer) when you want to enable its integration:
 
 | Credential | What it enables | Where to get it |
 |---|---|---|
-| Composio project key (`ak_…`) | Connect Gmail, GitHub, Slack, Notion, and other apps to your bots | [OpenMausBot Composio setup](docs/composio.md) |
 | ElevenLabs key | Read replies aloud, and call your bots | [ElevenLabs API keys](https://elevenlabs.io/app/settings/api-keys) |
 | Fish Audio key | Read replies aloud with Fish Audio voices, and call your bots | [Fish Audio API keys](https://fish.audio/app/api-keys/) |
-
 
 ```sh
 pnpm typecheck     # app + server
@@ -405,15 +390,6 @@ The existing duration field remains calendar/display metadata. Webhook triggers 
 but reuse the same queued task executor and calendar
 receipts.
 
-**App events** start a bot when something happens in a connected app ("whenever I get an email from Acme, draft
-a reply"). The bot finds the app's events with `list_trigger_events` and calls `create_trigger` with
-`when: "app_event"`; the person can also choose **New → Set it up yourself → When something happens in an app**.
-Composio sends each event to OpenMausBot's connected-apps service, which queues it; the app collects the queue
-with a long poll, so a desktop needs no public address and events wait while it is closed. Gmail is checked every
-15 minutes; Slack, GitHub and other push apps arrive at once. A desktop keeps up to 500 events a day and a paid
-Cloud 2,000; what is skipped shows on the automation. App events need the included connected apps: a server
-using its own Composio key cannot watch apps yet. Details: [docs/composio.md](docs/composio.md#app-events).
-
 OpenMausBot starts a webhook-only receiver on `127.0.0.1:8800` by default (or one port above `OMB_PORT`).
 Set `OMB_WEBHOOK_PORT` to choose another port. A webhook secret is shown once when the trigger is created
 or rotated. Bearer authentication is recommended so the secret stays out of request URLs and most access
@@ -435,7 +411,8 @@ Contributions welcome — the driver SPI in [`server/contracts.ts`](server/contr
 small; adding a provider is one file in [`server/drivers/`](server/drivers/) plus a one-line registration.
 No code needed at all for your own engines: any ACP-speaking CLI or OpenAI-compatible endpoint
 plugs in through config — see [`docs/custom-engines.md`](docs/custom-engines.md).
-Users can add their own MCP tool servers with zero code via [`docs/custom-mcp-servers.md`](docs/custom-mcp-servers.md).
+Claude bots load MCP tool servers from the bot folder's own `.mcp.json`; every bot can run any CLI installed on
+the computer.
 To run bots on OpenRouter, Fireworks AI, DeepSeek, Cline or your own OpenAI- or Anthropic-compatible provider,
 see [Other model providers](apps/docs/content/docs/providers/model-providers.mdx).
 

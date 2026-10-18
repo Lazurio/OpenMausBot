@@ -1,5 +1,5 @@
 // The one Grok Bot import, used by Templates → Import, Settings → Import and the welcome tour's import step:
-// link → card → Sign in with Cursor or the export prompt → reply → preview → Add → the Chief of Staff finishes.
+// link → card → the export prompt → reply → preview → Add → the Chief of Staff finishes.
 import { Check, Loader2 } from "lucide-react";
 import { useState } from "react";
 

@@ -65,10 +65,7 @@ Contract version: `1` (`cloudContractVersion` on the wire).
       credit lasts and nothing of the person's own can run, a line says so
       (with the amount where the desktop app knows it), and **Use my credit for
       now** moves on.
-   3. **Files and apps**, optional: **Share folders** opens Settings → MausBot
       Cloud in this computer's window, one click from Files (a browser is told
-      to use the desktop app), and **Connect apps** opens Connected apps on the
-      Cloud.
    4. **{name} is ready**: **Say hi to your Chief of Staff** (or to the first
       bot) opens its chat, and **Give it a job** asks the first-job question.
 
@@ -393,8 +390,6 @@ would be the server itself) or a **Local VM** (a Fly machine has no container
   subdomains): Reddit blocks bots that browse from data-centre addresses and can
   ban the person's account. The egress gate refuses those names, whether the
   page was typed, linked, redirected to or framed, and a bot's call that would
-  open one is told so and pointed at the Reddit connected app or the person's
-  own computer (`server/browser/egress/reddit.ts`). A cloud computer's
   `open_url` refuses them the same way. The desktop's and a self-hosted
   server's browsers are not limited.
 
@@ -833,26 +828,6 @@ computers belong to this machine on every request.
   does what it would without it (its lead answers). Only **Test** shows it,
   as a fixed sentence.
 
-### Included connected apps
-
-Connected apps (Gmail, Outlook, Slack, LinkedIn, Calendly and the rest of the
-catalog) come with the plan through OpenMausBot's managed connection service,
-the same one the packaged desktop app uses. The Admin sets nothing for it: at
-every start the server registers the Cloud's own installation if it has none,
-keeps the token owner-only in `/data/.openmausbot/connected-apps-installation.json`
-(never in a backup, a move or `config.json`), checks it with the service, and
-retries with backoff while the service is down, without holding up the start.
-An owner's own Composio project key still wins. The details are in
-[composio.md](composio.md#mausbot-cloud). `OMB_COMPOSIO_BROKER_URL` (env, not
-secret, optional) points a Cloud at another service, such as a staging one.
-
-For a paid plan the Admin also sets `OMB_CLOUD_CONNECTED_APPS_GRANT` (secret):
-a grant it signs for the machine id, which the server presents to the service
-once it holds its token. The service then gives this installation a paid
-Cloud's app-event limit (2,000 a day instead of a desktop's 500). Without it a
-Cloud gets the desktop limit. The grant's format is in
-[the broker's README](../cloudflare/composio-broker/README.md#paid-clouds).
-
 ### Trial Claude credit
 
 A free trial may come with a one-time Claude credit (the Admin's
@@ -1010,7 +985,6 @@ wait for the next read, `truncated: true`):
   "turns": { "started15m": 6, "failed15m": 3, "started24h": 40, "failed24h": 5 },
   "routines": [{ "routineId": "<uuid>", "status": "failed", "at": 1790000200000, "consecutiveFailures": 2 }],
   "engines": [{ "kind": "codex", "used": true, "available": true, "authenticated": false, "version": "0.130.0" }],
-  "connectors": { "checkedAt": 1790000000000, "failed": false, "items": [{ "slug": "gmail", "connected": false }] },
   "browser": { "available": true, "installing": false, "interrupted": 0 },
   "system": { "totalBytes": 4294967296, "availableBytes": 2147483648, "rssBytes": 314572800, "load1": 0.4, "cpus": 2,
     "disk": { "totalBytes": 10737418240, "freeBytes": 8589934592 }, "eventLogWritable": true },

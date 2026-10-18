@@ -48,15 +48,12 @@ export function automationContextText(line: AutomationLine, at: number, text: st
   return `[Your automation ${JSON.stringify(line.name)} ${what} at ${localTime(at)}:]\n${text}`;
 }
 
-/** A sign-in, connection or credential card still waiting on the person, in plain words; null once it is settled. */
-export function waitingCardText(message: Pick<Message, "kind" | "signIn" | "connector" | "secret">): string | null {
-  const { signIn, connector, secret } = message;
+/** A sign-in or credential card still waiting on the person, in plain words; null once it is settled. */
+export function waitingCardText(message: Pick<Message, "kind" | "signIn" | "secret">): string | null {
+  const { signIn, secret } = message;
   if (message.kind === "signin" && signIn && !signIn.done && !signIn.cancelled && !signIn.superseded && !signIn.resumed && !signIn.stopped) {
     const reason = signIn.reason?.trim();
     return `I need you to sign in to ${signIn.site}${reason ? `: ${reason}${/[.!?]$/.test(reason) ? "" : "."}` : "."}`;
-  }
-  if (message.kind === "connector" && connector && connector.status !== "connected" && !connector.dismissed && !connector.resumed && !connector.stopped) {
-    return `I need you to connect ${connector.label}.`;
   }
   if (message.kind === "secret" && secret && !secret.provided && !secret.dismissed && !secret.superseded && !secret.resumed && !secret.stopped) {
     return `I need your ${secret.label}.`;

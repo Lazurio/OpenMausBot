@@ -645,12 +645,9 @@ export const MuseCodeDriver: ProviderDriver<MuseConfig> = {
       capabilities: {
         sessionModelSwitch: "in-session",
         agentsMcp: true,
-        customMcp: true,
         computerMcp: true,
-        composioMcp: true,
         browserMcp: true,
         dataMcp: true,
-        highlevelMcp: true, deviceMcp: true,
         images: true,
         nativeImageInput: true,
         effortLevels: EFFORT_LEVELS,

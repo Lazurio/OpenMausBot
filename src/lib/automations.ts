@@ -5,12 +5,10 @@ import { activeLocale, t } from "@/lib/i18n";
 import type { LocaleKey } from "@/locales";
 import type { Routine, RoutineRun, RoutineSchedule } from "@/lib/routines";
 import type { WebhookAttempt, WebhookTrigger } from "@/lib/webhooks";
-import type { AppTrigger } from "@/lib/app-triggers";
-import { appProblem, appStatusParts, appWhen, skippedToday } from "@/lib/app-automations";
 import { limitResetWhen } from "@/lib/limit-resets";
 import type { OptionCardData } from "@/state/store";
 
-export type AutomationKind = "schedule" | "webhook" | "app";
+export type AutomationKind = "schedule" | "webhook";
 
 export interface Automation {
   kind: AutomationKind;
@@ -21,8 +19,6 @@ export interface Automation {
   enabled: boolean;
   schedule?: RoutineSchedule;
   eventTypes?: string[];
-  /** kind "app": what it watches, its problem and what it skipped. */
-  appTrigger?: AppTrigger;
   nextRunAt: number | null;
   /** This automation's runs, newest first. */
   runs: RoutineRun[];
@@ -37,7 +33,7 @@ const runTime = (run: RoutineRun) => run.startedAt ?? run.scheduledFor ?? run.cr
 const newestFirst = (left: RoutineRun, right: RoutineRun) => runTime(right) - runTime(left);
 
 /** With `bots`, an automation whose bot no longer exists is left out: it can never run, so it is never shown. */
-export function automationsFrom(sources: { routines: readonly Routine[]; webhooks: readonly WebhookTrigger[]; appTriggers?: readonly AppTrigger[]; runs: readonly RoutineRun[]; bots?: readonly { id: string }[] }): Automation[] {
+export function automationsFrom(sources: { routines: readonly Routine[]; webhooks: readonly WebhookTrigger[]; runs: readonly RoutineRun[]; bots?: readonly { id: string }[] }): Automation[] {
   const runsOf = (id: string) => sources.runs.filter((run) => run.routineId === id).sort(newestFirst);
   const botIds = sources.bots && new Set(sources.bots.map((bot) => bot.id));
   return [
@@ -51,10 +47,6 @@ export function automationsFrom(sources: { routines: readonly Routine[]; webhook
       kind: "webhook", id: webhook.id, name: webhook.name, botId: webhook.botId, instructions: webhook.prompt, enabled: webhook.enabled,
       eventTypes: webhook.eventTypes, nextRunAt: null, runs: runsOf(webhook.id),
     })),
-    ...(sources.appTriggers ?? []).map((trigger): Automation => ({
-      kind: "app", id: trigger.id, name: trigger.name, botId: trigger.botId, instructions: trigger.prompt, enabled: trigger.enabled,
-      appTrigger: trigger, nextRunAt: null, runs: runsOf(trigger.id),
-    })),
   ].filter((automation) => !botIds || botIds.has(automation.botId));
 }
 
@@ -62,7 +54,6 @@ export function automationFor(ref: { kind: AutomationKind; id: string }, sources
   return automationsFrom({
     routines: ref.kind === "schedule" ? sources.routines.filter((routine) => routine.id === ref.id) : [],
     webhooks: ref.kind === "webhook" ? sources.webhooks.filter((webhook) => webhook.id === ref.id) : [],
-    appTriggers: ref.kind === "app" ? (sources.appTriggers ?? []).filter((trigger) => trigger.id === ref.id) : [],
     runs: sources.runs,
     bots: sources.bots,
   })[0] ?? null;
@@ -75,8 +66,6 @@ export function cardAutomation(card: OptionCardData): { kind: AutomationKind; id
   if (routine?.operation.action === "create" && routine.resultId) return { kind: "schedule", id: routine.resultId };
   const webhook = card.webhookRequest;
   if (webhook?.operation.action === "create" && webhook.resultId) return { kind: "webhook", id: webhook.resultId };
-  const app = card.appTriggerRequest;
-  if (app?.operation.action === "create" && app.resultId) return { kind: "app", id: app.resultId };
   return null;
 }
 
@@ -207,9 +196,8 @@ export function sourcePhrase(name: string): string {
 }
 
 /** "Every weekday at 9 AM, Scout sends you a summary of your inbox"; "When your sales form sends something, Scout drafts…". */
-export function automationSentence(automation: Pick<Automation, "kind" | "name" | "instructions" | "schedule" | "appTrigger">, botName: string): string {
+export function automationSentence(automation: Pick<Automation, "kind" | "name" | "instructions" | "schedule">, botName: string): string {
   const does = doesPhrase(automation.instructions);
-  if (automation.kind === "app" && automation.appTrigger) return t("automations.sentence.appEvent", { when: appWhen(automation.appTrigger), bot: botName, does });
   if (automation.kind === "schedule" && automation.schedule) {
     return t("automations.sentence.schedule", { when: plainWhen(automation.schedule), bot: botName, does });
   }
@@ -243,10 +231,8 @@ function ownerFix(run: RoutineRun): { reason: string; fix: AutomationFix } | nul
 /** Done when a one-time automation's time has passed, Paused when switched off. Needs you when its last run waits on the
  * person, its app needs reconnecting, failed for a reason only the person can fix, or failed twice running. A run that
  * failed and then recovered is Working. */
-export function automationStatus(automation: Pick<Automation, "enabled" | "runs"> & Partial<Pick<Automation, "schedule" | "appTrigger" | "checkTrouble">>, now = Date.now()): AutomationStatus {
+export function automationStatus(automation: Pick<Automation, "enabled" | "runs"> & Partial<Pick<Automation, "schedule" | "checkTrouble">>, now = Date.now()): AutomationStatus {
   if (!automation.enabled) return isDone(automation, now) ? { state: "done" } : { state: "paused" };
-  const app = automation.appTrigger && appProblem(automation.appTrigger);
-  if (app) return { state: "needs-you", ...app };
   if (automation.checkTrouble) return { state: "needs-you", reason: automation.checkTrouble, fix: SIGNED_OUT.test(automation.checkTrouble) ? "reconnect" : "run" };
   const settled = automation.runs.filter((run) => run.status !== "cancelled" && run.status !== "queued");
   const latest = settled[0];
@@ -284,7 +270,7 @@ export function orderAutomations<T extends Automation>(automations: readonly T[]
 
 /** Before an automation has ever run, what a person wants to know is when it first will: "First run Monday 9:00 AM". */
 export function firstRunLine(automation: Automation, now = Date.now()): string | null {
-  if (automation.nextRunAt == null || automation.appTrigger || automation.checkedAt !== undefined) return null;
+  if (automation.nextRunAt == null || automation.checkedAt !== undefined) return null;
   if (automationStatus(automation, now).state !== "working" || automation.runs.some((run) => run.status !== "queued")) return null;
   return t("automations.firstRun", { when: nextWhen(automation.nextRunAt, now) });
 }
@@ -299,8 +285,7 @@ export function statusLine(automation: Automation, now = Date.now()): string {
   if (latest?.status === "running") parts.push(t("automations.runningNow"));
   else if (automation.checkedAt !== undefined && (!latest || automation.checkedAt >= (latest.finishedAt ?? runTime(latest)))) parts.push(t("automations.checkedNothingNew", { when: lastWhen(automation.checkedAt, now) }));
   else if (latest) parts.push(`${t("automations.lastRan", { when: lastWhen(runTime(latest), now) })}${isProblem(latest) ? " ✗" : ""}`);
-  else if (!automation.appTrigger) parts.push(t("automations.notRunYet"));
-  if (automation.appTrigger) parts.push(...appStatusParts(automation.appTrigger, Boolean(latest)), ...[skippedToday(automation.appTrigger, now) ?? []].flat());
+  else parts.push(t("automations.notRunYet"));
   if (automation.nextRunAt != null) parts.push(t("automations.next", { when: nextWhen(automation.nextRunAt, now) }));
   if (automation.readsAndDrafts) parts.push(t("automations.readsAndDrafts"));
   else if (automation.enabled && automation.schedule?.type === "limit_reset") parts.push(t("automations.limit.timeUnknown"));

@@ -73,7 +73,6 @@ describe("what a bridged turn is listed", () => {
       "list_bots",
       "list_rooms",
       "attach_file",
-      "publish_page",
       "post_to_room",
       "request_credential",
       "request_sign_in",
@@ -90,7 +89,6 @@ describe("what a bridged turn is listed", () => {
       "list_bots",
       "list_rooms",
       "attach_file",
-      "publish_page",
       "post_to_room",
       "request_credential",
       "request_sign_in",
@@ -156,7 +154,7 @@ describe("what a bridged turn is listed", () => {
       }
     }
     // today that is publish_page, listed for it alone, and the two the hot list names anyway
-    expect(names(availableTools(profile({ ...FULL_CHIEF }))).filter((tool) => reportedAs(tool).some(isOutboundTool))).toEqual(["publish_page", "post_to_room", "send_voice_note"]);
+    expect(names(availableTools(profile({ ...FULL_CHIEF }))).filter((tool) => reportedAs(tool).some(isOutboundTool))).toEqual(["post_to_room", "send_voice_note"]);
     // and the bridge's own two names are not outward either
     for (const spelling of [...reportedAs(USE_TOOL), ...reportedAs(FIND_TOOL)]) expect(isOutboundTool(spelling), spelling).toBe(false);
     // derived, not listed by hand: a future tool named like a send is kept,
@@ -242,7 +240,6 @@ describe("find_tool", () => {
     ["change my name and title", "propose_profile"],
     ["switch this bot to a different model", "propose_model"],
     ["search my earlier conversations", "session_search"],
-    ["add an MCP server", "add_mcp_server"],
     ["see how the threads I opened are going", "list_threads"],
     ["write a line to today's log", "memory_log"],
     ["remember a decision for the whole team", "propose_team_memory"],

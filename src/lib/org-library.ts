@@ -12,7 +12,7 @@ export interface OrgLibraryPackage {
   publisher: { organizationId: string; name: string; self: boolean };
   mode: "required" | "available" | "off";
   release: null | { version: string; sha256: string; sizeBytes: number; formatVersion: number; publishedAt: number; notes: string };
-  contents: { bots: number; skills: number; presets: number; rooms: number; routines: number; connections: number; botNames: string[] };
+  contents: { bots: number; skills: number; presets: number; rooms: number; routines: number; botNames: string[] };
   scanFindings: number;
   blob: "ready" | "unavailable" | "unsupported";
   installed: { installId: string; release: string; status: "installed" | "withdrawn" | "removed" } | null;
@@ -77,7 +77,6 @@ export function orgContentsLine(contents: OrgLibraryPackage["contents"]): string
   if (contents.presets) parts.push(t("orgLibrary.presets", { count: contents.presets }));
   if (contents.rooms) parts.push(t("orgLibrary.rooms", { count: contents.rooms }));
   if (contents.routines) parts.push(t("orgLibrary.routines", { count: contents.routines }));
-  if (contents.connections) parts.push(t("orgLibrary.connections", { count: contents.connections }));
   return parts.join(" · ");
 }
 
@@ -113,7 +112,6 @@ export function orgPackagePreview(document: PackageDocument): PendingTeamImport 
     apps: pkg.requirements.apps.map((app) => ({ label: app.label, optional: app.optional === true })),
     skills: [],
     offeredSkills: (pkg.skills?.entries ?? []).map((skill) => skill.name),
-    connections: [],
     notes: 0,
     presets: (pkg.presets ?? []).map((preset) => preset.name),
   };

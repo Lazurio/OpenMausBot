@@ -59,7 +59,6 @@ it("shows, replaces and serves a bot's page, and carries its context and its mes
     expect(doc).toMatchObject({ v: 1, messageId: shown.messageId, rev: 1, csp: BOT_HTML_CSP, can: { serverTools: false, message: true } });
     expect(String(doc.srcdoc).startsWith(`${CSP_META_PREFIX}${BOT_HTML_CSP}">`)).toBe(true);
     expect(String(doc.srcdoc)).toContain("Cups today");
-    expect(await api("POST", `/api/bots/${bot.id}/apps/${shown.messageId}/rpc`, { threadId: bot.threadId, method: "tools/list" }, 404)).toEqual({ error: "That app has no server to call." });
 
     expect(await api("POST", `/api/bots/${bot.id}/apps/${shown.messageId}/context`, { threadId: bot.threadId, content: [{ type: "text", text: "The counter shows 3 cups." }] })).toEqual({ ok: true });
     const sent = await api("POST", `/api/bots/${bot.id}/messages`, {

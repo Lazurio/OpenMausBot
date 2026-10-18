@@ -85,7 +85,6 @@ export function DetailsTab({ bot, derived, onOpen }: {
       )}
 
       <TryAsking bot={bot} />
-
       {conversationItems.length > 0 && (
         <Card label={t("botPanel.section.conversation")} anchor="conversation">
           {conversationItems.map((item) => <ItemRow key={item.key} item={item} />)}

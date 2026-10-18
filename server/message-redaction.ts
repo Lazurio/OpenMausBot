@@ -108,14 +108,6 @@ export function redactBotAuthored<T extends Omit<WireMessage, "id" | "at"> & { a
     }
     out.card = card;
   }
-  if (out.connector) {
-    out.connector = {
-      ...out.connector,
-      label: redactSecretsInText(out.connector.label),
-      description: redactSecretsInText(out.connector.description),
-      error: out.connector.error ? redactSecretsInText(out.connector.error) : undefined,
-    };
-  }
   if (out.secret) {
     out.secret = {
       ...out.secret,

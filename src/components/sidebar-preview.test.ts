@@ -4,7 +4,7 @@ import { botPreview, groupPreview, lastPreviewable } from "./sidebar-preview";
 
 let at = 0;
 const message = (fields: Partial<Message>): Message => ({ id: `m${++at}`, at, role: "bot", kind: "text", ...fields }) as Message;
-const screen = () => message({ kind: "screen", png: "frame", mime: "image/jpeg" });
+const screen = () => message({ kind: "screen", png: "frame", mime: "image/jpeg" } as Partial<Message>);
 const bot = { id: "ada", name: "Ada", messages: [], busy: false } as unknown as Bot;
 
 describe("sidebar previews", () => {

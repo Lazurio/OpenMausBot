@@ -1,6 +1,5 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { existsSync, openSync, closeSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
@@ -159,10 +158,6 @@ it("refuses selection changes during direct and room turns and requires a truste
 }, 60_000);
 
 it("carries the latest original tool selection into fresh direct and room MCP connections", async () => {
-  await withFixture("happy", async ({ api, control, dump }) => {
-    const server = { name: "notes", command: process.execPath, args: ["--experimental-strip-types", fileURLToPath(new URL("./testing/fake-mcp-server.ts", import.meta.url))], enabled: true };
-    expect((await api("POST", "/api/mcp/servers", server)).status).toBe(201);
-    expect((await api("PATCH", "/api/mcp/servers/notes", { enabled: true })).status).toBe(200);
     const { bot } = await control(["new-bot", "--name", "Scope dispatch fixture"]);
     const direct = { allow: ["native:*", "mcp:notes:read_notes"] };
     expect((await api("PATCH", `/api/bots/${bot.id}`, { toolScope: direct })).status).toBe(200);

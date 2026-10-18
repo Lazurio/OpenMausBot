@@ -209,16 +209,6 @@ const ALLOWED: ReadonlyArray<{ method: string; path: RegExp }> = [
   { method: "POST", path: /^\/api\/routines\/[\w-]+\/run$/ },
   { method: "POST", path: /^\/api\/routine-runs\/[\w-]+\/(?:cancel|seen)$/ },
 
-  // Opaque ids and aliases only. Account removal is allowed (the handler proves
-  // ownership first); the whole-service DELETE stays with the host.
-  { method: "GET", path: /^\/api\/connectors\/catalog$/ },
-  { method: "GET", path: /^\/api\/connectors\/connected$/ },
-  { method: "GET", path: /^\/api\/connectors$/ },
-  { method: "POST", path: /^\/api\/connectors\/[\w-]+\/authorize$/ },
-  { method: "DELETE", path: /^\/api\/connectors\/[\w-]+\/accounts\/[\w-]+$/ },
-  // Scoped to one pending card: poll, resume or dismiss it.
-  { method: "GET", path: /^\/api\/bots\/[\w-]+\/connector-cards\/[\w-]+\/status$/ },
-  { method: "POST", path: /^\/api\/bots\/[\w-]+\/connector-cards\/[\w-]+\/(?:authorize|resume|dismiss)$/ },
   // Decline or retry only: a remote client never claims it stored a host
   // credential.
   { method: "POST", path: /^\/api\/bots\/[\w-]+\/secret-cards\/[\w-]+\/(?:resume|dismiss)$/ },
@@ -251,7 +241,6 @@ const EXPLAINED: ReadonlyArray<{ path: RegExp; error: string }> = [
     path: /^\/api\/webhooks(\/|$)/,
     error: "webhooks are set up on your computer",
   },
-  { path: /^\/api\/connectors(\/|$)/, error: "connected apps are set up on your computer" },
   {
     path: /^\/api\/routines(\/|$)/,
     error: "this routine operation is only available on your computer",

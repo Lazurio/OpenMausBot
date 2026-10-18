@@ -335,24 +335,19 @@ describe("automation reports", () => {
     expect(f.store.messagesFor(f.main).filter((message) => message.kind === "options")).toHaveLength(1);
   });
 
-  it("names a sign-in, connection or credential card the run waits on, and stops saying it needs the person once that card settles", () => {
+  it("names a sign-in or credential card the run waits on, and stops saying it needs the person once that card settles", () => {
     const f = fixture();
     const run = f.finished(null, "Dashboard check", { status: "running" });
     const signIn = f.store.appendMessage(run.threadId!, { role: "bot", kind: "signin", text: "Sign in", signIn: { url: "https://example.com", site: "example.com", place: "browser", reason: "the dashboard is behind a login" } });
-    const connect = f.store.appendMessage(run.threadId!, { role: "bot", kind: "connector", connector: { slug: "gmail", label: "Gmail", description: "", status: "required", resumeKey: "resume-key-1" } });
     f.store.appendMessage(run.threadId!, { role: "bot", kind: "secret", secret: { target: "xaiApiKey", label: "xAI API key", description: "", placeholder: "", helpUrl: "", requestKey: "secret-1" } });
     f.store.appendMessage(run.threadId!, { role: "bot", kind: "signin", text: "Sign in", signIn: { url: "https://done.example", site: "done.example", place: "browser", done: true } });
     expect(f.lines().map((line) => [line.text, line.automation?.needsYou, line.automation?.copyOf])).toEqual([
       ["I need you to sign in to example.com: the dashboard is behind a login.", true, signIn.id],
-      ["I need you to connect Gmail.", true, connect.id],
       ["I need your xAI API key.", true, expect.any(String)],
     ]);
-    expect(f.wrote).toEqual([f.main, f.main, f.main]);
+    expect(f.wrote).toEqual([f.main, f.main]);
     f.store.patchMessage(run.threadId!, signIn.id, { signIn: { ...signIn.signIn!, done: true } });
-    f.store.patchMessage(run.threadId!, connect.id, { connector: { ...connect.connector!, status: "authorizing" } });
-    expect(f.lines().map((line) => line.automation?.needsYou)).toEqual([undefined, true, true]);
-    f.store.patchMessage(run.threadId!, connect.id, { connector: { ...connect.connector!, status: "connected" } });
-    expect(f.lines().map((line) => line.automation?.needsYou)).toEqual([undefined, undefined, true]);
+    expect(f.lines().map((line) => line.automation?.needsYou)).toEqual([undefined, true]);
     f.runs.get(run.id)!.status = "completed";
     f.store.appendMessage(run.threadId!, { role: "bot", kind: "text", text: "The dashboard looks fine.", turnId: "last", turnTerminal: true });
     f.reports.runSettled(f.runs.get(run.id)!, "last");

@@ -1,12 +1,13 @@
 import { track } from "@/lib/analytics";
 import {
-  allow, APP, BOT_SOURCE, BOT_TEMPLATE, CALL_MODE, CONNECTOR_RESULT, engineSlug, KEY_PROVIDER, KEY_RESULT, KEY_VIA, ROOM_MODE,
+  allow, BOT_SOURCE, BOT_TEMPLATE, CALL_MODE, engineSlug, KEY_PROVIDER, KEY_RESULT, KEY_VIA, ROOM_MODE,
   SIGN_IN_ENGINE, SIGN_IN_METHOD,
-  type BotSource, type ConnectorResult, type KeyProvider, type KeyResult, type KeyVia, type SignInMethod,
+  type BotSource, type KeyProvider, type KeyResult, type KeyVia, type SignInMethod,
 } from "@/lib/analytics-allowlist";
 
 type Instances = ReadonlyArray<{ instanceId: string; driverKind: string }>;
 
+const CHECKED_BEFORE_SAVE = new Set<string>(["elevenlabs", "fish_audio"]);
 
 /** The server saves these keys only after their provider accepted them; every other key is unverified until tested. */
 export function savedKeyResult(provider: KeyProvider | "other"): KeyResult {
@@ -43,10 +44,6 @@ export function botCreated(source: BotSource, template?: string): void {
   track("bot_created", source === "template"
     ? { source, template: allow(template, BOT_TEMPLATE) }
     : { source: allow(source, BOT_SOURCE) });
-}
-
-export function connectorConnect(app: string, result: ConnectorResult): void {
-  track("connector_connect", { app: allow(app, APP), result: allow(result, CONNECTOR_RESULT) });
 }
 
 export function directMessageSent(instances: Instances, instanceId: unknown, queued: boolean): void {

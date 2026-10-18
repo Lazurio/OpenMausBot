@@ -135,7 +135,6 @@ export function createTeamRoutes(deps: TeamRouteDeps): RouteHandler {
             skillSelection: skills.all ? "all" : "chosen",
             memoryByBot: body.includeMemory === true ? new Map(teamBots.map((bot) => [bot.id, starterNotes(bot.id)])) : undefined,
             avatars,
-            mcpServers: cfg.mcpServers ?? {},
             skipped: [...skills.skipped, ...(defaults?.skipped ?? [])],
             preset: defaults?.preset ?? null,
           });

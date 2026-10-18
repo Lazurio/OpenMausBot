@@ -4,11 +4,9 @@ import { TEAM_TOOLS_FAILED, teamToolsFailed } from "./team-tools.ts";
 import { reportUnsupportedCalls, rolloutMark, type RolloutMark } from "./codex-unsupported-calls.ts";
 // The `codex` CLI headless over its app-server JSON-RPC (NDJSON on stdio): completion is
 // `turn/completed`, approvals arrive as server→client requests, resumeCursor is the codex thread id.
-import { mkdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { codexConfigMcp, codexConfigRunsServer, mountedMcpServerName } from "./codex-mcp-names.ts";
 
 import { DATA_DIR, stripWorkspaceCredentialEnv } from "../config.ts";
 import { laterStartup, openStartupModelCatalog, writeStartupModelCache } from "../startup-model-catalog.ts";
@@ -18,7 +16,6 @@ import { serverVersion } from "../environment.ts";
 import { ChatGptPlanAuthController } from "./chatgpt-plan-auth.ts";
 import { captureCliTree, cliVersionReader, describeSpawnFailure, execCli, killCliTree, spawnCli, waitForExit } from "../procs.ts";
 import { codexLaunch, codexLaunchesStarting, codexLaunchSlot, codexRpcTimeoutMs, keepStopping, RELAUNCH_EXIT_WAIT_MS, spawnHoldingSlot, tomlInlineTable, tryCodexLaunchSlot } from "./codex-process.ts";
-import { isReservedMcpEnvEntry } from "../mcp-registry.ts";
 
 import type {
   DriverCreateInput,
@@ -50,16 +47,13 @@ import { CODEX_MISSING_CREDENTIALS, CODEX_SIGN_IN_EXPIRED, codexLimitFacts, code
 import { codexLoginCheck, codexLoginStatus, storedCodexLogin } from "./codex-login.ts";
 import { keyRejected, noteKeyAccepted, noteKeyRejected } from "../key-rejections.ts";
 import { classifyResumeFailure, mayReplay, rebuiltSessionNotice, recoveryPromptFor } from "../resume-recovery.ts";
-import { extractMcpImages } from "../mcp-tool-images.ts"; import { codexImageInputs, withoutInlineImages } from "./codex-images.ts";
+import { extractMcpImages } from "../mcp-tool-images.ts"; import { codexImageInputs, withoutInlineImages } from "./codex-images.ts"; import { codexPatchProgress } from "./tool-progress.ts";
 import { parseProtocolAskQuestions, questionChoices } from "../../shared/ask-question.ts";
 import { codexQuestionReply, openAsyncQuestion, type CodexAsk } from "./codex-questions.ts";
 import { codexReleaseUpdate, codexUpdateCommand } from "./codex-update.ts";
 export { codexUpdateCommand };
 import { effectiveApprovalPolicy, effectiveApprovalsReviewer } from "./codex-approval-config.ts";
-import { canUseMcpServer } from "../../shared/tool-scope.ts";
-import { assertToolScopeSupported } from "../../shared/tool-scope-support.ts";
-import { appMountFor, gateServer, mcpStdioServer } from "../mcp-gate-config.ts"; import { OWN_APPS_SERVER } from "../../shared/own-apps.ts";
-import { CALL_TOOL, DESCRIBE_TOOL, SEARCH_TOOL, directoryCallTarget } from "../mcp-directory.ts"; import { codexPatchProgress } from "./tool-progress.ts";
+import { mcpStdioServer } from "../mcp-gate-config.ts";
 
 export { decodeCodexSelection, readCodexModelCatalog, STATIC_CODEX_MODELS } from "./codex-catalog.ts";
 
@@ -154,13 +148,6 @@ const SHELL_ESSENTIALS = new Set(["PATH", "HOME", "USER", "LOGNAME", "SHELL", "T
 
 const DENY_TIMEOUT_NOTE =
   "OpenMausBot: nobody answered this permission request in time. Skip this action and finish what you can without it.";
-
-const renamedMcpServers = new Set<string>();
-function noteRenamedMcpServer(name: string, mountName: string): void {
-  if (renamedMcpServers.has(name)) return;
-  renamedMcpServers.add(name);
-  console.error(`codex: MCP server ${JSON.stringify(name)} is also declared in Codex's own config.toml — mounted as ${JSON.stringify(mountName)} for this bot so the two do not merge`);
-}
 
 interface CodexApprovalParams {
   thread: Record<string, unknown>;
@@ -572,7 +559,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
       } catch { return null; }
       return [`codex-login:${home}`, stored];
     };
-    const smallModelsUsable = () => !plan && loginMark() === null;
+    const smallModelsUsable = () => loginMark() === null;
     const loginRefused = () => { const mark = loginMark(); if (mark) noteKeyRejected(...mark); };
     const loginAccepted = (mark = loginMark()) => { if (mark) noteKeyAccepted(...mark); };
     const loginRejected = () => { const mark = loginMark(); return mark !== null && keyRejected(...mark); };
@@ -638,13 +625,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
       const stopSignal = new AbortController();
       const { threadId } = turn;
       const approvalMode: ApprovalMode = turn.approvalMode ?? (config.fullAuto ? "full" : "ask");
-      for (const [name, server] of Object.entries(turn.integrations?.custom ?? {})) {
-        if ("url" in server) continue;
-        const reserved = Object.entries(server.env).find(([key, value]) => isReservedMcpEnvEntry(key, value));
-        if (reserved) {
-          throw new Error(`Custom MCP server “${name}” cannot set reserved environment variable “${reserved[0]}”`);
-        }
-      }
       let autoAcceptPermissions = approvalMode === "full";
       const chatgptTurn = ownLogin &&
         decodeCodexSelection(turn.model || models.default).modelProvider === OFFICIAL_CODEX_PROVIDER;
@@ -689,23 +669,16 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         const mountedNames = new Set<string>();
         const selectedMcp = new Map<string, StdioMcpSpec>();
         const selectedApprovals = new Map<string, McpApprovalMode>();
-        const directoryMounts = new Set<string>();
         const literalEnvs = new Map<string, Record<string, string>>();
         const scopedServer = (name: string, mountName: string, server: McpServerSpec): StdioMcpSpec | null => {
           if (!canUseMcpServer(turn.toolScope, name)) return null;
           // Every URL server goes through OpenMausBot's remote proxy: Codex's own client adds fields
           // strict servers refuse (codex-cli 0.160.1 sends elicitation.form/url; rmcp 3.2 can add
-          // schemaValidation), and Codex does not speak SSE. A plan turn has no tool_search, so its URL
-          // servers use the proxy's tool directory.
-          const directory = plan && "url" in server;
-          const apps = appMountFor(name, turn);
-          if (turn.toolScope === undefined && !("url" in server) && !apps) return server;
+          // schemaValidation), and Codex does not speak SSE.
+          if (!("url" in server)) return server;
           const hash = createHash("sha256").update(mountName).digest("hex");
           // Codex starts MCP children with only a few env names.
-          const proxy = turn.toolScope === undefined && "url" in server
-            ? mcpStdioServer(server, { nodeEnv: { ELECTRON_RUN_AS_NODE: "1" }, ...(directory ? { directory: { name } } : {}), configEnvName: `OMB_REMOTE_MCP_CONFIG_${hash}`, sourceEnv: env, apps })
-            : gateServer({ name, server, threadId, budget: 0, toolScope: turn.toolScope, nodeEnv: { ELECTRON_RUN_AS_NODE: "1" }, configEnvName: `OMB_GATE_CONFIG_${hash}`, directory, sourceEnv: env, apps });
-          if (proxy && directory) directoryMounts.add(mountName);
+          const proxy = mcpStdioServer(server, { nodeEnv: { ELECTRON_RUN_AS_NODE: "1" }, configEnvName: `OMB_REMOTE_MCP_CONFIG_${hash}`, sourceEnv: env });
           if (!proxy) return null;
           const shared = { ...proxy.env };
           if (turn.toolScope === undefined) {
@@ -724,8 +697,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
             if (turn.toolScope !== undefined && approval === "prompt") appServerArgs.push("-c", `mcp_servers.${mountName}.default_tools_approval_mode="prompt"`);
           }
         };
-        if (turn.integrations?.composio) mountSelected("composio", "openmausbot_connectors", turn.integrations.composio);
-        if (turn.integrations?.composioOwn) mountSelected(OWN_APPS_SERVER, `openmausbot_${OWN_APPS_SERVER}`, turn.integrations.composioOwn);
         if (turn.integrations?.agents) {
           // OpenMausBot's own coordination tools never ask: "auto" quiets only read-only tools.
           mountSelected("agents", "agents", turn.integrations.agents, "approve");
@@ -736,17 +707,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         if (turn.integrations?.browser) {
           mountSelected("browser", "browser", turn.integrations.browser);
         }
-        for (const name of ["data", "highlevel", "device"] as const) if (turn.integrations?.[name]) mountSelected(name, name, turn.integrations[name]);
-        // A `-c` override merges with a same-named server in config.toml, and stdio over url is
-        // "invalid configuration" that kills the turn, so such a server mounts under its own name.
-        const codexConfig = codexConfigMcp(env), declaredInCodexConfig = codexConfig.names;
-        if (turn.toolScope !== undefined) {
-          for (const name of declaredInCodexConfig) appServerArgs.push("-c", `mcp_servers.${name}.enabled=false`);
-        }
-        for (const [name, server] of Object.entries(turn.integrations?.custom ?? {}).filter(([name, server]) => turn.toolScope !== undefined || !codexConfigRunsServer(codexConfig, name, server))) {
-          const mountName = mountedMcpServerName(name, declaredInCodexConfig);
-          if (mountName !== name) noteRenamedMcpServer(name, mountName);
-          mountSelected(name, mountName, server, "prompt");
         }
         if (turn.integrations?.phone) {
           if (turn.toolScope !== undefined) {
@@ -775,7 +735,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
           ...mountedEnv.filter((name) => !PRIVATE_ENV_FAMILIES.some((family) => name.startsWith(family))).sort(),
         ])];
         // Records this turn writes never run without proof that shell snapshots are off.
-        const provenPrivateEnv = turn.toolScope !== undefined || directoryMounts.size > 0;
         if (privateEnv.length && turn.toolScope === undefined) appServerArgs.push("-c", "features.shell_snapshot=false");
 
         const selectionConfig: { config?: Record<string, unknown> } = turn.toolScope === undefined ? {} : { config: { mcp_servers: Object.fromEntries(
@@ -1006,18 +965,11 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         // first quote to the closing `"?`, so `web_search" …` cannot pass for web_search.
         const mcpMessage = typeof params.message === "string" ? params.message : "";
         const mcpTool = isLegacyMcpPermission ? / to run tool "(.*)"\?$/.exec(mcpMessage)?.[1] : undefined;
-        const searchedServer = isLegacyMcpPermission && typeof params.serverName === "string" && directoryMounts.has(params.serverName);
-        const asksAbout = (tool: string) => mcpMessage === `Allow the ${params.serverName} MCP server to run tool "${tool}"?`;
-        if (searchedServer && (asksAbout(SEARCH_TOOL) || asksAbout(DESCRIBE_TOOL))) {
-          send({ jsonrpc: "2.0", id: msg.id, result: { action: "accept", content: {} } });
-          return;
-        }
-        const runs = searchedServer && asksAbout(CALL_TOOL) ? directoryCallTarget(CALL_TOOL, params._meta?.tool_params) : undefined;
         const tool =
           mcpAppApproval
             ? mcpAppApproval.tool
             : isLegacyMcpPermission
-            ? (runs ?? mcpTool ?? "mcp")
+            ? (mcpTool ?? "mcp")
             : isAdditionalPermission
               ? "permissions"
             : method === "item/fileChange/requestApproval" || method === "applyPatchApproval"
@@ -1046,8 +998,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
           isAdditionalPermission
             ? additionalPermissionSummary(params.permissions, params.reason)
             : isMcpPermission
-            ? (mcpAppApproval?.summary ?? (runs ? `Allow the ${params.serverName} MCP server to run tool ${JSON.stringify(runs)}?`
-              : typeof params.message === "string" ? params.message : "MCP access requested"))
+            ? (mcpAppApproval?.summary ?? (typeof params.message === "string" ? params.message : "MCP access requested"))
             : typeof params.command === "string"
             ? params.command
             : protocolQuestions
@@ -1209,15 +1160,13 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
           case "item/fileChange/patchUpdated": { const draft = codexPatchProgress(p); if (draft) emit({ ...base(threadId, turnId), ...draft }); break; }
           case "item/started": {
             const item = p.item ?? {};
-            const runs = item.type === "mcpToolCall" && item.tool === CALL_TOOL && typeof item.server === "string" && directoryMounts.has(item.server)
-              ? directoryCallTarget(CALL_TOOL, item.arguments) : undefined;
             const title =
               item.type === "commandExecution"
                 ? String(item.command ?? "shell")
                 : item.type === "fileChange"
                   ? "edit"
                   : item.type === "mcpToolCall"
-                    ? (runs ?? item.tool ?? item.name ?? "mcp")
+                    ? (item.tool ?? item.name ?? "mcp")
                     : item.type === "webSearch"
                       ? "web_search"
                       : null;
@@ -1229,7 +1178,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
                 itemId: item.id,
                 title,
                 summary: item.type === "commandExecution" ? commandSummary({ command: item.command }) : undefined,
-                input: toolDetailPreview(item.type === "commandExecution" ? { command: item.command, cwd: item.cwd } : item.type === "mcpToolCall" ? (runs ? item.arguments?.arguments ?? {} : item.arguments) : item.type === "fileChange" ? item.changes : item.query),
+                input: toolDetailPreview(item.type === "commandExecution" ? { command: item.command, cwd: item.cwd } : item.type === "mcpToolCall" ? item.arguments : item.type === "fileChange" ? item.changes : item.query),
               });
             }
             break;
@@ -1661,10 +1610,8 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
     const probe = await new Promise<ReturnType<typeof versionOf>>((resolve) => {
       execCli(config.cli, ["--version"], { timeout: 8000, env }, (err, stdout) => resolve(versionOf(err, stdout)));
     });
-    if (!("version" in probe)) return { state: "unavailable", reason: probe.reason, ...(plan ? { chatgptPlan: true } : {}) };
+    if (!("version" in probe)) return { state: "unavailable", reason: probe.reason };
     const { version } = probe;
-    if (planAuth) return { state: "available", version, chatgptPlan: true, billing: "subscription", ...await planAuth.snapshot(), update: await codexReleaseUpdate(version, config.cli),
-      ...(planWarning ? { warning: { title: "Check ChatGPT connection", message: planWarning } } : {}) };
     if (config.managed) return { state: "available", version, authenticated: Boolean(input.environment.OPENMAUSBOT_COMPANY_API_KEY && input.environment.CODEX_HOME), billing: "metered" };
     const previousCliVersion = modelsCliVersion;
     modelsCliVersion = version;
@@ -1706,16 +1653,17 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
       }
       providerArgs = managedCodexArgs(config.managed);
     }
-    const route = codexBackgroundRoute(models, smallModelsUsable(), options.fallback);
+    const configured = await configuredEnvironment();
+    const route = configured?.model ? { model: configured.model } : codexBackgroundRoute(models, smallModelsUsable(), options.fallback);
     if (!route) throw new Error("Codex lists no model for background calls. Refresh models in Settings → Model providers → Codex.");
     return runCodexBackgroundRoute(route, (id) => {
-      const selection = planAuth || config.managed ? { model: id, modelProvider: null } : decodeCodexSelection(id);
+      const selection = config.managed ? { model: id, modelProvider: null } : decodeCodexSelection(id, configured);
       return runCodexOneShot({
         spawn: spawnCli, kill: killCliTree, cli: config.cli, env, prompt, options,
         model: selection.model ?? id,
         modelProvider: selection.modelProvider,
-        providerArgs: planAuth || config.managed ? providerArgs : codexLocalProviderArgs(env, id),
-        describeError: (message) => codexUserError(message, planAuth ? "plan" : selection.modelProvider === OFFICIAL_CODEX_PROVIDER ? "own" : "other"),
+        providerArgs: config.managed ? providerArgs : codexLocalProviderArgs(env, id),
+        describeError: (message) => codexUserError(message, selection.modelProvider === OFFICIAL_CODEX_PROVIDER ? "own" : "other"),
       });
     }, options);
   };
@@ -1741,12 +1689,10 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         queueing: true,
         computerMcp: true,
         localComputerMcp: true,
-        composioMcp: true,
         agentsMcp: true,
-      customMcp: true,
         phoneMcp: true,
         browserMcp: true,
-        dataMcp: true, highlevelMcp: true, deviceMcp: true,
+        dataMcp: true,
         images: true,
         nativeImageInput: true,
         effortLevels: ["low", "medium", "high", "xhigh", "max"],

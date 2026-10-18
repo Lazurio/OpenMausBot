@@ -7,8 +7,7 @@ import { copyText } from "@/lib/copy-text";
 import { t } from "@/lib/i18n";
 import { loadWebhookCredentials, webhookCredentialStore } from "@/lib/webhook-credentials";
 import { useStore } from "@/state/store";
-import { AppEventsSection } from "./AppEventsSection";
-import { useAllAutomationActions } from "./app-actions";
+import { useAutomationActions } from "./actions";
 import { FixButton, StatusMark } from "./parts";
 
 const RECENT = 5;
@@ -23,7 +22,7 @@ export function AutomationPanel({ automation, sentence, onClose, onEdit, onDelet
   onDeleted: () => void;
 }) {
   const { state } = useStore();
-  const actions = useAllAutomationActions();
+  const actions = useAutomationActions();
   const status = automationStatus(automation);
   const webhook = automation.kind === "webhook" ? state.webhooks.find((candidate) => candidate.id === automation.id) : undefined;
   const credential = webhook ? loadWebhookCredentials(webhookCredentialStore())[webhook.id] : undefined;
@@ -114,7 +113,6 @@ export function AutomationPanel({ automation, sentence, onClose, onEdit, onDelet
 
         {name && instructions && <p data-testid="automation-instructions" className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-ink">{instructions}</p>}
 
-        {automation.appTrigger && <AppEventsSection trigger={automation.appTrigger} />}
 
         <section>
           <h3 className="mb-2 text-[12px] font-semibold uppercase tracking-wider text-ink-tertiary">{t("automations.panel.recent")}</h3>

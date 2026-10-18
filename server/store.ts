@@ -35,13 +35,11 @@ import type {
   WireMessage, WireTask, BotProject as BotProjectRecord,
 } from "../shared/wire.ts";
 import { movesThreadToTop, nextOpenThread } from "../shared/wire.ts";
-import { parseConnectorTools } from "./connector-tools.ts";
 import { sameModelSelection } from "../shared/thread-model.ts";
 import { initialGreetingMessage } from "./initial-greeting.ts"; import { createDefaultBot, defaultBotRefusal, type DefaultBotIntro } from "./default-bot.ts";
-import { appsFromCreator } from "./inherited-apps.ts";
 import { ThreadCache, type ThreadState } from "./thread-cache.ts";
 export type {
-  BotActivity, ConnectorCardData, GroupDefaultResponder, OptionCardData,
+  BotActivity, GroupDefaultResponder, OptionCardData,
   SecretRequestCardData, Surface, TaskClosedBy, TaskOpenedBy, TaskUsage,
 } from "../shared/wire.ts";
 export type { GroupTask as GroupTaskRecord, BotProject as BotProjectRecord } from "../shared/wire.ts";
@@ -100,7 +98,7 @@ const ASK_NOW = { approvalMode: "ask" as const, autoApprove: false, alwaysAllow:
 const TASK_PATCH_FIELDS = [
   "title", "projectId", "modelSelection", "approvalMode", "autoApprove", "alwaysAllow",
   "unread", "lastReadMessageId", "rewound", "archivedAt", "pinned", "pinnedMessageId", "resumeCursors", "lastInstanceId", "cwd",
-  "routineRunId", "surface", "surfaceSource", "snoozedUntil", "link", "linkAuto", "appliedCompactionId", "contextFloor", "lastContextModel", "setupRequest",
+  "routineRunId", "snoozedUntil", "link", "linkAuto", "appliedCompactionId", "contextFloor", "lastContextModel", "setupRequest",
 ] as const satisfies readonly (keyof TaskRecord)[];
 export type TaskPatch = Partial<Pick<TaskRecord, typeof TASK_PATCH_FIELDS[number]>>;
 
@@ -368,6 +366,7 @@ export class Store {
           b.browserProfile = browserProfile;
           botsMigrated = true;
         }
+      for (const removed of ["computer", "cloudBackend", "autoStartVps", "vpsAlias", "browser", "browserProfile", "recordBrowserSteps"]) {
         if (Object.hasOwn(b, removed)) { delete (b as unknown as Record<string, unknown>)[removed]; botsMigrated = true; }
       }
       for (const task of b.tasks ?? []) {
@@ -375,6 +374,9 @@ export class Store {
           if (Object.hasOwn(task, removed)) { delete (task as unknown as Record<string, unknown>)[removed]; botsMigrated = true; }
         }
       }
+      // Lazurio overlay (DEV-6673 M3): MausBot's own connected apps, MCP server selection and outbound allowance are removed.
+      for (const removed of ["composio", "connectorTools", "connectorScopes", "mcpServers", "outbound", "appsFromCreator", "xResearch", "phoneApps"]) {
+        if (Object.hasOwn(b, removed)) { delete (b as unknown as Record<string, unknown>)[removed]; botsMigrated = true; }
       }
       if (b.managedSections !== undefined && (!b.chiefOfStaff || !Array.isArray(b.managedSections) ||
           b.managedSections.length > 100 || b.managedSections.some(section => typeof section !== "string" || section.length > 60))) {
@@ -734,7 +736,7 @@ export class Store {
     nextName = nextName.trim();
     if (!nextName || nextName.length > 60 || [...nextName].some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) return "Department name must be 1 to 60 characters without control characters";
     if (name === nextName) return undefined;
-    if (this.sections.includes(nextName) || computers?.forSection(nextName)) return "A department with that name already exists";
+    if (this.sections.includes(nextName)) return "A department with that name already exists";
     const members = this.bots.filter(bot => sectionKey(bot.section) === name);
     const rooms = this.groups.filter(group => sectionKey(group.section) === name);
     const affected = this.bots.filter(bot => members.includes(bot) || bot.managedSections?.some(section => sectionKey(section) === name));
@@ -1407,7 +1409,6 @@ export class Store {
           tasks: [{ threadId: operation.threadId, title: UNTITLED_THREAD, createdAt, updatedAt: createdAt, resumeCursors: {},
             unread: false, activity: "idle", busy: false }],
         };
-        Object.assign(next, appsFromCreator(chief, next));
         if (!next.cwd) delete next.cwd;
         nextBots.unshift(next);
       } else {
@@ -1520,11 +1521,6 @@ export class Store {
   patchBot(id: string, patch: Partial<BotRecord>): BotRecord | null {
     const bot = this.bot(id);
     if (!bot) return null;
-    if (patch.connectorTools !== undefined) {
-      const parsed = parseConnectorTools(patch.connectorTools);
-      if (!parsed.ok) throw new Error(parsed.error);
-      patch = { ...patch, connectorTools: parsed.grants };
-    }
     if (Object.hasOwn(patch, "toolScope")) {
       const parsed = parseToolScope(patch.toolScope);
       if (!parsed.ok) throw new Error(parsed.error);

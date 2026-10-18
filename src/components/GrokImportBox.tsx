@@ -10,20 +10,9 @@ import { GrokBotMark } from "./GrokBotMark";
 import { GROK_EXPORT_PROMPT, grokStarterPackage, type GrokExport, type GrokTemplateCard } from "../../shared/grok-import";
 
 const errorText = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
-const CURSOR_POLL_MS = 2_000;
 
-/** What POST /api/team-library/grok answers: the public card, plus the full setup when signed in to Cursor. */
+/** What POST /api/team-library/grok answers: the public card. */
 export type GrokCardAnswer = GrokTemplateCard & { export?: GrokExport; exportNote?: string };
-export interface CursorStatus { signedIn: boolean; waiting: boolean; error?: string }
-
-async function openInBrowser(url: string): Promise<void> {
-  if (window.ogb?.openExternal) {
-    await window.ogb.openExternal(url);
-    return;
-  }
-  const opened = window.open(url, "_blank", "noopener,noreferrer");
-  if (opened) opened.opener = null;
-}
 
 export interface GrokImportViewProps {
   /** No frame or heading of its own: the host (Settings, the welcome import step) gives both. */
@@ -34,41 +23,15 @@ export interface GrokImportViewProps {
   reply: string;
   error: string;
   copyState: CopyFeedback;
-  cursor: CursorStatus | null;
   onUrl: (url: string) => void;
   onLoad: () => void;
   onCopy: () => void;
   onReply: (reply: string) => void;
   onPreviewReply: () => void;
   onStarter: () => void;
-  onCursorSignIn: () => void;
-  onCursorSignOut: () => void;
 }
 
 const chip = "flex items-center gap-1.5 rounded-full bg-raised px-3.5 py-2 text-[13px] text-ink hover:bg-raised-hover disabled:opacity-50";
-
-function CursorLine({ cursor, card, onSignIn, onSignOut }: {
-  cursor: CursorStatus | null; card: GrokCardAnswer | null; onSignIn: () => void; onSignOut: () => void;
-}) {
-  if (!cursor) return null;
-  const note = card?.exportNote || cursor.error;
-  return (
-    <div className="mt-3 text-[12px] text-ink-secondary">
-      {cursor.signedIn ? (
-        <span className="flex items-center gap-1.5">
-          <Check size={13} className="text-success" />
-          {t("grokImport.cursorSignedIn")} ·{" "}
-          <button onClick={onSignOut} className="text-accent hover:underline">{t("grokImport.cursorSignOut")}</button>
-        </span>
-      ) : cursor.waiting ? (
-        <span className="flex items-center gap-1.5"><Loader2 size={13} className="animate-spin" />{t("grokImport.cursorWaiting")}</span>
-      ) : (
-        <button onClick={onSignIn} className={chip}><GrokBotMark size={13} />{t("grokImport.cursorSignIn")}</button>
-      )}
-      {note && <p className="mt-1.5">{note}</p>}
-    </div>
-  );
-}
 
 /** Templates → Import → From Grok Bot: the share card, the export prompt, the reply box and the starter. */
 export function GrokImportView(props: GrokImportViewProps) {
@@ -96,13 +59,11 @@ export function GrokImportView(props: GrokImportViewProps) {
           {t("templates.load")}
         </button>
       </div>
-      {!card && <CursorLine cursor={props.cursor} card={null} onSignIn={props.onCursorSignIn} onSignOut={props.onCursorSignOut} />}
       {card && (
         <article className="mt-4 rounded-xl border border-hairline px-4 py-3">
           <div className="flex items-center gap-2 text-[14px] font-medium text-ink"><GrokBotMark size={15} />{card.name}</div>
           {card.creator && <div className="text-[12px] text-ink-secondary">{t("grokImport.by", { name: card.creator })}</div>}
           {card.description && <p className="mt-1.5 text-[13px] leading-relaxed text-ink-secondary">{card.description}</p>}
-          <CursorLine cursor={props.cursor} card={card} onSignIn={props.onCursorSignIn} onSignOut={props.onCursorSignOut} />
           <button onClick={props.onStarter} className={`mt-3 ${chip}`}>
             <Sparkles size={13} />
             {t("grokImport.starter")}
@@ -139,17 +100,14 @@ export function GrokImportView(props: GrokImportViewProps) {
   );
 }
 
-/** Loads the card for a pasted link (or `link`, from the GitHub box or an install link) and hands previews to the panel.
- * Signed in to Cursor, the card's answer carries the whole setup and its preview opens at once. */
+/** Loads the card for a pasted link (or `link`, from the GitHub box or an install link) and hands previews to the panel. */
 export function GrokImportBox({ link, onPreview, bare }: { link: string | null; onPreview: (preview: PendingTeamImport) => void; bare?: boolean }) {
   const [url, setUrl] = useState("");
   const [card, setCard] = useState<GrokCardAnswer | null>(null);
   const [loading, setLoading] = useState(false);
   const [reply, setReply] = useState("");
   const [error, setError] = useState("");
-  const [cursor, setCursor] = useState<CursorStatus | null>(null);
   const { state: copyState, copy } = useCopyFeedback(GROK_EXPORT_PROMPT);
-  const loaded = useRef("");
   const handOver = useRef(onPreview);
   handOver.current = onPreview;
 
@@ -170,11 +128,7 @@ export function GrokImportBox({ link, onPreview, bare }: { link: string | null; 
       // SAFETY: this endpoint is owned by the app and returns GrokCardAnswer.
       const answer = (await api("/api/team-library/grok", { method: "POST", body: JSON.stringify({ url: value.trim() }) })) as GrokCardAnswer;
       setCard(answer);
-      loaded.current = value.trim();
       if (answer.export) preview(() => grokImportPreview(answer.export, { sourceUrl: answer.url }));
-      // A refused or expired sign-in is forgotten by the server: show that, not the stale "Signed in".
-      // SAFETY: this endpoint is owned by the app and returns CursorStatus.
-      if (answer.exportNote) void api("/api/team-library/cursor").then((status) => setCursor(status as CursorStatus), () => {});
     } catch (cause) {
       setCard(null);
       setError(errorText(cause));
@@ -184,50 +138,10 @@ export function GrokImportBox({ link, onPreview, bare }: { link: string | null; 
   }, [preview]);
 
   useEffect(() => {
-    // SAFETY: this endpoint is owned by the app and returns CursorStatus.
-    void api("/api/team-library/cursor").then((status) => setCursor(status as CursorStatus), () => setCursor(null));
-  }, []);
-
-  useEffect(() => {
     if (!link) return;
     setUrl(link);
     void load(link);
   }, [link, load]);
-
-  // While Cursor waits for the person's approval, ask every two seconds; once signed in, load the whole bot.
-  useEffect(() => {
-    if (!cursor?.waiting) return;
-    const timer = window.setInterval(() => {
-      // SAFETY: this endpoint is owned by the app and returns CursorStatus.
-      void api("/api/team-library/cursor").then((status) => {
-        const next = status as CursorStatus;
-        setCursor(next);
-        if (next.signedIn && loaded.current) void load(loaded.current);
-      }, () => {});
-    }, CURSOR_POLL_MS);
-    return () => window.clearInterval(timer);
-  }, [cursor?.waiting, load]);
-
-  const signIn = async () => {
-    try {
-      // SAFETY: this endpoint is owned by the app and returns the sign-in address.
-      const started = (await api("/api/team-library/cursor/sign-in", { method: "POST", body: "{}" })) as { url: string };
-      setCursor({ signedIn: false, waiting: true });
-      await openInBrowser(started.url);
-    } catch (cause) {
-      setError(errorText(cause));
-    }
-  };
-
-  const signOut = async () => {
-    try {
-      // SAFETY: this endpoint is owned by the app and returns CursorStatus.
-      setCursor((await api("/api/team-library/cursor/sign-out", { method: "POST", body: "{}" })) as CursorStatus);
-      setCard((current) => (current ? { ...current, exportNote: undefined } : current));
-    } catch (cause) {
-      setError(errorText(cause));
-    }
-  };
 
   return (
     <GrokImportView
@@ -238,15 +152,12 @@ export function GrokImportBox({ link, onPreview, bare }: { link: string | null; 
       reply={reply}
       error={error}
       copyState={copyState}
-      cursor={cursor}
       onUrl={setUrl}
       onLoad={() => void load(url)}
       onCopy={copy}
       onReply={setReply}
       onPreviewReply={() => preview(() => grokImportPreview(reply, card ? { sourceUrl: card.url } : {}))}
       onStarter={() => card && preview(() => teamImportPreview(grokStarterPackage(card)))}
-      onCursorSignIn={() => void signIn()}
-      onCursorSignOut={() => void signOut()}
     />
   );
 }

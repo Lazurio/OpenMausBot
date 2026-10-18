@@ -5,7 +5,7 @@ import { peerLine } from "@/lib/peer-message";
 import { isReceipt } from "@/lib/receipts";
 import { activityPreview, botEngine, failedTurnCause, STATUS_MARKER } from "@/lib/failed-turn";
 import { t } from "@/lib/i18n";
-import { sidebarConnectorPreview, sidebarGoalRunPreview } from "@/lib/sidebar-layout";
+import { sidebarGoalRunPreview } from "@/lib/sidebar-layout";
 import { citationPreviewText } from "@/lib/citations";
 import { plainPreviewText } from "@/lib/plain-preview";
 import { isClientCancellation, isStoppedTurnName } from "../../shared/client-cancel";
@@ -50,7 +50,6 @@ export function lastLine(bot: Bot, visible: Message[], instances: InstanceInfo[]
     return (last.card.requestId && last.card.tool && !last.card.questionRequest && approvalCardOutcome(last.card)) || last.card.title;
   }
   if (last.kind === "activity" && last.tool) return activityPreview(last.tool, botEngine(bot, instances), last.dataResult, advanced);
-  if (last.kind === "connector" && last.connector) return sidebarConnectorPreview(last.connector, t);
   if (last.kind === "routine.run" && last.routineRun) return automationRunPreview(last.routineRun);
   const peer = peerLine(last);
   if (peer) return `${peer.name}: ${plainPreviewText(peer.body)}`;
@@ -83,9 +82,7 @@ export function groupPreview(group: Group, bots: Bot[], instances: InstanceInfo[
     ? activityPreview(last.tool, botEngine(bots.find((bot) => bot.id === last.from?.botId), instances), last.dataResult, advanced)
     : last.kind === "goal.run" && last.goalRun
       ? sidebarGoalRunPreview(last.goalRun)
-      : last.kind === "connector" && last.connector
-        ? sidebarConnectorPreview(last.connector, t)
-        : (last.text ?? "");
+      : (last.text ?? "");
   const readable = plainPreviewText(citationPreviewText(text));
   if (last.role === "user") return t("sidebar.preview.you", { text: readable });
   return last.from ? `${last.from.name}: ${readable}` : readable;

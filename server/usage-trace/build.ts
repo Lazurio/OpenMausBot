@@ -274,7 +274,7 @@ function toolOf(span: ToolSpan & { running?: boolean }): TraceTool {
   };
 }
 
-const groupKey = (tool: TraceTool) => `${tool.icon}:${tool.app ?? tool.server ?? (tool.icon === "tool" || tool.icon === "mcp" ? tool.name : "")}`;
+const groupKey = (tool: TraceTool) => `${tool.icon}:${tool.server ?? (tool.icon === "tool" || tool.icon === "mcp" ? tool.name : "")}`;
 
 /** Folds each run of GROUP_MIN or more same-kind tools, with the AI steps between them, into one group. */
 export function groupRuns(items: Array<TraceTool | TraceStep>): Array<TraceTool | TraceStep | TraceGroup> {
@@ -307,7 +307,7 @@ export function groupRuns(items: Array<TraceTool | TraceStep>): Array<TraceTool 
     const ends = children.map((child) => child.endedAt ?? child.startedAt);
     out.push({
       kind: "group", id: `group:${first.id}`, icon: first.icon, name: first.name,
-      ...(first.app ? { app: first.app } : {}), ...(first.server ? { server: first.server } : {}),
+      ...(first.server ? { server: first.server } : {}),
       count, errors: children.filter((child) => child.kind === "tool" && child.status === "error").length,
       startedAt: first.startedAt, ...(running ? { running: true } : { endedAt: Math.max(...ends) }),
       children,

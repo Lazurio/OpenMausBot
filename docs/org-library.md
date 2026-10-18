@@ -21,7 +21,7 @@ Compared with a file:
   so Admin was the review. Their source reads `org:<publisher>/<package>@<release>`,
   and the file's own `source` is ignored.
 - **Routines still arrive paused.** Bots still start at the default approval
-  level, with no connected-app access and the installation's default model.
+  level and the installation's default model.
   Connections are still created switched off, without values.
 - **Every record is stamped** with its install. A bot's wire-visible
   `installedPackage` gains `source: "org"`, `installId`, `publisher`, `ref`

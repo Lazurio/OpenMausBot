@@ -37,7 +37,7 @@ describe("bot patch queue", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("starts approval, model and connector grant changes immediately instead of debouncing execution settings", async () => {
+  it("starts approval and model changes immediately instead of debouncing execution settings", async () => {
     const send = vi.fn(async () => bot());
     const queue = createBotPatchQueue({
       send,
@@ -65,20 +65,6 @@ describe("bot patch queue", () => {
     expect(send).toHaveBeenLastCalledWith(
       "bot-1",
       { modelSelection: { instanceId: "codex", model: "gpt-5.6-sol" } },
-      expect.any(AbortSignal),
-      expect.objectContaining({ id: "bot-1" }),
-    );
-
-    await queue.flush("bot-1");
-    queue.enqueue(
-      "bot-1",
-      { connectorTools: { gmail: { tools: ["GMAIL_SEND_EMAIL"] } } },
-      bot(),
-    );
-    await vi.runAllTicks();
-    expect(send).toHaveBeenLastCalledWith(
-      "bot-1",
-      { connectorTools: { gmail: { tools: ["GMAIL_SEND_EMAIL"] } } },
       expect.any(AbortSignal),
       expect.objectContaining({ id: "bot-1" }),
     );
@@ -154,8 +140,6 @@ describe("bot patch queue", () => {
         sent.push(patch);
         return bot({
           ...patch,
-          connectorTools: patch.connectorTools ?? undefined,
-          connectorScopes: patch.connectorScopes ?? undefined,
           phoneApps: patch.phoneApps ?? undefined,
           peers: patch.peers ?? undefined,
         });
@@ -403,28 +387,6 @@ describe("bot patch queue", () => {
     release();
     await queue.flush("bot-1");
     expect(sent).toEqual([{ title: "Ops" }, { approvalMode: "ask" }]);
-  });
-
-  it("sends null to drop a grants record but keeps bot state on the legacy boolean", async () => {
-    const sent: BotUpdatePatch[] = [];
-    const overlays: BotUpdatePatch[] = [];
-    const queue = createBotPatchQueue({
-      send: async (_botId, patch) => {
-        sent.push(patch);
-        return bot();
-      },
-      reconcile: async () => bot(),
-      onAuthoritative: (_bot, overlay) => overlays.push(overlay),
-      onError: vi.fn(),
-    });
-
-    queue.enqueue("bot-1", { connectorTools: null }, bot({ connectorTools: { gmail: { tools: "*" } } }));
-    expect(queue.overlayFor("bot-1")).toEqual({ connectorTools: undefined });
-    await vi.runAllTicks();
-    await queue.flush("bot-1");
-
-    expect(sent).toEqual([{ connectorTools: null }]);
-    expect(overlays).toEqual([{ connectorTools: undefined }]);
   });
 
   it("revive undoes a dispose, so StrictMode's dev probe cannot kill saving", async () => {

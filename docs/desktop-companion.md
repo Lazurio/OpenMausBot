@@ -66,9 +66,7 @@ Pairing creates an independent device identity on the host. The resulting bearer
 - injected by a loopback-only Electron relay after browser `Origin` headers are removed;
 - sent only to the exact saved managed HTTPS or `.ts.net` origin; absolute-form request targets cannot redirect it elsewhere.
 
-The host companion remains the authorization boundary. Its route list defaults to deny, strips sensitive response fields, and can revoke the desktop client from **Settings → Remote access** like any other paired device. Interactive desktop access is a separate per-device capability that defaults off. Client mode does not expose host-only settings, local browser surfaces, Local VM controls, plugin credentials, destructive account revocation, or the event inspector. Connected Apps may be viewed and authorized remotely while their tokens and execution remain on the host.
 
-The desktop client matches the reviewed companion feature surface: chats, rooms, streamed responses, approvals, inline Connected Apps authorization, search, routines, attachments, and a narrowly scoped cloud/VPS viewer the host explicitly grants to that paired device. Expanding the desktop client must be done by explicitly reviewing and adding companion routes; it must not bypass the companion API or proxy the full harness.
 
 ## Runtime shape
 

@@ -9,7 +9,7 @@ import { AppDocumentError, fetchAppDocument, type AppFetchFailure } from "./app-
 import { APP_POOL_LIMITS, useAppPoolSlot, type AppPool } from "./app-pool";
 import { AppHeader, AppInfo, AppOpenButton, AppPlaceholder, AppStrip, APP_SURFACE } from "./AppChrome";
 import { AppFrame, type AppFrameHandle, type AppFrameProblem } from "./AppFrame";
-import { PAGE_HEIGHT, PageFullScreen, PageNotes, PageToolbar, usePagePoint, usePageShare, usePageVersion } from "./PageTools";
+import { PAGE_HEIGHT, PageFullScreen, PageNotes, PageToolbar, usePagePoint, usePageVersion } from "./PageTools";
 
 const WIDTH = "max-w-[760px]";
 const DOC_REUSE_MS = 60_000;
@@ -74,7 +74,6 @@ function AppRow({ botId, botName, threadId, message, payload, pool }: {
   payload: AppPayload;
   pool?: AppPool;
 }) {
-  const { dispatch } = useStore();
   const uid = useId();
   const page = payload.source === "html";
   const version = usePageVersion(payload);
@@ -150,8 +149,7 @@ function AppRow({ botId, botName, threadId, message, payload, pool }: {
     frame: () => (fullScreen ? wide.current : frame.current)?.iframe,
     threadId, appId: message.id, rev, title: payload.title, picked: () => setFullScreen(false),
   });
-  const share = usePageShare(threadId, message.id, message.publishedPage);
-  const tools = { version, point, share, ready: Boolean(current), fullScreen: { open: fullScreen, toggle: () => { point.stop(); setFullScreen((open) => !open); } } };
+  const tools = { version, point, ready: Boolean(current), fullScreen: { open: fullScreen, toggle: () => { point.stop(); setFullScreen((open) => !open); } } };
 
   const reloadNow = () => {
     setProblem(null);
@@ -173,10 +171,9 @@ function AppRow({ botId, botName, threadId, message, payload, pool }: {
     ? t("app.origin.mcp", { server: payload.mcp?.serverTitle || payload.mcp?.server || payload.title })
     : t("app.origin.page", { bot: botName });
   const serverName = payload.mcp?.serverTitle || payload.mcp?.server;
-  const signIn = () => dispatch({ type: "togglePlugins", open: true, surface: "mcp" });
 
   const strip = (() => {
-    if (problem?.kind === "sign-in") return { text: t("app.strip.signIn", { server: serverName || problem.server }), action: { label: t("app.strip.signInAction"), onClick: signIn } };
+    if (problem?.kind === "sign-in") return { text: t("app.strip.signIn", { server: serverName || problem.server }) };
     if (problem?.kind === "offline") return { text: t("app.strip.offline"), action: { label: t("app.strip.retry"), onClick: reloadNow } };
     if (problem?.kind === "blocked") return { text: problem.text || appBlockedText(problem.reason, serverName) };
     if (loaded?.failure) {
@@ -185,7 +182,7 @@ function AppRow({ botId, botName, threadId, message, payload, pool }: {
         : { text: loaded.failure.error };
     }
     const blocked = current?.blocked;
-    if (blocked) return blocked.reason === "signed-out" ? { text: blocked.text, action: { label: t("app.strip.signInAction"), onClick: signIn } } : { text: blocked.text };
+    if (blocked) return { text: blocked.text };
     if (payload.blocked) return { text: appBlockedText(payload.blocked, serverName) };
     return null;
   })();
@@ -245,7 +242,7 @@ function AppRow({ botId, botName, threadId, message, payload, pool }: {
           bordered={bordered}
         />
         {page && <PageToolbar {...tools} className={bordered ? "px-4 pb-3" : "pb-2"} />}
-        {page && <PageNotes version={version} point={point} share={share} className={bordered ? "px-4 pb-3" : "pb-2"} />}
+        {page && <PageNotes point={point} className={bordered ? "px-4 pb-3" : "pb-2"} />}
         {infoOpen && <AppInfo id={infoId} network={payload.network ?? { connect: [], resources: [] }} bytes={payload.bytes ?? 0} bordered={bordered} />}
         {collapsed && (
           <div className={cn("flex", bordered ? "px-4 pb-3.5" : "pb-2")}>

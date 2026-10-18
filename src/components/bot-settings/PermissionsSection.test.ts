@@ -20,7 +20,7 @@ const dispatch = vi.fn();
 let host: HTMLDivElement;
 let root: Root;
 
-function render(bot: Bot, trustedModesAvailable = false, others: Bot[] = []) {
+function render(bot: Bot, others: Bot[] = []) {
   const derived = {
     patch: (patch: object) => dispatch({ type: "updateBot", botId: bot.id, patch }),
     engine: { instanceId: "claude", driverKind: "claudeAgent", displayName: "Claude" },
@@ -92,10 +92,10 @@ describe("PermissionsSection parts", () => {
     flushSync(() => root.render(createElement(BotEditorStore, {
       value: { state: { ...initialState, bots: [base] }, dispatch,
         flushBotPatches: async () => null, refreshInstances: async () => {}, refreshModels: async () => {} },
-      children: createElement(PermissionsSection, { bot: base, derived, parts: ["approval", "outbound"] }),
+      children: createElement(PermissionsSection, { bot: base, derived, parts: ["approval"] }),
     })));
     expect(host.textContent).toContain("Approval level");
-    expect(host.textContent).toContain("Sending on your behalf");
+    expect(host.textContent).not.toContain("Sending on your behalf");
     expect(host.textContent).not.toContain("Chief of Staff");
     expect(host.textContent).not.toContain("Ask me before contacting other bots");
     render(base);
@@ -106,24 +106,13 @@ describe("PermissionsSection parts", () => {
 
 describe("who a bot talks to", () => {
   const quill: Bot = { ...base, id: "quill", name: "Quill", threadId: "quill-main", tasks: [] };
-  const button = () => [...host.querySelectorAll("button")].find((candidate) => candidate.textContent === "Let it talk to every bot");
 
-  it("says nothing more for a bot that talks to every bot, the default", () => {
-    render(base, false, [quill]);
-    expect(host.textContent).not.toContain("Set up to talk only to");
-    expect(button()).toBeUndefined();
-  });
-
-  it("names the bots a peers list keeps it to, and lets a person open it to every bot in one click", () => {
-    render({ ...base, peers: ["quill", "deleted-bot"] }, false, [quill]);
-    expect(host.textContent).toContain("Set up to talk only to Quill.");
-    flushSync(() => button()!.click());
-    expect(dispatch).toHaveBeenCalledExactlyOnceWith({ type: "updateBot", botId: "pepper", patch: { peers: null, acknowledgePeerScope: true } });
-  });
-
-  it("says so when the list leaves it no one to talk to", () => {
-    render({ ...base, peers: [] }, false, [quill]);
-    expect(host.textContent).toContain("Set up not to talk to other bots.");
-    expect(button()).toBeDefined();
+  it("offers no list of who a bot may talk to: every bot reaches every bot", () => {
+    for (const bot of [base, { ...base, peers: ["quill"] }, { ...base, peers: [] }]) {
+      render(bot, [quill]);
+      expect(host.textContent).not.toContain("Set up to talk only to");
+      expect(host.textContent).not.toContain("Set up not to talk to other bots.");
+      expect([...host.querySelectorAll("button")].some((candidate) => candidate.textContent === "Let it talk to every bot")).toBe(false);
+    }
   });
 });

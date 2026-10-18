@@ -10,12 +10,9 @@ import { harnessClientFromEnv } from "./agents-client.ts";
 import type { HarnessClient, Json } from "./agents-client.ts";
 import { memorySearchText } from "./memory-search-text.ts";
 import { boundedAgentResult } from "./agents-result.ts";
-import { callResearchTool, RESEARCH_TOOL_NAMES } from "./agents-research-tools.ts";
 import { callHelperTool, HELPER_TOOL_NAMES } from "./agents-helper-tools.ts";
 import { callMausBotTool, MAUSBOT_TOOL_NAMES } from "./agents-mausbot-tools.ts";
-import { callPageTool, PAGE_TOOL_NAMES } from "./agents-pages-tools.ts";
 import { callPersonTool, PERSON_TOOL_NAMES } from "./agents-person-tools.ts";
-import { callDevsTool, DEVS_TOOL_NAMES } from "./agents-devs-tools.ts";
 
 export interface ToolCallContext {
   botId: string;
@@ -176,12 +173,9 @@ export async function callTool(name: string, args: Json, context: ToolCallContex
     return { text: `Attached ${String(body.name ?? "the file")} (${Number(body.bytes ?? 0)} bytes). It now appears in the chat with a preview.` };
   }
   if (CARD_TOOL_NAMES.has(name)) return callCardTool(name, args, context);
-  if (RESEARCH_TOOL_NAMES.has(name)) return callResearchTool(name, args, context);
   if (HELPER_TOOL_NAMES.has(name)) return callHelperTool(name, args, context);
   if (MAUSBOT_TOOL_NAMES.has(name)) return callMausBotTool(name, args, context);
-  if (PAGE_TOOL_NAMES.has(name)) return callPageTool(name, args, context);
   if (PERSON_TOOL_NAMES.has(name)) return callPersonTool(name, args, context);
-  if (DEVS_TOOL_NAMES.has(name)) return callDevsTool(name, args, context);
   if (TRIGGER_TOOL_NAMES.has(name)) return callTriggerTool(name, args, context);
   if (name === "tool_result_read") {
     if (typeof args.id !== "string" || !/^r-[0-9a-f-]{36}$/.test(args.id) ||
@@ -786,32 +780,6 @@ export async function callTool(name: string, args: Json, context: ToolCallContex
     const proposal = args.action === "update" ? `updating skill “${nameLabel}”` : `new skill “${nameLabel}”`;
     return {
       text: `A confirmation card is now visible to the user for ${proposal}.${warningText}\n\n${status} End this turn and wait for the decision.`,
-    };
-  }
-  if (name === "add_mcp_server") {
-    let saved: Json;
-    try {
-      saved = await api("/api/internal/mcp-servers", {
-        method: "POST",
-        body: JSON.stringify(args),
-      });
-    } catch (error) {
-      return { text: error instanceof Error ? error.message : String(error), isError: true };
-    }
-    const serverName = typeof saved.name === "string" && saved.name ? saved.name : "the MCP server";
-    const transport = saved.transport === "command" || saved.transport === "http" || saved.transport === "sse" ? saved.transport : "";
-    const target = typeof saved.target === "string" ? saved.target : "";
-    const keyNames = (value: unknown) => Array.isArray(value) && value.every((key) => typeof key === "string") ? value.join(", ") : "";
-    const envKeys = keyNames(saved.envKeys);
-    const headerKeys = keyNames(saved.headerKeys);
-    const where = transport && target ? ` (${transport} ${target})` : "";
-    const named = [
-      envKeys ? `Environment names on file: ${envKeys}.` : "",
-      headerKeys ? `Header names on file: ${headerKeys}.` : "",
-    ].filter(Boolean).join(" ");
-    const local = transport === "command" ? " Enabling a local command runs that command on their computer." : "";
-    return {
-      text: `Saved MCP server “${serverName}”${where} switched off. It stays off in MCP server settings until the user turns it on.${local}${named ? ` ${named}` : ""}`,
     };
   }
   return { text: `Unknown tool: ${name}`, isError: true };

@@ -8,7 +8,7 @@ import type { NewBotDefaults } from "../../shared/new-bot-defaults";
 const defaults = (): NewBotDefaults => ({
   profile: {
     name: "Suggested", modelSelection: { instanceId: "claude", model: "opus" }, approvalMode: "ask",
-    computer: "local", cwd: "/work/site", composio: true, color: "green",
+    cwd: "/work/site", color: "green",
   },
   memory: { "MEMORY.md": "- The person's own default note" },
   skills: [],
@@ -55,10 +55,10 @@ describe("readyBotTemplate", () => {
     expect(profile).toMatchObject({ name: "Fern", title: "Plant care log", soul: plant.soul, color: "green", mascotBody: "drop" });
   });
 
-  it("never changes the person's model, approval level, computer, folder or apps", () => {
+  it("never changes the person's model, approval level or folder", () => {
     const { profile } = readyBotTemplate(defaults(), plant);
     expect(profile).toMatchObject({
-      modelSelection: { instanceId: "claude", model: "opus" }, approvalMode: "ask", computer: "local", cwd: "/work/site", composio: true,
+      modelSelection: { instanceId: "claude", model: "opus" }, approvalMode: "ask", cwd: "/work/site",
     });
   });
 

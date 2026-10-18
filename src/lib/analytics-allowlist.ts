@@ -2,7 +2,6 @@
 // an id, a URL or any other string the person or a server chose becomes "other" before it can reach track().
 import { BOT_ROLES } from "@/lib/bot-roles";
 import { BUILT_IN_INSTANCE_DRIVERS } from "@/lib/built-in-instances";
-import { CURATED_CONNECTOR_SLUGS } from "../../shared/connector-curated";
 import type { CredentialTargetId } from "../../shared/credential-request";
 
 export type PropValue = string | number | boolean | readonly string[];
@@ -13,19 +12,21 @@ export function allow<const T extends string>(value: unknown, list: readonly T[]
 }
 
 export const KEY_PROVIDER = [
+  "anthropic", "openai", "openrouter", "openai_compat", "xai", "mistral", "cerebras", "groq", "meta",
   "opencode_go", "custom_endpoint", "elevenlabs", "fish_audio", "jev", "openrouter_decider", "openai_image", "custom_image",
-  "openai_live", "onepassword", "treg", "deepseek",
+  "openai_live", "deepseek",
 ] as const;
 export type KeyProvider = (typeof KEY_PROVIDER)[number];
 
 export const SECTION_PROVIDER = {
+  opencodeGo: "opencode_go", anthropic: "anthropic", openai: "openai",
   openrouter: "openrouter", openaiCompat: "openai_compat", xai: "xai", mistral: "mistral", cerebras: "cerebras",
-  groq: "groq", meta: "meta", treg: "treg", deepseek: "deepseek",
+  groq: "groq", meta: "meta", deepseek: "deepseek",
 } as const satisfies Record<string, KeyProvider>;
 
 const CREDENTIAL_PROVIDER = new Map<string, KeyProvider>(Object.entries({
-  openaiImageApiKey: "openai_image", onePasswordToken: "onepassword",
   xaiApiKey: "xai", opencodeGoApiKey: "opencode_go", ttsKey: "elevenlabs", fishAudioKey: "fish_audio",
+  openaiImageApiKey: "openai_image",
 } satisfies Record<CredentialTargetId, KeyProvider>));
 
 export function credentialProvider(target: unknown): KeyProvider | "other" {
@@ -62,7 +63,6 @@ export function engineSlug(
   return engineForDriver(instance ? instance.driverKind : BUILT_IN_DRIVER.get(instanceId));
 }
 
-export const APP: readonly string[] = CURATED_CONNECTOR_SLUGS;
 export const BOT_TEMPLATE: readonly string[] = BOT_ROLES.map((role) => role.id);
 export const CLOUD_TIER = ["starter", "personal", "pro", "max"] as const;
 
@@ -75,13 +75,10 @@ export const SIGN_IN_METHOD = ["code", "device_code", "browser"] as const;
 export type SignInMethod = (typeof SIGN_IN_METHOD)[number];
 export const BOT_SOURCE = ["blank", "template", "preset"] as const;
 export type BotSource = (typeof BOT_SOURCE)[number];
-export const CONNECTOR_RESULT = ["connected", "failed", "expired", "timed_out"] as const;
-export type ConnectorResult = (typeof CONNECTOR_RESULT)[number];
 export const CALL_MODE = ["turns", "live"] as const;
 export const ROOM_MODE = ["chat", "goal"] as const;
 export const VOICE = ["elevenlabs", "fish", "system", "chatterbox", "xai", "none"] as const;
 export const DECIDER = ["jev", "openrouter", "off"] as const;
-export const CONNECTORS_MODE = ["managed", "self_hosted", "unavailable"] as const;
 export const TRIAL_CREDIT = ["active", "used_up", "ended", "none"] as const;
 export const CLOUD_PLAN = ["starter", "personal", "pro", "max", "other", "none", "unknown"] as const;
 export const EDITION = ["oss", "enterprise"] as const;

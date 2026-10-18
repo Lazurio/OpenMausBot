@@ -13,7 +13,6 @@ import type { CredentialTargetId } from "./credential-request.ts";
 import type { TeamSetupRequest } from "./team-setup.ts"; import type { DefaultBotFields, HelperIntroField } from "./default-bot.ts";
 import type { RoutineRequestCardData } from "./routine-request.ts";
 import type { WebhookRequestCardData } from "./webhook-request.ts";
-import type { AppEventAttempt, AppTrigger, AppTriggerRequestCardData, AppTriggerService } from "./app-triggers.ts";
 import type { ProfileRequestCardData } from "./profile-request.ts";
 import type { ModelRequestCardData } from "./model-request.ts";
 import type { SkillRequestCardData } from "./skill-request.ts";
@@ -26,7 +25,6 @@ import type { RuntimeEvent } from "./runtime-events.ts";
 import type { NotificationLogEntry } from "./notification.ts";
 import type { Routine, RoutineRun } from "./routines.ts";
 import type { WebhookAttempt, WebhookTrigger } from "./webhooks.ts";
-import type { PublishedPageCard } from "./published-page.ts";
 import type { InboxItem } from "./inbox.ts";
 import type { LiveCallRecord, LiveCallState } from "./live-call-wire.ts";
 export type { LiveCallRecord, LiveCallState, LiveCallStatus, LiveClient, LiveEndReason, LiveKeySource, LiveSettings } from "./live-call-wire.ts";
@@ -239,17 +237,6 @@ export interface InstalledPackageMetadata {
   sha256?: string;
 }
 
-/** One service's connector tool grant: `"*"` widens to every tool on the
- * service, an explicit list names exact tools. */
-export interface ConnectorToolGrant {
-  tools: "*" | string[];
-}
-
-/** Lowercased Composio service slug, e.g. `gmail`. */
-export const CONNECTOR_SLUG_PATTERN = /^[a-z0-9][a-z0-9_-]{0,80}$/;
-/** Composio tool names are upper-snake, e.g. `GMAIL_SEND_EMAIL`. */
-export const CONNECTOR_TOOL_NAME_PATTERN = /^[A-Z][A-Z0-9_]{0,127}$/;
-
 /** Fails closed: only an absent switch or a strict true allows the helper model; a hand-edited "false" or 0 reads as never. */
 export const helperModelAllowed = (bot: { helperModel?: unknown }): boolean => bot.helperModel === undefined || bot.helperModel === true;
 
@@ -315,10 +302,6 @@ export interface WireBot extends DefaultBotFields {
   /** Whether this bot may send voice notes. Absent/true = allowed; false
    * hides the tool and refuses the route even with a voice configured. */
   voiceNotes?: boolean;
-  /** Whether this bot may use the X research tools (x_search, x_user_posts,
-   * x_post, x_profile), which spend the workspace's treg balance.
-   * Absent/false = off: the person turns it on per bot. */
-  xResearch?: boolean;
   /** Whether this bot uses native memory. Absent/true = enabled. */
   memoryEnabled?: boolean;
   /** Queue direct-chat messages behind outstanding delegated work. */
@@ -347,16 +330,6 @@ export interface WireBot extends DefaultBotFields {
   approvePeerComms?: boolean;
   /** Bot ids this bot is allowed to contact. */
   peers?: string[];
-  /** Whether this bot may use the workspace's connected apps. */
-  composio?: boolean;
-  /** Which connected-app tools this bot may call, by service slug. Absent
-   * defers to `composio` (unset/true = every tool, false = none); `{}` grants
-   * none. Grants never travel in shareable exports. */
-  connectorTools?: Record<string, ConnectorToolGrant>;
-  connectorScopes?: { apps: Record<string, "read" | "write"> };
-  outbound?: { policy: "ask" | "allow"; dailyCap: number };
-  /** Which of a paired phone's apps this bot may use; absent: every bot may use what the phone allows (shared/phone-apps.ts). */
-  phoneApps?: import("./phone-apps.ts").PhoneApps;
   /** Ordered backups used only by opt-in, pre-prompt startup recovery. */
   fallback?: Array<{ instanceId: string; model: string }>;
   /** Whether this bot gets the app's built-in browser. */
@@ -373,8 +346,6 @@ export interface WireBot extends DefaultBotFields {
   cacheKeepWarm?: boolean;
   /** false: the workspace's helper model never writes this bot's background texts. Absent or true: allowed. */
   helperModel?: boolean;
-  /** Which of the app-wide MCP servers this bot mounts, by name. */
-  mcpServers?: string[];
   /** Owner-selected original tool identities. An empty allowlist permits none. */
   toolScope?: ToolScope;
   /** Id of a named browser profile; absent = the bot's own private session. */
@@ -476,7 +447,6 @@ export interface WireMessage extends HelperIntroField {
   fromApp?: AppFromRef;
   /** user rows sent with parts of a bot's page the person pointed at in the preview: what each chip said. */
   pointed?: AppPointedRef[];
-  connector?: ConnectorCardData;
   secret?: SecretRequestCardData;
   /** signin rows: the bot asked the person to sign in to a site themselves. */
   signIn?: SignInRequestCardData;
@@ -590,8 +560,6 @@ export interface WireMessage extends HelperIntroField {
   /** A "Sent to" row for work addressed into a room the bot `name` isn't in, so it went to the bot directly. `room`
    * names that room when this row is not in it. Clients say it in their own words; `tool.name` is the English. */
   sentDirectly?: { name: string; room?: string };
-  /** A page the bot published to a public link (publish_page), or why it couldn't. `text` carries the link too. */
-  publishedPage?: PublishedPageCard;
   /** A published Data result, linked to its bot's main viewer. */
   dataResult?: { botId: string; cardId: string; title: string; kind: "table" | "chart" | "text"; sql?: string };
   /** user messages: the Data result the person was viewing when they sent
@@ -634,8 +602,6 @@ export function nextOpenThread<T extends OpenThreadCandidate>(tasks: readonly T[
 }
 
 export interface OptionCardData {
-  /** calls: one per outbound call the card covers, in subtitle order. */
-  outboundRequest?: { tool: string; app: string | null; calls?: Array<{ app: string | null; label: string }> };
   /** `revision`: the entry as it applied without a person, so Undo can tell it changed since. */
   teamMemoryRequest?: { section: string; entryId: string; kind: string; revision?: string };
   title: string;
@@ -680,8 +646,6 @@ export interface OptionCardData {
   routineRequest?: RoutineRequestCardData;
   /** A webhook trigger a bot made or changed from chat. */
   webhookRequest?: WebhookRequestCardData;
-  /** An app-event automation a bot made or changed from chat. */
-  appTriggerRequest?: AppTriggerRequestCardData;
   /** A durable profile-change proposal (propose_profile). */
   profileRequest?: ProfileRequestCardData;
   /** A durable default-model proposal (propose_model). */
@@ -704,24 +668,6 @@ export interface QuotaSwitchCardData {
   engines: Array<{ instanceId: string; name: string }>;
   messageId?: string;
   rootId?: string;
-}
-
-export interface ConnectorCardData {
-  /** Composio toolkit slug. It is validated server-side before every action. */
-  slug: string;
-  label: string;
-  description: string;
-  status: "required" | "authorizing" | "connected" | "failed";
-  /** Cards created by one agent request resume together after all connect. */
-  resumeKey: string;
-  /** Account alias supplied by the agent when adding a second account. */
-  alias?: string;
-  error?: string;
-  dismissed?: boolean;
-  resumed?: boolean;
-  /** Stop ended the turn this card paused: it offers no action, and a
-   * connection made afterwards is kept but continues nothing. */
-  stopped?: boolean;
 }
 
 export interface SecretRequestCardData {
@@ -946,12 +892,7 @@ export type ServerFrame =
   | { kind: "webhook"; webhook: WebhookTrigger }
   | { kind: "webhook.attempt"; attempt: WebhookAttempt }
   | { kind: "webhook.deleted"; webhookId: string }
-  | { kind: "app-trigger"; botId: string; trigger: AppTrigger }
-  | { kind: "app-trigger.attempt"; botId: string; attempt: AppEventAttempt }
-  | { kind: "app-trigger.deleted"; triggerId: string }
-  | { kind: "app-trigger.service"; service: AppTriggerService }
   | { kind: "runtime"; event: RuntimeEvent }
-  /** `surface` names what the frame shows: the bot's desktop (`computer`) or its built-in browser. */
   | { kind: "screen"; botId: string; threadId: string; png: string; mime?: string; surface?: "browser" | "computer" }
   | { kind: "computer-control"; botId: string; held: boolean; helpReason: string | null; help?: ComputerHelpRef | null }
   /** A bot's data sheet changed. Whole sheet each time. */

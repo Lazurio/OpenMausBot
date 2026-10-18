@@ -2,8 +2,7 @@
 // send, and hands the turn's timing, parent and outcome to its usage row when the turn is booked.
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { RuntimeEvent } from "../../shared/runtime-events.ts";
-import { TOOL_NAMESPACE } from "../../shared/tool-surface.ts";
-import type { TraceParent, TraceStatus, TraceTokens, TraceUsageStatus } from "../../shared/usage-trace.ts";
+import { TOOL_NAMESPACE, type TraceParent, type TraceStatus, type TraceTokens, type TraceUsageStatus } from "../../shared/usage-trace.ts";
 import { onJsonBody, parsedBodyOf } from "../harness/http.ts";
 import { errorLine, pageTitle, toolDetail } from "./detail.ts";
 import { appendSpans, type SpanRecord, type StepSpan, type ToolSpan } from "./spans.ts";

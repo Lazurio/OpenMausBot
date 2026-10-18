@@ -6,7 +6,6 @@ export interface BotRole {
   title: string;
   description: string;
   soul: string;
-  apps: string[];
 }
 
 export const BOT_ROLES: BotRole[] = CLASSIC_ROLE_IDS.map((id) => {

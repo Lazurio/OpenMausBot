@@ -5,8 +5,7 @@ import {
   type AppCan, type AppDocument, type AppPayload,
 } from "../shared/app.ts";
 import { BOT_HTML_NETWORK } from "../shared/app-frame/csp.ts";
-import { botHtmlDocument, mcpAppDocument, publishedBotHtml } from "../shared/app-frame/document.ts";
-import { jsxPublishedHtml } from "../shared/app-frame/jsx-page.ts";
+import { botHtmlDocument, mcpAppDocument } from "../shared/app-frame/document.ts";
 import { AppDocs, type AppDocPut } from "./app-docs.ts";
 import type { AgentCardResult, AgentCardStore } from "./chat-widgets.ts";
 import { compileJsxPage } from "./jsx-compile.ts";
@@ -15,7 +14,6 @@ import { createPageFiles } from "./page-files.ts";
 import { PageBundleError, readBotPageBundle, type BotFolders, type PageBundle, type PageFile } from "./pages/bundle.ts";
 import { redactSecretsInText } from "./redact.ts";
 import type { Message, StoreChange } from "./store.ts";
-import type { PublishedPageCard as PublishedPage } from "../shared/published-page.ts";
 
 const ROOM_REFUSAL = "Pages are not available in rooms yet. Answer in text.";
 const NO_SUCH_PAGE = "No page with that id in this conversation.";
@@ -227,61 +225,6 @@ export function appDocument(args: {
   });
 }
 
-export type PublishablePage =
-  | { ok: true; title: string; files: PageFile[]; rev: number; folder?: string }
-  | { ok: false; status: 404 | 409 | 422; error: string };
-
-/** A bot's page as static files: index.html, and a folder page's files beside it. A jsx page carries the server's
- * transpiled code, so it loads no compiler. */
-export function publishablePage(args: { store: Pick<AgentCardStore, "messagesFor">; docs: AppDocs; threadId: string; messageId: string; rev?: number }): PublishablePage {
-  const row = appRow(args.store, args.threadId, args.messageId);
-  if (!row) return { ok: false, status: 404, error: "That page is not in this conversation." };
-  if (row.app.source !== "html") return { ok: false, status: 409, error: "That app came from an MCP server; only a page a bot made can be published." };
-  const version = pageVersion(row.app, args.rev);
-  const stored = version ? args.docs.read(version.doc) : null;
-  if (!version || !stored || stored.source !== "html") return { ok: false, status: 404, error: "That version of the page is no longer kept." };
-  const title = oneLine(row.app.title);
-  const index = (html: string): PageFile => ({ path: "index.html", data: Buffer.from(html) });
-  if (stored.data?.format === "jsx") {
-    const compiled = compileJsxPage(stored.html);
-    if (!compiled.ok) return { ok: false, status: 422, error: compiled.error };
-    return { ok: true, title, files: [index(jsxPublishedHtml({ title, compiled: compiled.code }))], rev: version.rev };
-  }
-  const files = [index(publishedBotHtml(stored.html))];
-  for (const path of Object.keys(stored.data?.files ?? {})) {
-    const data = args.docs.readFile(version.doc, path);
-    if (!data) return { ok: false, status: 404, error: "That version of the page is no longer kept." };
-    files.push({ path, data });
-  }
-  return { ok: true, title, files, rev: version.rev, ...(stored.data?.folder ? { folder: stored.data.folder } : {}) };
-}
-
-/** Where publish_page's page shows in its conversation: the inline card of a page already shown from the same file or
- * folder gains the new version and the link, or a new card holds both. null when a card can't hold it (a room, or a
- * page with nothing to preview); the caller then posts the plain link. */
-export function showPublishedPage(args: {
-  store: AgentCardStore; docs: AppDocs; threadId: string; card: PublishedPage; bundle: PageBundle;
-}): string | null {
-  const { store, docs, threadId, card, bundle } = args;
-  if (store.groupByThread(threadId) || card.state !== "live") return null;
-  const made = bundlePage(bundle, card.title);
-  if (!made.ok) return null;
-  const shown = store.messagesFor(threadId).filter((message): message is Message & { app: AppPayload } =>
-    message.kind === "app" && isRecord(message.app) && message.app.source === "html" && !message.from)
-    .reverse().find((message) => message.app.doc && docs.read(message.app.doc)?.data?.folder === bundle.source);
-  if (shown) {
-    const replaced = replacePage(store, docs, threadId, shown, made);
-    return replaced && store.patchMessage(threadId, shown.id, { publishedPage: card }) ? shown.id : null;
-  }
-  const stored = storePage(docs, made.page);
-  if (!stored.ok) return null;
-  const payload: AppPayload = {
-    v: 1, source: "html", title: made.title, doc: stored.doc, rev: 0, bytes: pageBytes(made.page), border: true,
-    network: { connect: [...BOT_HTML_NETWORK.connect], resources: [...BOT_HTML_NETWORK.resources] },
-  };
-  return store.appendMessage(threadId, { role: "bot", kind: "app", text: pageFallback(made.title, made.page), app: payload, publishedPage: card }).id;
-}
-
 export type AppRouteResult = { ok: true } | { ok: false; status: 400 | 404 | 409 | 429; error: string };
 
 function clip(text: string, limit: number): string {
@@ -436,8 +379,6 @@ export interface ChatApps {
   }): AgentCardResult | Promise<AgentCardResult>;
   /** `origin`: the web origin the client reaches this app at, which a folder page's files load from. */
   appDocument(threadId: string, messageId: string, rev?: number, origin?: string): AppDocument | null;
-  publishablePage(threadId: string, messageId: string, rev?: number): PublishablePage;
-  showPublishedPage(args: { threadId: string; card: PublishedPage; bundle: PageBundle }): string | null;
   /** The folder pages' files route, ahead of the sign-in gate: true when the request was its own. */
   serveFile(req: IncomingMessage, res: ServerResponse, path: string, method: string): boolean;
   setAppContext(args: { threadId: string; messageId: string; content?: unknown; structuredContent?: unknown }): AppRouteResult;
@@ -483,8 +424,6 @@ export function createChatApps(deps: {
     createAppCard: (args) => createAppCard({ ...args, store: deps.store, docs }),
     appDocument: (threadId, messageId, rev, origin) => appDocument({ store: deps.store, docs, threadId, messageId, ...(rev !== undefined ? { rev } : {}),
       ...(apps.mcpAccess ? { mcpAccess: apps.mcpAccess } : {}), ...(origin ? { files: { origin, folder: files.folder } } : {}) }),
-    publishablePage: (threadId, messageId, rev) => publishablePage({ store: deps.store, docs, threadId, messageId, ...(rev !== undefined ? { rev } : {}) }),
-    showPublishedPage: (args) => showPublishedPage({ ...args, store: deps.store, docs }),
     serveFile: (req, res, path, method) => files.serve(req, res, path, method),
     setAppContext: (args) => setAppContext(deps.store, args),
     withAppContext: (text, threadId) => withAppContext(deps.store, text, threadId),

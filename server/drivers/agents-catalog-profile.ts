@@ -3,10 +3,7 @@
 /** Which tools a turn is shown. Presentation only: the server still authenticates and scopes every call. */
 export interface CatalogProfile {
   skillAuthoring: boolean;
-  sharedComputers: boolean;
   voiceNotes: boolean;
-  /** A treg key or a Cloud plan's research credential is held and this bot's research switch is on. Absent means off. */
-  xResearch?: boolean;
   cloudHome: boolean;
   memoryEnabled?: boolean;
   /** The section's Chief of Staff; the server refuses Chief-only tools to every other bot. */
@@ -25,9 +22,7 @@ export interface CatalogProfile {
 export function catalogProfileFromEnv(env: NodeJS.ProcessEnv): CatalogProfile {
   return {
     skillAuthoring: env.OMB_SKILL_AUTHORING_ENABLED === "1",
-    sharedComputers: env.OMB_SHARED_COMPUTERS_ENABLED === "1",
     voiceNotes: env.OMB_VOICE_NOTES === "1",
-    xResearch: env.OMB_X_RESEARCH === "1",
     cloudHome: env.OMB_CLOUD_HOME === "1",
     memoryEnabled: env.OMB_MEMORY_ENABLED !== "0",
     chief: env.OMB_CHIEF_OF_STAFF === "1",

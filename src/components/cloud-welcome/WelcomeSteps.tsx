@@ -10,7 +10,6 @@ import { welcomeCredit } from "@/lib/cloud-welcome";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { plainSignIn } from "@/lib/onboarding";
-import { useStore, type Bot } from "@/state/store";
 import { CARD, CARD_IDLE, CardIcon, Footer, PRIMARY, QUIET, SECONDARY, StepHeading } from "./parts";
 
 /** Connecting an AI: an AI that already works when the step opens (one signed in here, or the plan's credit) is used as
@@ -79,8 +78,6 @@ export function WelcomeFiles({ name, headingRef, onFinish }: { name: string; hea
       {card("folders", FolderOpen, t("cloudWelcome.files.folders"),
         t(!lending ? "cloudWelcome.files.foldersDesktop" : home ? "cloudWelcome.files.foldersHome" : "cloudWelcome.files.foldersHint", { name }),
         lending ? { label: t(home ? "cloudWelcome.files.foldersHomeAction" : "cloudWelcome.files.foldersAction"), run: () => void lending.open().catch(() => {}) } : undefined)}
-      {card("apps", Plug, t("cloudWelcome.files.apps"), t("cloudWelcome.files.appsHint"),
-        { label: t("cloudWelcome.files.appsAction"), run: () => dispatch({ type: "togglePlugins", open: true, surface: "apps" }) })}
     </div>
     <Footer>
       <button type="button" className={PRIMARY} onClick={onFinish}>{t("cloudWelcome.files.finish")}</button>

@@ -661,16 +661,6 @@ function projectMessage(message: Record<string, any>) {
         ...(message.tool.terminal === true ? { terminal: true } : {}),
       }
     : undefined;
-  const connector = isRecord(message.connector)
-    ? {
-        slug: message.connector.slug,
-        label: message.connector.label,
-        description: message.connector.description,
-        status: message.connector.status,
-        dismissed: message.connector.dismissed,
-        resumed: message.connector.resumed,
-      }
-    : undefined;
   const secret = isRecord(message.secret)
     ? {
         target: message.secret.target,
@@ -709,7 +699,6 @@ function projectMessage(message: Record<string, any>) {
     queued: message.queued,
     ...(tool ? { tool } : {}),
     ...(card ? { card } : {}),
-    ...(connector ? { connector } : {}),
     ...(secret ? { secret } : {}),
     ...(signIn ? { signIn } : {}), ...(message.widget ? { widget: message.widget } : {}), ...(message.app ? { app: message.app } : {}), ...(message.fromApp ? { fromApp: message.fromApp } : {}),
     ...(message.kind === "screen" ? { hasImage: Boolean(message.hasImage || message.png) } : {}),
@@ -726,13 +715,9 @@ function taskBelongsTo(owner: Record<string, any>, taskId: string): boolean {
 
 function messageNeedsInput(message: Record<string, any>): boolean {
   const card = isRecord(message.card) && message.card.requestId && !message.card.answered && !message.card.dismissed && !message.card.expired && !message.card.quotaSwitch; // a quota-switch offer follows a turn that already failed
-  const connector = isRecord(message.connector) &&
-    !message.connector.dismissed &&
-    !message.connector.resumed &&
-    message.connector.status !== "connected";
   const secret = isRecord(message.secret) && !message.secret.provided && !message.secret.dismissed && !message.secret.superseded;
   const signIn = isRecord(message.signIn) && !message.signIn.done && !message.signIn.cancelled && !message.signIn.superseded;
-  return Boolean(card || connector || secret || signIn);
+  return Boolean(card || secret || signIn);
 }
 
 function dispatchFailedAfterLatestUser(messages: Array<Record<string, any>>): boolean {

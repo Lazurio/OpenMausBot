@@ -369,7 +369,6 @@ Intentionally refused:
   configuration. The only credential write is the exact pending-card envelope
   above, and it feeds the existing desktop OS-encrypted save path.
 - Pairing, device revocation, or companion lifecycle control.
-- Local VM lifecycle, webhooks, connectors, routines, team import/export, and
   internal peer-agent routes.
 - Cloud computer provisioning, sleep, shell execution, and screenshot APIs.
   The phone receives only the fresh `join` viewer URL, never the provider key.

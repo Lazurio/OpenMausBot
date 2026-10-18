@@ -1,4 +1,3 @@
-import { composioActionPhrase } from "@/lib/approval-summary";
 import { t } from "@/lib/i18n";
 import type { LocaleKey } from "@/locales";
 import type { Message } from "@/state/store";
@@ -66,8 +65,9 @@ export function toolStepLabel(tool: StepTool): string {
   if (/(?:^|_)browser_/i.test(bare)) return t("toolStep.useBrowser");
   const key = STEP_KEYS[bare.toLowerCase()];
   if (key) return t(key);
-  const composio = composioActionPhrase(bare);
-  if (composio) return sentence(composio);
+  // An app tool named TOOLKIT_ACTION_WORDS reads as its action.
+  const action = /^[A-Z][A-Z0-9]+_([A-Z0-9_]+)$/.exec(bare)?.[1]?.replace(/_+/g, " ").trim().toLowerCase();
+  if (action) return sentence(action);
   const words = bare
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .replace(/[_\-.:]+/g, " ")

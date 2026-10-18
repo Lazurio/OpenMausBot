@@ -2,16 +2,23 @@
 // realpath containment, symlinks out of the folder are skipped, and hidden files and folders (.git, .env) never go.
 import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { PAGE_FILE_EXTENSIONS, PAGE_MAX_BYTES, PAGE_MAX_FILES } from "../../shared/published-page.ts";
 import { guestWorkspaceToHost } from "../bot-attachment.ts";
 import { VM_WORKSPACE_GUEST } from "../container-computer.ts";
+
+/** What a page's files may be. */
+const PAGE_FILE_EXTENSIONS: ReadonlySet<string> = new Set([
+  "html", "htm", "css", "js", "mjs", "json", "txt", "csv", "md", "parquet", "arrow",
+  "svg", "png", "jpg", "jpeg", "gif", "webp", "avif", "ico", "woff", "woff2", "ttf", "otf",
+]);
+const PAGE_MAX_BYTES = 5 * 1024 * 1024;
+const PAGE_MAX_FILES = 200;
 
 export interface PageFile {
   path: string;
   data: Buffer;
 }
 export interface PageBundle {
-  /** The file or folder published, canonical: the same source publishes to the same link again. */
+  /** The file or folder shown, canonical: the same source shows as the same page again. */
   source: string;
   files: PageFile[];
   bytes: number;
@@ -67,7 +74,7 @@ async function locate(requested: string, roots: readonly string[]): Promise<{ ta
     if (root) return { target, root };
     outside = true;
   }
-  if (outside) throw new PageBundleError("Only files in your working folder can be published. Save the page there first.", 403);
+  if (outside) throw new PageBundleError("Only files in your working folder can be shown. Save the page there first.", 403);
   throw new PageBundleError(`Nothing was found at ${trimmed}. Save the page in your working folder and pass its exact path.`, 404);
 }
 
@@ -76,7 +83,7 @@ export async function pageSource(requested: string, roots: readonly string[]): P
   return (await locate(requested, roots)).target;
 }
 
-/** The page at `requested`: one .html file (published as index.html), or a folder with index.html at its top. */
+/** The page at `requested`: one .html file (served as index.html), or a folder with index.html at its top. */
 export async function readPageBundle(requested: string, roots: readonly string[], limits = { bytes: PAGE_MAX_BYTES, files: PAGE_MAX_FILES }): Promise<PageBundle> {
   const { target, root } = await locate(requested, roots);
   const info = await stat(target);

@@ -293,8 +293,6 @@ describe("CloudWelcome", () => {
     fixture.state.config.onboarding = { ...EMPTY_ONBOARDING, hintsSeen: [welcomeStepHint("bring"), welcomeStepHint("engine")] };
     render();
     await vi.waitFor(() => expect(text()).toContain("Welcome to Studio Cloud"));
-    click("Connect apps");
-    expect(fixture.dispatch).toHaveBeenCalledWith({ type: "togglePlugins", open: true, surface: "apps" });
     click("Finish");
     expect(text()).toContain("Studio Cloud is ready");
     expect(text()).toContain("Your bots now run 24/7. Close your laptop whenever you like.");

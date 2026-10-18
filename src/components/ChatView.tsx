@@ -43,7 +43,6 @@ import { ConversationalReply, QuickModelNote, isConversational, useReplySegments
 import type { LocaleKey } from "@/locales";
 import { isProviderSafetyBlock, PROVIDER_SAFETY_GUIDANCE, PROVIDER_SAFETY_HELP_URL } from "../../shared/provider-safety";
 import { isCancelledTranscriptRow } from "../../shared/client-cancel";
-import { THIS_COMPUTER_NOT_READY } from "../../shared/your-computer";
 import { BotAvatar } from "./Avatar";
 import { TurnPresence } from "./TurnPresence";
 import { showToolCallsEnabled, skillAuthoringEnabled } from "@/lib/feature-flags";
@@ -66,7 +65,7 @@ import { useShowRunCard } from "@/lib/run-card-preferences";
 import { useColorUserBubbles } from "@/lib/user-bubble-preference";
 import { userBubbleStyle } from "@/lib/user-bubble-tone";
 import { ToolActivity } from "./ToolActivity";
-import { DataResultChip } from "./DataResultChip"; import { PublishedPageCard } from "./PublishedPageCard";
+import { DataResultChip } from "./DataResultChip";
 import { ThreadRefText } from "./ThreadRefs";
 import { optionsCardRow } from "./OptionsCardRow";
 import { MessageBoundary } from "./MessageBoundary";
@@ -77,7 +76,6 @@ import { ThreadContextWarning } from "./ContextWarning";
 import { EngineLimitNotice, useLimitResetContinue } from "./LimitResetContinue";
 import { ChatFindBar } from "./ChatFindBar";
 import { ReplyQuote } from "./ReplyQuote";
-import { ConnectorCard } from "./ConnectorCard";
 import { SecretRequestCard } from "./SecretRequestCard";
 import { SignInRequestCard } from "./SignInRequestCard";
 import { AutomationCaption, RoutineRunRow } from "./RoutineRunCard"; import { InboxAnswers, InboxCaption, RelayLabel } from "./InboxLine";
@@ -190,16 +188,7 @@ export function ErrorRow({
   setupInstance?: InstanceInfo;
   claudeUpdateInstance?: InstanceInfo;
 }) {
-  const { capabilities, ready } = useDesktopCapabilities();
-  const failedPermissions = missingMacCuaPermissions(message);
-  const currentPermissions = missingMacCuaPermissions(capabilities.localComputer.message);
-  const macCuaReason = ready && capabilities.host.platform === "darwin" &&
-    capabilities.localComputer.available === false && capabilities.localComputer.reasonCode !== "remote-server" &&
-    message.startsWith(THIS_COMPUTER_NOT_READY) &&
-    failedPermissions.length > 0 && failedPermissions.join(",") === currentPermissions.join(",")
-    ? macCuaPermissionMessage(currentPermissions)
-    : null;
-  const headline = macCuaReason ?? plainHeadline ?? message;
+  const headline = plainHeadline ?? message;
   const usageUrl = action ? null : codexUsageLimitReached(message) ? CODEX_USAGE_URL : null;
   return (
     <div className="flex justify-start">
@@ -720,8 +709,6 @@ const MessagesList = memo(function MessagesList({
               return m.secret ? <SecretRequestCard botId={botId} threadId={threadId} message={m} /> : null;
             case "signin":
               return m.signIn ? <SignInRequestCard botId={botId} botName={botName} threadId={threadId} message={m} /> : null;
-            case "connector":
-              return m.connector ? <ConnectorCard botId={botId} threadId={threadId} message={m} /> : null;
             case "options":
               return optionsCardRow({ message: m, transcript, botId, botName, threadId });
             case "widget":
@@ -753,7 +740,6 @@ const MessagesList = memo(function MessagesList({
             case "screen":
               return <ScreenFrame threadId={threadId} message={m} />;
             default: {
-              if (m.publishedPage) return <PublishedPageCard message={m} />;
               const peer = peerLine(m) ?? peerRequest(m, botId);
               const user = m.role === "user" && !peer;
               if (!user && isPureLeakedSystemHarnessMessage(m.text) && !m.attachments?.length) return null;
@@ -1094,6 +1080,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
           {/* The model and the browser stay in view in both modes; Simple mode moves only ⋯ into the bot panel. */}
           {!remoteClient && !phone && <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} />}
           <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)} />
+          {!phoneMenu && <LazurioBrowserButton open={state.computerOpen} round={simpleHead} />}
           {phoneMenu ? <ChatMoreMenu bot={bot} phoneHeader /> : (advanced || remoteClient) && <ChatHeaderMenu key={`menu:${bot.threadId}`} bot={bot} />}
         </div>
         </div>

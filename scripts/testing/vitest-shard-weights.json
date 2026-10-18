@@ -300,7 +300,6 @@
     "server/engine-status-reads.e2e.test.ts": 8,
     "server/escalations.e2e.test.ts": 13,
     "server/external-runtime-busy.e2e.test.ts": 9,
-    "server/external-runtime-timeout.e2e.test.ts": 2,
     "server/external-runtime.e2e.test.ts": 4,
     "server/full-access-default.e2e.test.ts": 9,
     "server/full-access-workflows.e2e.test.ts": 14,

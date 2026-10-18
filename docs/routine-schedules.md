@@ -92,7 +92,7 @@ use an appropriate event/webhook workflow instead of a fake weekly schedule.
   docs/runtime-contract.md §9).
 - A run that asks you for an approval or an answer waits for you. Its card and
   the Routines log say what it waits for ("Waiting for your approval to use
-  COMPOSIO_SEARCH_TOOLS"), the approval notification names the routine, and the
+  Bash"), the approval notification names the routine, and the
   time it waits does not count toward its optional run limit, which bounds
   active work only. If the engine's own wait for an approval runs out with
   nobody's answer, the run stops with "Stopped: nobody answered the approval to

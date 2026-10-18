@@ -206,8 +206,7 @@ export interface ImportedMemberProfile {
 }
 
 /** Everything an untrusted manifest may seed into a new bot, and nothing else:
- * - an allowlist built field by field, so privilege-bearing fields are structurally absent; the caller must still
- *   force composio: false and connectorTools: {} (absence means allowed);
+ * - an allowlist built field by field, so privilege-bearing fields are structurally absent;
  * - no name captures: names are identity for @mentions, rosters and approvals, so a collision is numbered
  *   ("Scout 2"), case-insensitively; `takenNames` (lowercased) is mutated as names are claimed. */
 export function importedMemberProfile(

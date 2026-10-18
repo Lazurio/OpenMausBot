@@ -10,7 +10,7 @@ export const PICTURE_MAX_BYTES = 64 * 1024;
 export const PICTURES_BASE64_BUDGET = 2 * 1024 * 1024;
 
 export type ShareSkipReason =
-  | "picture_too_large" | "picture_invalid" | "pictures_budget" | "stdio_server" | "insecure_address"
+  | "picture_too_large" | "picture_invalid" | "pictures_budget"
   | "files_not_shared" | "lead_not_in_group_chat" | "notes_too_large" | "skill_changed"
   | "skill_conflict" | "bot_skill_limit" | "team_skill_limit" | "preset_empty" | "preset_skill_conflict";
 
@@ -178,26 +178,24 @@ const FIELD_WORDS: Record<string, LocaleKey> = {
   prompt: "teamShare.field.prompt",
   instructions: "teamShare.field.skill",
   skills: "teamShare.field.skill",
-  mcp: "teamShare.field.address",
   appearance: "teamShare.field.picture",
 };
 
 export function describePart(part: string, document?: PackageDocument): string {
   const pkg = document?.package;
   part = part.replace(/^(presets\[[^\]]+\])\.bot\./, "$1.");
-  const match = /^(agents|rooms|routines|skills|connections|presets|playbooks)\[([^\]]+)\](?:\.([a-zA-Z]+)(?:\[([^\]]+)\])?)?/.exec(part);
+  const match = /^(agents|rooms|routines|skills|presets|playbooks)\[([^\]]+)\](?:\.([a-zA-Z]+)(?:\[([^\]]+)\])?)?/.exec(part);
   if (match) {
     const [, list, key, field, item] = match;
     const named = list === "agents" ? pkg?.agents.find((agent) => agent.key === key)?.name
       : list === "rooms" ? pkg?.rooms?.find((room) => room.key === key)?.name
       : list === "routines" ? pkg?.routines?.find((routine) => routine.key === key)?.name
-      : list === "connections" ? pkg?.connections?.find((connection) => connection.key === key)?.label
       : list === "presets" ? pkg?.presets?.find((preset) => preset.key === key)?.name
       : undefined;
     const who = named ?? (list === "presets" ? t("teamShare.defaultsPreset") : key!);
     const words = field
       ? (FIELD_WORDS[field] ? t(FIELD_WORDS[field]) : field)
-      : list === "connections" ? t("teamShare.field.connection") : list === "skills" ? t("teamShare.field.skill") : undefined;
+      : list === "skills" ? t("teamShare.field.skill") : undefined;
     const topic = /\.seed\.memory\["([^"]+)"\]/.exec(part)?.[1] ?? item;
     return [who, words, topic].filter(Boolean).join(" · ");
   }

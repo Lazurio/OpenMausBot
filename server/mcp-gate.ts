@@ -7,8 +7,6 @@ import { allowsTool, parseToolScope, type ToolScope } from "../shared/tool-scope
 
 import { bridgedCallTarget } from "./drivers/agents-bridge.ts";
 import { resolveCliSpawn } from "./env-path.ts";
-import { APP_ONLY_REFUSAL, AppObserver, GATE_APPS_ENV, modelVisible, parseAppMount, withUiExtension } from "./mcp-app-observer.ts";
-import { directoryCallTarget, isDirectoryTool } from "./mcp-directory.ts";
 import { QUERY_TOOL, QUERY_TOOL_NAME, ResultStore, answerQuery, describeShape, exampleQuery } from "./mcp-shape.ts";
 import { fitToolList } from "./mcp-tool-schema.ts";
 import { DEFAULT_RESULT_BUDGET, type HeldResult, trimResultText, trimStructured } from "./mcp-trim.ts";
@@ -18,32 +16,13 @@ import { capToolListResult, toolLimitFromEnv } from "./tool-count-limit.ts";
 
 type Json = Record<string, unknown>;
 
-/** Codex imports env from one shared app-server environment: each mount names its own record, and only that name reaches argv. */
-function gateEnvironment(): NodeJS.ProcessEnv {
-  if (process.argv.length === 2) return process.env;
-  try {
-    const key = process.argv[3];
-    if (process.argv.length !== 4 || process.argv[2] !== "--config-env" || !key || !/^OMB_GATE_CONFIG_[a-f0-9]{64}$/.test(key)) throw new Error();
-    const value = JSON.parse(process.env[key] ?? "");
-    if (!value || typeof value !== "object" || Array.isArray(value)
-      || !["OMB_GATE_NAME", "OMB_GATE_UPSTREAM"].every(name => typeof value[name] === "string")
-      || (typeof value.OMB_GATE_TOOL_SCOPE !== "string" && typeof value[GATE_APPS_ENV] !== "string")
-      || !Object.entries(value).every(([name, setting]) => GATE_ENV_KEYS.includes(name) && typeof setting === "string")) throw new Error();
-    return value;
-  } catch {
-    process.stderr.write("mcp-gate: invalid private configuration\n"); process.exit(1);
-  }
-}
-/** The gate's own settings never reach the upstream server's environment. */
-const GATE_ENV_KEYS = ["OMB_GATE_NAME", "OMB_GATE_SPILL_DIR", "OMB_GATE_BUDGET", "OMB_GATE_UPSTREAM", "OMB_GATE_SPILL_HINT", "OMB_GATE_TOOL_SCOPE", "OMB_GATE_DIRECTORY", GATE_APPS_ENV];
-const gateEnv = gateEnvironment();
-const NAME = gateEnv.OMB_GATE_NAME || "mcp";
-const SPILL_DIR = gateEnv.OMB_GATE_SPILL_DIR || "";
-const rawBudget = Number(gateEnv.OMB_GATE_BUDGET);
+const NAME = process.env.OMB_GATE_NAME || "mcp";
+const SPILL_DIR = process.env.OMB_GATE_SPILL_DIR || "";
+const rawBudget = Number(process.env.OMB_GATE_BUDGET);
 const BUDGET = Number.isFinite(rawBudget) && rawBudget >= 0 ? rawBudget : DEFAULT_RESULT_BUDGET;
 const SPILL_MAX_AGE_MS = 24 * 60 * 60_000;
 const SPILL_HINT = gateEnv.OMB_GATE_SPILL_HINT === "1";
-const DIRECTORY = gateEnv.OMB_GATE_DIRECTORY === "1";
+const SPILL_HINT = process.env.OMB_GATE_SPILL_HINT === "1";
 const SCHEMA_PROFILE = toolSchemaProfileFromEnv(process.env);
 const TOOL_LIMIT = toolLimitFromEnv(process.env);
 
@@ -86,6 +65,7 @@ function upstreamSpec(): Upstream {
   let parsed: unknown;
   try {
     parsed = JSON.parse(gateEnv.OMB_GATE_UPSTREAM ?? "");
+    parsed = JSON.parse(process.env.OMB_GATE_UPSTREAM ?? "");
   } catch {
     fail("OMB_GATE_UPSTREAM is not valid JSON");
   }
@@ -207,13 +187,6 @@ function trimCallResult(result: Json, tool: string): boolean {
 
 // Validate before starting a process: corrupt policy must never become pass-through.
 const scope = toolScope();
-const observer = (() => {
-  try {
-    const mount = parseAppMount(gateEnv[GATE_APPS_ENV]);
-    return mount ? new AppObserver(mount, { log: (line) => process.stderr.write(`mcp-gate(${NAME}): ${line}\n`) }) : undefined;
-  } catch { return fail("invalid MCP apps configuration"); }
-})();
-const appOnly = new Set<string>();
 const spec = upstreamSpec();
 if (SPILL_DIR) sweepSpill(SPILL_DIR);
 
@@ -253,14 +226,8 @@ child.on("error", (error) => {
 });
 child.stderr.pipe(process.stderr);
 
-type Pending =
-  | { kind: "call"; tool: string; trim: boolean; params?: Json }
-  | { kind: "list" | "other" }
-  | { kind: "initialize"; original?: string };
+type Pending = { kind: "call"; tool: string } | { kind: "list" };
 
-function callTarget(name: string, args: unknown): string | undefined {
-  return DIRECTORY ? directoryCallTarget(name, args) : name;
-}
 /** JSON-RPC string and numeric IDs are separate, even when their text is equal. */
 const pending = new Map<string, Pending>();
 
@@ -277,45 +244,16 @@ createInterface({ input: process.stdin }).on("line", (line) => {
   }
   const id = requestKey(message?.id);
   const params = isRecord(message?.params) ? message.params : undefined;
-  // The gate's own read-only tool: it reads a held result and never reaches upstream, so no selection or app rule applies.
+  // The gate's own read-only tool: it reads a held result and never reaches upstream.
   if (BUDGET > 0 && message?.method === "tools/call" && params?.name === QUERY_TOOL_NAME) {
     if (!id) return;
     process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", id: message.id, result: answerQuery(store, params.arguments, BUDGET) })}\n`);
     return;
   }
-  if (scope && message?.method === "tools/call") {
-    if (!id || typeof params?.name !== "string"
-      || (params.arguments !== undefined && !isRecord(params.arguments))) {
-      return rejectRequest(message.id, -32602, "Invalid tool call");
-    }
-    // Security: should a bridged agents server answer here, use_tool is also judged by the tool it names.
-    const targets = [callTarget(params.name, params.arguments), ...(NAME === "agents" ? [bridgedCallTarget(params.name, params.arguments)] : [])];
-    if (targets.some((target) => target !== undefined && !allowsTool(scope, { kind: "mcp", server: NAME, name: target }))) {
-      return rejectRequest(message.id, -32602, "Tool selection excludes this tool. Check the bot's Access settings.");
-    }
-  }
-  if (message?.method === "tools/call" && typeof params?.name === "string") {
-    const target = callTarget(params.name, params.arguments);
-    if (target !== undefined && appOnly.has(target)) return rejectRequest(message.id, -32602, APP_ONLY_REFUSAL);
-  }
-  if (scope && message?.method === "tools/list" && !id) {
-    return rejectRequest(message.id, -32600, "Tool listing needs a request ID");
-  }
-  if (id && typeof message?.method === "string") {
-    if (scope && pending.has(id)) fail("duplicate request ID on a restricted connection");
-    if (message.method === "tools/call") {
-      const name = typeof params?.name === "string" ? params.name : "tool";
-      const target = callTarget(name, params?.arguments);
-      pending.set(id, { kind: "call", tool: target ?? name, trim: target !== undefined, ...(observer && params ? { params } : {}) });
-    } else if (message.method === "initialize" && observer) {
-      if (observer.mount.extension) {
-        pending.set(id, { kind: "initialize", original: line });
-        return child.stdin.write(`${JSON.stringify({ ...message, params: withUiExtension(message.params) })}\n`);
-      }
-      pending.set(id, { kind: "initialize" });
-    } else if (message.method === "tools/list" || scope) {
-      pending.set(id, { kind: message.method === "tools/list" ? "list" : "other" });
-    }
+  if (id && message?.method === "tools/call") {
+    pending.set(id, { kind: "call", tool: typeof params?.name === "string" ? params.name : "tool" });
+  } else if (id && message?.method === "tools/list") {
+    pending.set(id, { kind: "list" });
   }
   child.stdin.write(`${line}\n`);
 });
@@ -338,34 +276,8 @@ createInterface({ input: child.stdout }).on("line", (line) => {
   const id = typeof message.method === "string" ? undefined : requestKey(message.id);
   const request = id === undefined ? undefined : pending.get(id);
   if (scope && id !== undefined && !request) fail("unrequested upstream response on a restricted connection");
-  if (request?.kind === "initialize" && request.original && message.error !== undefined && id !== undefined) {
-    pending.set(id, { kind: "initialize" });
-    process.stderr.write(`mcp-gate(${NAME}): the server refused the MCP Apps extension; connecting without it\n`);
-    child.stdin.write(`${request.original}\n`);
-    return;
-  }
   if (id !== undefined) pending.delete(id);
   const result = message.result;
-  if (request?.kind === "initialize") observer?.initialized(result);
-  // A tool only an MCP app's view may call is never listed to the model, and a call to it is refused.
-  if (request?.kind === "list" && message.error === undefined && isRecord(result) && Array.isArray(result.tools)) {
-    observer?.listed(result);
-    for (const tool of result.tools) {
-      if (!isRecord(tool) || typeof tool.name !== "string") continue;
-      if (modelVisible(tool)) appOnly.delete(tool.name);
-      else appOnly.add(tool.name);
-    }
-    result.tools = result.tools.filter(modelVisible);
-  }
-  if (scope && request?.kind === "list" && message.error === undefined) {
-    if (!isRecord(result) || !Array.isArray(result.tools)
-      || !result.tools.every((tool: unknown) => isRecord(tool) && typeof tool.name === "string" && tool.name.trim().length > 0)
-      || (result.nextCursor !== undefined && typeof result.nextCursor !== "string")) {
-      return rejectRequest(message.id, -32603, "Invalid tool catalog on a restricted connection");
-    }
-    result.tools = result.tools.filter((tool: Json) => (DIRECTORY && isDirectoryTool(tool.name))
-      || allowsTool(scope, { kind: "mcp", server: NAME, name: tool.name as string }));
-  }
   if (SCHEMA_PROFILE && request?.kind === "list" && message.error === undefined && isRecord(result) && Array.isArray(result.tools)) {
     result.tools = fitToolList(result.tools, SCHEMA_PROFILE, (note) => process.stderr.write(`mcp-gate(${NAME}): ${note}\n`));
   }
@@ -375,8 +287,7 @@ createInterface({ input: child.stdout }).on("line", (line) => {
   if (TOOL_LIMIT !== undefined && request?.kind === "list" && message.error === undefined && isRecord(result)) {
     message.result = capToolListResult(result, TOOL_LIMIT, (note) => process.stderr.write(`mcp-gate(${NAME}): ${note}\n`));
   }
-  if (request?.kind === "call" && observer && message.error === undefined) observer.returned(request.params, result);
-  if (request?.kind === "call" && request.trim && isRecord(result)) {
+  if (request?.kind === "call" && isRecord(result)) {
     try {
       if (trimCallResult(result, request.tool)) {
         process.stderr.write(`mcp-gate(${NAME}): trimmed ${request.tool} to ${BUDGET} chars\n`);

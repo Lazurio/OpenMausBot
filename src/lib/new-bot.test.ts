@@ -107,14 +107,6 @@ describe("New bot", () => {
     expect(onError).toHaveBeenCalledWith("Couldn't make a new bot: offline");
   });
 
-  it("starts a bot whose defaults say Auto on this computer on Ask, and says so", async () => {
-    const { calls, request } = server({ defaults: { profile: { approvalMode: "auto", computer: "local" }, memory: {}, skills: [], routines: [] } });
-    const sent = await newBot(request);
-    expect(calls.find((call) => call.method === "PATCH")!.body).toMatchObject({ approvalMode: "ask" });
-    expect(sent.at(-1)).toEqual({ type: "notice", notice: { kind: "note", botName: null,
-      text: "Pixel will ask before acting. To let it act on this computer by itself, choose Approve for me in its settings." } });
-  });
-
   it("from a paired device, sends one request and leaves the defaults to the host", async () => {
     vi.stubGlobal("window", { ogb: { remoteClient: { active: true } } });
     const { calls, request } = server();

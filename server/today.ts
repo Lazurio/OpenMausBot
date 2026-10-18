@@ -5,11 +5,9 @@ import { isPersistentQuestionCard, type QuestionRequestCardData } from "../share
 import type { TurnDigest } from "../shared/digest.ts";
 import { isClientCancellation } from "../shared/client-cancel.ts";
 import { failedTurnCause } from "../shared/failed-turn.ts";
-import type { PlaceRow, PlaceState } from "../shared/place-view.ts";
 import type { RoutineRunReport, RoutineRunStatus, RoutineRunTrigger } from "../shared/routines.ts";
 import { classifyToolCall, isReportRoutine, minutesSaved, OUTCOME_CATEGORIES, toolApps, type OutcomeCategory, type OutcomeCounts } from "../shared/today-outcomes.ts";
 import { NEEDS_YOU_WINDOW_MS, TODAY_MAX_LINES, TODAY_MAX_WINDOW_MS, type NeedsYouItem, type TodayLine, type TodayReport, type TodayStarter } from "../shared/today.ts";
-import { trialCreditKind } from "../shared/trial-credit.ts";
 import { toolkitName } from "./activity.ts";
 import { classifyError } from "./drivers/retry.ts";
 import { attentionRows, requestSenders, successfulCallsMentioning, workRows, type AttentionRow, type WorkRow } from "./message-db.ts";
@@ -50,14 +48,9 @@ export interface TodaySources {
   parked: ReadonlyArray<{ id: string; botId: string; threadId: string; question?: string; createdAt: number }>;
 }
 
-/** Place failures a person fixes by changing a setting or plan; the rest pass or retry by themselves. */
-const OWNER_PLACES: ReadonlySet<PlaceState> = new Set([
-  "cc-cannot", "cc-tools-off", "cc-sign-in", "cc-no-hours", "cc-at-once", "cc-ended", "cc-on-my-cloud", "cc-needs-key",
-  "browser-off", "browser-cannot", "vm-cannot",
-]);
 /** A connected app refusing for want of a working sign-in, as Composio and the apps behind it word it. */
 const BROKEN_CONNECTION = /\b(?:401|unauthori[sz]ed|invalid[_ ]grant|(?:token|credentials?) (?:has |have )?(?:expired|been revoked)|expired (?:token|credentials?)|re-?authori[sz]e|re-?authenticate|reconnect|no (?:active )?connected account|connected ?account (?:not found|is (?:inactive|expired|disabled))|connection (?:is )?(?:inactive|expired|revoked|not found)|insufficient[_ ](?:scopes?|permissions?)|ACCESS_TOKEN_SCOPE_INSUFFICIENT|not connected)\b/i;
-const KIND_ORDER: Record<NeedsYouItem["kind"], number> = { "signed-out": 0, "out-of-credit": 1, "usage-limit": 2, connection: 3, place: 4, question: 5, message: 6 };
+const KIND_ORDER: Record<NeedsYouItem["kind"], number> = { "signed-out": 0, "usage-limit": 1, connection: 2, question: 3, message: 4 };
 const DAY_MS = 24 * 60 * 60_000;
 const TITLE_CHARS = 160;
 /** A failed row and the summary its turn ends with are written this close together. */
@@ -291,18 +284,10 @@ function needsYou(sources: TodaySources, viewer: TodayViewer, owners: Map<string
       continue;
     }
     if (settled(botId, row.at)) continue;
-    const credit = trialCreditKind(cause);
-    const place = parse<PlaceRow>(row.place);
     const instanceId = engineOf.get(botId);
-    if (credit) {
-      if (credit !== "paused") keep("out-of-credit", { kind: "out-of-credit", id: row.id, at: row.at, credit, botIds: [botId], threadId: row.threadId });
-    } else if (place) {
-      if (OWNER_PLACES.has(place.state)) keep(`place:${place.state}:${botId}`, { kind: "place", id: row.id, at: row.at, place, botIds: [botId], threadId: row.threadId });
-    } else {
-      const reason = classifyError({ text: cause }).reason;
-      if ((row.setup || reason === "auth") && instanceId) keep(`signed-out:${instanceId}`, { kind: "signed-out", id: row.id, at: row.at, instanceId, botIds: [botId], threadId: row.threadId });
-      else if (reason === "quota") keep(`usage-limit:${instanceId ?? botId}`, { kind: "usage-limit", id: row.id, at: row.at, ...(instanceId ? { instanceId } : {}), botIds: [botId], threadId: row.threadId, text: plainTitle(cause) });
-    }
+    const reason = classifyError({ text: cause }).reason;
+    if ((row.setup || reason === "auth") && instanceId) keep(`signed-out:${instanceId}`, { kind: "signed-out", id: row.id, at: row.at, instanceId, botIds: [botId], threadId: row.threadId });
+    else if (reason === "quota") keep(`usage-limit:${instanceId ?? botId}`, { kind: "usage-limit", id: row.id, at: row.at, ...(instanceId ? { instanceId } : {}), botIds: [botId], threadId: row.threadId, text: plainTitle(cause) });
   }
 
   for (const [key, app] of connectionApps) {

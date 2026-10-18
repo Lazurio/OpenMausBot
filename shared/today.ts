@@ -1,9 +1,7 @@
 // The Today page's wire shape: what a person's bots finished in a window,
 // what only the person can unblock, and an estimate of the time it saved.
-import type { PlaceRow } from "./place-view.ts";
 import type { OutcomeCategory, OutcomeCounts } from "./today-outcomes.ts";
 import type { RoutineRunTrigger } from "./routines.ts";
-import type { TrialCreditRefusal } from "./trial-credit.ts";
 
 /** Who opened a piece of work: a schedule, a webhook, another bot, a call
  * through the API, a message relayed from another app, or the person. */
@@ -31,9 +29,7 @@ export interface TodayLine {
 export type NeedsYouItem =
   | { kind: "signed-out"; id: string; at: number; instanceId: string; botIds: string[]; threadId?: string }
   | { kind: "usage-limit"; id: string; at: number; instanceId?: string; botIds: string[]; threadId: string; text: string }
-  | { kind: "out-of-credit"; id: string; at: number; credit: TrialCreditRefusal; botIds: string[]; threadId: string }
   | { kind: "connection"; id: string; at: number; app: string; botIds: string[]; threadId: string; text: string }
-  | { kind: "place"; id: string; at: number; place: PlaceRow; botIds: string[]; threadId: string }
   | { kind: "question"; id: string; at: number; botId: string; threadId: string; text: string }
   /** On a Team Cloud: a teammate tagged this person, or a bot passed them a message. `from` names who, and `fromEmail`
    * is that teammate's address when a person (not a bot) sent it; `messageId` is the line to open. It goes once they

@@ -11,7 +11,7 @@ type Resolved = RuntimeEvent & { type: "request.resolved" };
 export interface RoutineRunAsk {
   requestId?: string;
   approval: boolean;
-  /** "to use COMPOSIO_SEARCH_TOOLS", "to run “ls”", or the question asked. */
+  /** "to use web_search", "to run “ls”", or the question asked. */
   subject: string;
   since: number;
 }

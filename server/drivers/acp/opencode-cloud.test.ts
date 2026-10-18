@@ -17,7 +17,6 @@ import { createOpenCodeDriver, resetOpenCodeModelCache } from "./opencode-go.ts"
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FAKE_CLI = join(HERE, "..", "..", "testing", "fake-acp-cli.ts");
-const FAKE_MCP = join(HERE, "..", "..", "testing", "fake-mcp-server.ts");
 
 const fixtures: Array<{ scratch: string; instance: ProviderInstance; recorder: EventRecorder }> = [];
 afterEach(async () => {
@@ -97,31 +96,8 @@ describe("the keys saved for OpenCode inside the Cloud bot box", () => {
 });
 
 describe("a model that takes a limited number of tools", () => {
-  const toolsFile = (scratch: string, name: string, count: number) => {
-    const file = join(scratch, `${name}.json`);
-    writeFileSync(file, JSON.stringify(Array.from({ length: count }, (_, index) => ({ name: `${name}_${index}`, inputSchema: { type: "object", properties: {} } }))));
-    return { command: process.execPath, args: ["--experimental-strip-types", FAKE_MCP], env: { FAKE_MCP_TOOLS_FILE: file } };
-  };
   const prompts = (scratch: string) => readFileSync(join(scratch, "rpc.jsonl"), "utf8").trim().split("\n")
     .map((line) => (JSON.parse(line) as { method: string }).method).filter((method) => method.startsWith("session/prompt"));
-
-  it("retries a refused turn once with every server's list trimmed to fit, then starts the next turn trimmed", async () => {
-    const f = await open(createOpenCodeDriver(async () => ({ default: "", options: [] })), "opencodeGo", (scratch) => ({
-      FAKE_ACP_MODELS: "opencode/beam-free", FAKE_ACP_TOOL_LIMIT: "30", FAKE_ACP_RPC_APPEND_FILE: join(scratch, "rpc.jsonl"),
-    }));
-    const custom = { big: toolsFile(f.scratch, "big", 40), small: toolsFile(f.scratch, "small", 10) };
-    const first = await f.run("t-limit", { model: "opencode/beam-free", integrations: { custom } });
-    expect(first.done).toMatchObject({ ok: true });
-    expect(first.events.filter((event) => event.type === "turn.started")).toHaveLength(1);
-    expect(first.events.some((event) => event.type === "runtime.error")).toBe(false);
-    // 30 less OpenCode's own 24 leaves 6, three for each server.
-    expect(first.events.find((event) => event.type === "item.completed")).toMatchObject({ text: "tools: big=3,small=3" });
-    expect(prompts(f.scratch)).toEqual(["session/prompt", "session/prompt.tool-limit", "session/prompt"]);
-
-    const next = await f.run("t-limit-2", { model: "opencode/beam-free", integrations: { custom } });
-    expect(next.done).toMatchObject({ ok: true });
-    expect(prompts(f.scratch)).toHaveLength(4);
-  });
 
   it("retries only once, then says in plain words what to turn off", async () => {
     const f = await open(createOpenCodeDriver(async () => ({ default: "", options: [] })), "opencodeGo", (scratch) => ({

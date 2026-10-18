@@ -336,8 +336,6 @@ export const CLIENT_ALLOW: ReadonlyArray<{ methods: readonly string[]; path: Reg
   { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/browser\/action$/ },
   { methods: ["GET"], path: /^\/api\/bots\/[\w-]+\/browser\/(?:stream|download\/[\w-]+)$/ },
   { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/browser\/upload$/ },
-  { methods: ["GET"], path: /^\/api\/bots\/[\w-]+\/connector-cards\/[\w-]+\/status$/ },
-  { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/connector-cards\/[\w-]+\/(?:resume|dismiss)$/ },
   { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/always-allow$/ }, // must match a pending card
   // an app reaches only its own MCP server, under the bot's rules; its context is bounded text
   { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/apps\/[\w-]+\/(?:rpc|context)$/ },
@@ -465,11 +463,6 @@ const DESKTOP_OWNER_HEADER = "x-openmausbot-desktop-owner";
 
 function mutatingPublicRoute(method: string, path: string): boolean {
   const upper = method.toUpperCase();
-  // A legacy GET that syncs upstream state and can resume a paused turn: classify by effect, not verb.
-  if (
-    upper === "GET" &&
-    /^\/api\/bots\/[\w-]+\/connector-cards\/[\w-]+\/status$/.test(path)
-  ) return true;
   // Hands out a desktop's VNC password and control.
   if (path.startsWith("/api/desktop-viewer/")) return true;
   // Hand out a stored secret to a loopback reader: a webhook's address, a Local VM's viewer password.

@@ -16,7 +16,7 @@ import { markdownImageName, markdownImageOpenUrl } from "../lib/markdown-image";
 import { repairMarkdownTables } from "../lib/markdown-tables";
 import { TRANSCRIPT_WINDOW_SIZE } from "../lib/transcript-window";
 import { windowsPathDestinations } from "../../shared/markdown-windows-paths";
-import { GITHUB_REF_CLASS, isUseMyComputerUrl, LINK_CLASS, UseMyComputerLink, usePageOpener, withPageOpen } from "./ChatLinks";
+import { GITHUB_REF_CLASS, LINK_CLASS } from "./ChatLinks";
 import { githubRefFromProps, remarkGithubRefs } from "@/lib/github-refs";
 import { GITHUB_REF_ICONS, LinkHoverCard } from "@/components/LinkHoverCard";
 import { useThreadLinkMenu } from "@/components/ThreadLinkMenu";
@@ -587,8 +587,7 @@ function MarkdownLink({ href, children, ...rest }: { href?: string; children?: R
   // SAFETY: react-markdown hands hast data-* attributes through as string props
   const props = rest as Record<string, unknown>;
   const { threads, currentBotId, message, delivered } = useContext(MessageScopeContext);
-  const linkMenu = useThreadLinkMenu(href), openPage = usePageOpener();
-  if (href && isUseMyComputerUrl(href)) return <UseMyComputerLink>{children}</UseMyComputerLink>;
+  const linkMenu = useThreadLinkMenu(href);
   const address = href ? parseThreadRefUrl(href) : null;
   const ref = address ? resolveThreadRefAddress(threads, address, currentBotId) : null;
   if (ref) return <ThreadLink target={ref} ambiguous={ref.ambiguous}>{children}</ThreadLink>;
@@ -609,7 +608,7 @@ function MarkdownLink({ href, children, ...rest }: { href?: string; children?: R
   const Icon = github ? GITHUB_REF_ICONS[github.kind] : null;
   return (
     <LinkHoverCard href={href} github={github}>
-      {(hoverAnchor) => { const anchor = withPageOpen(href, openPage, linkMenu.onContextMenu ? { ...hoverAnchor, onContextMenu: linkMenu.onContextMenu } : hoverAnchor); return <>{linkMenu.menu}{Icon ? (
+      {(hoverAnchor) => { const anchor = linkMenu.onContextMenu ? { ...hoverAnchor, onContextMenu: linkMenu.onContextMenu } : hoverAnchor; return <>{linkMenu.menu}{Icon ? (
         <a {...anchor} href={href} target="_blank" rel="noreferrer" dir="ltr" title={href} data-github-ref={github!.kind} className={GITHUB_REF_CLASS}>
           <Icon size={13} aria-hidden="true" className="shrink-0 self-center text-ink-tertiary" />
           <span>{children}</span>

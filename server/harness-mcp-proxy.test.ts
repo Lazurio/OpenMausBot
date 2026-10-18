@@ -48,19 +48,6 @@ describe("harness MCP capability proxy", () => {
     await expect(harnessMcpRequest(frame("tools/call", { name: "agent_browser_snapshot" }), connection())).resolves.toMatchObject({ result: { content: [{ type: "image", data: "jpeg" }] } });
   });
 
-  it("sends HighLevel calls to their own harness route with the CRM instructions", async () => {
-    status = 200;
-    payload = { result: { tools: [{ name: "HIGHLEVEL_GET_CONTACT" }], instructions: "crm" } };
-    await expect(harnessMcpRequest(frame("initialize"), connection("highlevel"))).resolves.toMatchObject({ result: { serverInfo: { name: "openmausbot-highlevel" }, instructions: expect.stringContaining("never send SMS") } });
-    await expect(harnessMcpRequest(frame("tools/list"), connection("highlevel"))).resolves.toEqual({ jsonrpc: "2.0", id: 1, result: { tools: [{ name: "HIGHLEVEL_GET_CONTACT" }], instructions: "crm" } });
-    expect(requests.at(-1)).toEqual({ path: "/api/internal/highlevel/mcp", auth: "Bearer scoped-capability", body: { method: "tools/list", params: {} } });
-    status = 401;
-    payload = { error: "the internal turn capability has expired" };
-    const refused = await harnessMcpRequest(frame("tools/call", { name: "HIGHLEVEL_ADD_NOTE", arguments: {} }), connection("highlevel")) as any;
-    expect(refused.result.isError).toBe(true);
-    expect(refused.result.content[0].text).toContain("never message anyone through the CRM");
-  });
-
   it("forwards device calls to /api/internal/device/mcp with the phone recovery text", async () => {
     status = 200;
     payload = { result: { tools: [{ name: "phone_send" }] } };

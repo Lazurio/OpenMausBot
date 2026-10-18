@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { CircleAlert, X } from "lucide-react";
 import { useStore, type Message } from "@/state/store";
-import { usePageOpener } from "@/lib/page-open";
+import { openExternalLink } from "@/lib/app-links";
 import { phonePairingSettingsAction } from "@/lib/phone-pairing";
 import { useShowThreads } from "@/lib/thread-preferences";
 import { resolvedThreadTarget } from "@/lib/thread-target";
@@ -52,7 +52,6 @@ function WidgetCard({ botId, threadId, messageId, payload }: { botId: string; th
   const root = payload.root;
   const { state, dispatch, flushBotPatches } = useStore();
   const showThreads = useShowThreads();
-  const openPage = usePageOpener();
   const [settledHere, setSettledHere] = useState<WidgetSettled>();
   /**
    * Once the row has spoken since this card's last press, only the row decides, whichever of the patch frame and the
@@ -119,7 +118,7 @@ function WidgetCard({ botId, threadId, messageId, payload }: { botId: string; th
     if (entry.client) {
       if (entry.action.type === PHONE_PAIRING_ACTION) dispatch(phonePairingSettingsAction());
       const url = widgetActionUrl(entry);
-      if (url) openPage(url);
+      if (url) void openExternalLink(url).catch(() => {});
       const target = resolvedThreadTarget(widgetThreadTarget(entry), state);
       if (target) openThread(dispatch, target, state, showThreads);
       return;

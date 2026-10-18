@@ -9,8 +9,8 @@ import type { LocaleKey } from "@/locales";
 import { SECTION_PROVIDER, type KeyResult, type KeyVia } from "@/lib/analytics-allowlist";
 import { keyRemoved, keySaved, keySaveFailure, keyTestResult, savedKeyResult } from "@/lib/product-events";
 
-export type ConfigSection = "composio" | "box" | "opencodeGo" | "anthropic" | "openai" | "openrouter" | "openaiCompat" | "xai" | "mistral" | "cerebras" | "groq" | "meta" | "treg" | "deepseek";
-export type TestableProvider = "anthropic" | "openai" | "openrouter" | "openaiCompat" | "xai" | "mistral" | "cerebras" | "groq" | "meta" | "treg";
+export type ConfigSection = "opencodeGo" | "anthropic" | "openai" | "openrouter" | "openaiCompat" | "xai" | "mistral" | "cerebras" | "groq" | "meta" | "deepseek";
+export type TestableProvider = "anthropic" | "openai" | "openrouter" | "openaiCompat" | "xai" | "mistral" | "cerebras" | "groq" | "meta";
 
 const SECTIONS: Record<
   ConfigSection,
@@ -19,11 +19,6 @@ const SECTIONS: Record<
     flag: (config: ConfigStatus) => boolean;
   }
 > = {
-  composio: {
-    body: (v) => ({ composio: { apiKey: v } }),
-    // Only a project key of the person's own: the managed connection has its own "ready" line and nothing to clear.
-    flag: (c) => c.composio.configured && (c.composio.mode ?? "self-hosted") === "self-hosted",
-  },
   opencodeGo: { body: (v) => ({ opencodeGo: { apiKey: v } }), flag: (c) => c.opencodeGo?.configured ?? false },
   anthropic: {
     body: (v, firstKey) => ({ anthropic: { key: v, ...(firstKey && v ? { everyClaudeBot: false } : {}) } }),
@@ -38,15 +33,12 @@ const SECTIONS: Record<
   meta: { body: (v) => ({ meta: { key: v } }), flag: (c) => c.meta?.configured ?? false },
   deepseek: { body: (v) => ({ deepseek: { key: v } }), flag: (c) => c.deepseek?.configured ?? false },
   xai: { body: (v) => ({ xai: { key: v } }), flag: (c) => c.xai?.configured ?? false },
-  treg: { body: (v) => ({ treg: { key: v } }), flag: (c) => c.treg?.configured ?? false },
 };
 
 // Provider keys have no desktop-shell slot yet; they go to the server's own 0600 config. A secret the desktop's boot
 // migration moves into its encrypted store must save here, so Clear removes the stored copy too.
-const ELECTRON_CREDENTIAL: Partial<Record<ConfigSection, "composioApiKey" | "boxToken" | "opencodeGoApiKey" | "tregApiKey">> = {
-  composio: "composioApiKey",
+const ELECTRON_CREDENTIAL: Partial<Record<ConfigSection, "opencodeGoApiKey">> = {
   opencodeGo: "opencodeGoApiKey",
-  treg: "tregApiKey",
 };
 
 /** The desktop shell's encrypted slot for a section, if it has one. */
@@ -55,7 +47,7 @@ export function desktopCredentialSlot(section: ConfigSection) {
 }
 
 /** Saves one credential where this app keeps it ("" removes it): the desktop's encrypted store when the section has a
- * slot there, else the server's own config, which on a Cloud home stays outside every bot's box. */
+ * slot there, else the server's own config. */
 export function saveCredential(section: ConfigSection, value: string, firstKey: boolean): Promise<ConfigStatus> {
   const electronSlot = desktopCredentialSlot(section);
   return window.ogb?.setCredential && electronSlot
@@ -76,17 +68,8 @@ const CREDENTIALS: Record<
     warningKey?: LocaleKey;
     noteKey?: LocaleKey;
     /** The "get a key" link shows under the field, not only in the help popover. */
-    showLink?: boolean;
   }
 > = {
-  composio: {
-    labelKey: "keys.composio.label",
-    placeholder: "ak_…",
-    descriptionKey: "keys.composio.desc",
-    href: "https://dashboard.composio.dev",
-    linkLabelKey: "keys.composio.link",
-    optional: true,
-  },
   opencodeGo: {
     labelKey: "keys.opencode.label",
     placeholderKey: "keys.opencode.placeholder",
@@ -176,15 +159,6 @@ const CREDENTIALS: Record<
     linkLabelKey: "keys.xai.link",
     optional: true,
   },
-  treg: {
-    labelKey: "keys.treg.label",
-    placeholderKey: "keys.treg.placeholder",
-    descriptionKey: "keys.treg.desc",
-    href: "https://treg.to",
-    linkLabelKey: "keys.treg.link",
-    optional: true,
-    showLink: true,
-  },
 };
 
 /** The catalog is read when a row renders, not when this module loads. */
@@ -266,13 +240,6 @@ function CredentialHelp({ section }: { section: ConfigSection }) {
   );
 }
 
-/** "treg is working ✓" with the team's balance, or the exact problem the server's check named. */
-export function tregVerdict(result: { ok?: unknown; balanceUsd?: unknown; message?: unknown }): string {
-  if (result.ok !== true) return typeof result.message === "string" && result.message ? result.message : t("keys.testUnexpected", { status: "?" });
-  const balance = typeof result.balanceUsd === "number" ? ` ${t("keys.treg.balance", { balance: `$${result.balanceUsd.toFixed(2)}` })}` : "";
-  return `${t("keys.treg.working")}${balance}`;
-}
-
 export function looksLikeKey(value: string): boolean {
   return value.length > 0 && !/\s/.test(value);
 }
@@ -311,10 +278,6 @@ export function ApiKeyRow({
     try {
       const result = await api("/api/keys/test", { method: "POST", body: JSON.stringify({ provider: testProvider }) });
       if (generation !== testGeneration.current) return keyTestResult(result);
-      if (result.check === "treg") {
-        setVerdict(tregVerdict(result));
-        return keyTestResult(result);
-      }
       const outcome = result.ok
         ? result.check === "authentication"
           ? result.freeTier === true ? `${t("keys.testAuthenticated")}\n${t("keys.testFreeTier")}` : t("keys.testAuthenticated")
@@ -430,12 +393,6 @@ export function ApiKeyRow({
         </div>
       )}
       {credential.note && <p className="mt-1.5 text-[12px] leading-[1.4] text-ink-secondary">{credential.note}</p>}
-      {credential.showLink && (
-        <a href={credential.href} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-[12px] font-medium text-accent-text hover:underline">
-          {credential.linkLabel}
-          <ExternalLink size={11} aria-hidden="true" />
-        </a>
-      )}
       {error && <div className="mt-1 text-[12px] text-danger">{error}</div>}
       {verdict && <div role="status" className="mt-1 whitespace-pre-line text-[12px] text-ink-secondary">{verdict}</div>}
     </div>

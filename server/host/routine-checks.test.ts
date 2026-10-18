@@ -11,7 +11,7 @@ const MINUTE = 60_000;
 const dirs: string[] = [];
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 
-function setup(options: { fenced?: boolean; may?: (app: ReadApp) => boolean } = {}) {
+function setup(options: { fenced?: boolean } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "omb-routine-checks-"));
   dirs.push(dir);
   let now = Date.parse("2026-10-22T08:00:00Z");
@@ -38,7 +38,7 @@ function setup(options: { fenced?: boolean; may?: (app: ReadApp) => boolean } = 
   };
   const sorted: Array<[string, number]> = [];
   const checks = createRoutineChecks({
-    dataDir: dir, reads, now: () => now, mayRead: (_bot, app) => options.may?.(app) ?? true, fenced: () => options.fenced ?? true,
+    dataDir: dir, reads, now: () => now, fenced: () => options.fenced ?? true,
     timeZone: () => "UTC", runs: () => runs, dismissedFrom: () => [], report: (report) => { reports.push(report); },
     sorted: (routineId, count) => sorted.push([routineId, count]),
   });
@@ -130,13 +130,6 @@ describe("a routine's checks", () => {
     delete s.failing.gmail;
     s.advance(15 * MINUTE);
     expect((await s.checks.check(s.routine({ checks: ["mail"] }), { manual: false })).run).toBeDefined();
-  });
-
-  it("reads nothing from an app the bot may not use", async () => {
-    const s = setup({ may: (app) => app !== "gmail" });
-    s.mail("a", 5);
-    await s.checks.check(s.routine(), { manual: false });
-    expect(s.calls).toEqual(["events"]);
   });
 
   it("on an engine that cannot fence a read-and-draft run, sorts nothing but keeps the no-AI parts", async () => {

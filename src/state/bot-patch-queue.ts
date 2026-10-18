@@ -17,13 +17,11 @@ export type BotUpdatePatch = Partial<
     | "avatarFocusY"
     | "autoApprove"
     | "approvalMode"
-    | "outbound"
     | "fallback"
     | "speakReplies"
     | "replyStyle"
     | "voice"
     | "voiceNotes"
-    | "xResearch"
     | "pinned"
     | "hidden"
     | "sidebarHidden"
@@ -32,18 +30,13 @@ export type BotUpdatePatch = Partial<
     | "pinnedMessageId"
     | "chiefOfStaff"
     | "approvePeerComms"
-    | "composio"
     | "browser"
     | "browserProfile"
     | "memoryUpkeep"
     | "cacheKeepWarm"
-    | "mcpServers"
     | "modelSelection"
   >
 > & {
-  connectorTools?: Bot["connectorTools"] | null;
-  connectorScopes?: Bot["connectorScopes"] | null;
-  phoneApps?: Bot["phoneApps"] | null;
   /** null: talks to every bot again. */
   peers?: string[] | null;
   /** The server's proof the local-auto warning was shown: wire-only, never folded into bot state. */
@@ -56,12 +49,9 @@ export type BotUpdatePatch = Partial<
 
 export type BotStatePatch = Omit<
   BotUpdatePatch,
-  "computer" | "connectorTools" | "connectorScopes" | "phoneApps" | "peers" | "acknowledgeLocalAuto" | "applyToAllThreads" | "keepThreadModels" | "threadId"
+  "computer" | "peers" | "acknowledgeLocalAuto" | "applyToAllThreads" | "keepThreadModels" | "threadId"
 > & {
   peers?: string[];
-  connectorTools?: Bot["connectorTools"];
-  connectorScopes?: Bot["connectorScopes"];
-  phoneApps?: Bot["phoneApps"];
 };
 
 interface BotPatchQueueEntry {
@@ -112,19 +102,10 @@ const stateOverlay = (patch: BotUpdatePatch): BotStatePatch => {
     applyToAllThreads: _allThreads,
     keepThreadModels: _keepThreadModels,
     threadId: _threadId,
-    connectorTools,
-    connectorScopes,
-    phoneApps,
     peers,
     ...fields
   } = patch;
   const normalized: BotStatePatch = { ...fields };
-  if (connectorTools === null) normalized.connectorTools = undefined;
-  else if (connectorTools !== undefined) normalized.connectorTools = connectorTools;
-  if (connectorScopes === null) normalized.connectorScopes = undefined;
-  else if (connectorScopes !== undefined) normalized.connectorScopes = connectorScopes;
-  if (phoneApps === null) normalized.phoneApps = undefined;
-  else if (phoneApps !== undefined) normalized.phoneApps = phoneApps;
   if (peers !== undefined) normalized.peers = peers ?? undefined;
   return normalized;
 };
@@ -221,8 +202,7 @@ export function createBotPatchQueue(options: BotPatchQueueOptions): BotPatchQueu
       }
       // Execution-boundary edits skip the debounce: work must never start under stale permissions or revoked tools.
       const immediate = Object.prototype.hasOwnProperty.call(patch, "approvalMode") ||
-        Object.prototype.hasOwnProperty.call(patch, "modelSelection") ||
-        Object.prototype.hasOwnProperty.call(patch, "connectorTools");
+        Object.prototype.hasOwnProperty.call(patch, "modelSelection");
       if (immediate) {
         if (entry.timer !== null) clearTimeout(entry.timer);
         entry.timer = null;

@@ -116,7 +116,7 @@ export function toolLabel(tool: Pick<TraceTool, "name" | "icon">): string {
   return toolStepLabel({ name: tool.name, summary: undefined });
 }
 
-export function groupLabel(group: Pick<TraceGroup, "icon" | "count" | "name" | "app" | "server">, appName?: string): string {
+export function groupLabel(group: Pick<TraceGroup, "icon" | "count" | "name" | "server">): string {
   const count = String(group.count);
   switch (group.icon) {
     case "browser": return t("trace.group.browser", { count });
@@ -126,7 +126,6 @@ export function groupLabel(group: Pick<TraceGroup, "icon" | "count" | "name" | "
     case "files": return t("trace.group.files", { count });
     case "search": return t("trace.group.search", { count });
     case "web": return t("trace.group.web", { count });
-    case "app": return t("trace.group.app", { app: appName ?? group.app ?? toolStepLabel({ name: group.name, summary: undefined }), count });
     case "mcp": return t("trace.group.app", { app: group.server ?? group.name, count });
     default: return t("trace.group.other", { tool: toolStepLabel({ name: group.name, summary: undefined }), count });
   }

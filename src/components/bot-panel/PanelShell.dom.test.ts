@@ -98,17 +98,17 @@ afterEach(() => {
 
 describe("named links into the bot panel", () => {
   it("opens on the page a link names, and moves there when a link arrives while it is open", async () => {
-    openBotSettings(fixture.dispatch, "access", { page: "apps" });
+    openBotSettings(fixture.dispatch, "access", { page: "folder" });
     render("access");
-    await settle();
-    expect(page()).toBe("apps");
-
-    flushSync(() => openBotSettings(fixture.dispatch, "access", { page: "folder" }));
     await settle();
     expect(page()).toBe("folder");
 
-    // Simple mode has no MCP page: the link lands where Access does.
-    flushSync(() => openBotSettings(fixture.dispatch, "access", { page: "mcp" }));
+    flushSync(() => openBotSettings(fixture.dispatch, "access", { page: "routines" }));
+    await settle();
+    expect(page()).toBe("routines");
+
+    // Simple mode has no webhooks page: the link lands where Access does.
+    flushSync(() => openBotSettings(fixture.dispatch, "access", { page: "webhooks" }));
     await settle();
     expect([tab(), page()]).toEqual(["computer", null]);
 

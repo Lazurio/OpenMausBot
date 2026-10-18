@@ -1,7 +1,7 @@
 // The one short line a trace shows beside a tool: the query, the page, the action. Typed text, messages and file bodies are
 // never kept, and every line passes the secret redaction before it is stored.
 import { redactSecretsInText } from "../../shared/redact.ts";
-import { TOOL_NAMESPACE } from "../../shared/tool-surface.ts";
+import { TOOL_NAMESPACE } from "../../shared/usage-trace.ts";
 
 export const DETAIL_MAX = 80;
 export const ERROR_MAX = 120;

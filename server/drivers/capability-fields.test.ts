@@ -29,7 +29,6 @@ const keep = async (promise: Promise<ProviderInstance>): Promise<ProviderInstanc
     }));
     expect(mounted.adapter.capabilities.computerMcp).toBe(true);
     expect(mounted.adapter.capabilities.dataMcp).toBe(true);
-    expect(mounted.adapter.capabilities.highlevelMcp).toBe(true);
     expect(mounted.adapter.capabilities.deviceMcp).toBe(true);
     const bare = await keep(OpenAICompatDriver.create({
       instanceId: "caps-compat-bare", displayName: "Caps Compat Bare", environment: {}, enabled: true,
@@ -37,7 +36,6 @@ const keep = async (promise: Promise<ProviderInstance>): Promise<ProviderInstanc
     }));
     expect(bare.adapter.capabilities.computerMcp).toBe(false);
     expect(bare.adapter.capabilities.dataMcp).toBe(false);
-    expect(bare.adapter.capabilities.highlevelMcp).toBe(false);
     expect(bare.adapter.capabilities.deviceMcp).toBe(false);
     expect(onBoat(bare)).toBe(false);
     expect(cloudPlaceRefusal({ computerMcp: bare.adapter.capabilities.computerMcp, name: "Caps Compat Bare" }, "works-on", "Scout")?.message)

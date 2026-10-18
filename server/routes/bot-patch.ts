@@ -1,9 +1,6 @@
 import { z } from "zod";
 
 import { approvalModeFor, isApprovalMode, type ApprovalMode } from "../../shared/approval-mode.ts";
-import { normalizeConnectorScopes } from "../../shared/connector-scopes.ts";
-import { normalizeOutboundPolicy } from "../../shared/outbound.ts";
-import { normalizePhoneApps } from "../../shared/phone-apps.ts";
 import { parseToolScope, toolScopeWidens } from "../../shared/tool-scope.ts";
 import { isMausColor, MAUS_COLOR_NAMES, type WireBot, type WireGroup } from "../../shared/wire.ts";
 import { validateBotCwd } from "../bot-cwd.ts";
@@ -12,24 +9,17 @@ import { parseVisibility } from "../bot-visibility.ts";
 import type { BrowserLive } from "../browser-live.ts";
 import type { BrowserRuntime } from "../browser-runtime.ts";
 import type { CacheKeepWarm } from "../cache-keepwarm.ts";
-import { cloudBackendChangeError, vpsBotAliasChangeError, vpsLeftBehindNotice, VPS_BOT_ALIAS_CHANGE_ERROR, VPS_BOT_ALIAS_LIFECYCLE_ERROR, VPS_BOT_ALIAS_RESOURCES_ERROR } from "../cloud-backend.ts";
-import * as composio from "../composio.ts";
 import { isValidSshAlias, type AppConfig } from "../config.ts";
 import type { ModelSelection } from "../contracts.ts";
 import type { createApprovalModeSupport } from "../harness-capabilities.ts";
 import type { ProviderRegistry } from "../harness/registry.ts";
 import type { hostedModelPolicy } from "../hosted-models.ts";
-import { MAX_MCP_SERVERS, mcpServerNameError } from "../mcp-registry.ts";
 import type { MemoryUpkeep } from "../memory-upkeep.ts";
-import { phoneAppsFor } from "../phones/access.ts";
 import { profileSnapshot } from "../profile-revision.ts";
 import { recordProfileChange } from "../profile-versions.ts";
 import { clientBotPatchViolation, requestSource } from "../request-auth.ts"; import { defaultBotPatchRefusal, ownsDefaultBot } from "../default-bot.ts";
 import type { SessionRegistry } from "../sessions.ts";
-import { parseConnectorTools } from "../connector-tools.ts";
 import { sectionKey, type BotRecord, type GroupRecord, type Store } from "../store.ts";
-import * as vps from "../vps-computer.ts";
-import { vpsSshAliasForBot } from "../vps-hosts.ts";
 import { pinnedClientThreadGuard } from "./pinned-client-thread.ts";
 import type { ModelSelectionCheck } from "./bots-create.ts";
 import { PASS, type RouteHandler } from "./table.ts";
@@ -193,32 +183,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
         }
         patch.fallback = chain;
       }
-      // null clears back to every connected app.
-      if (body.connectorScopes !== undefined) {
-        if (body.connectorScopes === null) patch.connectorScopes = undefined;
-        else {
-          const scopes = normalizeConnectorScopes(body.connectorScopes);
-          if (!scopes) return json(res, 400, { error: "connectorScopes must be { apps: { <toolkit>: read | write } } or null" });
-          patch.connectorScopes = scopes;
-        }
-      }
-      if (body.phoneApps !== undefined) {
-        if (body.phoneApps === null) patch.phoneApps = undefined;
-        else {
-          const apps = normalizePhoneApps(body.phoneApps);
-          if (!apps) return json(res, 400, { error: "phoneApps must be { <calendar|reminders|contacts|location|home|messages>: read | write } or null" });
-          patch.phoneApps = apps;
-        }
-      }
-      if (body.outbound !== undefined) {
-        const policy = normalizeOutboundPolicy(body.outbound);
-        if (!policy) return json(res, 400, { error: "outbound must be { policy: ask | allow, dailyCap: 1..1000 }" });
-        patch.outbound = policy;
-      }
-      if (body.composio !== undefined) {
-        if (typeof body.composio !== "boolean") return json(res, 400, { error: "composio must be true or false" });
-        patch.composio = body.composio;
-      }
       // An admin decision, so not on the client-writable profile surface.
       if (body.voiceNotes !== undefined) {
         if (typeof body.voiceNotes !== "boolean") return json(res, 400, { error: "voiceNotes must be true or false" });
@@ -237,45 +201,14 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
         }
         patch.memoryEnabled = body.memoryEnabled;
       }
-      // null drops the per-tool grants; {} means no tools.
-      if (body.connectorTools !== undefined) {
-        if (body.connectorTools === null) {
-          patch.connectorTools = undefined;
-        } else {
-          const parsed = parseConnectorTools(body.connectorTools);
-          if (!parsed.ok) return json(res, 400, { error: parsed.error });
-          // An unreachable backend never blocks the patch: the call-time check stays the authority.
-          const semantic = await composio.validateConnectorGrants(cfg, parsed.grants);
-          if (semantic) return json(res, 400, { error: semantic });
-          patch.connectorTools = parsed.grants;
-        }
-      }
       if (body.parkDirectMessages !== undefined) {
         if (typeof body.parkDirectMessages !== "boolean") return json(res, 400, { error: "parkDirectMessages must be true or false" });
         patch.parkDirectMessages = body.parkDirectMessages;
       }
-      // Omitted keeps the selection; null restores all enabled servers; [] mounts none.
-      let requestedMcpServers = existingBot?.mcpServers;
       if (Object.hasOwn(body, "toolScope")) {
         const parsed = parseToolScope(body.toolScope === null ? undefined : body.toolScope);
         if (!parsed.ok) return json(res, 400, { error: parsed.error });
         patch.toolScope = parsed.scope;
-      }
-      if (body.mcpServers !== undefined) {
-        if (auth.kind === "session" && !sessions.isLive(auth.session.id)) {
-          return json(res, 401, { error: "unauthorized: this session has expired or was revoked" });
-        }
-        if (body.mcpServers === null) {
-          requestedMcpServers = undefined;
-        } else if (!Array.isArray(body.mcpServers) || body.mcpServers.some((t: unknown) => typeof t !== "string" || mcpServerNameError(t) !== null)) {
-          return json(res, 400, { error: "mcpServers must be a list of server names, or null" });
-        } else {
-          requestedMcpServers = [...new Set(body.mcpServers as string[])];
-          if (requestedMcpServers.length > MAX_MCP_SERVERS) {
-            return json(res, 400, { error: `Select at most ${MAX_MCP_SERVERS} MCP servers.` });
-          }
-        }
-        patch.mcpServers = requestedMcpServers;
       }
       if (body.memoryUpkeep !== undefined) {
         if (typeof body.memoryUpkeep !== "boolean") return json(res, 400, { error: "memoryUpkeep must be true or false" });
@@ -321,62 +254,8 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
           patch.browserProfile = requestedProfile;
         } else return json(res, 400, { error: "browserProfile must name an existing browser profile" });
       }
-      if (body.vpsAlias !== undefined) {
-        if (body.vpsAlias === null || body.vpsAlias === "") {
-          patch.vpsAlias = undefined;
-        } else if (isValidSshAlias(body.vpsAlias)) {
-          patch.vpsAlias = body.vpsAlias;
-        } else {
-          return json(res, 400, {
-            error: "vpsAlias must be a simple SSH config alias (letters, numbers, dot, dash, or underscore), or null to use the default server",
-          });
-        }
-      }
       if (body.chiefOfStaff !== undefined && typeof body.chiefOfStaff !== "boolean") {
         return json(res, 400, { error: "chiefOfStaff must be true or false" });
-      }
-      // Moving a bot to another server is refused while its own computer still lives on the old one.
-      // Resolved hosts, not raw text: pinning a bot to the server it already uses moves nothing.
-      let vpsLeftOn: string | null = null;
-      if (body.vpsAlias !== undefined && existingBot &&
-          vpsSshAliasForBot(cfg, { ...existingBot, vpsAlias: patch.vpsAlias as string | undefined }) !== vpsSshAliasForBot(cfg, existingBot)) {
-        // The scan awaits on SSH; a turn can start or another PATCH can land mid-scan, so every attempt
-        // re-reads the bot first and the scan only counts when the re-read after it is unchanged.
-        const VPS_ALIAS_MOVE_ATTEMPTS = 3;
-        for (let attempt = 1; attempt <= VPS_ALIAS_MOVE_ATTEMPTS; attempt++) {
-          const current = store.bot(m[1]);
-          if (!current) return json(res, 404, { error: "no such bot" });
-          // A concurrent PATCH may have already made this move; persisting the same host moves nothing.
-          if (vpsSshAliasForBot(cfg, { ...current, vpsAlias: patch.vpsAlias as string | undefined }) === vpsSshAliasForBot(cfg, current)) break;
-          const aliasError = vpsBotAliasChangeError(Boolean(current.busy), activeVpsThreads.has(m[1]));
-          if (aliasError) return json(res, 409, { error: aliasError });
-          // A Start or Remove still running on the old host would land after the scan, like the default alias's guard.
-          if (vps.vpsLifecycleBusy()) return json(res, 409, { error: VPS_BOT_ALIAS_LIFECYCLE_ERROR });
-          // Primitives, not the record: the store hands out its live object and patchBot mutates it in place.
-          const scannedVpsAlias = current.vpsAlias;
-          const scannedBusy = current.busy;
-          const scannedName = current.name;
-          const currentAlias = vpsSshAliasForBot(cfg, current);
-          // Scanned with this bot as the only owner: the guard only ever cares about its own container,
-          // and naming the owner keeps a legacy unlabeled container visible to the check.
-          const inventory = currentAlias ? await vps.listManagedVpsComputers(
-            { vps: { sshAlias: currentAlias } },
-            [{ botId: current.id, name: scannedName, inUse: false }],
-          ) : null;
-          const settled = store.bot(m[1]);
-          if (!settled) return json(res, 404, { error: "no such bot" });
-          if (settled.vpsAlias !== scannedVpsAlias || settled.busy !== scannedBusy || activeVpsThreads.has(m[1]) || vps.vpsLifecycleBusy()) {
-            if (attempt === VPS_ALIAS_MOVE_ATTEMPTS) return json(res, 409, { error: VPS_BOT_ALIAS_CHANGE_ERROR });
-            continue;
-          }
-          if (!inventory) break;
-          // A server that cannot answer never keeps the bot: it moves, and the answer says what may be left there.
-          if (!inventory.available) vpsLeftOn = currentAlias;
-          else if (inventory.instances.some((instance) => instance.name === vps.vpsContainerName(current.id))) {
-            return json(res, 409, { error: VPS_BOT_ALIAS_RESOURCES_ERROR });
-          }
-          break;
-        }
       }
       if (body.cwd !== undefined) {
         const checked = validateBotCwd(body.cwd);
@@ -404,7 +283,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
       } else {
         requestedApprovalMode = approvalModeFor(existingBot ?? {});
       }
-      const currentApprovalMode = approvalModeFor(existingBot ?? {});
       if (body.approvalMode !== undefined || body.autoApprove !== undefined) {
         patch.approvalMode = requestedApprovalMode;
         // Older paired apps read autoApprove as exactly Auto.
@@ -528,18 +406,7 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
       // Known gap: outside the packaged desktop, loopback is the owner, so these loosenings are one curl from
       // the bot they constrain. An originless, session-less loopback caller may loosen only while every bot is idle.
       const loosened: string[] = [];
-      const trustPatch = patch as Pick<Partial<BotRecord>, "outbound" | "connectorScopes" | "fallback">;
-      if (body.outbound !== undefined && trustPatch.outbound?.policy === "allow" &&
-          (existingBot?.outbound?.policy !== "allow" || trustPatch.outbound.dailyCap > existingBot.outbound.dailyCap)) loosened.push("outbound");
-      if (body.connectorScopes !== undefined && existingBot?.connectorScopes &&
-          (!trustPatch.connectorScopes || Object.entries(trustPatch.connectorScopes.apps).some(([slug, scope]) =>
-            !existingBot.connectorScopes!.apps[slug] || (scope === "write" && existingBot.connectorScopes!.apps[slug] === "read")))) loosened.push("connectorScopes");
-      if (body.phoneApps !== undefined && existingBot) {
-        // Compare effective grants: clearing falls back to every app.
-        const before = phoneAppsFor(existingBot);
-        const after = phoneAppsFor({ ...existingBot, phoneApps: (patch as Pick<Partial<BotRecord>, "phoneApps">).phoneApps });
-        if (Object.entries(after).some(([cap, grant]) => !before[cap as keyof typeof before] || (grant === "write" && before[cap as keyof typeof before] === "read"))) loosened.push("phoneApps");
-      }
+      const trustPatch = patch as Pick<Partial<BotRecord>, "fallback">;
       if (body.fallback !== undefined && trustPatch.fallback?.some(candidate =>
           !existingBot?.fallback?.some(previous => previous.instanceId === candidate.instanceId && previous.model === candidate.model))) loosened.push("fallback");
       if (Array.isArray(patch.managedSections) && patch.managedSections.some(section => !(existingBot?.managedSections ?? []).includes(section))) {
@@ -559,10 +426,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
       if (section !== undefined && sectionKey(existingBot?.section) !== sectionKey(section)) loosened.push("section");
       if (Array.isArray(patch.alwaysAllow) && patch.alwaysAllow.some((key) => !(existingBot?.alwaysAllow ?? []).includes(key))) {
         loosened.push("alwaysAllow");
-      }
-      if (body.mcpServers !== undefined && Array.isArray(existingBot?.mcpServers) &&
-          (requestedMcpServers === undefined || requestedMcpServers.some((name) => !existingBot.mcpServers!.includes(name)))) {
-        loosened.push("mcpServers");
       }
       if (Object.hasOwn(body, "toolScope") && toolScopeWidens(existingBot?.toolScope, patch.toolScope)) loosened.push("toolScope");
       const browserOrigin = typeof req.headers.origin === "string" && req.headers.origin.trim() !== "";
@@ -597,22 +460,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
         if (freshBrowserBot && JSON.stringify(freshBrowserBot.toolScope) !== JSON.stringify(patch.toolScope)
           && (freshBrowserBot.busy || activeGroupTurnForBot(freshBrowserBot.id))) {
           return json(res, 409, { error: "Stop this bot's turns before changing its tool selection." });
-        }
-      }
-      // A running turn cannot unmount custom servers; rechecked after the awaits above.
-      if (body.mcpServers !== undefined) {
-        if (auth.kind === "session" && !sessions.isLive(auth.session.id)) {
-          return json(res, 401, { error: "unauthorized: this session has expired or was revoked" });
-        }
-        if (Array.isArray(freshBrowserBot?.mcpServers) &&
-            (requestedMcpServers === undefined || requestedMcpServers.some((name) => !freshBrowserBot.mcpServers!.includes(name))) &&
-            auth.kind === "loopback" && !DESKTOP_MANAGED && !browserOrigin && store.bots.some((candidate) => candidate.busy)) {
-          return json(res, 409, { error: "A bot is working right now, so this change has to come from the desktop app or a paired device. Try again once every bot is idle." });
-        }
-        if (freshBrowserBot &&
-            JSON.stringify(requestedMcpServers?.toSorted()) !== JSON.stringify(freshBrowserBot.mcpServers?.toSorted()) &&
-            (freshBrowserBot.busy || activeGroupTurnForBot(freshBrowserBot.id))) {
-          return json(res, 409, { error: "Stop this bot's turns before changing its MCP servers." });
         }
       }
       if (normalizedSelection && movedTask) {
@@ -667,8 +514,7 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
         broadcast({ kind: "sections", sections: store.sections });
         audienceChanged();
       }
-      return json(res, 200, { bot: wireBot(store.bot(bot.id)!),
-        ...(vpsLeftOn ? { notice: vpsLeftBehindNotice("Moved", vpsLeftOn, vps.vpsContainerName(bot.id)) } : {}) });
+      return json(res, 200, { bot: wireBot(store.bot(bot.id)!) });
     }
     return PASS;
   };

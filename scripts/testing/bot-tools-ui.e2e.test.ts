@@ -18,7 +18,7 @@ if (!enabled) console.log("skipping bot tools UI e2e: no agent-browser; set OMB_
 const LAUNCH_TIMEOUT_MS = forced && !binary ? 600_000 : 180_000;
 
 interface FixtureInfo { ui: string; url: string; dataDir: string; logPath: string }
-interface SavedBot { id: string; name: string; soul?: string; mcpServers?: string[]; computer?: string; browser?: boolean }
+interface SavedBot { id: string; name: string; soul?: string; computer?: string; browser?: boolean }
 
 describe("bot setup and tools in the real renderer", () => {
   let child: ChildProcess | undefined;
@@ -112,7 +112,7 @@ describe("bot setup and tools in the real renderer", () => {
     await runControlOmb(["send", "--bot", created[0].id, "--text", "Reply briefly for the sidebar test.", "--url", info.url]);
     expect((await runControlOmb(["wait", "--bot", created[0].id, "--timeout", "20", "--url", info.url]) as { status: string }).status).toBe("settled");
     await openTools();
-    await expect.poll(snapshot, { timeout: 10_000 }).toContain("No MCP servers added yet.");
+    await expect.poll(snapshot, { timeout: 10_000 }).toContain("Working folder");
     const usageExpanded = () => evaluate("[...document.querySelectorAll('[role=dialog] button')].find(b => b.textContent.trim() === 'Usage')?.getAttribute('aria-expanded')");
     const openHeaderUsage = async () => {
       await click("More");
@@ -141,35 +141,6 @@ describe("bot setup and tools in the real renderer", () => {
     await ui("screenshot", "--out", `${info.logPath}.settings.png`);
     await click("Overview");
     await expect.poll(snapshot, { timeout: 10_000 }).toContain("Optional ways to customize this bot. You can start chatting now.");
-    await click("Access");
-    await click("Add an MCP server…");
-    // The registry loads on mount; Add MCP server is disabled until it finishes.
-    await expect.poll(() => evaluate("[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Add MCP server')?.disabled"), { timeout: 10_000 }).toBe(false);
-    await click("Add MCP server");
-    await expect.poll(() => evaluate("Boolean(document.querySelector('textarea[aria-label=\"Server link or setup command\"]'))"), { timeout: 10_000 }).toBe(true);
-    const pasted = await ui("snapshot", "--interactive");
-    const textarea = Object.entries(pasted.refs as Record<string, { role: string; name: string }>)
-      .find(([, entry]) => entry.role === "textbox" && entry.name === "Server link or setup command");
-    expect(textarea).toBeDefined();
-    await ui("type", "--ref", `@${textarea![0]}`, "--text", JSON.stringify({ mcpServers: {
-      fixture: { command: process.execPath, args: ["-e", "process.exit(0)"] },
-    } }));
-    await click("Add");
-    const registry = async () => (await fetch(`${info.url}/api/mcp/servers`).then((response) => response.json())).servers;
-    // It exits before answering, so it is saved but stays off, with the reason on its row.
-    await expect.poll(registry, { timeout: 10_000 }).toMatchObject([{ name: "fixture", enabled: false }]);
-    await expect.poll(() => evaluate("document.body.textContent.includes(\"Couldn't connect, so it stays off.\")"), { timeout: 20_000 }).toBe(true);
-    await expect.poll(snapshot, { timeout: 10_000 }).toContain("Turn fixture on");
-    await click("Turn fixture on");
-    await expect.poll(registry, { timeout: 10_000 }).toMatchObject([{ name: "fixture", enabled: true }]);
-    await press("Escape");
-    await openTools();
-    await expect.poll(() => evaluate("document.querySelector('[aria-label=\"Let this bot use fixture\"]')?.getAttribute('aria-checked')"), { timeout: 10_000 }).toBe("true");
-    await click("Let this bot use fixture");
-    await expect.poll(async () => (await bots()).find((bot) => bot.id === created[0].id)?.mcpServers, { timeout: 10_000 }).toEqual([]);
-    await press("Escape");
-    await openTools();
-    await expect.poll(() => evaluate("document.querySelector('[aria-label=\"Let this bot use fixture\"]')?.getAttribute('aria-checked')"), { timeout: 10_000 }).toBe("false");
 
     // New bot from above settings puts the new bot's chat in front: no
     // modal is left behind to hold the focus.

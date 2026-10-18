@@ -1,6 +1,7 @@
 // Lazurio overlay (DEV-6673 M3, issue #35): the upstream features Lazurio
 // removes from the code answer no request any more. The routes come from the
 // removal manifests in lazurio/removals/ (scripts/lazurio-removals.node-test.mjs
+// checks the files and strings); `:bot` stands for the first-run bot's id. A write that names a removed
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -37,4 +38,28 @@ describe("a Lazurio server", () => {
     });
     expect(response.status, `${route.method} ${path}: ${await response.text()}`).toBe(404);
   });
+
+  const call = async (method: string, path: string, body?: unknown) => {
+    const response = await fetch(`${fixture.info.url}${path}`, {
+      method,
+      headers: { "content-type": "application/json", origin: fixture.info.url },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    return { status: response.status, body: await response.json() as any };
+  };
+
+  it("refuses a config write that names only a removed setting", async () => {
+    for (const patch of [{ box: { token: "box_fixture" } }, { vps: { sshAlias: "fixture" } }, { localVm: { mode: "shared" } },
+      { composio: { apiKey: "fixture" } }, { mcpServers: {} }, { features: { sharedComputers: true } },
+      const result = await call("PUT", "/api/config", patch);
+      expect(result.status, JSON.stringify(patch)).toBe(400);
+      expect(result.body.error).toMatch(/removed/);
+    }
+  });
+
+  it("refuses a mixed config write as a whole: the valid part is not saved either", async () => {
+    expect(result.status).toBe(400);
+    expect(result.body.error).toMatch(/^box /);
+  });
+
 });

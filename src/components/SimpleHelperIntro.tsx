@@ -3,23 +3,19 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { introChips, introStaged, stageIntro, useWelcomingBot } from "@/lib/default-bot";
 import { activeLocale, t } from "@/lib/i18n";
-import { detectSetupWithin, localSetupImport, setupImportApi } from "@/lib/setup-import";
 import { api, useStore, type Bot, type InstanceInfo, type Message } from "@/state/store";
 import { freeFallback } from "../../shared/ai-ranking";
 import { greetingName } from "../../shared/greeting-name";
 import { followupText, type HelperFollowupFacts } from "../../shared/helper-followup";
 import { BotAvatar } from "./Avatar";
 import { joinedCorners, SIMPLE_BOT_BUBBLE, SIMPLE_BUBBLE_MAX } from "./chat-bubble";
-import { loadAppCards } from "./bot-settings/useBotApps";
 import { engineReady } from "./EngineLibrary";
 import { IntroChips } from "./HelperSetup";
 import { usePrefersReducedMotion } from "./mascot-clock";
-import { preloadConnectedApps } from "./PluginsPanel";
 
 /** How long after the part before each part arrives, when a first run has just landed here: the three lines, the typing
  * row, the follow-up and its chips. With no AI there is no typing row, and the follow-up comes `noAi` after the last line. */
 export const INTRO_TIMING = { first: 300, line: 700, typing: 600, followup: 2_400, chips: 150, noAi: 600 } as const;
-const LOOK_MS = 3_000;
 /** Parts in order: none, L1, L2, L3, typing, follow-up, chips. */
 const ALL = 6;
 const DELAYS = [INTRO_TIMING.first, INTRO_TIMING.line, INTRO_TIMING.line, INTRO_TIMING.typing, INTRO_TIMING.followup, INTRO_TIMING.chips];
@@ -46,36 +42,12 @@ function thinksWith(bot: Bot | undefined, instances: readonly InstanceInfo[]): H
 }
 
 interface Look {
-  apps: string[] | null;
-  phonePaired?: boolean;
-  importFound?: boolean;
+  apps: string[];
   settled: boolean;
 }
 
-/** A real look around, without asking an AI: the apps connected here, a paired phone, skills to bring in. Settles within
- * LOOK_MS; anything not known by then is left out. `deep` also looks for skills on this computer. */
-function useLookAround(deep: boolean): Look {
-  const [found, setFound] = useState<Look>({ apps: null, settled: false });
-  useEffect(() => {
-    let active = true;
-    const apps = Promise.all([preloadConnectedApps(), loadAppCards()])
-      .then(([inventory, cards]) => Object.entries(inventory.services).filter(([, status]) => status.connected)
-        .map(([slug]) => cards.get(slug)?.label ?? slug))
-      .catch(() => null);
-    const phones = api<{ phones?: unknown[] }>("/api/phones").then((response) => (response.phones?.length ?? 0) > 0).catch(() => undefined);
-    const look = deep && localSetupImport(false) ? detectSetupWithin(setupImportApi) : null;
-    const timer = setTimeout(() => { if (active) setFound((now) => ({ ...now, settled: true })); }, LOOK_MS);
-    void Promise.all([apps, phones, look?.found ?? null]).then(([appNames, phonePaired, detection]) => {
-      if (active) setFound({ apps: appNames, phonePaired, importFound: Boolean(detection), settled: true });
-    });
-    return () => {
-      active = false;
-      clearTimeout(timer);
-      look?.cancel();
-    };
-  }, [deep]);
-  return found;
-}
+/** The look around, without asking an AI: this distribution has no connected apps of its own to find. */
+const LOOK: Look = { apps: [], settled: true };
 
 /** How far the intro has come: everything at once, or part by part when a first run has just landed here (stageIntro).
  * The follow-up waits for its facts, and comes at once when they arrive after its time. Staging starts when the intro is
@@ -117,7 +89,7 @@ export function SimpleHelperIntro({ botId, threadId, message, answered, followup
   const team = bot?.defaultBot?.person ? state.config?.team?.name : undefined;
   const person = greetingName(state.config?.profile?.name) || undefined;
   const lines = introLines({ name: bot?.name ?? "MausBot", chief: Boolean(bot?.chiefOfStaff), person, team });
-  const look = useLookAround(!answered);
+  const look = LOOK;
   const ai = thinksWith(bot, state.instances);
 
   // A first run's intro plays once: it asks for the follow-up, which then stays in the conversation.
@@ -136,13 +108,13 @@ export function SimpleHelperIntro({ botId, threadId, message, answered, followup
     asked.current = true;
     void api<{ message?: Message }>(`/api/bots/${encodeURIComponent(botId)}/helper-followup`, {
       method: "POST",
-      body: JSON.stringify({ threadId, ai, apps: look.apps ?? [] }),
+      body: JSON.stringify({ threadId, ai, apps: look.apps }),
     }).then((answer) => (answer.message?.helperFollowup ? setPosted(answer.message.helperFollowup) : setUnsaved(true)), () => setUnsaved(true));
   }, [first, look.settled, look.apps, followup, botId, threadId, ai]);
 
   // An intro from before follow-ups were written says what it sees, without saving it.
   const local: HelperFollowupFacts | null = look.settled && (unsaved || !(first || due))
-    ? { ai, apps: look.apps ?? [], bots: state.bots.filter((candidate) => !candidate.hidden && !candidate.defaultBot).length, routines: 0 }
+    ? { ai, apps: look.apps, bots: state.bots.filter((candidate) => !candidate.hidden && !candidate.defaultBot).length, routines: 0 }
     : null;
   const facts = followup?.helperFollowup ?? posted ?? local;
   const { shown, staged } = useArrival(first || due, ai !== "none", facts !== null);
@@ -155,9 +127,6 @@ export function SimpleHelperIntro({ botId, threadId, message, answered, followup
     onCloud: state.config?.cloudHome === true,
     team: Boolean(state.config?.team),
     remote: typeof window !== "undefined" && window.ogb?.remoteClient?.active === true,
-    appsConnected: Boolean(look.apps?.length),
-    phonePaired: look.phonePaired,
-    importFound: look.importFound,
   });
   const typing = staged && ai !== "none" && shown === 4 && Boolean(bot);
   return (

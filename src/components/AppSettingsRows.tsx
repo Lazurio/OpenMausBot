@@ -1,14 +1,12 @@
 import { useState } from "react";
 import { api, useStore, type ConfigStatus } from "@/state/store";
-import { builtInBrowserEnabled, showToolCallsEnabled, skillAuthoringEnabled } from "@/lib/feature-flags";
+import { showToolCallsEnabled, skillAuthoringEnabled } from "@/lib/feature-flags";
 import { localeChoices, type LocaleKey } from "@/locales";
 import { activeLocale, t } from "@/lib/i18n";
 import { withTourReset } from "@/lib/guided-tour";
 import { completionPatch } from "@/lib/onboarding";
 import { useUpdaterState } from "@/lib/updater";
 import { brand } from "../lib/brand";
-import { BrowserProfilesManager } from "./BrowserProfilesManager";
-import { NewBrowserSettings } from "./BrowserSettingsRows";
 import { Card, SettingRow, Switch } from "./SettingsPrimitives";
 import { LearnedSkillsSettings } from "./ShareLearnedSkillsSettings";
 import { effortLabel } from "./ModelPicker";
@@ -404,18 +402,6 @@ export function ExperimentalFeaturesRow() {
       </div>
       {error ? <p role="alert" className="mt-2 text-[12px] text-danger">{error}</p> : null}
       <LearnedSkillsSettings />
-      <NewBrowserSettings />
-    </Card>
-  );
-}
-
-export function BrowserProfilesRow() {
-  const { state } = useStore();
-  const profiles = state.config?.browserProfiles ?? [];
-  if (!builtInBrowserEnabled(state.config) && profiles.length === 0) return null;
-  return (
-    <Card title={t("settings.profiles.title")} subtitle={t("settings.profiles.sharedSubtitle")}>
-      <BrowserProfilesManager />
     </Card>
   );
 }

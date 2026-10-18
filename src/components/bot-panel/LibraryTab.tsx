@@ -1,8 +1,7 @@
-import { AppWindow, Brain, FileText, Folder, Globe, Zap } from "lucide-react";
+import { AppWindow, Brain, FileText, Folder, Zap } from "lucide-react";
 import { useMemo } from "react";
 
 import { t } from "@/lib/i18n";
-import { usePageOpener } from "@/lib/page-open";
 import { shortPath } from "@/lib/short-path";
 import { SIDEBAR_INLINE, useMediaQuery } from "@/lib/use-media-query";
 import { useStore, visibleMessages, type Bot, type Message } from "@/state/store";
@@ -16,23 +15,15 @@ import { Card, CardLabel, NavRow } from "./rows";
 import { useMemoryDoc } from "./use-memory-doc";
 
 export interface LibraryItems {
-  pages: Array<{ messageId: string; title: string; url: string }>;
   apps: Array<{ messageId: string; title: string }>;
   shared: Array<NonNullable<ReturnType<ReturnType<typeof sharedFileReferences>["get"]>>>;
   unshared: string[];
 }
 
-/** What the bot made in the open conversation, newest first: its live published pages, its apps, and its files. */
+/** What the bot made in the open conversation, newest first: its apps and its files. */
 export function libraryItems(bot: Bot, messages: readonly Message[] = visibleMessages(bot)): LibraryItems {
-  const pages: LibraryItems["pages"] = [];
   const apps: LibraryItems["apps"] = [];
-  const seenPages = new Set<string>();
   for (const message of [...messages].reverse()) {
-    const page = message.publishedPage;
-    if (page?.state === "live" && page.url && !seenPages.has(page.url)) {
-      seenPages.add(page.url);
-      pages.push({ messageId: message.id, title: page.title || page.url, url: page.url });
-    }
     if (message.kind === "app" && message.app?.doc) apps.push({ messageId: message.id, title: message.app.title });
   }
   const references = sharedFileReferences(bot);
@@ -44,7 +35,7 @@ export function libraryItems(bot: Bot, messages: readonly Message[] = visibleMes
     shared.push(reference);
   }
   const unshared = recentChangedFiles(bot).filter((path) => !references.has(path));
-  return { pages, apps, shared, unshared };
+  return { apps, shared, unshared };
 }
 
 const fileName = (path: string) => path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1);
@@ -52,11 +43,10 @@ const fileName = (path: string) => path.slice(Math.max(path.lastIndexOf("/"), pa
 export function LibraryTab({ bot, onOpen }: { bot: Bot; onOpen: (page: SimplePageId) => void }) {
   const { dispatch } = useStore();
   const { capabilities } = useDesktopCapabilities();
-  const openPage = usePageOpener();
   const phone = !useMediaQuery(SIDEBAR_INLINE, true);
   const skills = useManagedSkills(bot);
   const memory = useMemoryDoc(bot);
-  const { pages, apps, shared, unshared } = useMemo(() => libraryItems(bot), [bot]);
+  const { apps, shared, unshared } = useMemo(() => libraryItems(bot), [bot]);
   const showInChat = (messageId: string) => {
     dispatch({ type: "focusMessage", threadId: bot.threadId, messageId });
     if (phone) dispatch({ type: "toggleSettings", open: false });
@@ -87,7 +77,7 @@ export function LibraryTab({ bot, onOpen }: { bot: Bot; onOpen: (page: SimplePag
     </Card>
   );
 
-  if (pages.length + apps.length + shared.length + unshared.length === 0) {
+  if (apps.length + shared.length + unshared.length === 0) {
     return (
       <div data-panel-tabpanel="library">
         <p data-panel-empty="library" className="px-3 py-7 text-center text-[13px] leading-[18px] text-ink-tertiary">
@@ -99,13 +89,6 @@ export function LibraryTab({ bot, onOpen }: { bot: Bot; onOpen: (page: SimplePag
   }
   return (
     <div data-panel-tabpanel="library">
-      {pages.length > 0 && (
-        <Card label={t("botPanel.library.pages")} anchor="pages">
-          {pages.map((page) => (
-            <NavRow key={page.url} data-panel-row="page" icon={Globe} title={<span className="block truncate">{page.title}</span>} hint={<span className="block truncate">{page.url}</span>} onClick={() => openPage(page.url)} />
-          ))}
-        </Card>
-      )}
       {apps.length > 0 && (
         <Card label={t("botPanel.library.apps")} anchor="apps">
           {apps.map((app) => (

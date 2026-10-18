@@ -6,14 +6,12 @@ import { cn } from "@/lib/cn";
 import { t, tFromServer } from "@/lib/i18n";
 import type { LocaleKey } from "@/locales";
 import { SkillRequestPreview } from "@/components/SkillRequestPreview";
-import { composioActionPhrase, outboundSummary } from "@/lib/approval-summary";
 import { niceDate, niceTime, scheduleLabel } from "@/lib/schedule-label";
 import { cronScheduleLabel } from "../../shared/cron-label";
 import { PROFILE_REQUEST_FIELDS, type ProfileRequestField } from "../../shared/profile-request";
 import type { RoutineRequestSchedule } from "../../shared/routine-request";
 import type { SkillShareRecord } from "../../shared/skill-request";
 import { cardAutomation } from "@/lib/automations";
-import { yourComputerAsk } from "@/lib/your-computer";
 import { TriggerCard } from "./TriggerCard";
 import { CardHint } from "./CardHint";
 
@@ -109,7 +107,7 @@ export function toolLabel(tool?: string): string {
   };
   const key = nice[tool];
   if (key) return t(key);
-  return composioActionPhrase(tool.replace(/^mcp__[^_]+__/, "")) ?? bare;
+  return bare;
 }
 
 function plainWhen(schedule: RoutineRequestSchedule): string {
@@ -311,9 +309,7 @@ function firstLineOf(text: string): string {
 
 function CompactApprovalRow({
   header,
-  summary,
   detail,
-  showDetailInline,
   outcome,
   allowed,
   byVoice,
@@ -321,9 +317,7 @@ function CompactApprovalRow({
   answeredBelow,
 }: {
   header: string;
-  summary?: string;
   detail: string;
-  showDetailInline: boolean;
   outcome?: string;
   allowed: boolean;
   byVoice: ReactNode;
@@ -335,7 +329,7 @@ function CompactApprovalRow({
   if (waiting && answeredBelow) {
     return (
       <div data-approval-row="pending" className="sr-only">
-        {header}{summary ? ` ${summary}` : ""}{detail && showDetailInline ? ` ${firstLineOf(detail)}` : ""}. {t("approval.status.waitingAnswer")}
+        {header}{detail ? ` ${firstLineOf(detail)}` : ""}. {t("approval.status.waitingAnswer")}
       </div>
     );
   }
@@ -352,8 +346,7 @@ function CompactApprovalRow({
             ? <Check size={14} className="shrink-0 self-center text-success" aria-hidden="true" />
             : <X size={14} className="shrink-0 self-center" aria-hidden="true" />}
         <span className={cn("min-w-0 break-words", waiting && "text-ink")}>{header}</span>
-        {summary && <span className="min-w-0 break-words">{waiting ? summary : `· ${summary}`}</span>}
-        {detail && showDetailInline && (
+        {detail && (
           <span role="group" aria-label={t("approval.aria.details")} className="min-w-0 max-w-full">
             <button
               type="button"
@@ -368,16 +361,6 @@ function CompactApprovalRow({
         )}
         <span className="shrink-0" aria-live="polite">· {outcome ?? t("approval.status.waitingAnswer")}</span>
         {byVoice}
-        {detail && !showDetailInline && (
-          <button
-            type="button"
-            aria-expanded={open}
-            onClick={toggle}
-            className={cn(TEXT_ACTION, "text-ink-tertiary hover:text-ink-secondary")}
-          >
-            {open ? t("approval.applied.hideDetails") : t("approval.applied.details")}
-          </button>
-        )}
       </div>
       {open && (
         <pre
@@ -420,7 +403,6 @@ export function ApprovalCard({
   const skillAction = card.skillRequest?.action;
   const heldNote = tFromServer(card.heldCode, card.held);
   const outcome = approvalCardOutcome(card);
-  const outbound = outboundSummary(card);
   const displayTool = isRoutineRequest
     ? routineAction === "create" ? "schedule_routine" : "manage_routine"
     : isSkillRequest
@@ -439,17 +421,13 @@ export function ApprovalCard({
 
   if (!isRoutineRequest && !isSkillRequest && !isProfileRequest && !isTeamSetup && !card.modelRequest) {
     const waiting = !settled && !expired;
-    const ask = yourComputerAsk(card, bot?.name ?? t("approval.someone"));
-    const header = ask ? ask.line : outbound
     const header = bot
       ? t("approval.card.namedWantsTo", { name: bot.name, action: toolLabel(displayTool) })
       : t("approval.card.wantsTo", { action: toolLabel(displayTool) });
     const row = (
       <CompactApprovalRow
         header={header}
-        summary={outbound?.summary || undefined}
-        detail={ask?.detail ?? card.subtitle}
-        showDetailInline={!outbound}
+        detail={card.subtitle}
         outcome={outcome}
         allowed={settled === "allow" && !expired}
         byVoice={byVoice}
@@ -470,7 +448,7 @@ export function ApprovalCard({
     >
       <div className="flex items-baseline justify-between gap-3">
         <div className="text-[15px] font-semibold text-ink">
-          {isTeamSetup ? card.title : outbound ? outbound.headline : profileHeader ?? (
+          {isTeamSetup ? card.title : profileHeader ?? (
             <>
               {bot
                 ? t("approval.card.namedWantsTo", { name: bot.name, action: toolLabel(displayTool) })
@@ -478,9 +456,8 @@ export function ApprovalCard({
             </>
           )}
         </div>
-        {displayTool && !isTeamSetup && !outbound && <span className="shrink-0 font-mono text-[11px] text-ink-secondary">{displayTool}</span>}
+        {displayTool && !isTeamSetup && <span className="shrink-0 font-mono text-[11px] text-ink-secondary">{displayTool}</span>}
       </div>
-      {outbound?.summary && <div className="mt-0.5 text-[13px] text-ink-secondary">{outbound.summary}</div>}
 
       <pre
         tabIndex={0}

@@ -29,7 +29,6 @@ export interface TeamImportResult {
   name: string;
   members: number;
   presets?: number;
-  connections?: number;
 }
 
 type ImportSource = "library" | "file" | "github" | "grok";
@@ -287,7 +286,6 @@ export function TeamLibraryPanel({
       const result = {
         name: pending.name,
         members: response.bots.length,
-        ...(response.connections?.length ? { connections: response.connections.length } : {}),
         ...(response.presets?.length ? { presets: response.presets.length } : {}),
       };
       // A Grok Bot with apps to connect or routines left out: offer the Chief of Staff's help before closing.
@@ -327,7 +325,7 @@ export function TeamLibraryPanel({
       const response = (await api("/api/org-library/add", {
         method: "POST",
         body: JSON.stringify({ packageId: entry.packageId }),
-      })) as { alreadyAdded: boolean; bots?: Bot[]; groups?: Group[]; routines?: Routine[]; connections?: unknown[] };
+      })) as { alreadyAdded: boolean; bots?: Bot[]; groups?: Group[]; routines?: Routine[] };
       for (const bot of response.bots ?? []) dispatch({ type: "botAdded", bot });
       for (const group of response.groups ?? []) dispatch({ type: "groupPatched", group });
       for (const routine of response.routines ?? []) dispatch({ type: "routinePatched", routine });
@@ -338,7 +336,6 @@ export function TeamLibraryPanel({
         onImported({
           name: entry.name,
           members: response.bots!.length,
-          ...(response.connections?.length ? { connections: response.connections.length } : {}),
         });
         return;
       }

@@ -525,10 +525,10 @@ describe("which bots a turn is bridged for", () => {
 
   it("writes the decision into the integrations a turn mounts, and gives a turn with no agents tools no agents key at all", () => {
     // what server/index.ts does once per turn, before the prompt is built
-    const integrations: { agents?: { command: string; args: string[]; env: Record<string, string> }; composio?: { env: Record<string, string> } } = { composio: { env: { KEY: "k" } } };
     applyAgentsBridge("thread-apply-none", integrations, ON, bot, CLAUDE, {}, HOST);
+    const integrations: { agents?: { command: string; args: string[]; env: Record<string, string> }; data?: { env: Record<string, string> } } = { data: { env: { KEY: "k" } } };
     expect(Object.hasOwn(integrations, "agents")).toBe(false);
-    expect(integrations).toEqual({ composio: { env: { KEY: "k" } } });
+    expect(integrations).toEqual({ data: { env: { KEY: "k" } } });
     const mounted = { agents: { command: "node", args: ["agents-proxy.js"], env: { OMB_BOT_ID: "bot-1", OMB_AGENTS_TOOL_BRIDGE: "0" } } };
     applyAgentsBridge("thread-apply", mounted, ON, bot, CLAUDE, {}, HOST);
     expect(mounted.agents).toEqual({ command: "node", args: ["agents-proxy.js"], env: { OMB_BOT_ID: "bot-1", OMB_AGENTS_TOOL_BRIDGE: "1" } });

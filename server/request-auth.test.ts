@@ -124,7 +124,6 @@ describe("scopes", () => {
       ["POST", "/api/team-library/github"], ["POST", "/api/team-library/grok"], ["GET", "/api/team-library/cursor"],
       ["POST", "/api/team-library/cursor/sign-in"], ["POST", "/api/team-library/cursor/sign-out"],
       ["GET", "/api/bots/x/memory"], ["PUT", "/api/bots/x/memory"], ["PUT", "/api/section-context"], ["GET", "/api/threads/t/events"],
-      ["GET", "/api/mcp/servers"], ["POST", "/api/mcp/servers"], ["POST", "/api/connectors/slack/authorize"],
       ["POST", "/api/bots/x/slack-management"], ["GET", "/api/bots/x/slack-management/extra"],
       ["PUT", "/api/config"], ["POST", "/api/auth/pairing"], ["GET", "/api/auth/sessions"], ["DELETE", "/api/auth/sessions/abc"],
       ["POST", "/api/live/session"], ["POST", "/api/live/call/end"], ["GET", "/api/live/call"], ["PATCH", "/api/live/settings"],
@@ -344,12 +343,6 @@ describe("resolveRequestAuth", () => {
       request({ host: "127.0.0.1:8799" }, "GET"),
       options("/api/bots"),
     ).auth?.kind).toBe("loopback");
-    const connectorRefresh = resolveRequestAuth(
-      request({ host: "127.0.0.1:8799" }, "GET"),
-      options("/api/bots/bot-1/connector-cards/card-1/status?threadId=thread-1"),
-    );
-    expect(connectorRefresh.auth).toBeNull();
-    expect(connectorRefresh.status).toBe(403);
     for (const path of ["/api/desktop-viewer/vps/bot-1", "/api/desktop-viewer/local/shared/websockify", "/api/webhooks/hook-1/address",
       "/api/local-computer", "/api/bots/bot-1/local-computer"]) {
       expect(resolveRequestAuth(request({ host: "127.0.0.1:8799" }, "GET"), options(path)).status, path).toBe(403);
@@ -412,12 +405,6 @@ describe("resolveRequestAuth", () => {
       expect(refused.status).toBe(403);
     }
     expect(resolve(cloud, "/api/bots", "POST").error).toBe("forbidden: this browser's session makes changes only from its own page");
-    const connectorRefresh = "/api/bots/bot-1/connector-cards/card-1/status";
-    const notItsPage: Record<string, string>[] = [{}, { "sec-fetch-site": "same-site" }, { "sec-fetch-site": "cross-site" }, { origin: "https://evil.example" }];
-    for (const headers of notItsPage) {
-      expect(resolve({ ...cloud, ...headers }, connectorRefresh, "GET").auth, JSON.stringify(headers)).toBeNull();
-    }
-    expect(resolve({ ...cloud, "sec-fetch-site": "same-origin" }, connectorRefresh, "GET").auth?.kind).toBe("session");
     expect(resolve({ ...cloud, "sec-fetch-site": "same-site" }, "/api/bots", "GET").auth?.kind).toBe("session");
     const paired = pairedToken();
     expect(resolve({ host: "omb-u-0123456789ab.fly.dev", "x-forwarded-proto": "https", cookie: `${cookieName}=${paired}` }, "/api/bots", "POST").auth?.kind).toBe("session");
@@ -442,13 +429,13 @@ describe("resolveRequestAuth", () => {
     const denied = resolve({ host: "bots.example.com", authorization: `Bearer ${token}` }, "/api/auth/pairing", "POST");
     expect(denied.status).toBe(403);
     expect(denied.error).toContain("lacks the admin scope");
-    const mcpDenied = resolve(
+    const unknownDenied = resolve(
       { host: "bots.example.com", authorization: `Bearer ${token}` },
-      "/api/mcp/servers/github/test",
+      "/api/something-new",
       "POST",
     );
-    expect(mcpDenied.status).toBe(403);
-    expect(mcpDenied.error).toContain("lacks the admin scope");
+    expect(unknownDenied.status).toBe(403);
+    expect(unknownDenied.error).toContain("lacks the admin scope");
     expect(resolve({ host: "bots.example.com", authorization: `Bearer ${token}` }, "/api/bots").auth?.kind).toBe("session");
   });
 

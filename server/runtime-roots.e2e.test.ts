@@ -19,7 +19,6 @@ const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const RERUN_NOTE = "OpenMausBot restarted while your previous turn here was running";
 const RERUN_CHIP = "Resuming after a restart";
 const SECRET_PROVIDED = "OpenMausBot credential update: the user securely provided";
-const CONNECTED = "OpenMausBot connection update: the user securely connected";
 const STEP_CAP_CONTINUES = "stopped at the step limit";
 const SEAT_FREE = "the computer this conversation waited for is free again";
 const SIGNED_IN = "OpenMausBot sign-in update: the person finished signing in to";
@@ -85,31 +84,6 @@ async function loopbackModel() {
     requests,
     answer: (next: typeof answer) => { answer = next; },
     close: async () => { model.closeAllConnections(); await new Promise<void>((resolve) => model.close(() => resolve())); },
-  };
-}
-
-async function composioStub() {
-  const connected = new Set<string>();
-  const stub = createServer(async (req, res) => {
-    const url = req.url ?? "";
-    let raw = "";
-    for await (const chunk of req) raw += chunk;
-    const reply = (status: number, body: unknown) => { res.writeHead(status, { "content-type": "application/json" }); res.end(JSON.stringify(body)); };
-    if (url.startsWith("/api/v3.1/connected_accounts") || url.startsWith("/api/v3/toolkits")) return reply(200, { items: [] });
-    if (url.startsWith("/api/v3.1/tool_router/session")) {
-      if (req.headers["x-api-key"] !== "ak_good") return reply(401, { error: { message: "invalid project key" } });
-      if (url.includes("/toolkits")) return reply(200, { items: [...connected].map((slug) => ({ slug, connected_account: { id: `ca_${slug}`, status: "ACTIVE" } })) });
-      const body = raw ? JSON.parse(raw) : {};
-      return reply(201, { session_id: "trs_roots_test", mcp: { type: "http", url: "https://app.composio.dev/tool_router/v3/trs_roots_test/mcp" }, config: { user_id: body.user_id } });
-    }
-    return reply(404, { error: "unknown" });
-  });
-  await new Promise<void>((resolve) => stub.listen(0, "127.0.0.1", resolve));
-  const origin = `http://127.0.0.1:${(stub.address() as AddressInfo).port}`;
-  return {
-    env: { OMB_COMPOSIO_API: `${origin}/api/v3.1`, OMB_COMPOSIO_TOOLKITS_API: `${origin}/api/v3` },
-    connect: (slug: string) => connected.add(slug),
-    close: async () => { stub.closeAllConnections(); await new Promise<void>((resolve) => stub.close(() => resolve())); },
   };
 }
 
@@ -181,10 +155,7 @@ async function scenario(test: (f: any) => Promise<void>, options: { env?: Record
     const open = (name: string) => writeFileSync(gate(name), "open");
     const ready = (name: string) => join(dataDir, `${name}.ready`);
     const settle = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-    const token = (server: "agents" | "composio" = "agents") => {
-      const env = JSON.parse(readFileSync(session.fixtureDumpPath, "utf8")).mcpConfig.mcpServers[server].env;
-      return (server === "agents" ? env.OMB_COMMS_TOKEN : env.OMB_CONNECTOR_TOKEN) as string;
-    };
+    const token = () => JSON.parse(readFileSync(session.fixtureDumpPath, "utf8")).mcpConfig.mcpServers.agents.env.OMB_COMMS_TOKEN as string;
     const internal = async (path: string, body: unknown, bearer: string) => {
       const response = await fetch(`${url}${path}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${bearer}` },
         body: JSON.stringify(body), signal: AbortSignal.timeout(20_000) });
@@ -277,53 +248,6 @@ it("T2 parks the root on a credential card and runs it again with the provided l
   expect(f.turns(f.clive.id).map((record: any) => record.planKey)).toEqual(["C0", "C-TYPED", "C1"]);
   expect(f.roots()[0].executions).toBe(2);
 }), hostTimeout(60_000));
-
-it("T3 parks the root on connector cards and runs it again once when both connect", async () => {
-  const composio = await composioStub();
-  try {
-    await scenario(async (f) => {
-      expect((await f.api("PUT", "/api/config", { composio: { apiKey: "ak_good" } })).status).toBe(200);
-      f.script(f.clive.id,
-        { key: "C1", match: [CONNECTED, "Gmail", "Slack"], reply: "T3-DONE: mail and chat are wired." },
-        { key: "C0", match: ["T3-JOB"], readyFile: f.ready("c0"), gateFile: f.gate("c0"), reply: "T3-ASKED: connect the apps." });
-      const job = f.clive.activeTaskId;
-      await f.say(f.clive.id, job, "T3-JOB: wire up my mail and chat.");
-      await expect.poll(() => existsSync(f.ready("c0")), { timeout: 30_000 }).toBe(true);
-      const requested = await f.internal("/api/internal/connectors/request", { botId: f.clive.id, threadId: job, resumeKey: "t3-resume-key-0001", items: ["gmail", "slack"] }, f.token("composio"));
-      expect(requested.status, JSON.stringify(requested.body)).toBe(200);
-      const [gmail, slack] = requested.body.messageIds as string[];
-      f.open("c0");
-      await f.final(job, "T3-ASKED");
-      await expect.poll(() => f.roots()[0]?.status, { timeout: 15_000 }).toBe("needs_input");
-      const parked = f.roots()[0];
-      expect(parked.cards).toEqual([gmail, slack]);
-      expect(await f.task(f.clive.id, job)).toMatchObject({ busy: false, activity: "idle" });
-      composio.connect("gmail");
-      const first = await f.api("GET", `/api/bots/${f.clive.id}/connector-cards/${gmail}/status?threadId=${job}`);
-      expect(first.body).toMatchObject({ connected: true });
-      await f.settle(500);
-      expect(f.roots()[0].status).toBe("needs_input");
-      expect(f.turns(f.clive.id).map((record: any) => record.planKey)).toEqual(["C0"]);
-      composio.connect("slack");
-      const second = await f.api("GET", `/api/bots/${f.clive.id}/connector-cards/${slack}/status?threadId=${job}`);
-      expect(second.body).toMatchObject({ connected: true });
-      await f.final(job, "T3-DONE");
-      await expect.poll(() => f.roots()[0]?.status, { timeout: 15_000 }).toBe("completed");
-      expect(f.roots()).toHaveLength(1);
-      expect(f.roots()[0]).toMatchObject({ id: parked.id, executions: 2, outcome: "done" });
-      expect(f.turns(f.clive.id).map((record: any) => record.planKey)).toEqual(["C0", "C1"]);
-      const answered = f.body(f.turn("C1")).trimStart();
-      expect(answered.startsWith(`${CONNECTED} Gmail, Slack.`), answered.slice(0, 200)).toBe(true);
-      const cards = (await f.messages(job)).filter((message: any) => message.kind === "connector");
-      expect(cards.map((message: any) => message.connector.resumed)).toEqual([true, true]);
-      expect((await f.api("POST", `/api/bots/${f.clive.id}/connector-cards/${gmail}/resume`, { threadId: job })).body).toEqual({ resumed: true });
-      await f.settle(500);
-      expect(f.roots()[0].executions).toBe(2);
-    }, { env: composio.env });
-  } finally {
-    await composio.close();
-  }
-}, hostTimeout(90_000));
 
 it("T5 reruns a person's cut turn once after a restart, with the restart note first and the resuming chip", () => scenario(async (f) => {
   const request = "T5-JOB: migrate the invoices and report.";
@@ -548,43 +472,6 @@ it("T8 Stop while parked on a credential card cancels the root and stops the car
   expect(await failedLines(f, job)).toEqual([]);
   expect(await f.task(f.clive.id, job)).toMatchObject({ busy: false, activity: "idle" });
 }), hostTimeout(60_000));
-
-it("T8 Stop while parked on connector cards cancels the root and stops the cards; connecting afterwards is kept but starts nothing", async () => {
-  const composio = await composioStub();
-  try {
-    await scenario(async (f) => {
-      expect((await f.api("PUT", "/api/config", { composio: { apiKey: "ak_good" } })).status).toBe(200);
-      f.script(f.clive.id, { key: "C0", match: ["T8C-JOB"], readyFile: f.ready("c0"), gateFile: f.gate("c0"), reply: "T8C-ASKED: connect the apps." });
-      const job = f.clive.activeTaskId;
-      await f.say(f.clive.id, job, "T8C-JOB: wire up my mail and chat.");
-      await expect.poll(() => existsSync(f.ready("c0")), { timeout: 30_000 }).toBe(true);
-      const requested = await f.internal("/api/internal/connectors/request", { botId: f.clive.id, threadId: job, resumeKey: "t8-resume-key-0001", items: ["gmail", "slack"] }, f.token("composio"));
-      expect(requested.status, JSON.stringify(requested.body)).toBe(200);
-      const [gmail, slack] = requested.body.messageIds as string[];
-      f.open("c0");
-      await f.final(job, "T8C-ASKED");
-      await expect.poll(() => f.roots()[0]?.status, { timeout: 15_000 }).toBe("needs_input");
-      expect(f.roots()[0].cards).toEqual([gmail, slack]);
-      expect((await f.api("POST", `/api/bots/${f.clive.id}/interrupt`, { threadId: job })).status).toBe(200);
-      await expect.poll(() => f.roots()[0]?.status, { timeout: 15_000 }).toBe("cancelled");
-      const cards = async () => (await f.messages(job)).filter((message: any) => message.kind === "connector").map((message: any) => message.connector);
-      expect((await cards()).map((connector: any) => connector.stopped)).toEqual([true, true]);
-      composio.connect("gmail");
-      expect((await f.api("GET", `/api/bots/${f.clive.id}/connector-cards/${gmail}/status?threadId=${job}`)).body).toMatchObject({ connected: true });
-      composio.connect("slack");
-      expect((await f.api("GET", `/api/bots/${f.clive.id}/connector-cards/${slack}/status?threadId=${job}`)).body).toMatchObject({ connected: true });
-      expect((await f.api("POST", `/api/bots/${f.clive.id}/connector-cards/${gmail}/resume`, { threadId: job })).status).toBeLessThan(500);
-      await f.settle(1_500);
-      expect((await cards()).map((connector: any) => [connector.status, connector.stopped, connector.resumed])).toEqual([["connected", true, undefined], ["connected", true, undefined]]);
-      expect(f.roots()).toHaveLength(1);
-      expect(f.roots()[0]).toMatchObject({ status: "cancelled", outcome: "stopped", executions: 1 });
-      expect(f.turns(f.clive.id).map((record: any) => record.planKey)).toEqual(["C0"]);
-      expect(await failedLines(f, job)).toEqual([]);
-    }, { env: composio.env });
-  } finally {
-    await composio.close();
-  }
-}, hostTimeout(90_000));
 
 it("T8 Stop while parked on a sign-in card cancels the root and stops the card; Cancel afterwards is saved but starts nothing", () => scenario(async (f) => {
   await browserPlace(f);

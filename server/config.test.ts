@@ -6,7 +6,6 @@ import type { JsonValue } from "./schema.ts";
 
 import { cacheUntilConfigChanges,
   changedInstanceIds,
-  customMcpServers,
   engineLaunches,
   DATA_DIR,
   ensureDirs,
@@ -1167,6 +1166,7 @@ describe("saving OpenCode provider keys", () => {
       expect(refused(name)).toContain("such as VENICE_API_KEY");
     }
     expect(refused("OPENCODE_API_KEY")).toContain("OpenCode API key box");
+    for (const name of ["OPENCODE_SERVER_KEY", "OMB_CLOUD_BOAT_TOKEN", "OMB_LICENSE_KEY",
       "OPENAI_COMPAT_API_KEY", "XAI_API_KEY", "MISTRAL_API_KEY", "CURSOR_API_KEY", "FACTORY_API_KEY"]) {
       expect(refused(name)).toBe(`OpenMaus keeps ${name} for itself, so OpenCode can't be given it here. Put this key in opencode.json instead.`);
     }
@@ -1347,7 +1347,6 @@ describe("credential env preference", () => {
     "OMB_TTS_KEY",
     "OMB_FISH_AUDIO_API_KEY",
     "OMB_OPENAI_IMAGE_KEY",
-    "COMPOSIO_API_KEY",
   ] as const;
   let saved: Record<string, string | undefined>;
 
@@ -1673,14 +1672,11 @@ describe("credential env preference", () => {
 
   it("syncCredentialEnv keeps process.env in step with a credential save", () => {
     process.env.XAI_API_KEY = "boot-injected";
-    process.env.COMPOSIO_API_KEY = "boot-injected";
     syncCredentialEnv({
       xai: { key: "just-saved" },
-      composio: { apiKey: "ak_just_saved" },
       profile: { name: "Ada" },
     });
     expect(process.env.XAI_API_KEY).toBe("just-saved");
-    expect(process.env.COMPOSIO_API_KEY).toBe("ak_just_saved");
     expect(process.env.OMB_TTS_KEY).toBeUndefined();
     expect(process.env.OMB_FISH_AUDIO_API_KEY).toBeUndefined();
   });
@@ -1800,85 +1796,6 @@ describe("workspace credential env strip", () => {
   });
 });
 
-describe("customMcpServers", () => {
-  const cfg = (mcpServers: Record<string, unknown>) =>
-    ({ mcpServers }) as Parameters<typeof customMcpServers>[0];
-
-  it("normalizes a valid stdio entry and defaults args/env", () => {
-    expect(
-      customMcpServers(
-        cfg({
-          notes: { command: "npx", args: ["-y", "@x/notes-mcp"], env: { NOTES_TOKEN: "t" } },
-          bare: { command: "/usr/local/bin/server" },
-        }),
-      ),
-    ).toEqual({
-      notes: { command: "npx", args: ["-y", "@x/notes-mcp"], env: { NOTES_TOKEN: "t" } },
-      bare: { command: "/usr/local/bin/server", args: [], env: {} },
-    });
-  });
-
-  it("returns {} when the section is absent", () => {
-    expect(customMcpServers({} as Parameters<typeof customMcpServers>[0])).toEqual({});
-  });
-
-  it("narrows to a bot's own list when one is given, and to nothing for an empty list", () => {
-    const all = cfg({ notes: { command: "a" }, linear: { command: "b" }, off: { command: "c", enabled: false } });
-    expect(Object.keys(customMcpServers(all))).toEqual(["notes", "linear"]);
-    expect(Object.keys(customMcpServers(all, ["linear", "gone"]))).toEqual(["linear"]);
-    expect(customMcpServers(all, [])).toEqual({});
-    expect(customMcpServers(all, ["off"])).toEqual({});
-  });
-
-  it("skips disabled entries silently", () => {
-    expect(customMcpServers(cfg({ off: { command: "x", enabled: false } }))).toEqual({});
-  });
-
-  it("skips reserved names — a custom entry can never shadow a built-in", () => {
-    const out = customMcpServers(
-      cfg({
-        ogb: { command: "evil" },
-        computer: { command: "evil" },
-        agents: { command: "evil" },
-        fine: { command: "ok" },
-      }),
-    );
-    expect(Object.keys(out)).toEqual(["fine"]);
-  });
-
-  it("skips names that could not survive every driver's namespace", () => {
-    const out = customMcpServers(
-      cfg({
-        "Bad.Name": { command: "x" },
-        "1leading-digit": { command: "x" },
-        "way-too-long-name-way-too-long-name-x": { command: "x" },
-        good_name: { command: "x" },
-      }),
-    );
-    expect(Object.keys(out)).toEqual(["good_name"]);
-  });
-
-  it("passes a url transport through as streamable HTTP", () => {
-    expect(customMcpServers(cfg({ api: { url: "https://x/mcp" } }))).toEqual({ api: { type: "http", url: "https://x/mcp", headers: {} } });
-  });
-
-  it("never hands a url server's sign-in app or its secret to an engine", () => {
-    expect(customMcpServers(cfg({ api: { url: "https://x/mcp", oauth: { clientId: "app", clientSecret: "shh" } } })))
-      .toEqual({ api: { type: "http", url: "https://x/mcp", headers: {} } });
-  });
-
-  it("skips malformed entries without dropping the valid ones", () => {
-    const out = customMcpServers(
-      cfg({
-        broken: { args: ["no-command"] },
-        alsoBad: "not-an-object",
-        keeper: { command: "ok" },
-      }),
-    );
-    expect(Object.keys(out)).toEqual(["keeper"]);
-  });
-});
-
 describe("changedInstanceIds", () => {
   it("replaces only the engines whose launch config a save changed", () => {
     const saved: AppConfig = { mistral: { key: "m1" }, openaiCompat: { key: "c1", url: "https://compat.example/v1" } };
@@ -1891,6 +1808,7 @@ describe("changedInstanceIds", () => {
   it("replaces nothing for sections no driver reads", () => {
     expect(reloaded({ onboarding: { hintsSeen: ["tour.composer"] } })).toEqual([]);
     expect(reloaded({ profile: {}, language: "de", tts: {}, features: {} })).toEqual([]);
+    expect(reloaded({ budgets: { monthlyUsd: 5 } })).toEqual([]);
   });
   it("replaces an engine whose driver reads a saved key from the env", () => {
     const own = instanceConfigs({ instances: { own: { driver: "mistral", config: { url: "http://127.0.0.1:9/v1" } } }, mistral: { key: "m1" } });
@@ -1901,26 +1819,11 @@ describe("changedInstanceIds", () => {
     const compat = (env: Record<string, string>) => changedInstanceIds(engineLaunches(fleet, {}), engineLaunches(fleet, env));
     expect(compat({ OPENAI_COMPAT_URL: "https://compat.example/v1" })).toEqual(["openaiCompat"]);
     expect(compat({ OMB_OPENAI_API_KEY: "o" })).toEqual(["openai"]);
+    expect(compat({})).toEqual([]);
   });
   it("names an engine that was added or removed", () => {
     expect(changedInstanceIds({ a: { driver: "fake" } }, { b: { driver: "fake" } })).toEqual(["a", "b"]);
     expect(changedInstanceIds({ a: { driver: "fake", config: { x: 1 } } }, { a: { driver: "fake", config: { x: 1 } } })).toEqual([]);
-  });
-});
-
-describe("customMcpServers with url entries", () => {
-  it("passes remote servers through in the engines' shape, next to commands", () => {
-    const cfg = {
-      mcpServers: {
-        docs: { type: "sse", url: "https://docs.example/sse", headers: { Authorization: "Bearer t" } },
-        notes: { command: "npx" },
-        broken: { url: "not-an-address" },
-      },
-    } as Parameters<typeof customMcpServers>[0];
-    expect(customMcpServers(cfg)).toEqual({
-      docs: { type: "sse", url: "https://docs.example/sse", headers: { Authorization: "Bearer t" } },
-      notes: { command: "npx", args: [], env: {} },
-    });
   });
 });
 

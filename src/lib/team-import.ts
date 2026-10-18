@@ -23,7 +23,6 @@ export interface PendingTeamImport {
   brief?: string;
   pictures?: Array<string | null>;
   offeredSkills?: string[];
-  connections?: Array<{ label: string; url: string; values: number }>;
   notes?: number;
   presets?: string[];
   library?: boolean;
@@ -165,9 +164,6 @@ function sharedTeamPreview(document: PackageDocument, manifest: unknown): Pendin
     apps: pkg.requirements.apps.map((app) => ({ label: app.label, optional: app.optional === true })),
     skills: (pkg.skills?.entries ?? []).filter((skill) => referenced.has(skill.name)).map((skill) => skill.name),
     offeredSkills: (pkg.skills?.entries ?? []).filter((skill) => !referenced.has(skill.name)).map((skill) => skill.name),
-    connections: (pkg.connections ?? []).map((connection) => ({
-      label: connection.label, url: connection.mcp.url, values: connection.mcp.valueNames.length,
-    })),
     notes: pkg.agents.reduce((total, agent) => total + Object.keys(agent.seed?.memory ?? {}).length, 0),
     presets: (pkg.presets ?? []).map((preset) => preset.name),
   };

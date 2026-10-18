@@ -18,10 +18,10 @@ function nodes(value: ReactNode): Node[] {
   const node = value as Node;
   return [node, ...Children.toArray(node.props.children).flatMap(nodes)];
 }
-function render(onSelect: (mode: ApprovalMode) => void, onManageCommandAllowlist?: () => void, trustedModesAvailable = true, busy = false) {
+function render(onSelect: (mode: ApprovalMode) => void, onManageCommandAllowlist?: () => void, busy = false) {
   let tree: ReactNode;
   function Capture() {
-    tree = ApprovalModeSelector({ providerName: "Codex", driverKind: "codex", approvalMode: "ask", onSelect, onManageCommandAllowlist, trustedModesAvailable, busy });
+    tree = ApprovalModeSelector({ providerName: "Codex", driverKind: "codex", approvalMode: "ask", onSelect, onManageCommandAllowlist, busy });
     return tree;
   }
   return { html: renderToStaticMarkup(createElement(Capture)), nodes: nodes(tree) };
@@ -71,10 +71,10 @@ describe("command allowlist menu access", () => {
 
   it("keeps every level selectable while the bot works, and says from when a change applies", () => {
     const select = vi.fn();
-    const trigger = render(select, undefined, true, true).nodes.find((node) => node.props["aria-haspopup"] === "menu")!;
+    const trigger = render(select, undefined, true).nodes.find((node) => node.props["aria-haspopup"] === "menu")!;
     expect(trigger.props.disabled).toBeUndefined();
     trigger.props.onClick!();
-    const open = render(select, undefined, true, true);
+    const open = render(select, undefined, true);
     expect(open.html).toContain("The bot is working. A change applies from its next step");
     const modes = open.nodes.filter((node) => node.props.role === "menuitemradio");
     expect(modes.length).toBeGreaterThan(0);

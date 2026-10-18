@@ -130,9 +130,7 @@ describe("strict initialize fixture", () => {
     fake = await startFakeHttpMcp({ tools: TOOLS, requireHeader: { name: "x-api-key", value: "current-api-key-0002" } });
     const ask = startProxy(mcpStdioServer({ type: "http", url: fake.url, headers })!);
     const message = (await ask(1, "initialize", CODEX)).error?.message;
-    expect(message).toBe("This MCP server refused its credentials (HTTP 401). If it uses a sign-in, send the message again: "
-      + "OpenMausBot refreshes sign-ins when a message starts. If it still fails, open Plugins → MCP servers and sign in to it again, "
-      + "or check its header values.");
+    expect(message).toBe("This MCP server refused its credentials (HTTP 401). Check its header values.");
     expect(message).not.toContain(fake.url);
     // not Codex's own sign-in: codexSignInRefused reads "please sign in again"
     expect(message).not.toMatch(/please (?:log out and )?sign in again/i);
@@ -163,15 +161,11 @@ describe("strict initialize fixture", () => {
     expect((await ask(4, "tools/call", { name: "report", arguments: { campaignId: "c-1" } })).result.content[0].text).toBe("remote execution recorded");
   });
 
-  it("lets a long call finish through an ACP mount; only the tool directory keeps its two minutes", async () => {
+  it("lets a long call finish through an ACP mount", async () => {
     fake = await startFakeHttpMcp({ tools: TOOLS, callDelayMs: 3_000 });
     const acp = startProxy(mcpStdioServer({ type: "http", url: fake.url, headers: {} }, { nodeEnv: { ELECTRON_RUN_AS_NODE: "1" } })!, FAST_CLOCK);
     await acp(1, "initialize", CODEX);
     expect((await acp(2, "tools/call", { name: "report", arguments: {} })).result.content[0].text).toBe("remote execution recorded");
-    const stopped = once(child!, "close"); child!.kill(); await stopped;
-    const searched = startProxy(mcpStdioServer({ type: "http", url: fake.url, headers: {} }, { directory: { name: "voluum" } })!, FAST_CLOCK);
-    await searched(1, "initialize", CODEX);
-    expect((await searched(2, "tools/call", { name: "report", arguments: {} })).error).toEqual({ code: -32800, message: "MCP request cancelled" });
   }, 20_000);
 
   it("reaches a plain http server through HTTP_PROXY, never directly", async () => {

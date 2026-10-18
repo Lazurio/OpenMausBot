@@ -2,23 +2,11 @@ import { join } from "node:path";
 import { parseToolScope, type ToolScope } from "../shared/tool-scope.ts";
 
 import { DATA_DIR } from "./config.ts";
-import type { SendTurnInput } from "./contracts.ts";
 import { unbridgedServer } from "./drivers/agents-bridge.ts";
-import { GATE_APPS_ENV, REMOTE_MCP_APPS_ENV, type AppMount } from "./mcp-app-observer.ts";
 import { DEFAULT_RESULT_BUDGET, QUERY_TOOL_NAME } from "./mcp-trim.ts";
 import { REMOTE_MCP_CONFIG_ENV, remoteMcpSpec } from "./mcp-http.ts";
 import { SPAWNED_PROXIES } from "./proxy-paths.ts";
 import { TOOL_SCHEMA_PROFILE_ENV, type ToolSchemaProfileId } from "./tool-schema-profile.ts";
-
-export type { AppMount } from "./mcp-app-observer.ts";
-
-export function appMountFor(name: string, turn: Pick<SendTurnInput, "integrations">): AppMount | undefined {
-  const app = turn.integrations?.mcpApps?.[name];
-  const agents = turn.integrations?.agents?.env;
-  if (!app || !Object.hasOwn(turn.integrations?.custom ?? {}, name)) return undefined;
-  if (!agents?.OMB_HARNESS_URL || !agents.OMB_COMMS_TOKEN) return undefined;
-  return { server: name, harnessUrl: agents.OMB_HARNESS_URL, token: agents.OMB_COMMS_TOKEN, extension: app.extension };
-}
 
 /** `OMB_MCP_RESULT_BUDGET=0` mounts bot servers directly, for a bot that needs whole payloads. */
 export function resultBudget(env: NodeJS.ProcessEnv = process.env): number {
@@ -96,9 +84,7 @@ export interface StdioServerOptions {
   nodeEnv?: Record<string, string>;
   execPath?: string;
   sourceEnv?: NodeJS.ProcessEnv | Record<string, string | undefined>;
-  directory?: { name: string; toolScope?: ToolScope };
   configEnvName?: string;
-  apps?: AppMount;
 }
 
 export function mcpStdioServer(server: unknown, options: StdioServerOptions = {}): StdioServer | null {
@@ -110,17 +96,7 @@ export function mcpStdioServer(server: unknown, options: StdioServerOptions = {}
   if (options.configEnvName !== undefined && !REMOTE_MCP_CONFIG_ENV.test(options.configEnvName)) {
     throw new Error("Invalid private MCP proxy configuration.");
   }
-  let directory: string | undefined;
-  if (options.directory) {
-    const scope = parseToolScope(options.directory.toolScope);
-    if (!/^[a-z][a-z0-9_-]{0,31}$/.test(options.directory.name) || !scope.ok) throw new Error("Invalid MCP tool search configuration.");
-    directory = JSON.stringify({ name: options.directory.name, ...(scope.scope ? { toolScope: scope.scope } : {}) });
-  }
-  const settings = {
-    OMB_REMOTE_MCP_SERVER: JSON.stringify(remote),
-    ...(directory ? { OMB_REMOTE_MCP_DIRECTORY: directory } : {}),
-    ...(options.apps ? { [REMOTE_MCP_APPS_ENV]: JSON.stringify(options.apps) } : {}),
-  };
+  const settings = { OMB_REMOTE_MCP_SERVER: JSON.stringify(remote) };
   return {
     command: options.execPath ?? process.execPath,
     args: [SPAWNED_PROXIES.mcpRemote, ...(options.configEnvName ? ["--config-env", options.configEnvName] : [])],
@@ -142,61 +118,43 @@ export function gateServer(input: {
   nodeEnv?: Record<string, string>;
   execPath?: string;
   configEnvName?: string;
-  directory?: boolean;
   sourceEnv?: NodeJS.ProcessEnv | Record<string, string | undefined>;
   gateRemote?: boolean;
-  apps?: AppMount;
   /** The engine's provider limits each listed tool schema, so the gate fits them to its profile. */
   schemaProfile?: ToolSchemaProfileId;
   /** The engine's provider limits how many tools a request carries: the gate lists at most OMB_TOOL_LIMIT of them. */
   limitsTools?: boolean;
 }): { command: string; args: string[]; env: Record<string, string> } | null {
-  const { name, server, budget, apps, schemaProfile, limitsTools } = input;
-  const parsed = parseToolScope(input.toolScope);
-  if (!parsed.ok) throw new Error(parsed.error);
-  const scoped = parsed.scope !== undefined;
+  const { name, server, budget, schemaProfile, limitsTools } = input;
   const remote = remoteMcpSpec(server) !== undefined;
-  if (budget <= 0 && !scoped && !apps && !schemaProfile && !limitsTools) return null;
-  const directory = input.directory === true && remote;
+  if (budget <= 0 && !schemaProfile && !limitsTools) return null;
   const proxyOptions = {
     nodeEnv: input.nodeEnv,
     execPath: input.execPath,
     sourceEnv: input.sourceEnv,
-    ...(directory ? { directory: { name, ...(scoped ? { toolScope: parsed.scope } : {}) } } : {}),
-    ...(apps && remote ? { apps } : {}),
   };
-  if (!scoped && remote && !(input.gateRemote === true && budget > 0)) {
-    if (!apps && !limitsTools) return null;
+  if (remote && !(input.gateRemote === true && budget > 0)) {
+    if (!limitsTools) return null;
     const proxy = mcpStdioServer(server, proxyOptions);
     return proxy ? { command: proxy.command, args: proxy.args ?? [], env: proxy.env ?? {} } : null;
   }
   const spec = mcpStdioServer(server, proxyOptions);
-  if (!spec) {
-    if (scoped) throw new Error("Tool selection requires a supported MCP server.");
-    return null;
-  }
-  // Security: a selection matches the name in the call, so behind one the agents server is never bridged,
-  // whatever the turn decided earlier.
-  const upstream = scoped && name === "agents" ? unbridgedServer(spec) : spec;
+  if (!spec) return null;
   const env = {
     OMB_GATE_NAME: name,
-    OMB_GATE_UPSTREAM: JSON.stringify({ command: upstream.command, args: upstream.args ?? [], env: upstream.env ?? {} }),
+    OMB_GATE_UPSTREAM: JSON.stringify({ command: spec.command, args: spec.args ?? [], env: spec.env ?? {} }),
     OMB_GATE_SPILL_DIR: spillDir(input.threadId),
     OMB_GATE_BUDGET: String(budget),
-    ...(scoped ? { OMB_GATE_TOOL_SCOPE: JSON.stringify(parsed.scope) } : {}),
-    ...(directory ? { OMB_GATE_DIRECTORY: "1" } : {}),
-    ...(apps && !remote ? { [GATE_APPS_ENV]: JSON.stringify(apps) } : {}),
   };
-  if (input.configEnvName && ((!scoped && !(apps && !remote)) || !/^OMB_GATE_CONFIG_[a-f0-9]{64}$/.test(input.configEnvName))) {
-    throw new Error("Invalid private MCP gate configuration.");
-  }
   return {
     command: input.execPath ?? process.execPath,
     args: [SPAWNED_PROXIES.mcpGate, ...(input.configEnvName ? ["--config-env", input.configEnvName] : [])],
+    args: [SPAWNED_PROXIES.mcpGate],
     env: {
       ...input.nodeEnv,
       ...(schemaProfile ? { [TOOL_SCHEMA_PROFILE_ENV]: schemaProfile } : {}),
       ...(input.configEnvName ? { [input.configEnvName]: JSON.stringify(env) } : env),
+      ...env,
     },
   };
 }
@@ -208,8 +166,6 @@ export function gateQueryTools(servers: Readonly<Record<string, unknown>>): stri
   return Object.entries(servers).flatMap(([name, spec]) => {
     const { args, env } = (spec ?? {}) as { args?: unknown; env?: Record<string, string> };
     if (!Array.isArray(args) || args[0] !== SPAWNED_PROXIES.mcpGate) return [];
-    let config: Record<string, unknown> | undefined = env;
-    if (args[1] === "--config-env") try { config = JSON.parse(env?.[String(args[2])] ?? "{}"); } catch { return []; }
-    return Number(config?.OMB_GATE_BUDGET) > 0 ? [`mcp__${name}__${QUERY_TOOL_NAME}`] : [];
+    return Number(env?.OMB_GATE_BUDGET) > 0 ? [`mcp__${name}__${QUERY_TOOL_NAME}`] : [];
   });
 }
