@@ -17,6 +17,7 @@ import { forgetBotMemoryJournal, journalFile } from "./memory-journal.ts";
 import { runCommand, type Command } from "./commands.ts";
 import { workspaceDir } from "./workspace.ts";
 import type { Destination } from "./surface.ts";
+import { announceDefaultBotCwd, newBotCwd } from "./default-bot-cwd.ts";
 import { newId, type ModelSelection } from "./contracts.ts";
 import { pickBotName } from "./names.ts";
 import { rotationColor } from "./bot-look.ts";
@@ -326,6 +327,7 @@ export class Store {
     this.defaultSelection = defaultSelection;
     this.completeNewBotSelection = completeNewBotSelection;
     this.driverKindOf = driverKindOf;
+    announceDefaultBotCwd();
     this.initialLanguage = initialLanguage;
     this.personName = personName;
     mkdirSync(DATA_DIR, { recursive: true });
@@ -1360,7 +1362,7 @@ export class Store {
     if (section) bot.section = section;
     if (profile.createdBy?.trim()) bot.createdBy = ownerEmail(profile.createdBy);
     if (profile.reportsTo?.trim()) bot.reportsTo = ownerEmail(profile.reportsTo);
-    if (profile.cwd) bot.cwd = profile.cwd;
+    Object.assign(bot, newBotCwd(profile.cwd));
     bot.tasks = [{
       threadId: bot.threadId,
       title: UNTITLED_THREAD,
@@ -1405,8 +1407,8 @@ export class Store {
         const modelSelection = this.newBotSelection(operation.fields.modelSelection);
         next = { id: operation.botId, threadId: operation.threadId, name: operation.fields.name,
           title: "", description: "", soul: "", notifications: true, color: rotationColor(nextBots.length), unread: false,
-          resumeCursors: {}, createdAt, ...operation.fields, modelSelection,
           autoApprove: false, approvePeerComms: false,
+          resumeCursors: {}, createdAt, ...operation.fields, ...newBotCwd(operation.fields.cwd), modelSelection,
           // A restricted Chief never creates a bot everyone sees.
           ...(chief.visibility && chief.visibility !== "everyone" ? { visibility: structuredClone(chief.visibility) } : {}),
           // A Chief's new specialist reports to the Chief's own person.

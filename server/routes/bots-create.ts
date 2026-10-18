@@ -199,9 +199,11 @@ export function createBotCreateRoutes(deps: BotCreateRouteDeps): RouteHandler {
           ...ordinary, name: bot.name, section, modelSelection: bot.modelSelection,
           mascotExpression: ordinary.mascotExpression ?? undefined,
           avatarUrl: ordinary.avatarUrl || undefined,
-          computer: ordinary.computer ?? undefined, cwd: checkedCwd.cwd ?? undefined,
           peers: ordinary.peers ?? undefined, mcpServers: ordinary.mcpServers ?? undefined,
           browserProfile: ordinary.browserProfile || undefined,
+          // Lazurio: a request that names no folder keeps the one creation gave
+          // the bot (OMB_DEFAULT_BOT_CWD); an explicit empty one still clears it.
+          cwd: settings.cwd === undefined ? bot.cwd : checkedCwd.cwd ?? undefined,
           autoApprove: ordinary.approvalMode === "auto",
         });
         const presetSkills = new Set(preset?.preset.skills ?? []);

@@ -77,6 +77,8 @@ release offers it.
    with:
    - `OMB_WEBHOOK_PORT` set explicitly. The webhook listener otherwise takes
      `port + 1` (4103), which Machines has not reserved.
+   - `OMB_DEFAULT_BOT_CWD` set to the Lazurio Folder of the Machine
+     operator, so new bots start there (see Overlay).
    - `PATH` including `~/.local/bin`, so the server finds the signed-in
    - optionally `OMB_ENVIRONMENT_LABEL` (`<Organization> / <machine>`).
 
@@ -265,6 +267,9 @@ Organization Admin can do these steps; the order matters.
    The script stamps the version (and restores `package.json`), builds,
    packs, unpacks into a temporary directory, checks that neither
    `node_modules` nor the enterprise layer is packed, starts `serve` with a
+   temporary home, data directory and `OMB_DEFAULT_BOT_CWD`, and checks the
+   health endpoint, the reported version, the open-source edition and that
+   the first bot starts in that folder.
 3. **Canary.** After publishing, move the pins of
    [Ring 0](#ring-0-lazurioexampleorganization) first, open OpenMausBot from
    Launchpad and check the version. Where the Environment has AI, also check

@@ -67,6 +67,9 @@ NodeTest.test("the archive is upstream's npm package, stamped and smoke-tested",
   NodeAssert.match(script, /ARCHIVE="openmausbot-\$VERSION-linux-x64\.tar\.gz"/);
   NodeAssert.match(script, /test ! -d "\$pkg\/node_modules"/);
   NodeAssert.match(script, /\/\.well-known\/openmausbot\/environment/);
+  // The first bot of the packaged server starts in OMB_DEFAULT_BOT_CWD.
+  NodeAssert.match(script, /OMB_DEFAULT_BOT_CWD="\$work\/folder"/);
+  NodeAssert.match(script, /the first bot did not start in OMB_DEFAULT_BOT_CWD/);
   for (const source of [archive, release, ci]) {
     for (const [, action] of source.matchAll(/uses: ([^\s.][^\s]*)/g)) {
       NodeAssert.match(action, /@[0-9a-f]{40}$/, `${action} must be pinned by commit`);

@@ -84,6 +84,17 @@ jobs:
             README.md
             docs/verification/enterprise-license.md
             docs/verification/hosted-workspaces.md
+            # OMB_DEFAULT_BOT_CWD, a default working folder for new bots: the
+            # Store's two creation points, New bot keeping the folder creation
+            # gave, a Chief's explicit empty folder, the e2e fixture's env and
+            # the docs. The Store hook grows server/store.ts by two lines, so
+            # the file-size ratchet's count for it moves with it.
+            docs/self-hosting.md
+            scripts/control-omb.ts
+            scripts/testing/file-size-ratchet.test.ts
+            server/index.ts
+            server/routes/bots-create.ts
+            server/store.ts
           )
           # Lazurio ships the open-source edition: upstream's enterprise/
           # folder (OpenMausBot Enterprise License, no redistribution or
