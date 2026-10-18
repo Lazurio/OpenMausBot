@@ -46,7 +46,6 @@ import { effectiveLanguage, useLanguageChoice } from "@/lib/language-preference"
 import { botShowsUnread } from "@/lib/bot-unread";
 import { phonePairingSettingsAction, takePhonePairingRequest } from "@/lib/phone-pairing";
 import { useExternalChatLinks } from "@/hooks/use-external-chat-links";
-import { useUsageSnapshot } from "@/hooks/use-usage-snapshot";
 import { ChatNotice } from "@/components/ChatErrorBanner";
 
 function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
@@ -173,7 +172,6 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
     if (!state.connected) return;
     void preloadConnectedApps().catch(() => {});
   }, [state.connected]);
-  useUsageSnapshot();
 
   useEffect(() => preloadScreens(), []);
 
