@@ -27,40 +27,23 @@ export interface ComputerEngineMove {
   threadId: string;
   /** "bot": the bot's engine moved; "conversation": only this conversation's did; "bot-only": the bot's did, but this conversation keeps its own. */
   scope: "bot" | "conversation" | "bot-only";
-  cloud: boolean;
-  /** It worked on the cloud computer and the new engine can't: "auto" now works without one; "works-on" or "pin" still say Cloud, so turns are refused. */
-  noComputer: false | "auto" | "works-on" | "pin";
   /** Permissions went back to Ask, as on any engine switch. */
   askNow: boolean;
 }
 
 export function computerEngineMoveText(
-  move: Pick<ComputerEngineMove, "scope" | "cloud" | "askNow"> & Partial<Pick<ComputerEngineMove, "noComputer">>,
+  move: Pick<ComputerEngineMove, "scope" | "askNow">,
   botName: string,
   engine: string,
 ): string {
   const removed = "The Computer choice in the model list was removed.";
-  const bot = move.scope !== "conversation";
   const head = move.scope === "conversation" ? `This conversation now uses ${engine}.`
     : move.scope === "bot-only" ? `${botName} now uses ${engine}; this conversation keeps its own model.`
     : `${botName} now uses ${engine}.`;
-  const noComputer = ` ${engine} can't use a computer, so`;
-  const place = move.cloud
-    ? bot ? ` ${botName} still works on its cloud computer.` : ` It still works on ${botName}'s cloud computer.`
-    : move.noComputer === "auto"
-      ? `${noComputer} ${bot ? `${botName} no longer works on its` : `it no longer works on ${botName}'s`}` +
-        " cloud computer. To use it again, choose a model that can use a computer."
-    : move.noComputer === "works-on"
-      ? `${noComputer} ${botName} can't reply on ${engine} while its Works on is Cloud computer.` +
-        " Choose a model that can use a computer, or set Works on to Auto."
-    : move.noComputer === "pin"
-      ? `${noComputer} ${botName} can't reply here while this conversation is pinned to its cloud computer.` +
-        " Choose a model that can use a computer, or clear this conversation's place in the composer."
-    : "";
   const ask = !move.askNow ? ""
     : move.scope === "bot-only" ? ` ${botName}'s permissions are now Ask, but this conversation's stay as they were.`
     : " Its permissions are now Ask.";
-  return `${head} ${removed}${place}${ask}`;
+  return `${head} ${removed}${ask}`;
 }
 
 /** The move is saved already, so a failing line is logged and every other line is still written. */

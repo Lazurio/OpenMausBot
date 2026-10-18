@@ -49,8 +49,6 @@ export function drainCoalesceHead<T>(
 export interface AdmissionMessage {
   carriesImages?: boolean;
   engineCanSteerImages?: boolean;
-  /** Steering into a turn waiting on a person's surface choice would race the choice. */
-  pendingComputerSelection?: boolean;
   engineCanSteer?: boolean;
   /** Room queues drain one item per turn, so only the head may jump into the live speaker's turn. */
   isQueueHead?: boolean;
@@ -88,7 +86,7 @@ export function admit(
 ): AdmissionDecision {
   switch (surface) {
     case "direct-busy": {
-      if (message.engineCanSteer !== true || message.pendingComputerSelection) return { action: "queue" };
+      if (message.engineCanSteer !== true) return { action: "queue" };
       if (imagesBlockSteer(message)) return { action: "queue", blockedBy: "images" };
       return { action: "steer" };
     }

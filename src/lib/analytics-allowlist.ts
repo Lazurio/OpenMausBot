@@ -13,20 +13,20 @@ export function allow<const T extends string>(value: unknown, list: readonly T[]
 }
 
 export const KEY_PROVIDER = [
-  "anthropic", "openai", "openrouter", "openai_compat", "xai", "mistral", "cerebras", "groq", "meta", "boat", "composio",
+  "anthropic", "openai", "openrouter", "openai_compat", "xai", "mistral", "cerebras", "groq", "meta", "composio",
   "opencode_go", "custom_endpoint", "elevenlabs", "fish_audio", "jev", "openrouter_decider", "openai_image", "custom_image",
   "openai_live",
 ] as const;
 export type KeyProvider = (typeof KEY_PROVIDER)[number];
 
 export const SECTION_PROVIDER = {
-  composio: "composio", box: "boat", opencodeGo: "opencode_go", anthropic: "anthropic", openai: "openai",
+  composio: "composio", opencodeGo: "opencode_go", anthropic: "anthropic", openai: "openai",
   openrouter: "openrouter", openaiCompat: "openai_compat", xai: "xai", mistral: "mistral", cerebras: "cerebras",
   groq: "groq", meta: "meta",
 } as const satisfies Record<string, KeyProvider>;
 
 const CREDENTIAL_PROVIDER = new Map<string, KeyProvider>(Object.entries({
-  boxToken: "boat", xaiApiKey: "xai", opencodeGoApiKey: "opencode_go", ttsKey: "elevenlabs", fishAudioKey: "fish_audio",
+  xaiApiKey: "xai", opencodeGoApiKey: "opencode_go", ttsKey: "elevenlabs", fishAudioKey: "fish_audio",
   openaiImageApiKey: "openai_image",
 } satisfies Record<CredentialTargetId, KeyProvider>));
 
@@ -68,7 +68,7 @@ export const APP: readonly string[] = CURATED_CONNECTOR_SLUGS;
 export const BOT_TEMPLATE: readonly string[] = BOT_ROLES.map((role) => role.id);
 export const CLOUD_TIER = ["personal", "pro", "max"] as const;
 
-export const KEY_VIA = ["settings", "computer_panel", "chat_request"] as const;
+export const KEY_VIA = ["settings", "chat_request"] as const;
 export type KeyVia = (typeof KEY_VIA)[number];
 export const KEY_RESULT = ["ok", "rejected", "unverified", "error"] as const;
 export type KeyResult = (typeof KEY_RESULT)[number];
@@ -81,11 +81,9 @@ export const CONNECTOR_RESULT = ["connected", "failed", "expired", "timed_out"] 
 export type ConnectorResult = (typeof CONNECTOR_RESULT)[number];
 export const CALL_MODE = ["turns", "live"] as const;
 export const ROOM_MODE = ["chat", "goal"] as const;
-export const CLOUD_COMPUTER_SOURCE = ["own_key", "included", "none"] as const;
 export const VOICE = ["elevenlabs", "fish", "system", "chatterbox", "xai", "none"] as const;
 export const DECIDER = ["jev", "openrouter", "off"] as const;
 export const CONNECTORS_MODE = ["managed", "self_hosted", "unavailable"] as const;
-export const LOCAL_VM_MODE = ["shared", "per_bot", "pool"] as const;
 export const TRIAL_CREDIT = ["active", "used_up", "ended", "none"] as const;
 export const CLOUD_PLAN = ["personal", "pro", "max", "other", "none", "unknown"] as const;
 export const EDITION = ["oss", "enterprise"] as const;

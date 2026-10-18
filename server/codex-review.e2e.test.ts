@@ -66,7 +66,7 @@ afterAll(async () => {
 it("persists one visible review timeout while reply completes", async () => {
   const created = (await api("POST", "/api/bots")).body.bot;
   expect((await api("PATCH", `/api/bots/${created.id}`, { modelSelection: { instanceId: "codex", model: "fake-model" } })).status).toBe(200);
-  expect((await api("PATCH", `/api/bots/${created.id}/tasks/${created.threadId}`, { approvalMode: "auto" })).status).toBe(200);
+  expect((await api("PATCH", `/api/bots/${created.id}/tasks/${created.threadId}`, { approvalMode: "auto", acknowledgeLocalAuto: true })).status).toBe(200);
   expect((await api("POST", `/api/bots/${created.id}/messages`, { text: "check status" })).status).toBe(202);
   const read = async () => (await api("GET", "/api/bots")).body.bots.find((bot: any) => bot.id === created.id);
   const deadline = Date.now() + 20_000;

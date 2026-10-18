@@ -51,7 +51,7 @@ describe("failed turn text", () => {
   });
 
   it("previews a plan-limit refusal whole and leaves ordinary steps alone", () => {
-    const limit = "Your Pro plan includes 2 cloud computers at once. Delete one to start another.";
+    const limit = "Your Pro plan includes 2 live calls at once. End one to start another.";
     expect(activityPreview({ name: `error: ${limit}`, ok: false }, engine())).toBe(limit);
     expect(activityPreview({ name: "Bash", ok: true }, engine())).toBe("Run a command");
     expect(activityPreview({ name: "stopped: Stopped", ok: true }, engine())).toBe("Stopped");

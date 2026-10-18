@@ -5,7 +5,6 @@ import { writeFileAtomic, writeFileAtomicIfChanged } from "./atomic.ts";
 import { commitBotChange, keptRevocation, saveBotsFor } from "./bots-save.ts";
 import { parseToolScope, toolScopeWidens } from "../shared/tool-scope.ts";
 import { ensureSections, readSections, changeEmptySection } from "./section-context.ts";
-import type { TeamComputers } from "./team-computers.ts";
 import { removeBotFolder, soulFile, soulHash, writeSoulMirror } from "./bot-folder.ts";
 import type { BotProfilePatch } from "./bot-profile.ts";
 import { peerAllowKey, type PeerAction } from "./peer-approval-key.ts";
@@ -15,7 +14,6 @@ import { forgetBotMemoryJournal, journalFile } from "./memory-journal.ts";
 import { runCommand, type Command } from "./commands.ts";
 import { workspaceDir } from "./workspace.ts";
 import { announceDefaultBotCwd, newBotCwd } from "./default-bot-cwd.ts";
-import type { Destination } from "./surface.ts";
 import { newId, type ModelSelection } from "./contracts.ts";
 import { pickBotName } from "./names.ts";
 import { redactSecretsInText } from "./redact.ts";
@@ -73,14 +71,12 @@ export interface TaskRecord extends Omit<WireTask, TaskWireDerivedKeys> {
   appliedCompactionId?: string;
   contextFloor?: number;
   lastContextModel?: string;
-  /** Absent (legacy) may be a person's choice: only an "auto" pin yields to a Works on change. */
-  surfaceSource?: "user" | "auto";
   /** Epoch ms a person last wrote here: never a teammate, routine, webhook, the bot itself or a Slack relay. */
   askedAt?: number;
 }
 
-export type TaskWirePrivateKeys = "resumeCursors" | "lastInstanceId" | "handedMessages" | "appliedCompactionId" | "contextFloor" | "lastContextModel" | "surfaceSource" | "askedAt";
-export type TaskWireDerivedKeys = "surfaceAuto" | "followsBotModel";
+export type TaskWirePrivateKeys = "resumeCursors" | "lastInstanceId" | "handedMessages" | "appliedCompactionId" | "contextFloor" | "lastContextModel" | "askedAt";
+export type TaskWireDerivedKeys = "followsBotModel";
 export type TaskWireProjection = Pick<TaskRecord, Exclude<keyof TaskRecord, TaskWirePrivateKeys>> & Pick<WireTask, TaskWireDerivedKeys>;
 type AssertExact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
 type AssertSameKeys<A, B> = [keyof A] extends [keyof B] ? ([keyof B] extends [keyof A] ? true : never) : never;
@@ -91,9 +87,8 @@ export const taskWireProjectionIsExact: TaskWireProjectionIsExact = true;
 export function toWireTask(task: TaskRecord, botModel: ModelSelection): WireTask {
   const { resumeCursors: _resumeCursors, lastInstanceId: _lastInstanceId, handedMessages: _handedMessages,
     appliedCompactionId: _appliedCompactionId, contextFloor: _contextFloor, lastContextModel: _lastContextModel,
-    surfaceSource, askedAt: _askedAt, ...stored } = task;
-  const wire: WireTask = { ...stored, modelSelection: structuredClone(task.modelSelection ?? botModel), followsBotModel: task.modelSelection === undefined };
-  return surfaceSource === "auto" && wire.surface !== undefined ? { ...wire, surfaceAuto: true } : wire;
+    askedAt: _askedAt, ...stored } = task;
+  return { ...stored, modelSelection: structuredClone(task.modelSelection ?? botModel), followsBotModel: task.modelSelection === undefined };
 }
 
 const ASK_NOW = { approvalMode: "ask" as const, autoApprove: false, alwaysAllow: [] as string[] };
@@ -101,7 +96,7 @@ const ASK_NOW = { approvalMode: "ask" as const, autoApprove: false, alwaysAllow:
 const TASK_PATCH_FIELDS = [
   "title", "projectId", "modelSelection", "approvalMode", "autoApprove", "alwaysAllow",
   "unread", "lastReadMessageId", "rewound", "archivedAt", "pinned", "pinnedMessageId", "resumeCursors", "lastInstanceId", "cwd",
-  "routineRunId", "surface", "surfaceSource", "snoozedUntil", "link", "linkAuto", "appliedCompactionId", "contextFloor", "lastContextModel",
+  "routineRunId", "snoozedUntil", "link", "linkAuto", "appliedCompactionId", "contextFloor", "lastContextModel",
 ] as const satisfies readonly (keyof TaskRecord)[];
 export type TaskPatch = Partial<Pick<TaskRecord, typeof TASK_PATCH_FIELDS[number]>>;
 
@@ -503,13 +498,14 @@ export class Store {
           botsMigrated = true;
         }
       }
-      if (b.cloudBackend !== undefined && b.cloudBackend !== "box" && b.cloudBackend !== "vps") {
-        delete b.cloudBackend;
-        botsMigrated = true;
+      // Lazurio overlay (DEV-6673 M3): per-bot computers and Works on are removed; a bot that chose one works on this host.
+      for (const removed of ["computer", "cloudBackend", "autoStartVps"]) {
+        if (Object.hasOwn(b, removed)) { delete (b as unknown as Record<string, unknown>)[removed]; botsMigrated = true; }
       }
-      if (b.autoStartVps !== undefined && b.autoStartVps !== true && b.autoStartVps !== false) {
-        delete b.autoStartVps;
-        botsMigrated = true;
+      for (const task of b.tasks ?? []) {
+        for (const removed of ["surface", "surfaceSource"]) {
+          if (Object.hasOwn(task, removed)) { delete (task as unknown as Record<string, unknown>)[removed]; botsMigrated = true; }
+        }
       }
       if (b.managedSections !== undefined && (!b.chiefOfStaff || !Array.isArray(b.managedSections) ||
           b.managedSections.length > 100 || b.managedSections.some(section => typeof section !== "string" || section.length > 60))) {
@@ -860,12 +856,12 @@ export class Store {
     }
   }
 
-  renameSection(name: string, nextName: string, computers?: TeamComputers): string | undefined {
+  renameSection(name: string, nextName: string): string | undefined {
     if (!name || !this.sections.includes(name)) return "No such team";
     nextName = nextName.trim();
     if (!nextName || nextName.length > 60 || [...nextName].some(char => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) return "Team name must be 1 to 60 characters without control characters";
     if (name === nextName) return undefined;
-    if (this.sections.includes(nextName) || computers?.forSection(nextName)) return "A team with that name already exists";
+    if (this.sections.includes(nextName)) return "A team with that name already exists";
     const members = this.bots.filter(bot => sectionKey(bot.section) === name);
     const rooms = this.groups.filter(group => sectionKey(group.section) === name);
     const affected = this.bots.filter(bot => members.includes(bot) || bot.managedSections?.some(section => sectionKey(section) === name));
@@ -873,23 +869,20 @@ export class Store {
       return "Stop this team's active work before renaming the team";
     }
     // Removing an empty identity revokes its old grants, so recreating it cannot restore access.
-    if (!members.length && !rooms.length && !computers?.forSection(name)) return this.changeEmptySection(name, nextName);
+    if (!members.length && !rooms.length) return this.changeEmptySection(name, nextName);
     const nextBots = this.bots.map(bot => ({ ...bot,
       ...(members.includes(bot) ? { section: nextName } : {}),
       ...(bot.managedSections ? { managedSections: [...new Set(bot.managedSections.map(section => sectionKey(section) === name ? nextName : section))] } : {}),
     }));
     const nextGroups = this.groups.map(group => rooms.includes(group) ? { ...group, section: nextName } : group);
-    let computerChanged = false;
     try {
       // Register the new name only after saving, or the registry's duplicate-name check rejects this rename.
       this.saveBots(nextBots, false);
       this.saveGroups(nextGroups, false);
-      computerChanged = computers?.renameSection(name, nextName) ?? false;
       changeEmptySection(name, nextName);
     } catch (error) {
       this.saveBots(this.bots, false);
       this.saveGroups(this.groups, false);
-      if (computerChanged) computers!.renameSection(nextName, name);
       throw error;
     }
     // Mutate in place: schedulers and other consumers hold these objects.
@@ -1922,8 +1915,6 @@ export class Store {
 
   retireInstances(ids: ReadonlySet<string>, replacement: ModelSelection, options: {
     driverKind?: string;
-    canWorkOnCloud: boolean;
-    keepCloud: (bot: BotRecord) => boolean;
   }): ComputerEngineMove[] {
     const retired = (selection?: { instanceId: string }) => Boolean(selection && ids.has(selection.instanceId));
     const without = <T>(record: Record<string, T>): Record<string, T> =>
@@ -1938,10 +1929,8 @@ export class Store {
       const patch: Partial<BotRecord> = {};
       const tasks = (bot.tasks ?? []).map((): Partial<TaskRecord> => ({}));
       const botMoved = retired(bot.modelSelection);
-      const keepsCloud = options.canWorkOnCloud && options.keepCloud(bot);
       let botAsk = false;
       if (botMoved) {
-        if (bot.computer === undefined && keepsCloud) patch.computer = "cloud";
         if (needsAsk(bot)) { Object.assign(patch, structuredClone(askNow)); botAsk = true; }
         patch.modelSelection = structuredClone(replacement);
       }
@@ -1950,15 +1939,6 @@ export class Store {
         patch.fallback = kept.length ? kept : undefined;
       }
       if (touches(bot.resumeCursors)) patch.resumeCursors = without(bot.resumeCursors);
-      const computer = patch.computer ?? bot.computer;
-      const cloudAfterMove = (pin: TaskRecord["surface"], pinSource: TaskRecord["surfaceSource"]): Pick<ComputerEngineMove, "cloud" | "noComputer"> => {
-        const place = pin ?? bot.computer;
-        const wasCloud = place === "cloud" || (place === undefined && options.keepCloud(bot));
-        if (!wasCloud || options.canWorkOnCloud) return { cloud: wasCloud, noComputer: false };
-        const personPin = pin !== undefined && pinSource !== "auto";
-        const still = personPin ? pin : bot.computer;
-        return { cloud: false, noComputer: still !== "cloud" ? "auto" : personPin ? "pin" : "works-on" };
-      };
       (bot.tasks ?? []).forEach((task, index) => {
         const taskPatch = tasks[index]!;
         // Read before anything changes: a thread that follows the bot's level has it here.
@@ -1970,22 +1950,14 @@ export class Store {
         }
         const moved = task.modelSelection ? retired(task.modelSelection) : botMoved;
         if (moved) {
-          if (!botMoved && computer === undefined && task.surface === undefined && keepsCloud) {
-            taskPatch.surface = "cloud";
-            taskPatch.surfaceSource = "auto";
-          }
-          if (!options.canWorkOnCloud && task.surface === "cloud" && task.surfaceSource === "auto") {
-            taskPatch.surface = undefined;
-            taskPatch.surfaceSource = undefined;
-          }
           const ask = needsAsk(before);
           if (ask) Object.assign(taskPatch, structuredClone(askNow));
           if (task.modelSelection) taskPatch.modelSelection = structuredClone(replacement);
           const scope = botMoved && task.threadId === bot.threadId ? "bot" : "conversation";
-          moves.push({ botId: bot.id, threadId: task.threadId, scope, ...cloudAfterMove(task.surface, task.surfaceSource),
+          moves.push({ botId: bot.id, threadId: task.threadId, scope,
             askNow: ask || (scope === "bot" && botAsk) });
         } else if (botMoved && task.threadId === bot.threadId) {
-          moves.push({ botId: bot.id, threadId: task.threadId, scope: "bot-only", ...cloudAfterMove(undefined, undefined), askNow: botAsk });
+          moves.push({ botId: bot.id, threadId: task.threadId, scope: "bot-only", askNow: botAsk });
         }
         if (touches(task.resumeCursors)) taskPatch.resumeCursors = without(task.resumeCursors);
         if (task.handedMessages && touches(task.handedMessages)) taskPatch.handedMessages = without(task.handedMessages);
@@ -2250,20 +2222,6 @@ export class Store {
     const task = this.taskByThread(botId, threadId);
     if (!url || !task || task.linkAuto === false || (task.link && !task.linkAuto) || task.link === url) return null;
     return this.patchTask(botId, threadId, { link: url, linkAuto: true });
-  }
-
-  clearAutoSurfacePins(botId: string, destination: Destination): number {
-    const bot = this.bot(botId);
-    const stale = bot?.tasks?.filter((task) => task.surface !== undefined && task.surfaceSource === "auto" && task.surface !== destination) ?? [];
-    if (!bot || !stale.length) return 0;
-    this.commitBotChange(bot, "the threads' destinations", () => {
-      for (const task of stale) {
-        task.surface = undefined;
-        task.surfaceSource = undefined;
-      }
-    });
-    this.emit({ type: "bot", botId });
-    return stale.length;
   }
 
   /** One write: never publish a new provider before its approval downgrade. */

@@ -9,7 +9,7 @@ import type { LocaleKey } from "@/locales";
 import { SECTION_PROVIDER, type KeyResult, type KeyVia } from "@/lib/analytics-allowlist";
 import { keyRemoved, keySaved, keySaveFailure, keyTestResult, savedKeyResult } from "@/lib/product-events";
 
-export type ConfigSection = "composio" | "box" | "opencodeGo" | "anthropic" | "openai" | "openrouter" | "openaiCompat" | "xai" | "mistral" | "cerebras" | "groq" | "meta";
+export type ConfigSection = "composio" | "opencodeGo" | "anthropic" | "openai" | "openrouter" | "openaiCompat" | "xai" | "mistral" | "cerebras" | "groq" | "meta";
 export type TestableProvider = "anthropic" | "openai" | "openrouter" | "openaiCompat" | "xai" | "mistral" | "cerebras" | "groq" | "meta";
 
 const SECTIONS: Record<
@@ -17,7 +17,6 @@ const SECTIONS: Record<
   {
     body: (value: string, firstKey: boolean) => unknown;
     flag: (config: ConfigStatus) => boolean;
-    included?: (config: ConfigStatus) => boolean;
     ownKey?: (config: ConfigStatus) => boolean;
   }
 > = {
@@ -25,11 +24,6 @@ const SECTIONS: Record<
     body: (v) => ({ composio: { apiKey: v } }),
     flag: (c) => c.composio.configured,
     ownKey: (c) => c.composio.mode === "self-hosted",
-  },
-  box: {
-    body: (v) => ({ box: { token: v } }),
-    flag: (c) => c.box.configured && c.box.included !== true,
-    included: (c) => c.box.included === true,
   },
   opencodeGo: { body: (v) => ({ opencodeGo: { apiKey: v } }), flag: (c) => c.opencodeGo?.configured ?? false },
   anthropic: {
@@ -47,9 +41,8 @@ const SECTIONS: Record<
 };
 
 // Provider keys have no desktop-shell slot yet; they go to the server's own 0600 config.
-const ELECTRON_CREDENTIAL: Partial<Record<ConfigSection, "composioApiKey" | "boxToken" | "opencodeGoApiKey">> = {
+const ELECTRON_CREDENTIAL: Partial<Record<ConfigSection, "composioApiKey" | "opencodeGoApiKey">> = {
   composio: "composioApiKey",
-  box: "boxToken",
   opencodeGo: "opencodeGoApiKey",
 };
 
@@ -74,15 +67,6 @@ const CREDENTIALS: Record<
     href: "https://dashboard.composio.dev",
     linkLabelKey: "keys.composio.link",
     optional: true,
-  },
-  box: {
-    labelKey: "keys.boat.label",
-    placeholderKey: "keys.boat.placeholder",
-    descriptionKey: "keys.boat.desc",
-    href: "https://docs.boat.dev/api-keys",
-    linkLabelKey: "keys.boat.link",
-    optional: true,
-    warningKey: "keys.boat.warning",
   },
   opencodeGo: {
     labelKey: "keys.opencode.label",
@@ -273,7 +257,6 @@ export function ApiKeyRow({
   const saveAfterPaste = useRef(false);
 
   const configured = state.config ? SECTIONS[section].flag(state.config) : false;
-  const included = state.config ? SECTIONS[section].included?.(state.config) === true : false;
   const ownKey = state.config ? (SECTIONS[section].ownKey ?? SECTIONS[section].flag)(state.config) : false;
   const clearing = !value.trim() && configured;
   const credential = credentialCopy(section);
@@ -349,7 +332,7 @@ export function ApiKeyRow({
   return (
     <div data-api-key-row={section}>
       <div className="mb-1.5 flex items-center gap-2 text-[13px] text-ink-secondary">
-        <span className={cn("size-1.5 rounded-full", configured || included ? "bg-success" : "bg-raised-hover")} />
+        <span className={cn("size-1.5 rounded-full", configured ? "bg-success" : "bg-raised-hover")} />
         <span>{credential.label}</span>
         {credential.optional && (
           <span className="rounded bg-control px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-secondary">
@@ -357,7 +340,6 @@ export function ApiKeyRow({
           </span>
         )}
         {configured && <span className="text-[11px] text-ink-secondary">{t("keys.configured")}</span>}
-        {included && <span className="text-[11px] text-ink-secondary">{t("keys.includedWithCloudPro")}</span>}
         <CredentialHelp section={section} />
       </div>
       <div className="flex gap-2">
@@ -546,85 +528,6 @@ export function AnthropicEveryClaudeBot() {
           <span>{t("keys.anthropic.warning")}</span>
         </div>
       )}
-      {error && <div className="mt-1 text-[12px] text-danger">{error}</div>}
-    </div>
-  );
-}
-
-/** Non-secret Docker-over-SSH target. Keys and passwords stay with SSH. */
-export function VpsConnection() {
-  const { state, dispatch } = useStore();
-  const [alias, setAlias] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const configured = Boolean(state.config?.vps?.configured);
-
-  useEffect(() => {
-    setAlias(state.config?.vps?.sshAlias ?? "");
-  }, [state.config?.vps?.sshAlias]);
-
-  const save = () => {
-    if (saving || (!alias.trim() && !configured)) return;
-    setSaving(true);
-    setError(null);
-    api("/api/config", {
-      method: "PUT",
-      body: JSON.stringify({ vps: { sshAlias: alias.trim() } }),
-    })
-      .then((status: ConfigStatus) => {
-        dispatch({ type: "configStatus", config: status });
-        setAlias(status.vps?.sshAlias ?? "");
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setSaving(false));
-  };
-
-  return (
-    <div>
-      <div className="mb-1.5 flex items-center gap-2 text-[13px] text-ink-secondary">
-        <span className={cn("size-1.5 rounded-full", configured ? "bg-success" : "bg-raised-hover")} />
-        <span>{t("keys.vps.label")}</span>
-        <span className="rounded bg-control px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-secondary">
-          {t("keys.optional")}
-        </span>
-        {configured && <span className="text-[11px] text-success">{t("keys.connected")}</span>}
-      </div>
-      <div className="mb-1.5 text-[12px] leading-relaxed text-ink-secondary">
-        {t("keys.vps.descBefore")}
-        <a
-          href="https://github.com/milind-soni/OpenMausBot/blob/main/docs/byo-vps.md"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-accent hover:underline"
-        >
-          {t("keys.vps.descLink")}
-        </a>
-        {t("keys.vps.descAfter")}
-      </div>
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={alias}
-          onChange={(e) => setAlias(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && save()}
-          placeholder="my-vps"
-          aria-label={t("keys.vps.aria")}
-          autoComplete="off"
-          className="w-full rounded-lg border border-hairline/40 bg-inset px-3 py-2 text-[13px] text-ink placeholder:text-ink-secondary focus:outline-none"
-        />
-        <button
-          onClick={save}
-          disabled={saving || (!alias.trim() && !configured)}
-          className={cn(
-            "cursor-pointer flex w-[72px] shrink-0 items-center justify-center gap-1.5 rounded-lg py-2 text-[13px]",
-            !alias.trim() && configured ? "bg-control text-danger hover:bg-raised-hover" : "bg-control text-ink hover:bg-raised-hover",
-            "disabled:cursor-not-allowed disabled:opacity-50",
-          )}
-          title={!alias.trim() && configured ? t("keys.vps.removeAlias") : t("common.save")}
-        >
-          {saving ? <Loader2 size={13} className="animate-spin" /> : !alias.trim() && configured ? t("keys.clear") : <><Check size={13} />{t("common.save")}</>}
-        </button>
-      </div>
       {error && <div className="mt-1 text-[12px] text-danger">{error}</div>}
     </div>
   );

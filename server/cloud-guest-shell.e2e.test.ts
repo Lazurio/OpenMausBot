@@ -20,7 +20,7 @@ import { freePortBlock } from "./testing/ports.ts";
 const SERVER_DIR = dirname(fileURLToPath(import.meta.url));
 const HOST = "omb-t-0123456789ab.fly.dev";
 const secret = randomBytes(32).toString("base64url");
-const relayToken = `box_omb_${randomBytes(32).toString("base64url")}`;
+const relayToken = `omb_voice_${randomBytes(32).toString("base64url")}`;
 let home = "";
 let base = "";
 let child: ChildProcess;
@@ -120,9 +120,9 @@ syncBuiltinESMExports();
       PATH: process.env.PATH, ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
       HOME: home, USERPROFILE: home, OMB_DATA_DIR: dataDir, OMB_PORT: String(port), OMB_WEBHOOK_PORT: String(port + 1),
       OMB_CLOUD_ROLE: "home", OMB_CLOUD_MACHINE_ID: "3f9c2a4e-8b1d-4c6e-9a7f-2d5e8c1b0a93", OMB_CLOUD_ADMIN_URL: "https://cloud.example.test",
-      OMB_PUBLIC_URL: `https://${HOST}`, OMB_CLOUD_BOAT_URL: "https://cloud.example.test/api/cloud/services/boat/api/box/v1",
+      OMB_PUBLIC_URL: `https://${HOST}`, OMB_CLOUD_VOICE_URL: "https://cloud.example.test/api/cloud/services/voice/v1",
       OMB_CLOUD_SECRETS_FD: "3",
-    }, { OMB_CLOUD_BOOTSTRAP_SECRET: secret, OMB_CLOUD_BOAT_TOKEN: relayToken }, undefined, true);
+    }, { OMB_CLOUD_BOOTSTRAP_SECRET: secret, OMB_CLOUD_VOICE_TOKEN: relayToken }, undefined, true);
     for (const stream of [child.stdout, child.stderr]) stream?.on("data", (chunk) => { log += chunk; });
     const deadline = Date.now() + 20_000;
     for (;;) {

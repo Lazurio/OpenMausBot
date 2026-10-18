@@ -55,7 +55,7 @@ beforeAll(async () => {
     expect(created.status, JSON.stringify(created.body)).toBe(201);
   }
   for (const name of ["Full Chief", "Auto Chief"]) expect((await api("PATCH", `/api/bots/${(await bot(name)).id}`, { chiefOfStaff: true })).status).toBe(200);
-  for (const name of ["Auto Chief", "Auto Mate"]) expect((await api("PATCH", `/api/bots/${(await bot(name)).id}`, { approvalMode: "auto" })).status).toBe(200);
+  for (const name of ["Auto Chief", "Auto Mate"]) expect((await api("PATCH", `/api/bots/${(await bot(name)).id}`, { approvalMode: "auto", acknowledgeLocalAuto: true })).status).toBe(200);
   await waitForExit(fixture.child, { signal: "SIGTERM" });
   const log = openSync(fixture.info.logPath, "a", 0o600);
   child = spawn(process.execPath, ["--experimental-strip-types", fileURLToPath(new URL("./index.ts", import.meta.url))], {

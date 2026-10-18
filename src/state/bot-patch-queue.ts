@@ -8,8 +8,6 @@ export type BotUpdatePatch = Partial<
     | "description"
     | "soul"
     | "notifications"
-    | "cloudBackend"
-    | "autoStartVps"
     | "color"
     | "mascotExpression"
     | "avatarUrl"
@@ -40,7 +38,6 @@ export type BotUpdatePatch = Partial<
     | "modelSelection"
   >
 > & {
-  computer?: Bot["computer"] | null;
   connectorTools?: Bot["connectorTools"] | null;
   connectorScopes?: Bot["connectorScopes"] | null;
   /** The server's proof the local-auto warning was shown: wire-only, never folded into bot state. */
@@ -53,9 +50,8 @@ export type BotUpdatePatch = Partial<
 
 export type BotStatePatch = Omit<
   BotUpdatePatch,
-  "computer" | "connectorTools" | "connectorScopes" | "acknowledgeLocalAuto" | "applyToAllThreads" | "keepThreadModels" | "threadId"
+  "connectorTools" | "connectorScopes" | "acknowledgeLocalAuto" | "applyToAllThreads" | "keepThreadModels" | "threadId"
 > & {
-  computer?: Bot["computer"];
   connectorTools?: Bot["connectorTools"];
   connectorScopes?: Bot["connectorScopes"];
 };
@@ -108,14 +104,11 @@ const stateOverlay = (patch: BotUpdatePatch): BotStatePatch => {
     applyToAllThreads: _allThreads,
     keepThreadModels: _keepThreadModels,
     threadId: _threadId,
-    computer,
     connectorTools,
     connectorScopes,
     ...fields
   } = patch;
   const normalized: BotStatePatch = { ...fields };
-  if (computer === null) normalized.computer = undefined;
-  else if (computer !== undefined) normalized.computer = computer;
   if (connectorTools === null) normalized.connectorTools = undefined;
   else if (connectorTools !== undefined) normalized.connectorTools = connectorTools;
   if (connectorScopes === null) normalized.connectorScopes = undefined;

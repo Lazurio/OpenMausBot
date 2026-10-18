@@ -272,6 +272,6 @@ describe("the click main brought This computer's page", () => {
     const take = effect.indexOf("const handoff = takeCloudProHandoff(url);"), strip = effect.indexOf("window.history.replaceState(");
     expect(take).toBeGreaterThan(-1); expect(take, "its marks leave the address with the request").toBeLessThan(strip);
     expect(effect).toMatch(/\n {6}if \(handoff && window\.ogb\.cloudAccount\) \{ setHandedOver\(true\); finishCloudProHandoff\(handoff, window\.ogb\.cloudAccount, dispatch\); \}\n {6}else if \(requestedSettings === "organization"\)/);
-    expect(app).toContain("<AppNotices quiet={paletteOpen || drawerOpen || Boolean(localVmWorkspaceBotId) || handedOver} viewer={viewer} />");
+    expect(app).toContain("<AppNotices quiet={paletteOpen || drawerOpen || handedOver} viewer={viewer} />");
   });
 });

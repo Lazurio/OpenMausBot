@@ -29,7 +29,6 @@ const fullTask: TaskRecord = {
   pinnedMessageId: "msg-1",
   activity: "working",
   busy: true,
-  surface: "cloud",
   usage: { input: 1, output: 2, cachedInput: 1, costUsd: null, turns: 1, lastTurn: { input: 1, output: 2, costUsd: null }, context: { tokens: 10, window: 100 } },
   cwd: "/tmp",
   resumeCursors: { claude: "cursor" },
@@ -43,7 +42,7 @@ describe("shared wire model", () => {
     expect(Object.keys(wire).sort()).toEqual([
       "activity", "alwaysAllow", "approvalMode", "archivedAt", "autoApprove",
       "busy", "closedBy", "createdAt", "cwd", "followsBotModel", "modelSelection", "openedBy",
-      "pinnedMessageId", "projectId", "rewound", "routineRunId", "surface",
+      "pinnedMessageId", "projectId", "rewound", "routineRunId",
       "threadId", "title", "unread", "usage",
     ]);
     expect(wire).not.toHaveProperty("resumeCursors");
@@ -51,16 +50,6 @@ describe("shared wire model", () => {
     expect(wire).toEqual({ ...fullTask, followsBotModel: false, resumeCursors: undefined, lastInstanceId: undefined });
     expect(fullTask.resumeCursors).toEqual({ claude: "cursor" });
     expect(fullTask.lastInstanceId).toBe("claude");
-  });
-
-  it("tells a client only whether a surface pin is the machine's own record", () => {
-    expect(toWireTask({ ...fullTask, surfaceSource: "auto" }, botModel)).toEqual({ ...toWireTask(fullTask, botModel), surfaceAuto: true });
-    expect(toWireTask({ ...fullTask, surfaceSource: "user" }, botModel)).not.toHaveProperty("surfaceAuto");
-    expect(toWireTask(fullTask, botModel)).not.toHaveProperty("surfaceAuto");
-    expect(toWireTask({ ...fullTask, surface: undefined, surfaceSource: "auto" }, botModel)).not.toHaveProperty("surfaceAuto");
-    for (const surfaceSource of ["auto", "user"] as const) {
-      expect(toWireTask({ ...fullTask, surfaceSource }, botModel)).not.toHaveProperty("surfaceSource");
-    }
   });
 
   it("sends the model a thread runs on, and whether it follows its bot's", () => {

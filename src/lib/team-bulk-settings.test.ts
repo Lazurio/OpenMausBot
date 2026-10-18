@@ -98,10 +98,9 @@ describe("team-wide settings", () => {
     expect(plan[2]).toMatchObject({ reason: expect.stringMatching(/busy/) });
   });
 
-  it("asks for the local-computer consent only when Auto reaches a bot on this computer", () => {
-    expect(planNeedsLocalAutoConsent(planTeamChange([bot("a", { computer: "local" })], instances, { kind: "approval", mode: "auto" }))).toBe(true);
-    expect(planNeedsLocalAutoConsent(planTeamChange([bot("a", { computer: "cloud" })], instances, { kind: "approval", mode: "auto" }))).toBe(false);
-    expect(planNeedsLocalAutoConsent(planTeamChange([bot("a", { computer: "local" })], instances, { kind: "approval", mode: "ask" }))).toBe(false);
+  it("asks for the this-computer consent whenever Auto reaches a bot, since every bot works on this computer", () => {
+    expect(planNeedsLocalAutoConsent(planTeamChange([bot("a")], instances, { kind: "approval", mode: "auto" }))).toBe(true);
+    expect(planNeedsLocalAutoConsent(planTeamChange([bot("a")], instances, { kind: "approval", mode: "ask" }))).toBe(false);
   });
 
   it("keeps each bot on its own engine and skips models and efforts that engine does not offer", () => {
@@ -137,7 +136,7 @@ describe("team-wide settings", () => {
   });
 
   it("applies one bot at a time and reports the server's refusal as the skip reason", async () => {
-    const bots = [bot("a"), bot("b"), bot("c", { busy: true }), bot("d", { approvalMode: "auto", computer: "local" }), bot("e", { computer: "local" })];
+    const bots = [bot("a"), bot("b"), bot("c", { busy: true }), bot("d", { approvalMode: "auto" }), bot("e")];
     const plan = planTeamChange(bots, instances, { kind: "approval", mode: "auto" });
     const order: string[] = [];
     let inFlight = 0;
@@ -150,8 +149,8 @@ describe("team-wide settings", () => {
       if (target.id === "b") throw new Error("Stop this bot's turn before changing its approval level");
     }, { acknowledgeLocalAuto: true });
     expect(order).toEqual([
-      'a:{"approvalMode":"auto","applyToAllThreads":true}',
-      'b:{"approvalMode":"auto","applyToAllThreads":true}',
+      'a:{"approvalMode":"auto","applyToAllThreads":true,"acknowledgeLocalAuto":true}',
+      'b:{"approvalMode":"auto","applyToAllThreads":true,"acknowledgeLocalAuto":true}',
       'e:{"approvalMode":"auto","applyToAllThreads":true,"acknowledgeLocalAuto":true}',
     ]);
     expect(results.map((row) => row.status)).toEqual(["applied", "skipped", "skipped", "unchanged", "applied"]);

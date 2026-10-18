@@ -7,7 +7,7 @@
  * computer is illustrated only after one of these; the built-in browser's
  * read-only calls (snapshot, read, get_text, waits) stay out by the same rule. */
 export const SCREEN_TOUCHING_TOOLS: ReadonlySet<string> = new Set([
-  // cloud boat / remote computer
+  // a computer
   "screenshot", "click", "type_text", "press_key", "key_press", "scroll", "computer_batch", "open_url", "browser_click", "browser_fill",
   // built-in browser: the Electron surface's names, from older remote harnesses
   "browser_navigate", "browser_type", "browser_press", "browser_scroll", "browser_hover", "browser_drag",
@@ -16,7 +16,7 @@ export const SCREEN_TOUCHING_TOOLS: ReadonlySet<string> = new Set([
   "agent_browser_open", "agent_browser_click", "agent_browser_fill", "agent_browser_type", "agent_browser_press",
   "agent_browser_select", "agent_browser_check", "agent_browser_screenshot", "agent_browser_hover", "agent_browser_upload",
   "agent_browser_navigate", "agent_browser_drag", "agent_browser_scroll", "agent_browser_tabs", "agent_browser_dialog", "agent_browser_eval",
-  // Cua Driver (local Mac, Local VM, VPS)
+  // Cua Driver (this computer)
   "double_click", "right_click", "drag", "hotkey", "move_cursor", "launch_app", "bring_to_front", "zoom",
 ]);
 

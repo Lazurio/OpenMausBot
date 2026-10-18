@@ -18,7 +18,7 @@ it("applies independent creation templates through the real isolated HTTP routes
       warnings: [], text: "---\nname: fixture-skill\ndescription: Synthetic\n---\nFixture instructions." };
     const defaults = {
       profile: { name: "", title: "Template", description: "Description", soul: "Standing instructions",
-        notifications: false, computer: "off", approvalMode: "ask", mascotExpression: null },
+        notifications: false, approvalMode: "ask", mascotExpression: null },
       memory: { "MEMORY.md": "Synthetic default memory" }, skills: [skill],
       routines: [{ name: "Review", prompt: "Review status", enabled: false,
         schedule: { type: "daily", time: "09:00", weekdays: [1] } }],
@@ -30,7 +30,8 @@ it("applies independent creation templates through the real isolated HTTP routes
     const second = (await api("POST", "/api/bots", { name: "Second" }, 201)).bot;
     expect(first.name.length).toBeGreaterThan(0);
     for (const bot of [first, second]) {
-      expect(bot).toMatchObject({ title: "Template", soul: "Standing instructions", notifications: false, computer: "off" });
+      expect(bot).toMatchObject({ title: "Template", soul: "Standing instructions", notifications: false });
+      expect(bot).not.toHaveProperty("computer");
       const memory = await api("GET", `/api/bots/${bot.id}/memory/file?path=MEMORY.md`);
       expect(JSON.stringify(memory)).toContain("Synthetic default memory");
       expect((await api("GET", `/api/bots/${bot.id}/skills`)).skills).toHaveLength(1);

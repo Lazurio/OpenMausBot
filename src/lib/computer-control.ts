@@ -8,7 +8,7 @@ export interface ComputerControlSnapshot {
   help?: ComputerHelpRef | null;
 }
 
-const HELP_PLACES = new Set(["browser", "local", "vm", "cloud"]);
+const HELP_PLACES = new Set(["browser", "local"]);
 
 export function parseComputerHelp(value: unknown): ComputerHelpRef | null {
   const ref = value as Partial<Record<keyof ComputerHelpRef, unknown>> | null;

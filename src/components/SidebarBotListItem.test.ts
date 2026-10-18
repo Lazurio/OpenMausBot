@@ -368,14 +368,13 @@ describe("archive / delete confirmation", () => {
     expect(copy.tone).toBe("neutral");
   });
 
-  it("delete copy names the bot and warns about its owned computer", () => {
+  it("delete copy names the bot and says what goes with it", () => {
     const copy = botConfirmCopy("delete", "Willow");
 
     expect(copy.title).toContain("Willow");
     expect(copy.body).toMatch(/permanently/i);
-    expect(copy.body).toMatch(/any computer it owns/i);
-    expect(copy.body).toMatch(/files and browser sign-ins/i);
-    expect(copy.body).toMatch(/shared team computers remain/i);
+    expect(copy.body).toMatch(/files, memory, and browser sign-ins/i);
+    expect(copy.body).not.toMatch(/computer/i);
     expect(copy.tone).toBe("danger");
   });
 
@@ -403,7 +402,7 @@ describe("bot deletion feedback", () => {
     }));
 
     expect(markup).toContain("Deleting bot and owned computer…");
-    expect(markup).toContain('title="Deleting this bot and any computer it owns"');
+    expect(markup).toContain('title="Deleting this bot"');
     expect(markup).toContain('disabled=""');
     expect(markup).toContain('aria-busy="true"');
   });

@@ -17,7 +17,6 @@ export const CREDENTIAL_ENV_NAMES = [
   "OPENAI_COMPAT_URL",
   "OMB_OPENAI_API_KEY",
   "OMB_OPENROUTER_API_KEY",
-  "BOX_TOKEN",
   "OPENCODE_API_KEY",
   "OMB_TTS_KEY",
   "OMB_FISH_AUDIO_API_KEY",
@@ -36,7 +35,6 @@ export const CREDENTIAL_ENV_NAMES = [
   // Private even though they are not traditional API credentials.
   "OMB_BROWSER_CONNECTION",
   "OMB_USER_DATA",
-  "OMB_BOAT_API",
 ];
 
 // Kept in parity with server/redact.ts: unmistakable token formats are masked wherever they appear, keyed or not.

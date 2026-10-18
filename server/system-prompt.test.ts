@@ -10,7 +10,6 @@ import {
   cloudHomePrompt,
   userProfileSystemPrompt,
   computerPrompt,
-  resolveComputerPromptKind,
   mentionPrompt,
   COMPOSIO_PROMPT,
   composioSystemPrompt,
@@ -22,40 +21,15 @@ import {
   ROUTINE_EXECUTION_PROMPT,
   WEBHOOK_PROMPT,
   SIGN_IN_PROMPT,
-  type ComputerPromptKind,
 } from "./system-prompt.ts";
 
-describe("resolveComputerPromptKind", () => {
-  // Rows the mounts already refuse are pinned here because no dispatchable engine in the test fleet lacks the capability.
-  it.each([
-    [{ kind: "vm", vmPrivate: false }, "vm-shared"],
-    [{ kind: "vm", vmPrivate: true }, "vm-private"],
-    [{ kind: "box", vmPrivate: false }, "box"],
-    [{ kind: "vps", vmPrivate: false }, "vps"],
-    [{ kind: "local", vmPrivate: false }, "local"],
-    [{ kind: null, vmPrivate: true }, null],
-  ] as const)("resolves %j to %s", (input, expected) => {
-    expect(resolveComputerPromptKind(input)).toBe(expected);
-  });
-});
-
 describe("computerPrompt", () => {
-  it("gives every kind its own paragraph plus the sign-in policy, and silence to none", () => {
+  it("gives this computer its own paragraph plus the sign-in policy, and silence to none", () => {
     expect(computerPrompt(null)).toBe("");
-    const paragraphs: Record<string, string> = {
-      "vm-private": "your own isolated Cua sandbox",
-      "vm-shared": "shared, isolated Cua sandbox",
-      box: "You control the assigned cloud computer",
-      vps: "This is the user's own VPS",
-      local: "act on the user's computer",
-    };
-    for (const [kind, distinct] of Object.entries(paragraphs)) {
-      const prompt = computerPrompt(kind as ComputerPromptKind);
-      expect(prompt.endsWith(SIGN_IN_PROMPT)).toBe(true);
-      expect(prompt).toContain(distinct);
-    }
-    expect(new Set(Object.keys(paragraphs).map((kind) => computerPrompt(kind as ComputerPromptKind))).size)
-      .toBe(Object.keys(paragraphs).length);
+    const prompt = computerPrompt("local");
+    expect(prompt.endsWith(SIGN_IN_PROMPT)).toBe(true);
+    expect(prompt).toContain("act on the user's computer");
+    expect(prompt).not.toMatch(/Cua sandbox|cloud computer|VPS|Local VM/);
   });
 });
 
@@ -143,22 +117,15 @@ describe("computerPrompt", () => {
     expect(prompt).toContain("Do not silently retry a background refusal");
     expect(prompt).toContain("including through shell scripts, AppleScript/System Events");
     expect(prompt).toContain("If a background action unexpectedly changes focus");
-    expect(computerPrompt("vm-private")).not.toContain("user asked for foreground control");
   });
   it("is empty with no computer", () => {
     expect(computerPrompt(null)).toBe("");
   });
 
   it("shares the authorized sign-in policy across every computer and browser surface", () => {
-    expect(computerPrompt("vm-private")).toContain("your own isolated Cua sandbox");
-    expect(computerPrompt("vm-shared")).toContain("a shared, isolated Cua sandbox");
-    expect(computerPrompt("box")).toContain("You control the assigned cloud computer");
-    expect(computerPrompt("vps")).toContain("self-hosted remote Linux computer");
     expect(computerPrompt("local")).toContain("act on the user's computer");
-    for (const kind of ["vm-private", "vm-shared", "box", "vps", "local"] as const) {
-      expect(computerPrompt(kind).endsWith(SIGN_IN_PROMPT)).toBe(true);
-      expect(computerPrompt(kind).startsWith(" ")).toBe(true);
-    }
+    expect(computerPrompt("local").endsWith(SIGN_IN_PROMPT)).toBe(true);
+    expect(computerPrompt("local").startsWith(" ")).toBe(true);
     expect(BUILT_IN_BROWSER_SYSTEM_PROMPT.endsWith(SIGN_IN_PROMPT)).toBe(true);
   });
 
@@ -230,6 +197,7 @@ describe("shared sentences", () => {
     expect(TRIGGER_PROMPT).not.toMatch(/pending|explicitly asks/);
     expect(CREDENTIAL_PROMPT).toContain("secure credential request");
     expect(CREDENTIAL_PROMPT).not.toContain("applied immediately");
+    expect(CREDENTIAL_PROMPT).not.toMatch(/select_computer|VPS|Boat/);
   });
 });
 
@@ -272,9 +240,9 @@ describe("cloudHomePrompt", () => {
       const text = cloudHomePrompt();
       expect(text).toMatch(/^ You run on the user's My Cloud, their always-on OpenMausBot in the cloud, not on their own computer\./);
       expect(text.startsWith(` You run on ${CLOUD_HOME_PLACE}.`)).toBe(true);
-      expect(text).toContain("Offer what works here: the built-in browser and their cloud computer, a desktop in the cloud. Call it their cloud computer, as the app does.");
-      expect(text).not.toMatch(/\bOMB\b|\bBoat\b|\bbox\b/);
-      expect(text).toContain("Never ask them to set up this computer or a Local VM; neither exists here.");
+      expect(text).toContain("Offer what works here: the built-in browser.");
+      expect(text).not.toMatch(/\bOMB\b|\bBoat\b|\bbox\b|cloud computer|Local VM/);
+      expect(text).toContain("Never ask them to set up this computer; it does not exist here.");
       expect(text).not.toMatch(/Computer panel|container runtime|configure/i);
     }
   });
@@ -285,15 +253,10 @@ describe("cloudHomePrompt", () => {
 });
 
 describe("longCommandsPrompt", () => {
-  it("names Bash's limit everywhere and vm_exec's own limit only with a Local VM", () => {
-    for (const kind of [null, "local", "vps", "box"] as const) {
-      const text = longCommandsPrompt(kind);
-      expect(text).toContain("`timeout` in milliseconds, up to 600000");
-      expect(text).not.toContain("vm_exec");
-    }
-    for (const kind of ["vm-private", "vm-shared"] as const) {
-      expect(longCommandsPrompt(kind)).toContain("vm_exec takes `timeout_seconds` instead (default 60, at most 300)");
-    }
+  it("names Bash's limit and nothing about a removed Local VM", () => {
+    const text = longCommandsPrompt();
+    expect(text).toContain("`timeout` in milliseconds, up to 600000");
+    expect(text).not.toContain("vm_exec");
   });
 });
 

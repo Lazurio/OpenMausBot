@@ -9,13 +9,13 @@ const policySchema = z.object({
   companyModelsOnly: z.boolean(),
   allowedEngines: z.union([z.literal("all"), z.array(z.string().regex(/^[A-Za-z][A-Za-z0-9-]{0,63}$/)).max(64)]),
   mcp: z.object({ allowCustom: z.boolean(), allowlist: z.array(z.string().trim().min(1).max(200)).max(100) }).strict(),
-  // "box" is Boat's historical key in the org-policy schema shared with the desktop parent.
-  computers: z.object({ thisComputer: z.boolean(), localVm: z.boolean(), box: z.boolean(), vps: z.boolean() }).strict(),
+  // Lazurio overlay (DEV-6673 M3): the desktop parent may still send localVm, box and vps; bots work on this host only, so they are dropped.
+  computers: z.object({ thisComputer: z.boolean() }),
   remoteAccess: z.boolean(),
 }).strict();
 export type ManagedPolicy = z.infer<typeof policySchema>;
 export type ComputerKind = keyof ManagedPolicy["computers"];
-const computerLabels: Record<ComputerKind, string> = { thisComputer: "this computer", localVm: "local virtual machines", box: "cloud computers", vps: "VPS computers" };
+const computerLabels: Record<ComputerKind, string> = { thisComputer: "this computer" };
 
 export function parseManagedPolicy(raw: unknown, now = Date.now()): ManagedPolicy | null {
   if (raw === null) return null;
@@ -51,10 +51,6 @@ export function mcpEntryMatches(entry: string, name: string, url?: string): bool
 
 export function computerKindForResource(resource: string): ComputerKind | undefined {
   if (resource === "computer:host") return "thisComputer";
-  if (resource.startsWith("computer:vm:")) return "localVm";
-  // computer:box: and computer:box-bot: are Boat's historical resource prefixes.
-  if (resource.startsWith("computer:box:") || resource.startsWith("computer:box-bot:")) return "box";
-  if (resource.startsWith("computer:vps:")) return "vps";
 }
 
 export class ManagedDesktopPolicy {

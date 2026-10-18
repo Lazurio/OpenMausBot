@@ -259,7 +259,7 @@ export class TeamSetupRequestService {
     const chief = this.chief(request.botId);
     const lines = [`Why: ${request.reason}`];
     if (request.suggestion) lines.push(`@${chief.name} is suggesting this. You did not ask for it.`);
-    if (request.deletion) lines.push(`Delete @${request.deletion.name} (${request.deletion.botId}).`, "Permanently removes this bot, all its conversations, memory, instructions, skills, and any computer owned only by it. Generated project files and shared team computers remain. Active work or an unavailable provider can block deletion safely.");
+    if (request.deletion) lines.push(`Delete @${request.deletion.name} (${request.deletion.botId}).`, "Permanently removes this bot, all its conversations, memory, instructions and skills. Generated project files remain. Active work can block deletion safely.");
     if (request.newTeams.length) {
       lines.push(`Create teams: ${request.newTeams.map((name) => JSON.stringify(name)).join(", ")}.`);
       if (!request.operations.some(op => op.botId === chief.id && op.fields.chiefOfStaff === false)) {

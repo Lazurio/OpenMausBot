@@ -211,7 +211,7 @@ machine). Changing keys needs a session with full access.
 ## The team file
 
 A team file says what the workspace should have: teams and their briefs, bots
-with their standing instructions, models, approval levels and computers,
+with their standing instructions, models, approval levels,
 skills, rooms, and the engines they run on. Write it in YAML or JSON.
 
 ```sh
@@ -225,7 +225,7 @@ Apply prints its plan, then makes the changes:
 
 ```text
 team "Launch Room": create · brief set (5 lines)
-bot "Room Lead": create (Chief of Launch Room · claude/claude-sonnet-5-5 · Full access · computer local)
+bot "Room Lead": create (Chief of Launch Room · claude/claude-sonnet-5-5 · Full access)
 bot "Priya": update title "Buyer" → "Skeptical procurement manager"; soul 3 lines changed
 bot "Old visitor": not in file (kept; --prune deletes it)
 Plan: 6 to create, 1 to change, 0 unchanged, 0 to delete.
@@ -246,7 +246,7 @@ waiting up to `--wait-idle` (2 minutes) and then reporting it.
 
 Every change goes through the same requests the app makes, with the same
 checks. Apply adds no confirmations of its own: where the server needs one
-(Auto on this computer, a Chief's access to other teams), the file saying so
+(a Chief's access to other teams), the file saying so
 is the confirmation.
 
 ### Fields
@@ -275,7 +275,6 @@ bots:                                       # at least one
     model: claude/claude-sonnet-5-5         # INSTANCE/MODEL; openmausbot models lists them
     effort: none | low | medium | high | xhigh | max
     approval: ask | edits | auto | full     # a new bot starts at full; Custom is set in the desktop app
-    computer: auto | off | browser | local | vm | cloud
     cwd: /work/room                         # a full path that exists on the server
     browser: true | false | { enabled: true, profile: guest }
     tools: { allow: [SELECTOR], deny: [SELECTOR] }   # docs/tool-selection.md; {} means every tool
@@ -297,9 +296,8 @@ is refused too: it would not mean the same there), a missing file or
 environment variable, a key written into the file, and anything longer than
 the app takes (a name or title on more than one line or over 100 or 200
 characters, a soul or team brief over 24,000 bytes, a room brief over 12,000
-characters, a skill over 256 KiB). It warns about a bot with no `computer`: on
-`auto` it may ask which computer to use, and nobody is there to answer a
-headless run. An engine's key, and a base URL kept as a secret, are read only
+characters, a skill over 256 KiB). It warns about a bot that still sets `computer`:
+bots work on this computer, so the field is ignored. An engine's key, and a base URL kept as a secret, are read only
 when they have to be written: when the engine has no key yet, or with
 `--rotate-secrets` (on an engine that has a key, the plan says its base URL
 could not be compared). Souls, briefs and skills are read with LF line ends,
@@ -342,7 +340,6 @@ defaults:
   team: Launch Room
   model: claude/claude-haiku-5-5
   approval: full                             # nobody is there to answer a permission card
-  computer: browser                          # works only in its own built-in browser
   browser: { enabled: true, profile: guest } # a fresh temporary profile per bot
   cwd: /work/visitors                        # where screenshots go (create it first)
 
@@ -363,7 +360,6 @@ bots:
     description: Hands the site to every visitor, then writes the launch report.
     model: claude/claude-sonnet-5-5
     effort: medium
-    computer: local
     cwd: /work/room
     browser: false
     soul: { file: souls/room-lead.md }

@@ -8,10 +8,8 @@ import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import type { LocaleKey } from "@/locales";
 import { mcpServersForBot, useMcpServers } from "@/lib/mcp-servers";
-import { placeFacts, placeViewFor, usePlaceSeat } from "@/lib/place-view";
 import { shortPath } from "@/lib/short-path";
 import { useDesktopCapabilities } from "../DesktopCapabilities";
-import { CloudBackendPicker } from "../CloudBackendPicker";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { Switch } from "../SettingsPrimitives";
 import { ProposalStatus } from "./ProposalStatus";
@@ -514,45 +512,7 @@ function RecordStepsRow({ on, browserOn, myChrome, onChange }: { on: boolean; br
   );
 }
 
-export function cloudPreferenceShown(bot: Pick<Bot, "computer">, config: { cloudHome?: boolean } | null | undefined): boolean {
-  return (!bot.computer || bot.computer === "cloud") && !config?.cloudHome;
-}
-
-export function CloudPreference({ bot, patch }: { bot: Bot; patch: ReturnType<typeof useBotSettingsDerived>["patch"] }) {
-  const { state } = useStore();
-  if (!cloudPreferenceShown(bot, state.config)) return null;
-  return (
-    <>
-      {!bot.computer && (
-        <div className="mt-3 rounded-lg bg-inset px-3 py-2.5 text-[11.5px] leading-relaxed text-ink-secondary">
-          <span className="font-medium text-ink">Auto cloud preference.</span>{" "}
-          This chooses what Auto may reuse during a task; viewing settings does not create or wake a computer.
-        </div>
-      )}
-      <CloudBackendPicker
-        value={bot.cloudBackend ?? "box"}
-        onChange={(backend) => patch({ cloudBackend: backend })}
-      />
-      {!bot.computer && bot.cloudBackend === "vps" && (
-        <div className="mt-3 flex items-center justify-between gap-4 rounded-lg bg-inset px-3 py-2.5">
-          <div className="min-w-0">
-            <div className="text-[13px] text-ink">Start VPS automatically</div>
-            <div className="mt-0.5 text-[11.5px] text-ink-secondary">
-              Allow Auto to create or wake this bot's managed container when needed.
-            </div>
-          </div>
-          <Switch
-            checked={Boolean(bot.autoStartVps)}
-            aria-label="Start VPS automatically"
-            onClick={() => patch({ autoStartVps: !bot.autoStartVps })}
-          />
-        </div>
-      )}
-    </>
-  );
-}
-
-export type AccessPart = "worksOn" | "folder" | "apps" | "mcp" | "tools" | "browser" | "webhooks" | "always";
+export type AccessPart = "folder" | "apps" | "mcp" | "tools" | "browser" | "webhooks" | "always";
 
 export function AccessSection({
   bot,
@@ -579,11 +539,6 @@ export function AccessSection({
     browserEnabled,
   } = derived;
   const browserInstallable = state.config?.browserEngine?.installable === true;
-  const { capabilities } = useDesktopCapabilities();
-  const placeSeat = usePlaceSeat(state.config, capabilities.host?.platform ?? "other");
-  const worksOn = placeViewFor(placeFacts({
-    bot, place: bot.computer ?? "auto", seat: placeSeat, config: state.config, instances: state.instances,
-  }));
   // The same list the Vault tab shows: Composio's connected accounts plus the native HighLevel connection.
   const apps = useBotApps(bot);
   const inventoryReady = apps.phase === "ready";
@@ -596,22 +551,6 @@ export function AccessSection({
 
   return (
     <div className="flex flex-col gap-4">
-      {shows("worksOn") && <div className="rounded-xl bg-card p-4" data-testid="access-works-on">
-        <div className="text-[15px] font-medium text-ink">{t("access.worksOn", { name: bot.name, short: worksOn.short })}</div>
-        <ProposalStatus bot={bot} kind="owner" />
-        <button
-          type="button"
-          onClick={() => {
-            dispatch({ type: "toggleSettings", open: false });
-            dispatch({ type: "toggleComputer", open: true });
-          }}
-          className="mt-3 rounded-lg bg-control px-3 py-1.5 text-[13px] text-ink hover:bg-raised-hover"
-        >
-          {t("place.action.openComputerPanel")}
-        </button>
-        <CloudPreference bot={bot} patch={patch} />
-      </div>}
-
       {shows("folder") && <WorkingFolder bot={bot} />}
 
       {shows("apps") && <div className="rounded-xl bg-card p-4">
@@ -687,30 +626,24 @@ export function AccessSection({
                   ? "The built-in browser is switched off under App Settings → Computers."
                   : !canUseBrowser
                     ? "This bot's current model cannot use the built-in browser."
-                    : bot.computer === "off"
-                      ? "Works on is set to Off, so this bot has no browser. Choose another place in the Computer panel to give it one."
-                      : browserEnabled
+                    : browserEnabled
                         ? "This bot has its own browser with its own logins."
                         : "Keep the built-in browser unavailable to this bot."}
             </div>
             <ProposalStatus bot={bot} kind="owner" />
           </div>
           <Switch
-            checked={browserEnabled && bot.computer !== "off"}
+            checked={browserEnabled}
             aria-label="Give this bot a built-in browser"
-            disabled={
-              bot.computer === "off" ||
-              (!browserEnabled && ((!desktopBrowser && !browserInstallable) || !browserFeature || !canUseBrowser))
-            }
+            disabled={!browserEnabled && ((!desktopBrowser && !browserInstallable) || !browserFeature || !canUseBrowser)}
             onClick={() => patch({ browser: !browserAllowed })}
-            title={bot.computer === "off" ? "Works on is set to Off, so this bot has no browser" : undefined}
             className="disabled:cursor-not-allowed"
           />
         </div>
         {!draft && (
           <RecordStepsRow
             on={bot.recordBrowserSteps === true}
-            browserOn={browserEnabled && bot.computer !== "off"}
+            browserOn={browserEnabled}
             myChrome={state.config?.browserEngine?.myChrome === true && (state.config?.browserProfiles ?? []).some((profile) => profile.id === bot.browserProfile && profile.browser === "chrome")}
             onChange={(recordBrowserSteps) => patch({ recordBrowserSteps })}
           />

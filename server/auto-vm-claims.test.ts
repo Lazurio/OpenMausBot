@@ -73,10 +73,10 @@ describe("startAutoVmClaim", () => {
 
   it("keeps the rejection's message so the refusal can say why", async () => {
     const table: AutoVmClaimTable = new Map();
-    table.set("t1", slot(async () => { throw new Error("the Local VM is not ready (App Settings → Computers)"); }));
+    table.set("t1", slot(async () => { throw new Error("the desktop app is not running"); }));
     startAutoVmClaim(table, "t1", "gen-1");
     await table.get("t1")!.begin;
-    expect(table.get("t1")!.failure).toBe("the Local VM is not ready (App Settings → Computers)");
+    expect(table.get("t1")!.failure).toBe("the desktop app is not running");
     expect(table.get("t1")!.claimed).toBeUndefined();
   });
 
@@ -99,29 +99,29 @@ describe("startAutoVmClaim", () => {
     const onRejected = vi.fn();
     table.set("t1", {
       owner: { threadId: "t1", generation: "gen-1" },
-      claim: async () => { throw new Error("the Local VM died"); },
+      claim: async () => { throw new Error("the desktop app quit"); },
       onRejected,
     });
     startAutoVmClaim(table, "t1", "gen-1");
     await table.get("t1")!.begin;
-    expect(onRejected).toHaveBeenCalledExactlyOnceWith("the Local VM died", expect.objectContaining({ message: "the Local VM died" }));
+    expect(onRejected).toHaveBeenCalledExactlyOnceWith("the desktop app quit", expect.objectContaining({ message: "the desktop app quit" }));
     startAutoVmClaim(table, "t1", "gen-1");
-    expect(onRejected).toHaveBeenCalledExactlyOnceWith("the Local VM died", expect.objectContaining({ message: "the Local VM died" }));
+    expect(onRejected).toHaveBeenCalledExactlyOnceWith("the desktop app quit", expect.objectContaining({ message: "the desktop app quit" }));
   });
 
   it("lets a later screen call claim again after a network failure, without failing the turn", async () => {
     const table: AutoVmClaimTable = new Map();
     const onRejected = vi.fn();
-    const unreachable = Object.assign(new Error("Could not reach MausBot Cloud's computer service to list cloud computers"), { transient: true });
+    const unreachable = Object.assign(new Error("Could not reach the desktop app's computer service"), { transient: true });
     const claim = vi.fn<() => Promise<void>>().mockRejectedValueOnce(unreachable).mockResolvedValueOnce(undefined);
-    table.set("t1", { ...slot(claim), label: "the cloud computer", onRejected });
+    table.set("t1", { ...slot(claim), label: "this computer", onRejected });
     startAutoVmClaim(table, "t1", "gen-1");
     await table.get("t1")!.begin;
     const after = table.get("t1")!;
     expect(after).toMatchObject({ retryReason: unreachable.message, begin: undefined });
     expect(after.failed).toBeUndefined();
     expect(onRejected).not.toHaveBeenCalled();
-    expect(lazyClaimRetryText(after)).toBe("This turn could not reach the cloud computer just now (Could not reach MausBot Cloud's computer service to list cloud computers). This call was not performed; try it again in a moment.");
+    expect(lazyClaimRetryText(after)).toBe("This turn could not reach this computer just now (Could not reach the desktop app's computer service). This call was not performed; try it again in a moment.");
     startAutoVmClaim(table, "t1", "gen-1");
     await after.begin;
     expect(after).toMatchObject({ claimed: true, retryReason: undefined, attempts: 2 });
@@ -141,7 +141,7 @@ describe("startAutoVmClaim", () => {
     expect(claim).toHaveBeenCalledTimes(MAX_CLAIM_ATTEMPTS);
     expect(table.get("t1")).toMatchObject({ failed: true, failure: "fetch failed" });
     expect(onRejected).toHaveBeenCalledOnce();
-    const refused = vi.fn(async () => { throw new Error("the cloud computer didn't start in time"); });
+    const refused = vi.fn(async () => { throw new Error("this computer didn't answer in time"); });
     table.set("t2", { owner: { threadId: "t2", generation: "gen-1" }, claim: refused });
     startAutoVmClaim(table, "t2", "gen-1");
     await table.get("t2")!.begin;
@@ -153,9 +153,9 @@ describe("startAutoVmClaim", () => {
   it("knows a network failure through the wrapper that rewords it", () => {
     expect(transientClaimFailure(new DOMException("The operation was aborted due to timeout", "TimeoutError"))).toBe(true);
     expect(transientClaimFailure(Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNREFUSED" } }))).toBe(true);
-    expect(transientClaimFailure(Object.assign(new Error("boat.dev rejected your Boat API key"), { status: 401 }))).toBe(false);
-    expect(transientClaimFailure(new Error("the cloud computer didn't start in time"))).toBe(false);
-    const shown = keepTransient(Object.assign(new Error("unreachable"), { transient: true }), new Error("Pepper's cloud computer isn't available right now."));
+    expect(transientClaimFailure(Object.assign(new Error("the computer service refused this request"), { status: 401 }))).toBe(false);
+    expect(transientClaimFailure(new Error("this computer didn't answer in time"))).toBe(false);
+    const shown = keepTransient(Object.assign(new Error("unreachable"), { transient: true }), new Error("Pepper's computer isn't available right now."));
     expect(transientClaimFailure(shown)).toBe(true);
     expect(transientClaimFailure(keepTransient(new Error("refused"), new Error("reworded")))).toBe(false);
   });

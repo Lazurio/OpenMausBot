@@ -92,21 +92,17 @@ it("never echoes a secret or token in its refusal", () => {
 });
 
 
-it("offers the built-in browser and cloud computers, never this computer or a Local VM", () => {
-  expect((["cloud", "vm", "local", "browser"] as const).filter(cloudHomeOffersPlace)).toEqual(["cloud", "browser"]);
-  expect(cloudHomePlaceRefusal("cloud")).toBeUndefined();
+it("offers the built-in browser, never this computer", () => {
+  expect((["local", "browser"] as const).filter(cloudHomeOffersPlace)).toEqual(["browser"]);
   expect(cloudHomePlaceRefusal("browser")).toBeUndefined();
 });
 
-it("refuses the places it never offers with what is true there, not a setup step", () => {
-  const local = cloudHomePlaceRefusal("local")!, vm = cloudHomePlaceRefusal("vm")!;
-  expect(local).toBe("This computer isn't a place on My Cloud. Set Works on to Auto, Cloud computer or Browser, or lend your computer under Settings → MausBot Cloud.");
-  expect(vm).toBe("Bots on My Cloud can't use a Local VM. Set Works on to Auto, Cloud computer or Browser.");
-  for (const text of [local, vm]) {
-    expect(text).not.toMatch(/configure|Computer panel|install|set (?:it|one) up/i);
-    // A failed turn shows the first 160 characters of its error.
-    expect(text.length).toBeLessThanOrEqual(160);
-  }
+it("refuses this computer with what is true there, not a setup step", () => {
+  const local = cloudHomePlaceRefusal("local")!;
+  expect(local).toBe("This computer isn't a place on My Cloud.");
+  expect(local).not.toMatch(/configure|Computer panel|install|set (?:it|one) up|Works on|Local VM/i);
+  // A failed turn shows the first 160 characters of its error.
+  expect(local.length).toBeLessThanOrEqual(160);
 });
 
 

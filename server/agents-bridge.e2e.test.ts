@@ -184,12 +184,12 @@ it("keeps a turn on the whole catalog until the switch is on, then mounts the br
     // force when the turn is mounted (a room turn reads it last). The mount
     // then starts this very integration unbridged behind its gate: the whole
     // catalog but what the selection leaves out, and no way round it.
-    await withServer(gateServer({ name: "agents", server: bridged, threadId: bot.activeTaskId, budget: 0, toolScope: { deny: ["mcp:agents:vm_exec"] } })!, async (ask) => {
+    await withServer(gateServer({ name: "agents", server: bridged, threadId: bot.activeTaskId, budget: 0, toolScope: { deny: ["mcp:agents:fill_login"] } })!, async (ask) => {
       const names = namesOf(await ask("tools/list"));
-      for (const absent of ["find_tool", "use_tool", "vm_exec"]) expect(names, absent).not.toContain(absent);
-      expect(names).toEqual(whole.map((tool) => tool.name).filter((name) => name !== "vm_exec"));
-      expect((await call(ask, "vm_exec", { command: "true" })).error).toEqual({ code: -32602, message: "Tool selection excludes this tool. Check the bot's Access settings." });
-      expect((await use(ask, "vm_exec", { command: "true" })).error).toEqual({ code: -32602, message: "Tool selection excludes this tool. Check the bot's Access settings." });
+      for (const absent of ["find_tool", "use_tool", "fill_login"]) expect(names, absent).not.toContain(absent);
+      expect(names).toEqual(whole.map((tool) => tool.name).filter((name) => name !== "fill_login"));
+      expect((await call(ask, "fill_login", { command: "true" })).error).toEqual({ code: -32602, message: "Tool selection excludes this tool. Check the bot's Access settings." });
+      expect((await use(ask, "fill_login", { command: "true" })).error).toEqual({ code: -32602, message: "Tool selection excludes this tool. Check the bot's Access settings." });
       expect((await use(ask, "list_triggers")).error).toEqual({ code: -32602, message: "Unknown tool: use_tool" });
       // and what the selection allows still reaches the harness
       expect(textOf(await call(ask, "list_triggers", {}))).toMatch(/^This bot has no triggers\. Current time: /);
@@ -218,7 +218,7 @@ it("leaves every gate and limit where it was: a tool selection, a Chief-only too
     // which refuses the excluded tool by its own name; there is no bridge to
     // carry the call past it.
     const { bot: selected } = await control(["new-bot", "--name", "Selected bridge fixture"]);
-    const toolScope = { deny: ["mcp:agents:vm_exec"] };
+    const toolScope = { deny: ["mcp:agents:fill_login"] };
     expect((await api("PATCH", `/api/bots/${selected.id}`, { toolScope })).status).toBe(200);
     await control(["send", "--bot", selected.id, "--text", "Stay active."]);
     const gatedTurn = await launched();
@@ -231,9 +231,9 @@ it("leaves every gate and limit where it was: a tool selection, a Chief-only too
       const list = await ask("tools/list");
       // the whole catalog but the one tool the selection leaves out, and no way round it
       expect(namesOf(list)).toEqual(expect.arrayContaining(["coordinate_bots", "create_trigger", "list_rooms", "post_to_room"]));
-      for (const name of ["vm_exec", "find_tool", "use_tool"]) expect(namesOf(list), name).not.toContain(name);
-      expect((await call(ask, "vm_exec", { command: "true" })).error).toEqual({ code: -32602, message: "Tool selection excludes this tool. Check the bot's Access settings." });
-      expect((await use(ask, "vm_exec", { command: "true" })).error).toEqual({ code: -32602, message: "Tool selection excludes this tool. Check the bot's Access settings." });
+      for (const name of ["fill_login", "find_tool", "use_tool"]) expect(namesOf(list), name).not.toContain(name);
+      expect((await call(ask, "fill_login", { command: "true" })).error).toEqual({ code: -32602, message: "Tool selection excludes this tool. Check the bot's Access settings." });
+      expect((await use(ask, "fill_login", { command: "true" })).error).toEqual({ code: -32602, message: "Tool selection excludes this tool. Check the bot's Access settings." });
       expect((await use(ask, "list_triggers")).error).toEqual({ code: -32602, message: "Unknown tool: use_tool" });
     });
     await control(["interrupt", "--bot", selected.id]);
@@ -285,7 +285,7 @@ it("knows a bridged call by the tool it ran, in the activity row, the work summa
     { name: "mcp__agents__use_tool", input: { name: "list_triggers", arguments: {} }, output: "This bot has no triggers.", ok: true },
     { name: "mcp__agents__use_tool", input: { name: "post_to_room", arguments: { group_id: "room-1", message: "Shipped." } }, output: "Posted.", ok: true },
     { name: "mcp__agents__use_tool", input: { name: "schedule_task", arguments: {} }, output: "Unknown tool: schedule_task", ok: false },
-    { name: "mcp__agents__use_tool", input: { arguments: { name: "vm_exec" } }, output: "use_tool needs a name", ok: false },
+    { name: "mcp__agents__use_tool", input: { arguments: { name: "fill_login" } }, output: "use_tool needs a name", ok: false },
     { name: "mcp__agents__find_tool", input: { query: "what routines do I have" }, output: "{}", ok: true },
     { name: "mcp__agents__list_bots", input: {}, output: "No other bots.", ok: true },
   ];

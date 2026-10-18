@@ -76,15 +76,8 @@ export function botPatch(desired: DesiredBot, echo: Rec, team: string | undefine
     patch.approvalMode = desired.approval;
     patch.applyToAllThreads = true;
     changes.push(`approval ${APPROVAL_LABEL[approval]} → ${APPROVAL_LABEL[desired.approval]}`);
-  }
-  const computer = echo.computer ?? "auto";
-  if (desired.computer && computer !== desired.computer) {
-    patch.computer = desired.computer === "auto" ? null : desired.computer;
-    changes.push(`computer ${computer} → ${desired.computer}`);
-  }
-  // The file is the confirmation the server asks for to leave a bot on Auto on this computer.
-  if ((patch.computer !== undefined || patch.approvalMode !== undefined) && (desired.computer ?? computer) === "local" && (desired.approval ?? approval) === "auto") {
-    patch.acknowledgeLocalAuto = true;
+    // The file is the confirmation the server asks for to leave a bot on Auto on this computer.
+    if (desired.approval === "auto") patch.acknowledgeLocalAuto = true;
   }
   if (desired.cwd && echo.cwd !== desired.cwd) { patch.cwd = desired.cwd; changes.push(`folder ${echo.cwd ?? "default"} → ${desired.cwd}`); }
   if (desired.browser) {
@@ -106,7 +99,6 @@ const describeNew = (bot: DesiredBot) => [
   bot.chief === true ? `Chief of ${bot.team ?? "General"}` : bot.team ? `team ${bot.team}` : "",
   bot.model ? `${bot.model.instanceId}/${bot.model.model}` : "",
   bot.approval ? APPROVAL_LABEL[bot.approval] : "",
-  bot.computer && bot.computer !== "auto" ? `computer ${bot.computer}` : "",
 ].filter(Boolean).join(" · ");
 
 export async function reconcile(client: HeadlessClient, file: TeamFile, options: ApplyOptions): Promise<Tally> {
@@ -430,7 +422,6 @@ export async function teamExportVerb(ctx: VerbContext): Promise<VerbOutcome> {
     const approval = approvalModeFor(bot);
     if (approval === "custom") skipped.push(`${bot.name}: its Custom approval level is set in the desktop app, not in a team file`);
     else entry.approval = approval;
-    if (bot.computer) entry.computer = bot.computer;
     if (bot.cwd) entry.cwd = bot.cwd;
     if (bot.browser === false || bot.browserProfile) entry.browser = { enabled: bot.browser !== false, ...(bot.browserProfile ? { profile: bot.browserProfile } : {}) };
     if (!everyTool(bot.toolScope)) entry.tools = bot.toolScope;

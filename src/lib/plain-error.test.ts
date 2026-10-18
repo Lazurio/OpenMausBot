@@ -36,7 +36,7 @@ describe("plainErrorLine", () => {
     "Add your key in Settings → API keys",
     "Not logged in · Please run /login",
     "rate limited",
-    "Your Pro plan includes 2 cloud computers at once. Delete one to start another.",
+    "Your Pro plan includes 2 live calls at once. End one to start another.",
     "ChatGPT plan usage limit reached (subscription_sharing_usage_limit_exceeded)",
     "no activity for 10 minutes — the turn was stopped",
     "The server returned HTTP 503. Wait for the scheduled maintenance to finish, then try again.",

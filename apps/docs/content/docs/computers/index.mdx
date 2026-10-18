@@ -1,27 +1,14 @@
 ---
 title: Give a bot a computer
-description: Choose the right desktop or isolated environment for a task.
+description: Where a bot works: this computer and the built-in browser.
 icon: Monitor
 ---
 
-A bot can work without a computer, use the computer running OpenMausBot, or work inside an isolated desktop.
-
-<ProductScreenshot name="docs-computer-panel" alt="OpenMausBot computer panel offering cloud, local VM, host computer, and off modes" caption="Computer placement is explicit per bot and can be changed without changing its model." />
-
-| Backend | Isolation | Best for |
-|---|---|---|
-| This computer | None | Working with local apps and files you explicitly approve |
-| Local VM | Containerized desktop | Repeatable browser and desktop work on your machine |
-| Boat cloud computer | Hosted remote desktop | Always-available isolated Linux work |
-| Self-hosted VPS | Hardened container over SSH | Using infrastructure you own |
-
-## Auto, local, and cloud selection
-
-Computer selection is explicit per bot. Auto may reuse a ready, verified backend, but it does not silently provision every backend or turn on host control.
+A bot works on the computer running OpenMausBot: its shell and files there, the built-in browser, and, in the desktop app, this computer's own screen when a task needs desktop apps.
 
 ## Preview and takeover
 
-The Computer panel can show live frames while an agent works. Supported cloud desktops also provide an interactive viewer. OpenMausBot opens that viewer in the app when possible, with a browser fallback for external join flows.
+The Computer panel can show live frames while an agent works.
 
 When a bot needs you to sign in to a website, it asks with a **Sign in needed** card instead of asking for a password in chat. **Open** goes to the computer or browser the bot is working in, with **Take control**; **Done** hands it back and resumes the bot. See [Website sign-in](/docs/security/permissions-and-secrets#website-sign-in).
 

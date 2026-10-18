@@ -49,14 +49,13 @@ vi.mock("./ApiKeys", () => ({
   AnthropicEveryClaudeBot: marker("anthropicEvery"),
   OpenAiCompatUrl: marker("compatUrl"),
   OpenCodeProviderKeys: marker("opencodeProviderKeys"),
-  VpsConnection: marker("vps"),
 }));
 vi.mock("./RemoteComputerSection", () => ({ RemoteComputerSection: marker("companion") }));
 vi.mock("./CustomDomainSettings", () => ({ CustomDomainSettings: () => null }));
 vi.mock("./CompanionSection", () => ({ CompanionSection: () => null }));
 vi.mock("./ServerPairingCard", () => ({ ServerPairingCard: () => null }));
 vi.mock("./ConnectedWorkspacesSettings", () => ({ ConnectedWorkspacesSettings: marker("desktopWorkspaces") }));
-vi.mock("./LocalComputerSection", () => ({ LocalComputerSection: marker("computer") }));
+vi.mock("./MacLocalControl", () => ({ MacLocalControl: marker("computer") }));
 vi.mock("./CloudAccountSettings", () => ({ CloudAccountSettings: marker("cloudAccount") }));
 vi.mock("./OrganizationSettings", () => ({ OrganizationSettings: marker("organization") }));
 vi.mock("./PeopleSection", () => ({ PeopleSection: marker("people") }));
@@ -131,13 +130,13 @@ describe("Settings in Simple mode", () => {
     expect(html).toContain("More providers for OpenCode bots");
   });
 
-  it("stacks Remote access, Servers, Local VM and the built-in browser on Computers", () => {
+  it("stacks Remote access, Servers, This computer and the built-in browser on Computers", () => {
     fixture.section = "companion";
     const html = render();
     expect(currentPage(html)).toBe("computers");
     expect(blocks(html)).toEqual(["companion", "desktopWorkspaces", "computer", "browser"]);
     const headings = [...html.matchAll(/<h3[^>]*>([^<]+)<\/h3>/g)].map((match) => match[1]);
-    expect(headings).toEqual(["Remote access", "Servers", "Local VM", "Built-in browser"]);
+    expect(headings).toEqual(["Remote access", "Servers", "This computer", "Built-in browser"]);
     expect(html).toContain('aria-label="Enable the built-in browser"');
   });
 
@@ -249,7 +248,7 @@ describe("the built-in browser switch", () => {
     expect(browserSwitch()).toBeUndefined();
   });
 
-  it("is found by searching for the browser under Local VM in Advanced", () => {
+  it("is found by searching for the browser under This computer in Advanced", () => {
     const computer = SECTIONS.find((entry) => entry.id === "computer")!;
     const experimental = SECTIONS.find((entry) => entry.id === "experimental")!;
     expect(computer.keywords).toContain("browser");

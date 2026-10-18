@@ -384,7 +384,7 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
     delete process.env.FAKE_CODEX_INTERRUPT_SILENT;
     delete process.env.FAKE_CODEX_INTERRUPT_GRACE_MS;
     delete process.env.OPENAI_API_KEY;
-    delete process.env.BOX_TOKEN;
+    delete process.env.OMB_FISH_AUDIO_API_KEY;
     delete process.env.OMB_TTS_KEY;
     for (const name of Object.keys(CONTROL_PLANE_FIXTURE)) delete process.env[name];
     recorder?.stop();
@@ -562,7 +562,7 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
     const dump = join(scratch, "dump.json");
     process.env.FAKE_CODEX_DUMP = dump;
     process.env.OPENAI_API_KEY = "sk-should-not-leak";
-    process.env.BOX_TOKEN = "box-should-not-leak";
+    process.env.OMB_FISH_AUDIO_API_KEY = "fish-should-not-leak";
     process.env.OMB_TTS_KEY = "tts-should-not-leak";
     Object.assign(process.env, CONTROL_PLANE_FIXTURE);
 
@@ -615,7 +615,7 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
     const seen = JSON.parse(readFileSync(dump, "utf8"));
     expect(processIsAlive(seen.pid)).toBe(false);
     expect(seen.env.OPENAI_API_KEY).toBeUndefined();
-    expect(seen.env.BOX_TOKEN).toBeUndefined();
+    expect(seen.env.OMB_FISH_AUDIO_API_KEY).toBeUndefined();
     expect(seen.env.OMB_TTS_KEY).toBeUndefined();
     for (const name of Object.keys(CONTROL_PLANE_FIXTURE)) expect(seen.env[name]).toBeUndefined();
     const methods = seen.calls.map((c: { method: string }) => c.method);
@@ -1630,8 +1630,8 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
       integrations: {
         localComputer: {
           command: process.execPath,
-          args: ["/tmp/container-mcp.js", "podman", "openmausbot-computer", "/run/cua.sock"],
-          env: { ELECTRON_RUN_AS_NODE: "1", OMB_VM_TOKEN: "vm-secret" },
+          args: ["/tmp/cua-driver-mcp.js"],
+          env: { ELECTRON_RUN_AS_NODE: "1", OMB_COMPUTER_TOKEN: "computer-secret" },
         },
       },
     });
@@ -1639,10 +1639,10 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
 
     const seen = JSON.parse(readFileSync(dump, "utf8"));
     expect(seen.argv.join(" ")).toContain("mcp_servers.computer.command");
-    expect(seen.argv.join(" ")).toContain("/tmp/container-mcp.js");
-    expect(seen.argv.join(" ")).toContain("OMB_VM_TOKEN");
-    expect(seen.argv.join(" ")).not.toContain("vm-secret");
-    expect(seen.env.OMB_VM_TOKEN).toBe("vm-secret");
+    expect(seen.argv.join(" ")).toContain("/tmp/cua-driver-mcp.js");
+    expect(seen.argv.join(" ")).toContain("OMB_COMPUTER_TOKEN");
+    expect(seen.argv.join(" ")).not.toContain("computer-secret");
+    expect(seen.env.OMB_COMPUTER_TOKEN).toBe("computer-secret");
   });
 
   it("sends the local provider when the picker id is custom-encoded", async () => {

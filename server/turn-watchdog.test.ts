@@ -143,7 +143,7 @@ describe("the stall handler", () => {
       TurnWatchdog: class { options: unknown; constructor(options: { onStall: (turn: WatchedTurn) => void }) { this.options = options; } },
       store: { messagesFor: () => messages, activePath: () => messages, appendMessage() {} },
       turnResourceOwners: new Map(), directTurnGenerationByThread: new Map([["t1", "gen-1"]]), directRequestOwners: new Map(),
-      localVmThreadTargets: new Map(), liveTurnByThread: new Map([["t1", "turn-1"]]), turnUsage: new Map(), turnContext: new Map(),
+      liveTurnByThread: new Map([["t1", "turn-1"]]), turnUsage: new Map(), turnContext: new Map(),
       cancelDirectTurnDispatch() {}, revokeInternalCapabilitiesForThread() {}, repeats: { settle() {} },
       botForThread: () => ({ id: "eli" }), activeRoutineRunForThread: () => undefined,
       runningTurnInstance: () => ({ adapter: { interruptTurn: async () => {} } }),

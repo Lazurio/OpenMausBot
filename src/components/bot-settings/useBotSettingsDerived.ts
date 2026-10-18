@@ -14,8 +14,6 @@ export type BotPatch = Partial<
     | "description"
     | "soul"
     | "notifications"
-    | "cloudBackend"
-    | "autoStartVps"
     | "color"
     | "mascotExpression"
     | "mascotBody"
@@ -43,7 +41,6 @@ export type BotPatch = Partial<
     | "modelSelection"
   >
 > & {
-  computer?: Bot["computer"] | null;
   connectorTools?: Bot["connectorTools"] | null;
   connectorScopes?: Bot["connectorScopes"] | null;
   acknowledgeLocalAuto?: boolean;
