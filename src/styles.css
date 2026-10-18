@@ -1006,6 +1006,76 @@
   background: color-mix(in srgb, var(--color-ink) 15%, transparent);
 }
 
+/* ── Environment ──────────────────────────────────────────────────────────
+   Lazurio's, not upstream's (LAZURIO.md "The Environment skin"): the colour
+   theme of the Lazurio Environment the app runs in, which Chat and Apps
+   follow too. The Environment's shell declares that theme on the document as
+   the design system's tokens (--lz-*), with dark values that follow the
+   device where the theme has them; this block only names them, in the roles
+   Chat gives them. Solid controls take the theme's action colour, links its
+   accent and focus its ink.
+
+   Every value falls back to Midnight's, so without the shell the skin is
+   Midnight. The type and corners stay Midnight's: the Environment theme is
+   a colour theme. Its colours are known only at runtime, so the checks that
+   measure a skin's values leave this block out.
+   ───────────────────────────────────────────────────────────────────────── */
+[data-skin="environment"] {
+  /* light or dark, whichever of the theme's values are in use */
+  --code-color-scheme: var(--lazurio-color-scheme, dark);
+  --color-app: var(--lz-surface, #121212);
+  --color-panel: var(--lz-paper, #0e0e0e);
+  --color-raised: var(--lz-gray-100, #202020);
+  --color-raised-hover: var(--lz-line, #2c2c2c);
+  --color-composer: var(--lz-surface, #1f1f1f);       /* the page, with a ring */
+  --color-composer-ring: var(--lz-line, #2a2a2a);
+  --color-card: var(--lz-gray-50, #1f1f1f);
+  --color-menu: var(--lz-surface, #1f1f1f);
+  --color-menu-hover: color-mix(in srgb, var(--color-raised) 70%, transparent);
+  --color-menu-active: var(--color-raised);
+  --color-inset: var(--lz-gray-100, #1b1b1b);
+  --color-control: var(--lz-gray-100, #282828);       /* = raised, as in the dark skins */
+  --color-hairline: var(--lz-line, #383838);
+  --color-ink: var(--lz-ink, #f5f5f5);
+  --color-ink-secondary: var(--lz-ink-muted, #f5f5f5a8);
+  --color-ink-tertiary: var(--lz-ink-muted, #f5f5f591);
+  --color-accent: var(--lz-accent-button, #1084fe);
+  --color-accent-border: var(--lz-accent-button-hover, #459ffe);
+  --color-accent-text: var(--lz-accent, #7fc0ff);
+  --color-focus: var(--lz-ink, #459ffe);
+  --color-accent-ink: var(--lz-on-accent, #ffffff);
+  /* one step past the raised surfaces, so the editor and the chips inside
+     your own bubble stay visible on it */
+  --color-bubble-user: var(--lz-line, #5a5a5a);
+  --color-bubble-user-ink: var(--lz-ink, #f5f5f5);
+  --color-success: var(--lz-success, #38d591);
+  --color-danger: var(--lz-danger, #ff5667);
+  --color-danger-ink: var(--lz-on-accent, #ffffff);
+  --color-success-ink: var(--lz-on-accent, #072114);
+  --color-warning: var(--lz-warning, #ff9800);
+  --color-scrollbar: var(--lz-line, #3d3d3d);
+  --color-maus-line: var(--lz-ink-muted, #f5f5f5);
+  --identity-purple: #8d69ce;
+  --identity-silver: #A8ADB4;
+  --identity-chrome: #B3BAC4;
+  --font-sans: "Geist Variable", -apple-system, BlinkMacSystemFont,
+  --identity-green: #00884e;
+  --identity-blue: #2573e4;
+  --identity-red: #d63f47;
+  --identity-orange: #b65f15;
+  --identity-purple: #8057C8;
+  --identity-cyan: #0b819b;
+  --identity-pink: #d3397d;
+  --identity-yellow: #93721b;
+  --identity-teal: #018577;
+  --identity-coral: #db3a20;
+  --identity-silver: #707782;
+  --identity-chrome: #6b778a;
+    --identity-purple: #8d69ce;
+    --identity-silver: #A8ADB4;
+    --identity-chrome: #B3BAC4;
+}
+
 /* Shiki emits both palettes so cached blocks follow the nearest skin without
    re-tokenizing. Scope the scheme to code; native controls keep their styling. */
 .chat-md .shiki {

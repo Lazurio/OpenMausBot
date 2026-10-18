@@ -11,6 +11,8 @@ export const SKIN_IDS = [
   "daylight",
   "meadow",
   "pop",
+  // Lazurio: the Environment theme (the end of this file).
+  "environment",
   "halloween",
 ] as const;
 export type SkinId = (typeof SKIN_IDS)[number];
@@ -22,6 +24,9 @@ export type Skin = {
 };
 
 export const SKINS: readonly Skin[] = [
+  // Lazurio: first, because on an Environment it is the default and the way
+  // back to the Environment theme; offered only there (offeredSkins below).
+  { id: "environment", name: "Environment", tagline: "Follows this Environment's theme, like Chat and Apps." },
   { id: "midnight", name: "Midnight", tagline: "The original. Cool and dark." },
   { id: "atelier", name: "Atelier", tagline: "Daylight on paper, warm and quiet." },
   { id: "foundry", name: "Foundry", tagline: "Night shift. Dark, warm, lit in brass." },
@@ -76,13 +81,15 @@ function getStore(): Storage | undefined {
 }
 
 export function readSkinChoice(): SkinChoice {
+  if (moveToEnvironmentSkin()) return ENVIRONMENT_SKIN;
+  awaitEnvironmentTheme();
   try {
     const store = getStore();
     const stored = store?.getItem(KEY);
     if (isSkinChoice(stored)) return stored;
-    return hasPriorRun(store) ? PRIOR_INSTALL_SKIN : DEFAULT_SKIN_CHOICE;
+    return defaultSkinChoice(store);
   } catch {
-    return PRIOR_INSTALL_SKIN;
+    return environmentThemeDeclared() ? ENVIRONMENT_SKIN : PRIOR_INSTALL_SKIN;
   }
 }
 
@@ -123,6 +130,81 @@ function followSystem(follow: boolean): void {
     followingSystem = { query, onChange };
   } catch {
   }
+}
+
+// ── Lazurio: the Environment skin (LAZURIO.md "The Environment skin") ──────
+// A Lazurio Environment has one colour theme, which Chat, Apps and Automate
+// follow (Lazurio decision 0208). The Environment's shell declares it on the
+// document as the design system's tokens with their colour scheme, which the
+// Environment skin's block in styles.css reads, and marks the root
+// `data-lazurio-environment-theme` where it holds. A Platform before 0208
+// marks only its tokens (`data-lazurio-theme`), without the theme's colour
+// scheme, so that mark alone changes nothing here. The shell applies the
+// theme its origin remembers as soon as it runs, from a script index.html
+// loads ahead of this app's module, so on every visit but a browser's first
+// the mark is in place before main.tsx reads the skin; on the first it comes
+// once the shell read its document, announced as `lazurio-theme`. Where it
+// is, the Environment skin is the default and the picker offers it;
+// elsewhere nothing changes.
+const ENVIRONMENT_SKIN: SkinId = "environment";
+
+// main.tsx writes omb-skin on every boot, so a stored skin cannot tell a pick
+// from the default. Every browser on an Environment therefore moves to the
+// Environment skin once, and this key remembers that it did; a skin picked
+// after that sticks.
+const ENVIRONMENT_MOVE_KEY = "omb-skin-environment-moved";
+
+function environmentThemeDeclared(): boolean {
+  try {
+    return typeof document !== "undefined" && document.documentElement.dataset.lazurioEnvironmentTheme !== undefined;
+  } catch {
+    return false;
+  }
+}
+
+/** The skin a browser without a stored one starts on: the Environment skin
+ * on an Environment, upstream's choice elsewhere. */
+function defaultSkinChoice(store: Storage | undefined): SkinChoice {
+  if (environmentThemeDeclared()) return ENVIRONMENT_SKIN;
+  return hasPriorRun(store) ? PRIOR_INSTALL_SKIN : DEFAULT_SKIN_CHOICE;
+}
+
+/** True the first time a browser on an Environment reads its skin. A browser
+ * that cannot remember the move keeps its stored skin rather than moving on
+ * every boot. */
+function moveToEnvironmentSkin(): boolean {
+  if (!environmentThemeDeclared()) return false;
+  try {
+    const store = getStore();
+    if (!store || store.getItem(ENVIRONMENT_MOVE_KEY) !== null) return false;
+    store.setItem(ENVIRONMENT_MOVE_KEY, "1");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// The documents a browser's first visit waits on: there the shell marks the
+// document only once it read /.lazurio/shell.json, after main.tsx read the
+// skin, and announces the theme as `lazurio-theme`. The move then happens on
+// that announcement, once, as on any later load.
+const awaited = new WeakSet<object>();
+
+function awaitEnvironmentTheme(): void {
+  try {
+    if (typeof document === "undefined" || awaited.has(document) || environmentThemeDeclared()) return;
+    document.addEventListener("lazurio-theme", () => {
+      if (moveToEnvironmentSkin()) applySkin(ENVIRONMENT_SKIN);
+    });
+    awaited.add(document);
+  } catch {
+    /* a document without events */
+  }
+}
+
+/** The skins the picker offers: the Environment skin only on an Environment. */
+export function offeredSkins(): readonly Skin[] {
+  return environmentThemeDeclared() ? SKINS : SKINS.filter((skin) => skin.id !== ENVIRONMENT_SKIN);
 }
 
 export function applySkinChoice(choice: SkinChoice): void {

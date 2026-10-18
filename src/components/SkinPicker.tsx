@@ -1,7 +1,7 @@
 // Works because styles.css keys skins on [data-skin], not :root[data-skin], so any element opens a skin context for its
 // subtree.
 import { Check } from "lucide-react";
-import { SKINS, applySkin, resolveSkin, type SkinId } from "@/lib/skins";
+import { applySkin, offeredSkins, resolveSkin, type SkinId } from "@/lib/skins";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { setDressUp, useDressUp } from "@/lib/halloween-dress";
@@ -85,7 +85,7 @@ export function SkinPicker() {
   return (
     <>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {SKINS.map((skin) => {
+        {offeredSkins().map((skin) => {
           const selected = skin.id === active;
           return (
             <button

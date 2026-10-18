@@ -34,6 +34,10 @@ function contrast(ink: Rgba, surface: Rgba): number {
 
 const SURFACES = ["app", "panel", "raised", "raised-hover", "card", "inset", "composer", "menu"];
 
+// Lazurio's Environment skin takes its colours from the Environment theme at
+// runtime, so it has no values here to measure.
+const MEASURED_SKIN_IDS = SKIN_IDS.filter((id) => id !== "environment");
+
 function sources(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const path = join(dir, entry.name);
@@ -54,7 +58,7 @@ describe("faded text", () => {
     expect(theme["--color-ink-tertiary"]).toMatch(/^#[0-9a-f]{6}([0-9a-f]{2})?$/i);
   });
 
-  it.each([...SKIN_IDS])("gives %s a tertiary ink that clears 4.5:1 on every text surface", (id) => {
+  it.each([...MEASURED_SKIN_IDS])("gives %s a tertiary ink that clears 4.5:1 on every text surface", (id) => {
     const tokens = skin(id);
     const ink = parseHex(tokens["--color-ink-tertiary"]);
     for (const surface of SURFACES) {
@@ -64,7 +68,7 @@ describe("faded text", () => {
   });
 
   it("keeps the tertiary ink quieter than the secondary ink on the app ground", () => {
-    for (const id of SKIN_IDS) {
+    for (const id of MEASURED_SKIN_IDS) {
       const tokens = skin(id);
       const app = parseHex(tokens["--color-app"]);
       expect(contrast(parseHex(tokens["--color-ink-tertiary"]), app), id).toBeLessThanOrEqual(contrast(parseHex(tokens["--color-ink-secondary"]), app));

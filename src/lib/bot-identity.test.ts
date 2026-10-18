@@ -43,7 +43,9 @@ describe("room speaker colors", () => {
     }
   });
 
-  it.each(SKIN_IDS.flatMap((id) => MAUS_COLOR_NAMES.map((color) => [id, color] as const)))(
+  // Lazurio's Environment skin takes its thread from the Environment theme at
+  // runtime; its names keep Meadow's tones (LAZURIO.md "The Environment skin").
+  it.each(SKIN_IDS.filter((id) => id !== "environment").flatMap((id) => MAUS_COLOR_NAMES.map((color) => [id, color] as const)))(
     "gives %s × %s a name color that clears 4.5:1 on the thread",
     (id, color) => {
       const tokens = skin(id);

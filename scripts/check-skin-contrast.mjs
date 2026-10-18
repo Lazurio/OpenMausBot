@@ -171,6 +171,12 @@ const BASELINE_DRIFT = 0.01;
 
 let failed = false;
 for (const [id, tokens] of skins) {
+  // Lazurio's Environment skin names the Environment theme's tokens, each
+  // with Midnight's value as a fallback: its colours exist only at runtime.
+  if (id === "environment") {
+    console.log(`– ${id} — the Environment theme at runtime, not measured here`);
+    continue;
+  }
   const problems = [];
   const missing = [];
   const unmeasurable = [];

@@ -128,6 +128,83 @@ attribute on `<html>`, so the roles follow every skin, live:
 The mixes are the sidebar's own (`hover:bg-raised/40`, `bg-raised/70`,
 `border-hairline/40`). The rail is the sidebar's panel, so the two read as
 one surface with no line between them; the sidebar has no left border. The
+roles follow the Environment skin like any other skin. Nothing in MausBot
+reads the roles, so outside Lazurio it looks exactly as upstream. The
+release contract test checks the roles and that every token they read is
+still declared by the skins, so a rebuild on an upstream tag that renames a
+token fails CI.
+
+### The Environment skin
+
+**Decided on 2026-10-18 (root decision 0208).** A Lazurio Environment has
+one colour theme, the Environment theme, chosen in Apps → Settings; Chat,
+Apps and Automate follow it. The Environment's shell declares it in this
+document as the design system's tokens (`--lz-*`, only names interface v1
+promises): the light values, and the dark ones where the theme has them,
+each with its `--lazurio-color-scheme`. MausBot follows it through one more
+skin, **Environment**, added the way upstream adds a skin: one block in
+`src/styles.css` and one line in `SKINS` (`src/lib/skins.ts`). The block
+only names the tokens, in the roles Chat gives them, and every value falls
+back to Midnight's, so without the shell the skin is Midnight:
+
+| MausBot token | Environment theme token |
+| --- | --- |
+| `--color-app`, `--color-menu`, `--color-composer` | `--lz-surface` |
+| `--color-panel`, the sidebar and so the rail | `--lz-paper` |
+| `--color-card` | `--lz-gray-50` |
+| `--color-raised`, `--color-inset`, `--color-control` | `--lz-gray-100` |
+| `--color-raised-hover`, `--color-bubble-user`, `--color-hairline`, `--color-composer-ring`, `--color-scrollbar` | `--lz-line` |
+| `--color-ink`, `--color-bubble-user-ink`, `--color-focus` | `--lz-ink` |
+| `--color-ink-secondary`, `--color-ink-tertiary`, `--color-maus-line` | `--lz-ink-muted` |
+| `--color-accent`, the solid controls | `--lz-accent-button` |
+| `--color-accent-border` | `--lz-accent-button-hover` |
+| `--color-accent-text`, the links | `--lz-accent` |
+| `--color-accent-ink`, `--color-danger-ink`, `--color-success-ink` | `--lz-on-accent` |
+| `--color-success`, `--color-danger`, `--color-warning` | `--lz-success`, `--lz-danger`, `--lz-warning` |
+| `--code-color-scheme` | `--lazurio-color-scheme`, dark without it |
+
+The type and corners stay Midnight's: the Environment theme is a colour
+
+- **The default on an Environment.** When the shell declares the
+  Environment theme it marks `<html data-lazurio-environment-theme>`: with
+  the theme its origin remembers as soon as it runs (`index.html` loads it
+  ahead of MausBot's own module), and on a browser's first visit once it read
+  its document, announced as `lazurio-theme`. Where the mark is, the
+  Environment skin is the default and the picker offers it as its first
+  card. A browser that ran MausBot there before moves to it once, on its
+  first load with the mark or on that announcement: `omb-skin` was written
+  on every boot, so a stored skin cannot tell a pick from the default.
+  `omb-skin-environment-moved` records the move, and a skin picked after it
+  sticks. A Platform before decision 0208 marks only its tokens
+  (`data-lazurio-theme`), without the theme's colour scheme; there nothing
+  changes.
+- **The picker is a personal override.** Another skin applies in this
+  browser only, and the Environment card is the way back. A new Environment
+  theme resets nobody's pick; the Environment skin shows it as soon as the
+  shell declares it.
+- **Light and dark.** MausBot has no light and dark of its own:
+  `index.html` marks `<html data-lazurio-appearance="device">`, so where the
+  theme has dark values, they follow the device. The Lazurio theme, the
+  design system's, is light only for now, and so is the Environment skin on
+  it.
+- **Outside Lazurio** nothing marks the document: the Environment skin is
+  neither the default nor offered, and MausBot looks as upstream. A stored
+  Environment skin, from a backup or a load while the Launchpad is down,
+  renders as Midnight and follows the theme again once the shell is back.
+
+Its colours exist only at runtime, so upstream's checks that measure a
+skin's values leave it out (`src/lib/faded-text.test.ts`,
+contract test checks that the block reads only promised names, each with
+Midnight's value as its fallback, that nothing else in `src/styles.css`
+reads the theme, and the mark in `index.html`;
+`src/lib/environment-skin.test.ts` tests the default, the one-time move (also
+on a first visit's announcement), a Platform that marks only its tokens and
+the picker. Known limit: a Mermaid diagram already on screen keeps the
+light or dark it was drawn in until it is drawn again, because upstream
+redraws diagrams on a change of skin only. The Platform release that
+declares the Environment theme goes out first (decision 0200), on Ring 0
+first (decision 0204); a fork release before it changes nothing, since
+without the theme's mark the skin is neither the default nor offered.
 
 How to release, rebuild on a new upstream tag, what the overlay contains and
 how Machines consume a release:
