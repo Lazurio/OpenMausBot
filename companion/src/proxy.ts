@@ -93,6 +93,14 @@ const readJson = (req: IncomingMessage, limit = 64 * 1024): Promise<Record<strin
     });
   });
 
+function requestTarget(rawUrl: string | undefined): URL | null {
+  try {
+    return new URL(rawUrl ?? "/", "http://companion.invalid");
+  } catch {
+    return null;
+  }
+}
+
 const isPlainValue = (value: unknown): value is string | number | null | undefined =>
   value == null || typeof value === "string" || typeof value === "number";
 
@@ -643,7 +651,6 @@ export function createProxyHandler(options: ProxyOptions) {
     const device = options.authenticate(token);
     viewers.handleUpgrade(req, socket, head, device);
   };
-  handle.closeViewers = (): void => viewers.closeAll();
   handle.disconnectDevice = (deviceId: string): void => {
     viewers.closeDevice(deviceId);
     // Revoking a capability closes the streams it already granted.

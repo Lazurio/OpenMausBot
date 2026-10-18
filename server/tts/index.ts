@@ -64,7 +64,6 @@ export function voiceReady(cfg: AppConfig, voiceId?: string): boolean {
 /** Never includes the key. */
 export function describeVoice(cfg: AppConfig) {
   const provider = voiceProvider(cfg);
-  const included = provider === "elevenlabs" && elevenLabs(cfg)?.included === true;
   return {
     configured: providerConfigured(cfg),
     ready: voiceConfigured(cfg),
@@ -73,7 +72,6 @@ export function describeVoice(cfg: AppConfig) {
     baseUrl: provider === "chatterbox" ? (cfg.tts?.baseUrl ?? "") : "",
     model: provider === "chatterbox" ? (cfg.tts?.model ?? "") : "",
     ...(provider === "fish" ? { fishModel: cfg.tts?.fishModel ?? fish.DEFAULT_FISH_MODEL } : {}),
-    ...(included ? { included: true as const } : {}),
   };
 }
 

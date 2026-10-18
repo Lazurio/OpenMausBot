@@ -21,7 +21,6 @@ export interface RoutineFailureFacts {
   stopReason?: string | null;
   setup?: boolean;
   stalled?: boolean;
-  trialCredit?: string;
   limitResetsAt?: number;
   /** A backup engine takes over from one whose usage limit refused the run. */
   backupReady?: boolean;
@@ -63,7 +62,6 @@ const OWNER_ACTION: Record<Exclude<RoutineOwnerCause, "setup">, string> = {
   credits: "This bot's AI account is out of credit. Add credit with the provider, or choose another AI for this bot.",
   usage_limit: "This bot's AI reached its usage limit. Its routines work again once it resets, or choose another AI for this bot now.",
 };
-const TRIAL_ACTION = "The trial Claude credit can't run this. Sign in with your own Claude or ChatGPT account, or add an API key.";
 const RETRY_WHY: Record<Exclude<RoutineRetryCause, "usage_limit">, string> = {
   stalled: "the AI stalled", restarted: "OpenMausBot restarted while it ran", rate_limited: "a rate limit", provider: "a temporary error",
   failed: "a failure",
@@ -83,7 +81,7 @@ export function classifyRoutineFailure(failure: string, facts: RoutineFailureFac
   if (facts.stalled) return { kind: "retry", cause: "stalled" };
   const engine = engineFailureKind(failure);
   const { reason, transient } = classifyError({ text: failure });
-  if (facts.trialCredit || engine === "credits") return { kind: "owner", cause: "credits" };
+  if (engine === "credits") return { kind: "owner", cause: "credits" };
   if (facts.limitResetsAt || facts.stopReason === "quota" || engine === "usage_limit") {
     return { kind: "owner", cause: "usage_limit", ...(facts.limitResetsAt ? { resetsAt: facts.limitResetsAt } : {}) };
   }
@@ -110,8 +108,8 @@ export function retriesTeammateThread(failure: string, facts: RoutineFailureFact
   return classifyRoutineFailure(failure, facts).kind === "retry";
 }
 
-export function engineFacts({ setup, stalled, trialCredit, limitResetsAt }: RuntimeEvent & { type: "runtime.error" }): RoutineFailureFacts {
-  return { setup, stalled, trialCredit, limitResetsAt };
+export function engineFacts({ setup, stalled, limitResetsAt }: RuntimeEvent & { type: "runtime.error" }): RoutineFailureFacts {
+  return { setup, stalled, limitResetsAt };
 }
 
 /** Host-local, with its zone: on a Cloud home the host's zone need not be the reader's. */
@@ -175,7 +173,7 @@ export function recoverRun(run: RoutineRun, failure: string, facts: RoutineFailu
   if (reset && reset > now && reset - now <= LIMIT_WAIT_MS && requeueOnce(run, "usage_limit", failure, now, reset + AFTER_RESET_MS)) {
     return { queued: true, ...(first ? { alert: { detail: `This bot's AI reached its usage limit. This run starts again at ${when(reset + AFTER_RESET_MS)}.` } } : {}) };
   }
-  const action = verdict.cause === "setup" ? failure : verdict.cause === "credits" && facts.trialCredit ? TRIAL_ACTION : OWNER_ACTION[verdict.cause];
+  const action = verdict.cause === "setup" ? failure : OWNER_ACTION[verdict.cause];
   return { queued: false, error: verdict.cause === "signed_out" ? `${action} The AI said: “${failure}”` : failure, alert: first ? { detail: action } : null };
 }
 

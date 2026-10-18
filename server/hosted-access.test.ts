@@ -157,8 +157,8 @@ describe("hosted bridge in the full server", () => {
     expect((await call("/")).location).toBe("/api/auth/hosted/start");
     expect((await call("/pair")).location).toBe("/api/auth/hosted/start");
     expect((await call("/", { local: true })).body).toContain("Fixture workspace");
-    expect((await call("/.well-known/openmausbot/environment")).body.capabilities.emailSignIn).toBe(false);
-    for (const path of ["/api/auth/pair", "/api/auth/pairing", "/api/auth/email/start", "/api/auth/email/verify"]) {
+    expect((await call("/.well-known/openmausbot/environment")).body.capabilities).not.toHaveProperty("emailSignIn");
+    for (const path of ["/api/auth/pair", "/api/auth/pairing"]) {
       expect((await call(path, { method: "POST" })).status).toBe(403);
     }
     expect((await call("/api/auth/session", { token: pairedToken })).status).toBe(401);
@@ -240,7 +240,6 @@ describe("hosted bridge in the full server", () => {
     expect((await call("/")).status).toBe(503);
     expect((await call("/pair")).status).toBe(503);
     expect((await call("/api/auth/session", { token: pairedToken })).status).toBe(503);
-    expect((await call("/api/auth/email/verify", { method: "POST" })).status).toBe(403);
     expect((await call("/api/auth/session", { local: true })).body.kind).toBe("loopback");
   }, 25_000);
   it("uses explicit portal membership without local allow-list synchronization and still revokes quiet streams", async () => {

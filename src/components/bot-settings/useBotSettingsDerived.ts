@@ -12,7 +12,6 @@ export type BotPatch = Partial<
     | "description"
     | "soul"
     | "notifications"
-    | "vpsAlias"
     | "color"
     | "mascotExpression"
     | "mascotBody"

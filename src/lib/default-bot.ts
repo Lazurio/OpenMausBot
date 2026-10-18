@@ -90,8 +90,8 @@ export function createChiefPatch(maus: DefaultBotFields, chief: { id: string } |
 export type SetupStep = "ai" | "bots" | "phone";
 
 /** What MausBot's intro offers to set up in Advanced mode, each optional: only what is still to do, and on a place with
- * bots of the person's own only an AI, which nothing works without. On a Team Cloud the team's admins set those up. */
-export function setupSteps(input: { aiReady: boolean; ownBots: number; onCloud: boolean; team: boolean; remote: boolean }): SetupStep[] {
+ * bots of the person's own only an AI, which nothing works without. On a team the team's admins set those up. */
+export function setupSteps(input: { aiReady: boolean; ownBots: number; team: boolean; remote: boolean }): SetupStep[] {
   if (input.team) return [];
   const fresh = input.ownBots === 0;
   return [
@@ -105,7 +105,6 @@ export type IntroChip = "ai" | "phone";
 export interface IntroFacts {
   aiReady: boolean;
   ownBots: number;
-  onCloud: boolean;
   team: boolean;
   remote: boolean;
   /** Known to have a paired phone; unknown counts as not yet. */

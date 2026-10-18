@@ -2,21 +2,19 @@ import { cn } from "@/lib/cn";
 import type { SidebarDensity } from "@/lib/sidebar-preferences";
 import { useStore } from "@/state/store";
 
-import { CloudUsageCard } from "./CloudUsageMeter";
-import { endCloudHowTo, useWorkspacePlace, type WorkspacePlace } from "./DesktopWorkspaceSwitcher";
+import { useWorkspacePlace, type WorkspacePlace } from "./DesktopWorkspaceSwitcher";
 import { SidebarBottomButtons, SidebarFooterNav } from "./SidebarFooterNav";
 import { phoneSettingsAction, SidebarPhoneButton } from "./SidebarPhoneButton";
 import { SidebarProfileMenu, useSimpleAccount, type ArchivedBots } from "./SidebarProfileMenu";
 import { UpdateIndicator } from "./UpdateIndicator";
 
 export function useSimplePlace(): WorkspacePlace {
-  const { state, dispatch } = useStore();
-  return useWorkspacePlace({ cloudHome: state.config?.cloudHome === true, howTo: state.cloudHowTo, onMenuClosed: () => endCloudHowTo(dispatch) });
+  const { state } = useStore();
+  return useWorkspacePlace({ cloudHome: state.config?.cloudHome === true });
 }
 
 export function SidebarPlaceStatus({ place, className }: { place: WorkspacePlace; className?: string }) {
   if (place.error) return <p role="alert" className={cn("text-[12px] text-danger", className)}>{place.error}</p>;
-  if (place.waking) return <p role="status" data-cloud-waking className={cn("text-[12px] text-ink-secondary", className)}>{place.waking}</p>;
   return null;
 }
 
@@ -25,7 +23,6 @@ function SimpleSidebarFooter({ owner, archived }: { owner: string | null; archiv
   const account = useSimpleAccount(place, owner, archived);
   return (
     <div data-sidebar-footer="simple" className="px-4 pb-4 pt-2">
-      <CloudUsageCard />
       <SidebarPlaceStatus place={place} className="mb-2 px-1" />
       <div className="flex items-center gap-2 not-first:mt-2">
         <SidebarProfileMenu simple={account} />
@@ -58,7 +55,6 @@ export function SidebarFooter({ density, simple = false, owner = null, archived,
         </>
       ) : (
         <>
-          <CloudUsageCard />
           <div className="flex items-center gap-1 not-first:mt-3">
             <div className="min-w-0 flex-1">
               <SidebarProfileMenu />

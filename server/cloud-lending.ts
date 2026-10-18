@@ -28,19 +28,6 @@ const personOf = (line: Line | undefined) => line?.role === "user" && !line.peer
 
 export type CloudLendingRefusal = "unproven" | "not-owner" | "someone-else";
 
-/** Why a turn can't use the lent computer, in the words its bot says and a refused call answers. `room`: a group chat.
- * `fromBefore`: each line that is not the owner's is one of theirs the Cloud cannot prove, written before My Cloud
- * carried their name on their lines. */
-export function cloudLendingRefusalText(why: CloudLendingRefusal | "memory-changed", { room, fromBefore, device }: { room: boolean; fromBefore: boolean; device: "Mac" | "PC" | "computer" }): string {
-  const yours = `your ${device}`;
-  const fresh = room ? "Start a new thread in this group chat to use it." : "Start a new conversation with this bot to use it.";
-  if (why === "memory-changed") return `This bot's memory was changed in a conversation you didn't write. Review it in Memory to use ${yours} again.`;
-  if (why === "someone-else" && fromBefore) return `This conversation has messages from before My Cloud, so it can't use ${yours}. ${fresh}`;
-  if (why === "someone-else") return `Someone else wrote in this conversation, so it can't use ${yours}. ${room ? fresh : "Start a new conversation to use it."}`;
-  if (room) return `Only your own messages in a group chat, and the bots that answer them there, can use ${yours}. Ask here yourself to use it.`;
-  return `Only conversations you start with a bot, and routines you wrote, can use ${yours}. Start a new conversation with this bot to use it.`;
-}
-
 export function cloudHomeLendingRefusal(turn: CloudLendingTurn): CloudLendingRefusal | null {
   const { request } = turn;
   if (!request?.messageId || request.stopped || !request.generations.has(turn.generation)) return "unproven";

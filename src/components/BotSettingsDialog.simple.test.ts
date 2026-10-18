@@ -110,9 +110,9 @@ const { SettingsPage } = await import("./bot-panel/SettingsPage");
 const { LibraryTab } = await import("./bot-panel/LibraryTab");
 const { ApprovalChip } = await import("./ComposerPlusMenu");
 const { callMode, setCallMode } = await import("@/lib/call-mode");
-const { ComputerTab, WherePage } = await import("./bot-panel/ComputerTab");
-const { PageBody, AppsPage, RoutinesPage, MemoryPage, SkillsPage, FolderPage, BrowserPage } = await import("./bot-panel/pages");
 const { BrowserLogins } = await import("./bot-panel/browser-logins");
+const { ComputerTab } = await import("./bot-panel/ComputerTab");
+const { PageBody, RoutinesPage, MemoryPage, SkillsPage, FolderPage } = await import("./bot-panel/pages");
 const { PAGES, sectionTarget } = await import("./bot-panel/page-registry");
 const { openBotSettings } = await import("./bot-panel/panel-link");
 const { PageHeader, SwitchRow } = await import("./bot-panel/rows");
@@ -124,7 +124,6 @@ const { ThreadModelsLine } = await import("./ThreadModelsLine");
 const { ModelSection } = await import("./bot-settings/ModelSection");
 const { RoutineList } = await import("./routines/RoutineList");
 const { RoutineEditor } = await import("./RoutinesPage");
-const { SignedInSites } = await import("./SignedInSites");
 const { AvatarImageGenerator } = await import("./AvatarImageGenerator");
 const { AvatarFraming } = await import("./avatar-editing");
 const { Switch } = await import("./SettingsPrimitives");
@@ -276,18 +275,13 @@ describe("the bot panel in Simple mode", () => {
     }
   });
 
-  it("opens Bot settings from the gear on any tab, with Back to Details, and its apps with Back to Bot settings", () => {
+  it("opens Bot settings from the gear on any tab, with Back to Details", () => {
     const bot = makeBot();
     click(find(panel(bot), "data-panel-tab", "library"));
     click(find(panel(bot), "data-panel-gear"));
     const settings = panel(bot);
     expect(shown(settings)).toEqual({ tab: undefined, page: "settings" });
     expect(ofType(settings, PageHeader)!.props).toMatchObject({ back: "Details", title: "Bot settings" });
-    (ofType(settings, PageBody)!.props.onOpen as (page: string) => void)("apps");
-    const apps = panel(bot);
-    expect(ofType(apps, PageHeader)!.props).toMatchObject({ back: "Bot settings", title: "Apps it can use", intro: "Switch on the apps Scout may use. Everything else stays off." });
-    (ofType(apps, PageHeader)!.props.onBack as () => void)();
-    expect(shown(panel(bot)).page).toBe("settings");
     (ofType(panel(bot), PageHeader)!.props.onBack as () => void)();
     expect(shown(panel(bot))).toEqual({ tab: "details", page: undefined });
   });
@@ -308,9 +302,6 @@ describe("the bot panel in Simple mode", () => {
     expect(ofType(panel(bot), PageHeader)!.props).toMatchObject({ back: "Library", title: "What it remembers" });
     (ofType(panel(bot), PageHeader)!.props.onBack as () => void)();
 
-    click(find(panel(bot), "data-panel-tab", "computer"));
-    (ofType(panel(bot), ComputerTab)!.props.onOpen as (page: string) => void)("browser");
-    expect(ofType(panel(bot), PageHeader)!.props).toMatchObject({ back: "Computer", title: "Signed-in sites", intro: undefined });
   });
 
   it("goes back on Escape from a page, and leaves Escape to the dialog on a tab", () => {
@@ -367,9 +358,6 @@ describe("the bot panel in Simple mode", () => {
     expect(sectionTarget("soul")).toMatchObject({ page: "settings", anchor: "instructions" });
   });
 
-  // App tool grants (PluginsPanel) and the working folder (the files pane) name a Simple page; MCP and tool
-  // selection name none, so they land where Access does.
-  it.each([["apps", "apps"], ["folder", "folder"], ["mcp", undefined], ["tools", undefined]] as const)("lands an Access link naming %s on %s", (page, landing) => {
   // The working folder (the files pane) names a Simple page.
   it.each([["folder", "folder"]] as const)("lands an Access link naming %s on %s", (page, landing) => {
     try {
@@ -617,9 +605,9 @@ describe("the Details tab", () => {
 });
 
 describe("the Bot settings page", () => {
-  it("holds Instructions, Before it acts, Call mode, Apps, Job and Hide, with every title on one edge", () => {
+  it("holds Instructions, Before it acts, Call mode, Job and Hide, with every title on one edge", () => {
     const rendered = settingsPage(makeBot({ defaultBot: {} }));
-    const order = ['data-panel-edit="soul"', 'data-panel-row="approval"', 'data-panel-row="call-mode"', 'data-panel-page="apps"', 'data-panel-row="job"', 'data-panel-row="default-bot-hide"']
+    const order = ['data-panel-edit="soul"', 'data-panel-row="approval"', 'data-panel-row="call-mode"', 'data-panel-row="job"', 'data-panel-row="default-bot-hide"']
       .map((marker) => rendered.html.indexOf(marker));
     expect(order.every((index) => index > -1)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
@@ -665,7 +653,7 @@ describe("the Bot settings page", () => {
     expect(patch).not.toHaveBeenCalled();
   });
 
-  it.each([["auto", "Decide for me", undefined], ["edits", "Auto-accept edits", undefined], ["custom", "Custom", "Change this in Advanced mode"]] as const)(
+  it.each([["auto", "Decide for me", undefined], ["edits", "Auto-accept edits", undefined]] as const)(
     "shows a bot in %s mode as a third, selected pill it cannot pick again, beside the two choices", (mode, label, tooltip) => {
       fixture.derived.approvalMode = mode;
       const rendered = settingsPage(makeBot());
@@ -679,15 +667,6 @@ describe("the Bot settings page", () => {
       expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "updateBot", botId: "scout", patch: { approvalMode: "ask", applyToAllThreads: true } });
     },
   );
-
-  it("shows legacy Antigravity Auto as Ask without a third pill or a change to the saved mode", () => {
-    fixture.derived.engine = engine({ driverKind: "antigravityAgent" });
-    fixture.derived.approvalMode = "auto";
-    const rendered = settingsPage(makeBot({ approvalMode: "auto" }));
-    expect(segment(rendered, "data-approval-choice").options).toHaveLength(2);
-    expect(pressed(rendered.html, "data-approval-choice")).toEqual(["ask"]);
-    expect(patch).not.toHaveBeenCalled();
-  });
 
   it("lets the approval level change while the bot is busy and says from when", () => {
     const rendered = settingsPage(makeBot({ busy: true }));
@@ -720,11 +699,6 @@ describe("the Bot settings page", () => {
     }
   });
 
-  it("values the Apps row with the apps switched on, or None yet, and opens the apps page", () => {
-    const empty = settingsPage(makeBot());
-    expect(rowValue(empty, "apps")).toBe("None yet");
-    click(find(empty, "data-panel-page", "apps"));
-    expect(onOpen).toHaveBeenLastCalledWith("apps");
   it("edits the bot's job: saved on blur, Enter leaves the field, Escape puts it back", () => {
     const bot = makeBot();
     const job = () => find(settingsPage(bot), "data-panel-job");
@@ -789,42 +763,24 @@ describe("the Library tab", () => {
 });
 
 describe("the Computer tab", () => {
-  it("shows the screen as one button that opens the full view, the caption, and where it works", () => {
+  it("offers no choice of where the bot works", () => {
     const rendered = computer(makeBot());
-    expect(find(rendered, "data-panel-action", "open-computer").props["aria-label"]).toBe("Watch: Scout's screen");
-    expect(rendered.html).toContain(">Not using its computer right now<");
-    expect(rendered.html).toContain(">Watch<");
-    expect(rendered.html).toContain("Scout&#x27;s screen");
-    expect(rendered.html).toContain("Where Scout works");
-    expect(rowValue(rendered, "where")).toBe("Let it choose");
-    expect(has(rendered, "attr", "data-place-choice")).toBe(false);
-    expect(switches(rendered.html)).toBe(0);
-    click(find(rendered, "data-panel-page", "where"));
-    expect(onOpen).toHaveBeenLastCalledWith("where");
-    expect(computer(makeBot({ busy: true })).html).toContain("Working on a task.");
+    expect(rendered.html).not.toContain("Where Scout works");
+    expect(rendered.html).not.toContain("data-place-choice");
   });
 
-  it("values Where it works with the place chosen, and says where it works right now when that differs", () => {
-    expect(rowValue(computer(makeBot({ computer: "cloud" })), "where")).toBe("Cloud desktop");
-    expect(rowValue(computer(makeBot({ computer: "vm" })), "where")).toBe("Private desktop");
-    const at = (surface: "local" | "browser" | undefined, extra: Partial<Bot> = {}) =>
-      computer(makeBot({ ...extra, tasks: [{ threadId: "thread-scout", title: "Main", ...(surface ? { surface } : {}) }] as Bot["tasks"] })).html;
-    expect(at("local")).toContain("Right now: This PC");
-    expect(at("browser")).toContain("Right now: Browser");
-    expect(at(undefined)).not.toContain("Right now");
-    expect(at("browser", { computer: "browser" })).not.toContain("Right now");
-  });
-
-  it("leads to the signed-in sites, and opens the full view from the screen", () => {
+  it("opens the browser panel, with no screen of its own", () => {
     const rendered = computer(makeBot());
-    click(find(rendered, "data-panel-page", "browser"));
-    expect(onOpen).toHaveBeenLastCalledWith("browser");
-    for (const page of ["folder", "logins", "android"]) expect(has(rendered, "data-panel-page", page)).toBe(false);
+    for (const page of ["browser", "logins", "where", "android"]) expect(has(rendered, "data-panel-page", page)).toBe(false);
+    expect(has(rendered, "data-panel-action", "open-computer")).toBe(false);
     expect(has(rendered, "data-panel-row", "data")).toBe(false);
+    expect(rendered.html).not.toContain("<img");
+    expect(switches(rendered.html)).toBe(0);
+
     const setItem = vi.fn();
     vi.stubGlobal("localStorage", { getItem: () => null, setItem });
-    click(find(rendered, "data-panel-action", "open-computer"));
-    expect(setItem).toHaveBeenLastCalledWith("omb-computer-panel-view:scout", "computer");
+    click(find(rendered, "data-panel-row", "browser"));
+    expect(setItem).toHaveBeenLastCalledWith("omb-browser-panel-view:scout", "browser");
     expect((fixture.dispatch as ReturnType<typeof vi.fn>).mock.calls.slice(-2)).toEqual([
       [{ type: "toggleSettings", open: false }],
       [{ type: "toggleComputer", open: true }],
@@ -833,81 +789,9 @@ describe("the Computer tab", () => {
   });
 });
 
-describe("the Where it works page", () => {
-  const where = (bot: Bot) => capture(() => WherePage({ bot, derived: derived() }));
-  const choices = (rendered: Rendered) => rendered.nodes.filter((node) => node.props["data-panel-choice"] !== undefined)
-    .map((node) => [node.props["data-panel-choice"], node.props.title, Boolean(node.props.disabled), node.props.checked]);
-  const choose = (rendered: Rendered, value: string) => click(find(rendered, "data-panel-choice", value));
-
-  it("offers Let it choose, this computer, the bot's browser and the Cloud desktop, with the chosen one checked", () => {
-    // The tests run on no platform in particular, so this computer is a PC; a Mac says This Mac.
-    expect(choices(where(makeBot()))).toEqual([
-      ["auto", "Let it choose", false, true], ["local", "This PC", false, false], ["browser", "Browser", false, false], ["cloud", "Cloud desktop", false, false],
-    ]);
-    expect(where(makeBot()).html).toContain('role="radiogroup"');
-  });
-
-  it("saves each place through the bot patch, and sends nothing for the place already chosen", () => {
-    const rendered = where(makeBot());
-    choose(rendered, "cloud");
-    expect(patch).toHaveBeenLastCalledWith({ computer: "cloud" });
-    choose(rendered, "local");
-    expect(patch).toHaveBeenLastCalledWith({ computer: "local" });
-    choose(rendered, "browser");
-    expect(patch).toHaveBeenLastCalledWith({ computer: "browser", browser: true });
-    choose(where(makeBot({ computer: "cloud" })), "auto");
-    expect(patch).toHaveBeenLastCalledWith({ computer: null });
-    patch.mockReset();
-    choose(where(makeBot({ computer: "cloud" })), "cloud");
-    expect(patch).not.toHaveBeenCalled();
-  });
-
-  it.each([["vm", "Private desktop"], ["off", "Off"]] as const)("shows a bot kept on %s as a last, checked choice it cannot pick again", (place, label) => {
-    const rendered = where(makeBot({ computer: place }));
-    expect(choices(rendered).at(-1)).toEqual([place, label, true, true]);
-    choose(rendered, place);
-    expect(patch).not.toHaveBeenCalled();
-    choose(rendered, "auto");
-    expect(patch).toHaveBeenLastCalledWith({ computer: null });
-  });
-
-  it("holds a place the bot cannot use with the reason as its hint, and leaves out the Cloud desktop when none is offered", () => {
-    fixture.places.cloud = [true, false, "Not ready"];
-    expect(find(where(makeBot()), "data-panel-choice", "cloud").props).toMatchObject({ disabled: true, hint: "Not ready." });
-    fixture.places.cloud = [false, false, "Not offered"];
-    expect(choices(where(makeBot())).map(([value]) => value)).toEqual(["auto", "local", "browser"]);
-    fixture.places.local = [false, false, "Not offered"];
-    fixture.places.browser = [false, false, "Not offered"];
-    expect(choices(where(makeBot())).map(([value]) => value)).toEqual(["auto"]);
-    expect(choices(where(makeBot({ computer: "browser" }))).map(([value, , disabled]) => [value, disabled])).toEqual([["auto", false], ["browser", true]]);
-  });
-
-  it("names the browser My Chrome when the bot's profile is the person's own Chrome", () => {
-    fixture.storeState = { ...fixture.storeState, config: { browserEngine: { myChrome: true }, browserProfiles: [{ id: "bank", name: "Bank", browser: "chrome" }] } };
-    expect(find(where(makeBot({ browserProfile: "bank" })), "data-panel-choice", "browser").props.title).toBe("My Chrome");
-    expect(find(where(makeBot()), "data-panel-choice", "browser").props.title).toBe("Browser");
-  });
-
-  it("says where the bot works right now when that is not the place chosen", () => {
-    const html = where(makeBot({ computer: "cloud", tasks: [{ threadId: "thread-scout", title: "Main", surface: "local" }] as Bot["tasks"] })).html;
-    expect(html).toContain("Right now: This PC");
-  });
-
-  it("warns before this computer for a bot that decides alone", () => {
-    fixture.derived.approvalMode = "auto";
-    const bot = makeBot();
-    choose(where(bot), "local");
-    expect(patch).not.toHaveBeenCalled();
-    const warning = ofType(where(bot), LocalComputerAutoWarning)!;
-    expect(warning.props.open).toBe(true);
-    (warning.props.onConfirm as () => void)();
-    expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "updateBot", botId: "scout", patch: { computer: "local", acknowledgeLocalAuto: true } });
-  });
-});
-
 describe("the drill-in pages", () => {
   const PAGE = {
-    settings: SettingsPage, apps: AppsPage, routines: RoutinesPage, memory: MemoryPage, skills: SkillsPage, folder: FolderPage, browser: BrowserPage, where: WherePage,
+    settings: SettingsPage, routines: RoutinesPage, memory: MemoryPage, skills: SkillsPage, folder: FolderPage,
   } as const;
   // The walker reads only what a component returns, so each page is called as the function PageBody picks.
   const body = (page: keyof typeof PAGE, bot = makeBot()) => capture(() => PAGE[page]({ bot, derived: derived() }) as ReactNode);
@@ -919,53 +803,6 @@ describe("the drill-in pages", () => {
     }
   });
   const row = (rendered: { nodes: Node[] }, id: string) => find(rendered, "data-panel-row", id);
-
-  it("gives each connected app one switch that writes the same scopes as Access, with no scopes or tool grants", () => {
-    fixture.apps = { phase: "ready", connectedSlugs: ["github", "gmail", "slack"], apps: [app("github", "write"), app("gmail", "write"), app("slack", "write")] };
-    const rendered = body("apps");
-    expect(switches(rendered.html)).toBe(3);
-    expect(rendered.html).not.toContain("Let Scout use apps");
-    expect(rendered.html).not.toContain("Read only");
-    expect(rendered.html).not.toContain("github things");
-    click(find(rendered, "aria-label", "Scout can use Github"));
-    expect(patch).toHaveBeenLastCalledWith({ connectorScopes: { apps: { gmail: "write", slack: "write" } } });
-
-    fixture.apps = { phase: "ready", connectedSlugs: ["github", "gmail", "slack"], apps: [app("github", null), app("gmail", "read"), app("slack", "write")] };
-    const scoped = body("apps", makeBot({ connectorScopes: { apps: { gmail: "read", slack: "write" } } }));
-    expect(find(scoped, "aria-label", "Scout can use Github").props.checked).toBe(false);
-    click(find(scoped, "aria-label", "Scout can use Github"));
-    expect(patch).toHaveBeenLastCalledWith({ connectorScopes: { apps: { gmail: "read", slack: "write", github: "write" } } });
-  });
-
-  it("switching an app on while apps are off for the bot turns them on with only that app", () => {
-    fixture.derived.connectedAppsEnabled = false;
-    fixture.apps = { phase: "ready", connectedSlugs: ["gmail", "slack"], apps: [app("gmail", null), app("slack", null)] };
-    click(find(body("apps", makeBot({ composio: false })), "aria-label", "Scout can use Gmail"));
-    expect(patch).toHaveBeenLastCalledWith({ connectorScopes: { apps: { gmail: "write" } }, composio: true });
-    patch.mockReset();
-    click(find(body("apps", makeBot({ composio: false, connectorScopes: { apps: { slack: "write" } } })), "aria-label", "Scout can use Gmail"));
-    expect(patch).toHaveBeenLastCalledWith({ connectorScopes: { apps: { slack: "write", gmail: "write" } }, composio: true });
-  });
-
-  it("says what it knows about the apps: checking, unreadable, empty or unusable, and leads to the catalog", () => {
-    fixture.apps = { phase: "loading", apps: [], connectedSlugs: [] };
-    expect(body("apps").html).toContain("Checking…");
-    fixture.apps = { phase: "unknown", apps: [], connectedSlugs: [] };
-    expect(body("apps").html).toContain("Couldn&#x27;t check your apps just now.");
-    fixture.apps = { phase: "ready", apps: [], connectedSlugs: [] };
-    const empty = body("apps");
-    expect(empty.html).toContain("No apps connected yet.");
-    click(find(empty, "data-panel-link", "add-app"));
-    expect((fixture.dispatch as ReturnType<typeof vi.fn>).mock.calls).toEqual([
-      [{ type: "toggleSettings", open: false }],
-      [{ type: "togglePlugins", open: true, surface: "apps" }],
-    ]);
-    fixture.derived.canUseConnectedApps = false;
-    fixture.apps = { phase: "ready", connectedSlugs: ["gmail"], apps: [app("gmail", "write")] };
-    const cannot = body("apps");
-    expect(cannot.html).toContain("The model Scout runs on can&#x27;t use apps.");
-    expect(switches(cannot.html)).toBe(0);
-  });
 
   it("lists routines with switches, adds one locked to this bot, and says to ask in chat; no logs page, no schedules link", () => {
     const morning = routine();
@@ -1091,23 +928,6 @@ describe("the drill-in pages", () => {
     submit(find(body("folder"), "data-panel-form", "folder-path"));
     expect(fixture.api).toHaveBeenLastCalledWith("/api/bots/scout", { method: "PATCH", body: JSON.stringify({ cwd: "/tmp/work" }) });
   });
-
-  it("shows only the signed-in sites on the browser page, with no browser or record-steps switch", () => {
-    fixture.ownerOrAdmin = true;
-    const page = body("browser");
-    expect(ofType(page, BrowserLogins)!.props).toMatchObject({ bot: expect.objectContaining({ id: "scout" }), browserEnabled: true });
-    const rendered = capture(() => BrowserLogins({ bot: makeBot(), browserEnabled: true, onOpenBrowser: vi.fn() }));
-    expect(ofType(rendered, SignedInSites)!.props).toMatchObject({ bare: true, target: { bot: "scout" }, sharedBy: ["Scout"], disabled: false });
-    expect(switches(rendered.html)).toBe(0);
-    expect(rendered.html).not.toContain("Record");
-    expect(rendered.html).not.toContain(">Logins<");
-    const onOpenBrowser = vi.fn();
-    click(find(capture(() => BrowserLogins({ bot: makeBot(), browserEnabled: true, onOpenBrowser })), "data-panel-action", "add-login"));
-    expect(onOpenBrowser).toHaveBeenCalled();
-    fixture.derived.browserEnabled = false;
-    expect(ofType(body("browser"), BrowserLogins)!.props.browserEnabled).toBe(false);
-    expect(capture(() => BrowserLogins({ bot: makeBot(), browserEnabled: false, onOpenBrowser: vi.fn() })).html).toContain("Scout&#x27;s browser is off.");
-  });
 });
 
 describe("the bot settings dialog", () => {
@@ -1194,8 +1014,7 @@ describe("the bot settings dialog", () => {
 
 describe("the panel's switches", () => {
   it("are the shared switch, in the bot's own color when on", () => {
-    fixture.apps = { phase: "ready", connectedSlugs: ["gmail"], apps: [app("gmail", "write")] };
-    const html = capture(() => PageBody({ page: "apps", bot: makeBot({ color: "blue" }), derived: derived() }) as ReactNode).html;
+    const html = capture(() => SwitchRow({ title: "Ask first", checked: true, onChange: vi.fn(), color: "blue" })).html;
     expect(html.match(/role="switch"/g)).toHaveLength(1);
     expect(html).toContain("background-color:#377FE6");
     expect(Switch).toBeDefined();

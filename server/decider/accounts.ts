@@ -1,5 +1,5 @@
-// Whose key a decision or an extraction uses, shared by server/decider and server/extractor. The person's own key always
-// wins; Cloud's included token goes only to its relay; the engine's OpenRouter key goes only to OpenRouter's own address.
+// Whose key a decision or an extraction uses, shared by server/decider and server/extractor: the person's own key; the
+// engine's OpenRouter key goes only to OpenRouter's own address.
 import type { AppConfig } from "../config.ts";
 import { deciderCredential, type ServiceCredential } from "../included-services.ts";
 import { WORKERS_AI_ACCOUNT_ID } from "./config.ts";
@@ -35,7 +35,7 @@ export function workersAiAccount(cfg: AppConfig, draft: { token?: string; accoun
   const token = draft.token?.trim() || cfg.decider?.workersAiToken?.trim();
   const accountId = draft.accountId?.trim() || cfg.decider?.workersAiAccountId?.trim();
   if (!token || !accountId || !WORKERS_AI_ACCOUNT_ID.test(accountId)) return null;
-  return { provider: "workersai", token, accountId: accountId.toLowerCase(), api: cfg.decider?.workersAiBaseUrl?.trim() || WORKERS_AI_DEFAULT_BASE_URL, included: false };
+  return { provider: "workersai", token, accountId: accountId.toLowerCase(), api: cfg.decider?.workersAiBaseUrl?.trim() || WORKERS_AI_DEFAULT_BASE_URL };
 }
 
 export function jevAccount(cfg: AppConfig, draft?: string): HelperAccount | null {
@@ -45,19 +45,13 @@ export function jevAccount(cfg: AppConfig, draft?: string): HelperAccount | null
   return credential ? { ...credential, provider: "jev" } : null;
 }
 
-/** Cloud's included relay, a Jev base URL whose `/v1/extract` also extracts. */
-export function includedAccount(): HelperAccount | null {
-  const credential = deciderCredential(undefined, undefined);
-  return credential?.included ? { ...credential, provider: "jev" } : null;
-}
-
 export function openrouterAccount(cfg: AppConfig, draft?: string): HelperAccount | null {
   const key = deciderOpenRouterKey(cfg, draft);
-  return key ? { provider: "openrouter", token: key.token, api: cfg.decider?.openrouterBaseUrl?.trim() || OPENROUTER_DEFAULT_BASE_URL, included: false, keySource: key.source } : null;
+  return key ? { provider: "openrouter", token: key.token, api: cfg.decider?.openrouterBaseUrl?.trim() || OPENROUTER_DEFAULT_BASE_URL, keySource: key.source } : null;
 }
 
-/** On and usable: the helper models' one switch. An included relay is on unless switched off; an own key once switched on. */
+/** On and usable: the helper models' one switch, on once an own key is switched on. */
 export function helpersOn(cfg: AppConfig, account: HelperAccount | null): boolean {
   if (!account || cfg.decider?.provider === "off") return false;
-  return account.included ? cfg.decider?.enabled !== false : cfg.decider?.enabled === true;
+  return cfg.decider?.enabled === true;
 }

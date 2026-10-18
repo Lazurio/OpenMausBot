@@ -8,14 +8,9 @@ import { OpenAtLoginRow } from "./OpenAtLoginRow";
 import { DefaultBotSidebarRow } from "./DefaultBotControls";
 import { DiagnosticsRow } from "./DiagnosticsRow";
 import { EnginesSettings } from "./EnginesSettings";
-import { LocalComputerSection } from "./LocalComputerSection";
 import { PeopleSection } from "./PeopleSection";
 import { ActivitySection } from "./ActivitySection";
-import { BuiltInBrowserRow } from "./BrowserSettingsRows";
-import { LoginsSettings } from "./LoginsSettings";
 import { OrganizationSettings } from "./OrganizationSettings";
-import { CloudPlanRow, CloudPlanFootnote, useCloudPlan } from "./ProIntroduction";
-import { CloudUsageDetails, CloudUsageSummaryView, useCloudUsageSettings } from "./CloudUsageMeter";
 import { SettingRow, SettingsDisclosureRow, SettingsGroup, SettingsRows } from "./SettingsPrimitives";
 import { UsageSection } from "./UsageSection";
 import { PlanUsageSummary } from "./PlanUsage";
@@ -23,7 +18,7 @@ import { SkinPicker } from "./SkinPicker";
 import { ProfileSummaryRow } from "./ProfileSettings";
 import { NotificationRows } from "./NotificationSettingsRows";
 import { useServerUpdateItem } from "./SidebarProfileMenu";
-import { AdvancedModeRow, BrowserProfilesRow, ColorUserBubblesRow, LanguageRow, ReplayTourRow, SendKeyRow, UpdatesRow } from "./AppSettingsRows";
+import { AdvancedModeRow, ColorUserBubblesRow, LanguageRow, ReplayTourRow, SendKeyRow, UpdatesRow } from "./AppSettingsRows";
 import { ThemeRow } from "./ThemeRow";
 
 export type SimpleDisclosureId = "ai-more" | "ai-keys" | "computer-elsewhere" | "billing-limits";
@@ -45,7 +40,6 @@ export function SimpleGeneralPage({ has, peopleOpen, onLooks }: { has: Has; peop
         <SettingsGroup label={t("settings.group.account")} block="general">
           <SettingsRows>
             {has("general") && <ProfileSummaryRow />}
-            {has("general") && <CloudPlanRow place="account" />}
             {has("people") && <div data-settings-block="people" className="scroll-mt-4"><PeopleSection simple startOpen={peopleOpen} /></div>}
           </SettingsRows>
         </SettingsGroup>
@@ -112,20 +106,12 @@ export type RemoteAccessCards = Record<"client" | "domain" | "pairing" | "compan
 export function SimpleComputerPage({ has, remoteAccess, servers, disclose }: { has: Has; remoteAccess: RemoteAccessCards; servers: ReactNode; disclose: Disclose }) {
   return (
     <>
-      {has("computer") && <SettingsGroup label={t("settings.simple.computer.bots")} block="computer"><LocalComputerSection /></SettingsGroup>}
       {has("companion") && (
         <SettingsGroup label={t("settings.simple.computer.devices")} block="companion">
           {remoteAccess.pairing}
           {remoteAccess.companion}
         </SettingsGroup>
       )}
-      {has("computer") && (
-        <SettingsGroup label={t("settings.experimental.browser")} block="browser">
-          <SettingsRows><BuiltInBrowserRow /></SettingsRows>
-          <BrowserProfilesRow />
-        </SettingsGroup>
-      )}
-      {has("logins") && <div data-settings-block="logins" className="scroll-mt-4"><LoginsSettings /></div>}
       {(has("companion") || has("desktopWorkspaces")) && (
         <SettingsDisclosureRow title={t("settings.simple.computer.elsewhere")} block="elsewhere" {...disclose("computer-elsewhere")}>
           {has("companion") && <div data-settings-block="remote" className="flex scroll-mt-4 flex-col gap-4 empty:hidden">{remoteAccess.client}{remoteAccess.domain}</div>}
@@ -136,26 +122,16 @@ export function SimpleComputerPage({ has, remoteAccess, servers, disclose }: { h
   );
 }
 
-export function SimpleBillingPage({ has, disclose, cloudAccount }: { has: Has; disclose: Disclose; cloudAccount: ReactNode }) {
-  const { usage, upgrade, dialog } = useCloudUsageSettings();
-  const plan = useCloudPlan();
-  const signedOut = plan?.view.kind === "signed-out" || plan?.view.kind === "removed";
+export function SimpleBillingPage({ has, disclose }: { has: Has; disclose: Disclose }) {
   return (
     <>
       <div data-settings-block="usage" className="scroll-mt-4">
-        {usage ? <CloudUsageSummaryView usage={usage} upgrade={upgrade}>{dialog}</CloudUsageSummaryView> : <PlanUsageSummary />}
+        <PlanUsageSummary />
       </div>
-      {(usage || has("usage")) && (
+      {has("usage") && (
         <SettingsDisclosureRow title={t("settings.simple.billing.limits")} {...disclose("billing-limits")}>
-          {usage && <CloudUsageDetails usage={usage} upgrade={upgrade} />}
-          {has("usage") && <UsageSection />}
+          <UsageSection />
         </SettingsDisclosureRow>
-      )}
-      {has("cloudAccount") && (
-        <SettingsGroup label={t("settings.simple.billing.plan")} block="cloudAccount" footnote={<CloudPlanFootnote />}>
-          <SettingsRows><CloudPlanRow place="plan" usage={usage} upgrade={upgrade} /></SettingsRows>
-          {signedOut ? null : <div className="flex flex-col gap-4">{cloudAccount}</div>}
-        </SettingsGroup>
       )}
     </>
   );

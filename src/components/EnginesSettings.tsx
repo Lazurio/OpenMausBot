@@ -301,10 +301,6 @@ function EngineRow({ instance, bare = false }: { instance: InstanceInfo; bare?: 
   const policyNote = instance.policy && <p className="mb-2 text-[12px] leading-relaxed text-ink-secondary">
     <span className="font-medium text-ink">{t("policy.managedBy", { organization: instance.policy.organizationName })}</span> · {instance.policy.reason}
   </p>;
-  if (instance.trialCredit) return <EngineCard instance={instance} bare={bare}>
-    <p data-trial-credit={instance.trialCredit} className="text-[13px] leading-relaxed text-ink-secondary">{t(instance.trialCredit === "used_up" ? "engines.trialCreditUsedUp"
-      : instance.trialCredit === "ended" ? "engines.trialCreditEnded" : engineReady(instance) ? "engines.trialCredit" : "engines.trialCreditOwn")}</p>
-  </EngineCard>;
   if (instance.readOnly) return <EngineCard instance={instance} bare={bare}>
     {policyNote}
     <p className="text-[13px] leading-relaxed text-ink-secondary">{t("organization.managedEngine")}</p>

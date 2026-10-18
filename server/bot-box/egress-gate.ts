@@ -1,13 +1,24 @@
 // The box's way to the internet: an HTTP proxy (CONNECT for TLS, absolute-URI for plain HTTP) on a unix socket that a
-// loopback port inside the box is bridged to. Like the browser's SOCKS gate (server/browser/egress/gate.ts) it resolves
-// names itself and connects only to public addresses, so a bot's shell reaches neither this server's loopback routes,
-// the local network, the cloud metadata service nor Fly's private network, whatever name it uses.
+// loopback port inside the box is bridged to. It resolves names itself and connects only to public addresses, so a
+// bot's shell reaches neither this server's loopback routes, the local network, the cloud metadata service nor Fly's
+// private network, whatever name it uses.
 import { createServer, request as httpRequest, type ClientRequest, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { connect, type Socket } from "node:net";
+import { lookup } from "node:dns/promises";
+import { connect, isIP, type Socket } from "node:net";
 import type { Duplex } from "node:stream";
 
-import { resolveTarget, type ResolvedAddress } from "../browser/egress/gate.ts";
-import { refusalFor, type EgressRules } from "../browser/egress/policy.ts";
+import { namesThisMachine, refusalFor, type EgressRules } from "../browser/egress/policy.ts";
+
+export interface ResolvedAddress { address: string; family: number }
+
+const LOOPBACK_NAMES: ResolvedAddress[] = [{ address: "127.0.0.1", family: 4 }, { address: "::1", family: 6 }];
+
+async function resolveTarget(host: string): Promise<ResolvedAddress[]> {
+  const literal = isIP(host);
+  if (literal) return [{ address: host, family: literal }];
+  if (namesThisMachine(host)) return LOOPBACK_NAMES;
+  return lookup(host, { all: true, verbatim: true }).catch(() => []);
+}
 
 export interface EgressGateOptions {
   socketPath: string;

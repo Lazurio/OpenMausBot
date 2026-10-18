@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, it, vi } from "vitest";
 
-import { DesktopWorkspaceSwitcher, openServerMenu, planSleeps } from "./DesktopWorkspaceSwitcher";
+import { DesktopWorkspaceSwitcher, openServerMenu } from "./DesktopWorkspaceSwitcher";
 
 afterEach(() => { vi.unstubAllGlobals(); });
 
@@ -50,14 +50,6 @@ it("names whose Cloud a browser signed in to under My Cloud, quietly", () => {
   const compact = renderToStaticMarkup(createElement(DesktopWorkspaceSwitcher, { cloudHome: true, owner: "ada@example.test", compact: true }));
   expect(compact).toContain('<span class="sr-only">My Cloud · ada@example.test’s Cloud</span>');
   expect(renderToStaticMarkup(createElement(DesktopWorkspaceSwitcher, { owner: "ada@example.test" }))).toBe("");
-});
-
-it("reads whether the plan sleeps from main's verified plan: an active plan without sleeps never sleeps; anything else is not known", () => {
-  expect(planSleeps({ status: "paid", tier: "pro" })).toBe(false);
-  expect(planSleeps({ status: "paid", tier: "starter", sleeps: true })).toBe(true);
-  expect(planSleeps({ status: "none", sleeps: true })).toBe(true);
-  for (const status of ["attention", "checking", "signin", "none"] as const) expect(planSleeps({ status }), status).toBeNull();
-  expect(planSleeps(null)).toBeNull();
 });
 
 it("is the Show me how tip's anchor, and opens the menu as reached from the tip only while the tip is up", async () => {

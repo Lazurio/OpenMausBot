@@ -19,7 +19,6 @@ import {
   ROUTINE_EXECUTION_PROMPT,
   WEBHOOK_PROMPT,
   AUTOMATION_REPLY_PROMPT,
-  SANDBOX_DESKTOP_INPUT,
   SIGN_IN_PROMPT,
 } from "./system-prompt.ts";
 import { REPLY_HABITS_PROMPT } from "./reply-habits.ts";
@@ -138,33 +137,12 @@ describe("buildSystemPrompt", () => {
   });
 });
 
-describe("computerPrompt", () => {
-  it("distinguishes background window control from foreground desktop input", () => {
-    const prompt = computerPrompt("local");
-    expect(prompt).toContain("background delivery");
-    expect(prompt).toContain("do not bring OpenMausBot");
     expect(prompt).toContain("dedicated browser tools");
     expect(prompt).toContain("keeping the user's intended browser profile/account");
-    expect(prompt).toContain("Do not silently retry a background refusal");
-    expect(prompt).toContain("including through shell scripts, AppleScript/System Events");
-    expect(prompt).toContain("If a background action unexpectedly changes focus");
-  });
-  it("tells sandbox desktops, and never the user's own computer, to send keys in the foreground", () => {
-    for (const kind of ["vm-private", "vm-shared", "vps"] as const) {
-      expect(computerPrompt(kind)).toContain(SANDBOX_DESKTOP_INPUT);
-      expect(computerPrompt(kind).indexOf(SANDBOX_DESKTOP_INPUT)).toBeLessThan(computerPrompt(kind).indexOf(SIGN_IN_PROMPT));
-    }
-    expect(SANDBOX_DESKTOP_INPUT).toContain('delivery_mode "foreground" for keys, typing, scrolling and pixel clicks');
-    expect(computerPrompt("local")).not.toContain(SANDBOX_DESKTOP_INPUT);
-    expect(computerPrompt("box")).not.toContain(SANDBOX_DESKTOP_INPUT);
-  });
-  it("is empty with no computer", () => {
-    expect(computerPrompt(null)).toBe("");
-  });
-
   it("shares the authorized sign-in policy across every computer and browser surface", () => {
-    expect(computerPrompt("local")).toContain("act on the user's computer");
     expect(BUILT_IN_BROWSER_SYSTEM_PROMPT.endsWith(SIGN_IN_PROMPT)).toBe(true);
+describe("SIGN_IN_PROMPT", () => {
+  it("gives the Environment browser the authorized sign-in policy", () => {
   });
 
   it("allows authorized login without granting secret discovery or removing human handoff", () => {
@@ -193,7 +171,7 @@ describe("computerPrompt", () => {
     // An inbox code no longer sends the person in; only a code the bot cannot read does.
     expect(SIGN_IN_PROMPT).not.toMatch(/\bMFA\b/u);
     expect(SIGN_IN_PROMPT.indexOf("type the code into that site yourself")).toBeLessThan(SIGN_IN_PROMPT.indexOf("call request_sign_in"));
-    for (const prompt of [computerPrompt("local"), computerPrompt("box"), BUILT_IN_BROWSER_SYSTEM_PROMPT]) expect(prompt).toContain("type the code into that site yourself");
+    expect(environmentBrowserPrompt("bot-x", true)).toContain("type the code into that site yourself");
   });
 
   it("sends the bot to request_sign_in when it is not signed in, never to a password store of its own", () => {
@@ -255,36 +233,8 @@ describe("cloudHomePrompt", () => {
     }
   });
 
-  it("points to a lent computer only when the turn has the shared-computer tools", () => {
-    expect(cloudHomePrompt(true)).toContain("check list_shared_computers: a computer they share with the Cloud is reachable through shared_computer");
-    expect(cloudHomePrompt(true)).toContain("otherwise give them [Use this computer](openmausbot://use-my-computer) to press in OpenMausBot on that computer: it asks them once");
-    expect(cloudHomePrompt(true)).not.toContain("Settings →");
-    expect(cloudHomePrompt(true)).toContain("use its say field when it has one");
-    expect(cloudHomePrompt(false)).not.toMatch(/shared_computer|list_shared_computers/);
-    expect(cloudHomePrompt(false)).toContain("You cannot see or use their own computer, its screen or its files from here.");
-  });
-
-  it("says lent folders keep working from the Cloud's copy while the computer is away, and what to tell the person", () => {
-    const mac = cloudHomePrompt(true, [], [{ name: "Ash-MBP", platform: "darwin" }]);
-    expect(mac).toContain("While that Mac is away, each folder it lends that the Cloud keeps a copy of still works from that copy: list_shared_computers lists them under away_computers (copy null means a folder only on the Mac), every read says how fresh the copy is");
-    expect(mac).toContain("a write to a folder lent with editing is saved here and reaches the Mac when it's on (tell them so in a few words)");
-    expect(mac).toContain("A file or folder that isn't in the copy is only on the Mac: say you'll get it when it's on.");
-    expect(cloudHomePrompt(false, [], [{ name: "Ash-MBP", platform: "darwin" }])).not.toContain("away_computers");
-  });
-
-  // A Windows user was told to turn on "Let My Cloud use this Mac" on "this Mac", and the Cloud called "OMB Cloud".
-  it("names the person's computer by its platform, never a Mac unless it is one, and the product by its name", () => {
-    const pc = cloudHomePrompt(true, [], [{ name: "ASH-PC", platform: "win32" }]);
-    expect(pc).toContain("If they ask for something on their PC (ASH-PC), check list_shared_computers");
-    expect(pc).toContain("give them [Use my PC](openmausbot://use-my-computer) to press in OpenMausBot on that PC: it asks them once and shares that PC with you. It is a PC: call it that, never a Mac unless it is one.");
-    const mac = cloudHomePrompt(false, [], [{ name: "Ash’s MacBook", platform: "darwin" }, { name: "ASH-PC", platform: "win32" }]);
-    expect(mac).toContain("You cannot see or use their Mac (Ash’s MacBook), its screen or its files from here.");
-    for (const text of [pc, mac, cloudHomePrompt(true), cloudHomePrompt(true, [], [{ name: "box", platform: "linux" }])]) {
-      expect(text).not.toMatch(/this Mac|OMB Cloud|OpenMausBot Cloud|Mac or PC/u);
-      if (text.includes("Settings →")) expect(text).toContain("Settings → MausBot Cloud");
-    }
-    expect(cloudHomePrompt(true, [], [{ name: "box", platform: "linux" }])).toContain("Call it their computer: never assume it is a Mac.");
-    expect(cloudHomePrompt(true, [], [{ name: "evil\u202eNAME\nnext", platform: "win32" }])).not.toMatch(/[\u202e\n]/u);
+  it("says the person's own computer cannot be reached from the cloud", () => {
+    expect(cloudHomePrompt()).toContain("You cannot see or use their Mac or PC, its screen or its files from here.");
   });
 });
 
@@ -294,13 +244,6 @@ describe("longCommandsPrompt", () => {
     expect(text).toContain("`timeout` in milliseconds, up to 600000");
     expect(text).not.toContain("vm_exec");
   });
-});
-
-it("tells Cloud bots which folders the person shares, that the copies are read-only, and where their own work goes", () => {
-  expect(text).toContain("Folders the person shares from their computer, as read-only copies kept up to date here: C:\\Users\\Ash\\Documents\\PA on Ash-PC → /data/Synced/Ash-PC/PA.");
-  expect(text).toContain("never change or delete files in them directly: to change a file in a folder lent with editing, use shared_computer write_file, which reaches their computer; save other work in your own working folder");
-  // A name or path is shown as plain text: no line breaks or direction overrides reach the prompt.
-  const many = Array.from({ length: 23 }, (_, i) => ({ computerName: "PC", pcPath: `/f${i}`, cloudPath: `/data/Synced/PC/f${i}` }));
 });
 
 describe("reply style", () => {

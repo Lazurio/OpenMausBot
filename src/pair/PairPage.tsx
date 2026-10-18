@@ -8,8 +8,6 @@ import {
   pairWithCode,
   readSessionState,
   reasonWorthShowing,
-  startEmailSignIn,
-  verifyEmailSignIn,
   type EnvironmentDescriptor,
   type SessionState,
 } from "../lib/session";
@@ -24,13 +22,13 @@ export function pairsAutomatically(initialCode: string | null, desktop = typeof 
   return Boolean(initialCode) && desktop;
 }
 
-export function pairIntro({ mode, sent, email, cloudHome }: { mode: "email" | "code" | null; sent: boolean; email: string; cloudHome: boolean }): string {
-  if (mode === "email") return sent ? `We emailed an 8-digit code to ${email}. It works once and expires in ten minutes.` : "Enter your email and we will send you a one-time code.";
+// Lazurio overlay (DEV-6673 M3): the OpenMausBot account's email-code sign-in is removed; devices pair with a code.
+export function pairIntro({ cloudHome }: { cloudHome: boolean }): string {
   if (cloudHome) return "To open the Cloud, choose Open the Cloud in the OpenMausBot app on your computer (Settings → MausBot Cloud), or Use in your browser on your Plan page. Have a pairing code? Enter it below.";
   return "Enter the pairing code shown on the server. Codes work once and expire after five minutes.";
 }
 
-export function PairPage({ initialCode, initialEmail = null, reason }: { initialCode: string | null; initialEmail?: string | null; reason?: string }) {
+export function PairPage({ initialCode, reason }: { initialCode: string | null; reason?: string }) {
   const [code, setCode] = useState(initialCode ?? "");
   const [label, setLabel] = useState(defaultDeviceLabel());
   const [environment, setEnvironment] = useState<EnvironmentDescriptor | null>(null);
@@ -38,10 +36,6 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attemptId, setAttemptId] = useState(() => newAttemptId());
-  const [mode, setMode] = useState<"email" | "code" | null>(initialCode ? "code" : null);
-  const [email, setEmail] = useState(initialEmail ?? "");
-  const [otp, setOtp] = useState("");
-  const [sent, setSent] = useState(false);
   const [opening, setOpening] = useState(() => pairsAutomatically(initialCode));
 
   useEffect(() => {
@@ -60,19 +54,12 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
   useEffect(() => {
     void fetch("/.well-known/openmausbot/environment")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d: EnvironmentDescriptor | null) => {
-        setEnvironment(d);
-        setMode((current) => current ?? (d?.capabilities.emailSignIn ? "email" : "code"));
-      })
-      .catch(() => {
-        setEnvironment(null);
-        setMode((current) => current ?? "code");
-      });
+      .then((d: EnvironmentDescriptor | null) => setEnvironment(d))
+      .catch(() => setEnvironment(null));
     void readSessionState().then(setSession);
   }, []);
 
   const connected = isConnected(session);
-  const emailOffered = environment?.capabilities.emailSignIn === true;
   const cloudHome = environment?.capabilities.cloudHome === true;
 
   async function submitCode(e: React.FormEvent) {
@@ -88,28 +75,6 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
     setError(result.error);
   }
 
-  async function submitEmail(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    const result = sent ? await verifyEmailSignIn({ email, code: otp, label }) : await startEmailSignIn(email);
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error);
-      return;
-    }
-    if (sent) {
-      location.replace(pairedDestination(location.search));
-      return;
-    }
-    setSent(true);
-  }
-
-  function switchMode(next: "email" | "code") {
-    setMode(next);
-    setError(null);
-  }
-
   return (
     <main className="flex min-h-screen items-center justify-center bg-app px-6 text-ink">
       <div className="absolute left-3 top-12 max-w-[280px]"><DesktopWorkspaceSwitcher /></div>
@@ -117,10 +82,10 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
         {opening ? (
           <p role="status" className="text-[20px] font-semibold">{cloudHome ? "Opening the Cloud…" : `Connecting to ${environment?.label ?? "this OpenMausBot"}…`}</p>
         ) : <>
-        <h1 className="text-[20px] font-semibold">{cloudHome ? "My Cloud" : `${mode === "email" ? "Sign in to" : "Connect to"} ${environment?.label ?? "this OpenMausBot"}`}</h1>
+        <h1 className="text-[20px] font-semibold">{cloudHome ? "My Cloud" : `Connect to ${environment?.label ?? "this OpenMausBot"}`}</h1>
         <p className="mt-1.5 text-[14px] leading-relaxed text-ink-secondary">
           {environment && !cloudHome ? `Version ${environment.version} on ${environment.platform}. ` : ""}
-          {pairIntro({ mode, sent, email, cloudHome })}
+          {pairIntro({ cloudHome })}
         </p>
         {reasonWorthShowing(reason) && !connected ? <p className="mt-3 text-[13px] text-ink-secondary">{reasonWorthShowing(reason)}</p> : null}
         {error && cloudHome && initialCode ? <p className="mt-3 text-[13px] text-ink-secondary">This link has expired or was already used. In the OpenMausBot app on your computer, open Settings → MausBot Cloud and choose Open the Cloud.</p> : null}
@@ -132,59 +97,6 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
               Open the app
             </a>
           </p>
-        ) : mode === "email" ? (
-          <form onSubmit={submitEmail}>
-            <label className={fieldLabel} htmlFor="signin-email">
-              Email
-            </label>
-            <input
-              id="signin-email"
-              type="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                setSent(false);
-                setOtp("");
-              }}
-              autoComplete="email"
-              inputMode="email"
-              spellCheck={false}
-              className={input}
-            />
-            {sent ? (
-              <>
-                <label className={fieldLabel} htmlFor="signin-code">
-                  Code from the email
-                </label>
-                <input
-                  id="signin-code"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  placeholder="12345678"
-                  autoComplete="one-time-code"
-                  inputMode="numeric"
-                  spellCheck={false}
-                  className={`${input} font-mono text-[15px] tracking-[0.12em]`}
-                />
-                <label className={fieldLabel} htmlFor="signin-label">
-                  This device
-                </label>
-                <input id="signin-label" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={80} className={input} />
-              </>
-            ) : null}
-            {error ? <p className="mt-3 text-[13px] text-danger">{error}</p> : null}
-            <button type="submit" disabled={busy || !email.includes("@") || (sent && otp.replace(/\D/g, "").length < 8)} className={button}>
-              {busy ? (sent ? "Signing in…" : "Sending…") : sent ? "Sign in" : "Send code"}
-            </button>
-            {sent ? (
-              <button type="button" onClick={() => setSent(false)} className="mt-3 w-full text-[13px] text-ink-secondary underline">
-                Send a new code
-              </button>
-            ) : null}
-            <button type="button" onClick={() => switchMode("code")} className="mt-3 w-full text-[13px] text-ink-secondary underline">
-              Have a pairing code instead?
-            </button>
-          </form>
         ) : (
           <form onSubmit={submitCode}>
             <label className={fieldLabel} htmlFor="pair-code">
@@ -211,11 +123,6 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
             <button type="submit" disabled={busy || code.replace(/[^a-z0-9]/gi, "").length < 12} className={button}>
               {busy ? "Connecting…" : "Connect"}
             </button>
-            {emailOffered ? (
-              <button type="button" onClick={() => switchMode("email")} className="mt-3 w-full text-[13px] text-ink-secondary underline">
-                Sign in with your email instead
-              </button>
-            ) : null}
           </form>
         )}
       </div>

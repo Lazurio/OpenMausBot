@@ -11,8 +11,6 @@ import { useDesktopCapabilities } from "../DesktopCapabilities";
 import { Switch } from "../SettingsPrimitives";
 import { ProposalStatus } from "./ProposalStatus";
 import { ToolSelectionCard } from "./ToolSelectionCard";
-import { useCloudPlan } from "../ProIntroduction";
-import { xResearchAction } from "@/lib/cloud-plan";
 import { inputCls } from "./field";
 import type { useBotSettingsDerived } from "./useBotSettingsDerived";
 
@@ -102,112 +100,6 @@ export function WorkingFolder({ bot }: { bot: Bot }) {
   );
 }
 
-export function cloudPreferenceShown(bot: Pick<Bot, "computer">, config: { cloudHome?: boolean } | null | undefined): boolean {
-  return (!bot.computer || bot.computer === "cloud") && !config?.cloudHome;
-}
-
-/**
- * A bot's own VPS server. PATCHed directly, not via updateBot: the server refuses
- * a move while the bot's computer still lives on the old host.
- */
-export function VpsAliasField({ bot }: { bot: Bot }) {
-  const { request: api } = useBotEditor();
-  const { state } = useStore();
-  const defaultAlias = state.config?.vps?.sshAlias ?? "";
-  const [draft, setDraft] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // Set when the old server could not be reached: the move went ahead, and this says what may be left there.
-  const [notice, setNotice] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const save = async (alias: string | null) => {
-    setSaving(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const saved = await api<{ notice?: string }>(`/api/bots/${bot.id}`, { method: "PATCH", body: JSON.stringify({ vpsAlias: alias }) });
-      setNotice(saved?.notice ?? null);
-      setDraft(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
-  };
-  const value = draft ?? bot.vpsAlias ?? "";
-  return (
-    <div className="mt-3 rounded-lg bg-inset p-3">
-      <div className="text-[13px] text-ink">{t("botAccess.cloud.server")}</div>
-      <div className="mt-0.5 text-[12px] text-ink-secondary">
-        {defaultAlias
-          ? t("botAccess.cloud.serverDefault", { alias: defaultAlias })
-          : t("botAccess.cloud.serverNoDefault")}
-      </div>
-      <form
-        className="mt-2 flex items-center gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void save(value.trim() || null);
-        }}
-      >
-        <input
-          className={cn(inputCls, "font-mono text-[13px]")}
-          placeholder={defaultAlias || t("botAccess.cloud.serverPlaceholder")}
-          value={value}
-          aria-label={t("botAccess.cloud.server")}
-          onChange={(e) => setDraft(e.target.value)}
-        />
-        <button
-          type="submit"
-          disabled={saving || draft === null}
-          className="shrink-0 rounded-lg bg-control px-3 py-2 text-[13px] text-ink hover:bg-raised-hover disabled:opacity-50"
-        >
-          {t("botAccess.cloud.serverSave")}
-        </button>
-      </form>
-      {error && <div className="mt-2 text-[12px] text-danger">{error}</div>}
-      {notice && <div role="status" className="mt-2 break-words text-[12px] text-ink-secondary">{notice}</div>}
-    </div>
-  );
-}
-
-export function CloudPreference({ bot, patch }: { bot: Bot; patch: ReturnType<typeof useBotSettingsDerived>["patch"] }) {
-  const { state } = useStore();
-  const { draft } = useBotEditor();
-  if (!cloudPreferenceShown(bot, state.config)) return null;
-  return (
-    <>
-      {!bot.computer && (
-        <div className="mt-3 rounded-lg bg-inset px-3 py-2.5 text-[12px] leading-relaxed text-ink-secondary">
-          <span className="font-medium text-ink">{t("botAccess.cloud.autoTitle")}</span>{" "}
-          {t("botAccess.cloud.autoDescription")}
-        </div>
-      )}
-      <CloudBackendPicker
-        value={bot.cloudBackend ?? "box"}
-        onChange={(backend) => patch({ cloudBackend: backend })}
-      />
-      {/* A saved bot only: a new bot starts on the default server, and new-bot defaults never name one. */}
-      {bot.cloudBackend === "vps" && !draft && <VpsAliasField bot={bot} />}
-      {!bot.computer && bot.cloudBackend === "vps" && (
-        <div className="mt-3 flex items-center justify-between gap-4 rounded-lg bg-inset px-3 py-2.5">
-          <div className="min-w-0">
-            <div className="text-[13px] text-ink">{t("botAccess.cloud.startVps")}</div>
-            <div className="mt-0.5 text-[12px] text-ink-secondary">
-              {t("botAccess.cloud.startVpsDescription")}
-            </div>
-          </div>
-          <Switch
-            checked={Boolean(bot.autoStartVps)}
-            aria-label={t("botAccess.cloud.startVps")}
-            onClick={() => patch({ autoStartVps: !bot.autoStartVps })}
-          />
-        </div>
-      )}
-    </>
-  );
-}
-
-export type AccessPart = "worksOn" | "folder" | "apps" | "phone" | "xResearch" | "mcp" | "tools" | "browser" | "webhooks" | "always";
 export type AccessPart = "folder" | "webhooks" | "always";
 
 export function AccessSection({

@@ -1,7 +1,5 @@
-import type { CloudAccountState } from "../../electron/cloud-account.mjs";
 import { teamPlan } from "../../electron/cloud-team-plan.mjs";
 import type { LocaleKey } from "@/locales";
-import { cloudPlanView } from "./cloud-plan";
 import type { Action } from "@/state/store";
 import { readMembership } from "./membership";
 import { isOwnerOrAdmin, readSessionState, type SessionState } from "./session";
@@ -50,24 +48,13 @@ export function connectPhoneEntry(target: PhonePairingTarget, access: PhonePairi
   return { target, subtitleKey: SUBTITLE[target] };
 }
 
-export type CloudPhoneDestination = "ready" | "not-ready" | null;
-
-export function cloudPhoneDestination(account: CloudAccountState | null | undefined): CloudPhoneDestination {
-  if (cloudPlanView(account).kind !== "paid" || teamPlan(account)) return null;
-  return account?.status === "connected" && account.machine?.status === "ready" ? "ready" : "not-ready";
-}
-
 export interface PhoneDestination extends ConnectPhoneEntry {
-  id: "cloud" | "here";
-  noteKey?: LocaleKey;
+  id: "here";
 }
 
-export function phoneDestinations(entry: ConnectPhoneEntry | null, cloud: CloudPhoneDestination): PhoneDestination[] {
-  if (!entry) return [];
-  const here: PhoneDestination = { ...entry, id: "here" };
-  if (entry.target !== "computer" || !cloud) return [here];
-  if (cloud === "not-ready") return [{ ...here, noteKey: "sidebar.menu.connectPhone.cloudNotReady" }];
-  return [{ id: "cloud", target: "cloud", subtitleKey: "sidebar.menu.connectPhone.cloudAlwaysOn" }, here];
+// Lazurio overlay (DEV-6673 M3): the MausBot Cloud destination for a phone is removed; a phone pairs with this server.
+export function phoneDestinations(entry: ConnectPhoneEntry | null): PhoneDestination[] {
+  return entry ? [{ ...entry, id: "here" }] : [];
 }
 
 let pending: Promise<PhonePairingAccess> | null = null;

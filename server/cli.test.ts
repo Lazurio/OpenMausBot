@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { applyStartupPreferences, formatSessions, parseArgs, runAccess, runLogin, runOnboardingCommand, serverEntry, type CliOptions, verifyPhoneEndpoint } from "./cli.ts";
+import { applyStartupPreferences, formatSessions, parseArgs, runAccess, runOnboardingCommand, serverEntry, type CliOptions, verifyPhoneEndpoint } from "./cli.ts";
 import { browserSignInLines, pairingBlock, qrToString } from "./cli-pairing.ts";
 import { readAdminActivityRange } from "./admin-activity.ts";
 import { SetupCancelled } from "./cli-prompts.ts";
@@ -48,11 +48,11 @@ describe("openmausbot command line", () => {
     expect(parseArgs(["serve", "--tunnel"], {})).toMatchObject({ command: "serve", tunnel: true });
     expect(parseArgs(["setup", "--data-dir", "/tmp/cli-setup"], {})).toMatchObject({ command: "setup", dataDir: resolve("/tmp/cli-setup") });
     expect(parseArgs(["start", "--port", "8125", "--no-pair"], {})).toMatchObject({ command: "start", port: 8125, pair: false });
-    expect(parseArgs(["login", "--email", "a@b.test"], {})).toMatchObject({ command: "login", email: "a@b.test" });
-    expect(parseArgs(["logout"], {})).toMatchObject({ command: "logout" });
     expect(parseArgs(["browser", "install", "--with-deps"], {})).toMatchObject({ command: "browser", browserAction: "install", withDeps: true });
     expect(parseArgs(["browser", "status"], {})).toMatchObject({ command: "browser", browserAction: "status" });
     expect(parseArgs(["browser"], {})).toEqual({ error: "browser needs an action: install or status" });
+    expect(parseArgs(["login"], {})).toEqual({ error: 'unknown command "login"' });
+    expect(parseArgs(["logout"], {})).toEqual({ error: 'unknown command "logout"' });
     expect(parseArgs(["serve", "--tailscale", "--tunnel"], {})).toEqual({ error: "choose one of --tailscale (your tailnet) and --tunnel (a public address)" });
     expect(parseArgs(["access", "add", "her@example.test", "--chat-only"], {})).toMatchObject({ command: "access", accessAction: "add", email: "her@example.test", chatOnly: true });
     expect(parseArgs(["access", "list"], {})).toMatchObject({ command: "access", accessAction: "list" });
@@ -400,7 +400,7 @@ describe.skipIf(process.platform === "win32")("serve --tunnel", () => {
       stdio: ["ignore", "pipe", "pipe"],
     });
 
-  it("refuses without an account and says what to do; no local-only fallback", async () => {
+  it("refuses without a fleet credential and says what is missing; no local-only fallback", async () => {
     const home = mkdtempSync(join(tmpdir(), "omb-cli-tunnel-none-"));
     const port = 21000 + Math.floor(Math.random() * 9000);
     const child = cli(["serve", "--tunnel", "--port", String(port), "--data-dir", join(home, "data")], { HOME: home, USERPROFILE: home });
@@ -408,7 +408,7 @@ describe.skipIf(process.platform === "win32")("serve --tunnel", () => {
     child.stderr?.on("data", (chunk) => (err += String(chunk)));
     try {
       expect(await exited(child)).toBe(1);
-      expect(err).toContain("run `openmausbot login` first");
+      expect(err).toContain("--tunnel needs the fleet installation credential in OMB_INSTALLATION_CREDENTIAL");
       let dead = false;
       try {
         await fetch(`http://127.0.0.1:${port}/api/health`);
@@ -481,18 +481,14 @@ describe.skipIf(process.platform === "win32")("serve --tunnel", () => {
     }
   }, 120_000);
 
-  it("serves at the account's public address through the gateway, where every request is remote", async () => {
+  it("serves at the fleet's public address through the gateway, where every request is remote", async () => {
     const home = mkdtempSync(join(tmpdir(), "omb-cli-tunnel-"));
     const dataDir = join(home, "data");
     mkdirSync(dataDir, { recursive: true });
     const stub = await startControlPlaneStub();
     const fake = join(home, "cloudflared");
     writeFileSync(fake, "#!/bin/sh\nexec sleep 300\n", { mode: 0o755 });
-    // sign this data dir in, in-process, against the stub
-    vi.stubEnv("OMB_CONTROL_PLANE_URL", stub.url);
-    const quiet = { log: () => undefined, error: () => undefined, ask: async () => stub.otp };
-    expect(await runLogin({ command: "login", port: 1, dataDir, tailscale: false, tunnel: false, client: false, pair: true, json: false, email: "cli@example.test" }, quiet)).toBe(0);
-    vi.unstubAllEnvs();
+    const credential = stub.seedInstallation("boat-1");
     const port = await freePortBlock([0, 1, 10_000]);
     const originPort = port + 10_000;
     const child = cli(["serve", "--tunnel", "--port", String(port), "--data-dir", dataDir, "--label", "tunnel test"], {
@@ -501,6 +497,7 @@ describe.skipIf(process.platform === "win32")("serve --tunnel", () => {
       OMB_WEBHOOK_PORT: String(port + 1),
       OMB_BROWSER_CONNECTION: join(home, "browser-connection.json"),
       OMB_CONTROL_PLANE_URL: stub.url,
+      OMB_INSTALLATION_CREDENTIAL: credential,
       OMB_CLOUDFLARED_PATH: fake,
       OMB_TUNNEL_ORIGIN_PORT: String(originPort),
     });

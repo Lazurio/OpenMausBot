@@ -38,8 +38,6 @@ export interface TeamMemberLeftDeps {
   threadsReferencing(fragment: string): readonly string[];
   deleteAttachment(name: string): void;
   eraseBrowsers(audience: Audience): Promise<boolean>;
-  /** Their own connections, keys and MCP sign-ins (team-connections.ts). */
-  forgetConnections(person: string): void;
 }
 
 export type TeamMemberLeftResult = { chats: number; layers: number; sessions: number; files: number; browsers: boolean };
@@ -83,7 +81,6 @@ export function createTeamMemberLeft(deps: TeamMemberLeftDeps): (email: string) 
     }
     rmSync(join(deps.dataDir, "people", person), { recursive: true, force: true });
     rmSync(audienceHome(deps.dataDir, memberAudience(person)), { recursive: true, force: true });
-    deps.forgetConnections(person);
     const browsers = await deps.eraseBrowsers(memberAudience(person)).catch(() => false);
     return { chats, layers, sessions, files: removed, browsers };
   };

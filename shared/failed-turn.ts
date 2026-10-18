@@ -23,7 +23,7 @@ export interface FailedTurnTool {
 /** The activity row a failed turn is stored as. */
 export function failedTurnTool(
   cause: string,
-  flags: { setup?: boolean; terminal?: boolean; claudeUpdate?: boolean; place?: PlaceRow; limitResetsAt?: number } = {},
+  flags: { setup?: boolean; terminal?: boolean; claudeUpdate?: boolean; limitResetsAt?: number } = {},
 ): FailedTurnTool {
   const words = cause.length > FAILED_TURN_MAX_CHARS ? `${cause.slice(0, FAILED_TURN_MAX_CHARS - 1)}…` : cause;
   return {

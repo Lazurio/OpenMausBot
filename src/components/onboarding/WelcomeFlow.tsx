@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { setEmailGateDone, track } from "@/lib/analytics";
-import { brandStatus } from "@/lib/brand";
 import { cn } from "@/lib/cn";
 import { chiefStepFits, myDefaultBot, setChiefStepOpen, useViewerEmail } from "@/lib/default-bot";
-import { CLOUD_PRO_UPDATE_NOTICE, dismissNotice } from "@/lib/notices";
-import { beatsFor, cloudBeatPossible, completionPatch, firstRunPatch, markWelcomeFinished, resumeBeat, showWelcome, type BeatId } from "@/lib/onboarding";
+import { beatsFor, completionPatch, firstRunPatch, markWelcomeFinished, resumeBeat, type BeatId } from "@/lib/onboarding";
 import { clearWelcomeDraft, readWelcomeDraft, saveWelcomeDraft } from "@/lib/welcome-draft";
 import { api, useStore } from "@/state/store";
 import { ChiefIntro } from "./ChiefIntro";
@@ -14,16 +12,10 @@ import { localDesktopPage } from "./WelcomeGate";
 const LEAVE_MS = 100;
 const FADE_MS = 150;
 
-/** A first run where the Cloud could have been offered settles the Cloud Pro popup with it. */
-function settlesCloudPopup(hosted: boolean): boolean {
-  const remote = !localDesktopPage() || window.ogb?.remoteClient?.active === true;
-  return cloudBeatPossible({ bridge: Boolean(window.ogb?.cloudAccount?.offer), branded: brandStatus().source === "file", hosted, remote });
-}
-
 type Config = ReturnType<typeof useStore>["state"]["config"];
 
 /** A genuine first run on this computer's own page names the person after its account, where their profile has none
- * (never on a Cloud, a Team Cloud or a remote page). The name stays theirs to change in Settings. */
+ * (never on a hosted or a remote page). The name stays theirs to change in Settings. */
 async function nameFromComputer(config: Config, done: (config: NonNullable<Config>) => void): Promise<void> {
   const bridge = window.ogb;
   if (!config || config.onboarding?.completedAt || config.profile?.name?.trim() || config.cloudHome || config.team) return;
@@ -86,8 +78,6 @@ export function WelcomeFlow({
     if (keepsDraft && !finishing.current) saveWelcomeDraft({ beat });
   }, [beat, replay, keepsDraft]);
 
-  // A Cloud sheet opened over the welcome never switches the window away from it (CloudAddDialog).
-  useEffect(() => (embedded ? undefined : showWelcome()), [embedded]);
   useEffect(() => {
     if (!replay && !embedded && !hosted) void nameFromComputer(state.config, (config) => dispatch({ type: "configStatus", config }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -102,19 +92,14 @@ export function WelcomeFlow({
       if (!replay && !embedded) markWelcomeFinished();
       if (keepsDraft) clearWelcomeDraft();
       onDone(botId);
-      const cloud = !replay && !embedded && settlesCloudPopup(hosted);
-      if (cloud) {
-        dismissNotice(record.current, CLOUD_PRO_UPDATE_NOTICE);
-        void window.ogb?.desktopNotices?.seen(CLOUD_PRO_UPDATE_NOTICE).catch(() => {});
-      }
       try {
-        const patch = replay ? completionPatch() : firstRunPatch(record.current, new Date(), cloud ? [CLOUD_PRO_UPDATE_NOTICE] : []);
+        const patch = replay ? completionPatch() : firstRunPatch(record.current, new Date());
         const config = await api("/api/config", { method: "PUT", body: JSON.stringify(patch), signal: AbortSignal.timeout(10_000) });
         dispatch({ type: "configStatus", config });
       } catch {
       }
     },
-    [beat, dispatch, onDone, replay, embedded, keepsDraft, hosted],
+    [beat, dispatch, onDone, replay, embedded, keepsDraft],
   );
 
   // The first screen fades away before the Chief step comes up; a timer moves on, since a hidden window runs no

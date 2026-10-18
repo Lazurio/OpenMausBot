@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { Bot } from "@/state/store";
-import { duplicateBotProfile, restrictedCopyRequest } from "./bot-duplicate";
+import { restrictedCopyRequest } from "./bot-duplicate";
 
 describe("what a duplicated bot is created with", () => {
   it("asks for nothing when the source is not restricted", () => {
@@ -35,15 +34,5 @@ describe("what a duplicated bot is created with", () => {
     // what the request body looks like on the wire
     expect(JSON.parse(JSON.stringify(restrictedCopyRequest(source)))).toEqual({ visibility: "admins", settings: { toolScope: { allow: [] }, helperModel: false } });
   });
-
-  it("keeps a copy of a VPS bot on its source's own server, and on the default when the source has none", () => {
-    const source = {
-      id: "src", threadId: "t", name: "Rio", title: "", description: "", notifications: true, color: "green", unread: false,
-      modelSelection: { instanceId: "codex", model: "default" }, messages: [],
-      computer: "cloud", cloudBackend: "vps", autoStartVps: true, vpsAlias: "alpha-vps",
-    } as Bot;
-    expect(duplicateBotProfile(source)).toMatchObject({ name: "Rio copy", computer: "cloud", cloudBackend: "vps", autoStartVps: true, vpsAlias: "alpha-vps" });
-    const { vpsAlias: _alias, ...onDefault } = source;
-    expect(duplicateBotProfile(onDefault as Bot).vpsAlias).toBeUndefined();
   });
 });

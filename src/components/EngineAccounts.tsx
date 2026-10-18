@@ -13,7 +13,6 @@ import { CommandRow, EngineSetup, EngineUpdateNotice, EngineWarningNotice } from
 export type AccountGroup = "claude" | "chatgpt";
 
 export function accountGroupOf(instance: InstanceInfo): AccountGroup | null {
-  if (instance.readOnly || instance.trialCredit || instance.access === "custom" || instance.access === "api") return null;
   if (instance.driverKind === "claudeAgent") return "claude";
     ? "chatgpt" : null;
 }

@@ -108,35 +108,6 @@ from a temporary preview entry, not reached through a hosted sign-in. The
 organization row now sits under Other ways on the first screen; its states are
 covered by the tests in the table.
 
-## A new Cloud's welcome
-
-```sh
-node --experimental-strip-types scripts/verify-cloud-welcome.ts
-```
-
-It launches the isolated fake-engine fixture and mounts the whole app
-(`scripts/testing/cloud-welcome-preview.tsx`) in a Vite preview whose
-session and config answer as a Cloud home's owner, with Claude signed out and
-the trial's Claude credit in the engine list. Open the printed `previewUrl`:
-
-- `?desktop=1` adds the reduced bridge a Cloud's page gets in the desktop app;
-  `?move=copy` or `?move=done` shows the one-time move on its way or landed
-  (6 bots, 142 chats, 4 routines).
-- `?step=engine`, `?step=files` or `?step=done` opens the welcome on that step;
-  `?skin=daylight` (or any skin) picks the skin.
-- `POST /__fixture/engines?mode=signed-in` (or `signed-out`, `credit`) changes
-  the engine list for the next load.
-
-What was checked this way (Oct 16 2026): every step and the done state in
-Midnight and Daylight at 1280×860, 1024×760 and 390×844, the bring and engine
-steps in the other seven skins, and
-the setup card in short beside Routines. Steps finished there are written to
-the fixture's onboarding record; the record can be cleared with
-`PUT /api/config` (`{"onboarding":{"hintsSeen":[]}}`). The real move and the
-desktop's preload bridge are not exercised here; they are covered by
-`server/one-home.e2e.test.ts` and
-`src/components/cloud-welcome/CloudWelcome.test.ts`.
-
 ## Two screens, then the chat (Oct 27 2026)
 
 ```sh

@@ -187,7 +187,6 @@ describe("before pairing", () => {
     expect(descriptor.body.capabilities).toEqual({
       remoteSessions: true,
       selfUpdate: "operator",
-      emailSignIn: false,
       jobs: true,
     });
     const refused = await call("/api/bots", { headers: remote("10.0.0.1") });

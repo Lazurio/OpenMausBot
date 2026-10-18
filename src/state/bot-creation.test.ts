@@ -81,15 +81,8 @@ describe("setup navigation", () => {
   });
 
   it("puts the new bot's chat in front of any open settings, except from a department's own dialog", () => {
-    const start = { ...initialState, settingsOpen: true, appSettingsOpen: true, pluginsOpen: true, shortcutsOpen: true, computerOpen: true };
-    expect(reducer(start, { type: "newBot" })).toMatchObject({ settingsOpen: false, appSettingsOpen: false, pluginsOpen: false, shortcutsOpen: false, computerOpen: true });
+    const start = { ...initialState, settingsOpen: true, appSettingsOpen: true, shortcutsOpen: true, computerOpen: true };
+    expect(reducer(start, { type: "newBot" })).toMatchObject({ settingsOpen: false, appSettingsOpen: false, shortcutsOpen: false, computerOpen: true });
     expect(reducer(start, { type: "newBot", section: "Sales", preserveSelection: true })).toBe(start);
-  });
-
-  it("opens the requested Plugins surface and remembers it on reopen", () => {
-    const next = reducer({ ...initialState, settingsOpen: true }, { type: "togglePlugins", open: true, surface: "mcp" });
-    expect(next).toMatchObject({ pluginsOpen: true, pluginsSurface: "mcp", settingsOpen: false });
-    const closed = reducer(next, { type: "togglePlugins", open: false });
-    expect(reducer(closed, { type: "togglePlugins", open: true })).toMatchObject({ pluginsSurface: "mcp" });
   });
 });

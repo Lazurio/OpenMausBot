@@ -7,7 +7,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   api,
   ApiError,
-  CLOUD_LINK_SETTINGS,
   configStatusFromFrame,
   currentTaskBot,
   desktopApprovalBridge,
@@ -345,21 +344,6 @@ describe("keyboard shortcuts dialog state", () => {
     const closed = reducer(opened, { type: "toggleShortcuts" });
     expect(closed.shortcutsOpen).toBe(false);
     expect(closed.botSettingsSection).toBe("soul");
-  });
-});
-
-describe("Settings opened by the Cloud link", () => {
-  it("marks only the link's own opening, counts each link, and clears on any other Settings navigation", () => {
-    expect(initialState.appSettingsCloudLink).toBe(0);
-    const link = CLOUD_LINK_SETTINGS;
-    const opened = reducer(initialState, link);
-    expect(opened).toMatchObject({ appSettingsOpen: true, appSettingsSection: "cloudAccount", appSettingsCloudLink: 1 });
-    expect(reducer(opened, link).appSettingsCloudLink).toBe(2);
-    expect(reducer(opened, { type: "toggleAppSettings", open: true, section: "cloudAccount" }).appSettingsCloudLink).toBe(0);
-    expect(reducer(opened, { type: "toggleAppSettings", open: true, section: "general" }).appSettingsCloudLink).toBe(0);
-    expect(reducer(opened, { type: "toggleAppSettings", open: false })).toMatchObject({ appSettingsOpen: false, appSettingsCloudLink: 0 });
-    expect(reducer(opened, { type: "toggleAppSettings" }).appSettingsCloudLink).toBe(0);
-    expect(reducer(initialState, { ...link, open: false }).appSettingsCloudLink).toBe(0);
   });
 });
 
@@ -1464,21 +1448,6 @@ describe("canonical message races", () => {
   });
 });
 
-describe("VPS alias announcements", () => {
-  it.each(["botPatched", "taskSwitched", "botPatchedSwitch"] as const)("clears the bot's own server when the frame omits it via %s", (kind) => {
-    const bot: Bot = {
-      id: "vps-bot", threadId: "vps-thread", name: "Ziggy", title: "", description: "",
-      notifications: true, color: "green", unread: false,
-      modelSelection: { instanceId: "codex", model: "default" }, vpsAlias: "alpha-vps",
-      messages: [{ id: "message", role: "user", kind: "text", at: 1, text: "Keep this conversation" }],
-    };
-    const { vpsAlias: _oldAlias, ...announcement } = bot;
-    const next = reducer({ ...initialState, bots: [bot] }, {
-      type: kind === "taskSwitched" ? "taskSwitched" : "botPatched",
-      bot: { ...announcement, threadId: kind === "botPatchedSwitch" ? "replacement-thread" : bot.threadId },
-    });
-    expect(next.bots[0]?.vpsAlias).toBeUndefined();
-    expect(next.bots[0]?.messages).toEqual(bot.messages);
   });
 });
 
@@ -1557,27 +1526,6 @@ describe("browser profile announcements", () => {
     });
     expect(next.bots[0]?.browserProfile).toBe(profile);
     expect(next.bots[0]?.messages).toBe(messages);
-  });
-});
-
-describe("phone grant announcements", () => {
-  const granted: Bot = {
-    id: "phone-bot", threadId: "phone-thread", name: "Pepper", title: "", description: "",
-    notifications: true, color: "green", unread: false,
-    modelSelection: { instanceId: "codex", model: "default" }, phoneApps: { location: "read" },
-    messages: [{ id: "message", role: "user", kind: "text", at: 1, text: "Keep this conversation" }],
-  };
-  const { messages, phoneApps: _old, ...announcement } = granted;
-
-  it("clears a stale grant when a complete frame omits it", () => {
-    const next = reducer({ ...initialState, bots: [granted] }, { type: "botPatched", bot: announcement });
-    expect(next.bots[0]?.phoneApps).toBeUndefined();
-    expect(next.bots[0]?.messages).toBe(messages);
-  });
-
-  it("clears it on the thread-snapshot path too", () => {
-    const next = reducer({ ...initialState, bots: [{ ...granted, awaitingThreadSnapshot: true }] }, { type: "botPatched", bot: { ...announcement, messages } });
-    expect(next.bots[0]?.phoneApps).toBeUndefined();
   });
 });
 
@@ -2428,14 +2376,7 @@ describe("activity panel", () => {
     expect(reducer(open, { type: "showTeamMap" }).activityOpen).toBe(false);
   });
 
-  it("opens Files as its own page, carrying the folders it should offer to share only when asked", () => {
-    const open = { ...initialState, activityOpen: true, appSettingsOpen: true, settingsOpen: true };
-    const suggested = reducer(open, { type: "showFiles", suggest: ["/Users/ada/site"] });
-    expect(suggested).toMatchObject({ activeView: "files", filesSuggest: ["/Users/ada/site"], activityOpen: false, appSettingsOpen: false, settingsOpen: false });
-    expect(reducer(suggested, { type: "showFiles" })).toMatchObject({ activeView: "files", filesSuggest: null });
-    expect(reducer(suggested, { type: "showFiles", suggest: [] }).filesSuggest).toBeNull();
-    expect(reducer(suggested, { type: "showTeamMap" })).toMatchObject({ activeView: "team-map", filesSuggest: null });
-  });
+
 });
 
 describe("live config frames", () => {
@@ -3034,7 +2975,7 @@ describe("fleet order from the server", () => {
     modelSelection: { instanceId: "acp", model: "fake" },
     messages: [],
   });
-  const hydrated = reducer(initialState, { type: "hydrate", bots: [bot("a"), bot("b"), bot("c"), bot("d")], groups: [], computerControl: {} });
+  const hydrated = reducer(initialState, { type: "hydrate", bots: [bot("a"), bot("b"), bot("c"), bot("d")], groups: [] });
   const ids = (state: AppState) => state.bots.map((candidate) => candidate.id);
 
   it("applies a bots.order frame as a stable partial reorder", () => {

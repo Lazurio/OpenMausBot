@@ -3,7 +3,7 @@
 // APP_VERB_NOUN (Composio's GMAIL_SEND_EMAIL, an MCP server's
 // mcp__notion__notion-create-pages); built-in tools and the app's own
 // coordination tools are not outcomes and classify as nothing.
-import { connectorCallsIn, isOutboundTool } from "./outbound.ts";
+import { isOutboundTool } from "./outbound.ts";
 import { isConnectedAppsServer } from "./own-apps.ts";
 
 export const OUTCOME_CATEGORIES = ["emailRead", "draft", "emailSent", "message", "doc", "report", "lead", "other"] as const;
@@ -115,10 +115,6 @@ const SLUG_IN_PREVIEW = /"(?:tool_slug|slug)"\s*:\s*"([A-Z][A-Z0-9_]+)"/g;
 /** The app tools one multi-execute call ran, read from its recorded input preview. */
 function executedSlugs(input: string | undefined): string[] {
   if (!input) return [];
-  try {
-    const slugs = connectorCallsIn(MULTI_EXECUTE, JSON.parse(input)).map((call) => call.slug);
-    if (!slugs.includes("COMPOSIO_PROXY_EXECUTE")) return slugs;
-  } catch {}
   return [...input.matchAll(SLUG_IN_PREVIEW)].map((match) => match[1]!);
 }
 

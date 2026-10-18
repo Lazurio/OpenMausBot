@@ -212,15 +212,6 @@ describe("Settings in Simple mode", () => {
     fixture.section = "companion";
     const html = render();
     expect(currentPage(html)).toBe("computer");
-  });
-
-    fixture.section = "cloudAccount";
-    const html = render();
-    expect(currentPage(html)).toBe("billing");
-    expect(blocks(html)).toEqual(["usage", "cloudAccount"]);
-    expect(html.indexOf("See all limits")).toBeLessThan(html.indexOf("MARKER:cloudAccount;"));
-    expect(placement(html, "MARKER:usage;")).toBe("folded");
-    expect(groupLabels(html)).toContain("Plan");
     expect(blocks(html)).toEqual(["companion", "elsewhere", "remote", "desktopWorkspaces"]);
     expect(groupLabels(html)).toEqual(["Your devices"]);
     expect(html).not.toContain("built-in browser");
@@ -264,7 +255,6 @@ describe("Settings in Simple mode", () => {
     ["remote", "computer"],
     ["desktopWorkspaces", "computer"],
     ["computer", "computer"],
-    ["logins", "computer"],
     ["usage", "billing"],
     ["updates", "updates"],
   ])("lands a deep link to %s on %s", (section, page) => {

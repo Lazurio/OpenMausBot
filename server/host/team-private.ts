@@ -5,8 +5,6 @@
 import type { IncomingMessage } from "node:http";
 import { bodyThreadIds, requestThreadIds, type VisibleSet } from "../bot-visibility.ts";
 import { onParsedBody } from "../harness/http.ts";
-import type { RequestAuth } from "../request-auth.ts";
-import { cloudSyncRoutes } from "../routes/cloud-sync.ts";
 
 export const NO_SUCH_CONVERSATION = "no such conversation";
 
@@ -28,13 +26,4 @@ export function hiddenThreadRefusal(req: IncomingMessage, path: string, query: U
     return selected && visible.hides(selected) ? { status: 404, error: NO_SUCH_CONVERSATION } : null;
   });
   return null;
-}
-
-/** A bot's synced folder is one conversation's (`bot-<bot>-<thread>`, cloud-sync.ts): someone else's private chat's
- * folder is not listed, and answers as one that does not exist. */
-export function hideOthersSyncFolders(bots: () => ReadonlyArray<{ id: string }>, threadShown: (auth: RequestAuth) => (threadId: string) => boolean): void {
-  cloudSyncRoutes.showFolders((auth) => {
-    const shown = threadShown(auth);
-    return (folderId) => !folderId.startsWith("bot-") || bots().every((bot) => !folderId.startsWith(`bot-${bot.id}-`) || shown(folderId.slice(`bot-${bot.id}-`.length)));
-  });
 }

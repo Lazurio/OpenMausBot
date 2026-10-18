@@ -14,11 +14,11 @@ export interface AuditPlan {
   roomId?: string;
 }
 
-export function adminAuditPlan(method: string, path: string, sharedComputers: boolean): AuditPlan | null {
+export function adminAuditPlan(method: string, path: string): AuditPlan | null {
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
   if (path.startsWith("/api/internal/") || path.startsWith("/api/testing/")) return null;
   const plan: AuditPlan = {
-    config: requiredScope(method, path, { sharedComputers }) === "admin",
+    config: requiredScope(method, path) === "admin",
     createsBots: method === "POST" && (path === "/api/bots" || path === "/api/teams/import" || path === "/api/org-library/add"),
     createsWebhook: method === "POST" && path === "/api/webhooks",
     pairing: method === "POST" && path === "/api/auth/pairing",

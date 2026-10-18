@@ -1,9 +1,7 @@
 // Which turns on a Cloud home may use the Mac lent to it, read from the harness's own records (server/cloud-lending.ts
 // decides), and the plain words a turn that can't is told. A room member turn acts for the person's line that started
 // its run, for that turn generation alone, while the run lasts.
-import { cloudHomeLendingRefusal, cloudLendingRefusalText, type CloudLendingTurn } from "../cloud-lending.ts";
-import { unstamped } from "../cloud-owner-lines.ts";
-import { deviceWord } from "../lent-computers.ts";
+import { cloudHomeLendingRefusal, type CloudLendingTurn } from "../cloud-lending.ts";
 import type { Routine, RoutineManager, RoutineRun } from "../routines.ts";
 import type { Message, Store } from "../store.ts";
 
@@ -26,7 +24,6 @@ export interface CloudLendingTurnsDeps {
   memoryChangedBySomeoneElse(botId: string): boolean;
   routines(): Pick<RoutineManager, "listRoutines"> | null;
   routineAuthors: { authored(id: string, routine: Routine): boolean } | null;
-  lentPlatform(): Parameters<typeof deviceWord>[0];
 }
 
 export function createCloudLendingTurns(deps: CloudLendingTurnsDeps) {
@@ -61,15 +58,6 @@ export function createCloudLendingTurns(deps: CloudLendingTurnsDeps) {
     };
   }
 
-  /** Why this turn can't use the lent computer, in plain words; null when it can or nothing is lent. */
-  function cloudLendingRefusalNotice(capability: Turn): string | null {
-    const why = cloudLendingRefusal(capability);
-    if (!why) return null;
-    const others = store.messagesFor(capability.threadId).filter((line) => line.role === "user" && !deps.ownerPerson(line.peerAsk ? undefined : line.sender?.id));
-    return cloudLendingRefusalText(why, { room: Boolean(store.groupByThread(capability.threadId)), fromBefore: others.length > 0 && others.every(unstamped),
-      device: deviceWord(deps.lentPlatform()) });
-  }
-
   function cloudLendingRefusal(capability: Turn): "unproven" | "not-owner" | "someone-else" | "memory-changed" | null {
     const refusal = cloudHomeLendingRefusal(cloudLendingTurn(capability));
     if (refusal) return refusal;
@@ -96,7 +84,7 @@ export function createCloudLendingTurns(deps: CloudLendingTurnsDeps) {
   }
 
   return {
-    cloudLendingTurn, cloudLendingRefusalNotice, cloudLendingRefusal, cloudThreadStarters, cloudLendingView, cloudReportFromOthers,
+    cloudLendingTurn, cloudLendingRefusal, cloudThreadStarters, cloudLendingView, cloudReportFromOthers,
     /** A room member turn of this run started: its generation acts for the line the run answers. */
     roomTurnStarted(generation: string, run: RoomRun): void { roomTurnOperations.set(generation, run); },
     /** The run ended: none of its turn generations act for anyone any more. */

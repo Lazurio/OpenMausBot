@@ -2,8 +2,6 @@
 // realpath containment, symlinks out of the folder are skipped, and hidden files and folders (.git, .env) never go.
 import { lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { guestWorkspaceToHost } from "../bot-attachment.ts";
-import { VM_WORKSPACE_GUEST } from "../container-computer.ts";
 
 /** What a page's files may be. */
 const PAGE_FILE_EXTENSIONS: ReadonlySet<string> = new Set([
@@ -124,19 +122,15 @@ export async function readPageBundle(requested: string, roots: readonly string[]
   return { source: target, files, bytes, skipped };
 }
 
-/** The bot's own folders for a turn, and its Local VM's workspace on this computer when it has one. */
-export type BotFolders = () => Promise<{ roots: readonly string[]; vmWorkspace: string | null }>;
+/** The bot's own folders for a turn. */
+export type BotFolders = () => Promise<{ roots: readonly string[] }>;
 
-/** readPageBundle within a bot's own folders; a path inside its Local VM's workspace means the same file here. */
+/** readPageBundle within a bot's own folders. */
 export async function readBotPageBundle(requested: string, folders: BotFolders): Promise<PageBundle> {
-  const { roots, vmWorkspace } = await folders();
-  const path = vmWorkspace ? guestWorkspaceToHost(requested, VM_WORKSPACE_GUEST, vmWorkspace) ?? requested : requested;
-  return readPageBundle(path, vmWorkspace ? [vmWorkspace, ...roots] : roots);
+  return readPageBundle(requested, (await folders()).roots);
 }
 
-/** A file inside a bot's own folders (or its Local VM's workspace), by the same rules as a page: the `extract` tool's. */
+/** A file inside a bot's own folders, by the same rules as a page: the `extract` tool's. */
 export async function botFileSource(requested: string, folders: BotFolders): Promise<string> {
-  const { roots, vmWorkspace } = await folders();
-  const path = vmWorkspace ? guestWorkspaceToHost(requested, VM_WORKSPACE_GUEST, vmWorkspace) ?? requested : requested;
-  return pageSource(path, vmWorkspace ? [vmWorkspace, ...roots] : roots);
+  return pageSource(requested, (await folders()).roots);
 }

@@ -57,8 +57,7 @@ export class TurnWatchdog {
 
   watch(threadId: string, botId: string): void {
     const at = this.now();
-    this.turns.set(threadId, { threadId, botId, startedAt: at, lastEventAt: at, waitingOnHuman: false, waitingOnComputer: false,
-      runningTools: new Set() });
+    this.turns.set(threadId, { threadId, botId, startedAt: at, lastEventAt: at, waitingOnHuman: false, runningTools: new Set() });
   }
 
   observe(event: RuntimeEvent): void {
@@ -88,7 +87,7 @@ export class TurnWatchdog {
     this.turns.delete(threadId);
   }
 
-  /** A Stop that discards the turn's later events leaves no way for a tool or a wait to report its end: watch the teardown as a fresh silent turn. */
+  /** A Stop that discards the turn's later events leaves no way for a tool to report its end: watch the teardown as a fresh silent turn. */
   eventsDiscarded(threadId: string): void {
     const turn = this.turns.get(threadId);
     if (turn) this.watch(threadId, turn.botId);
@@ -103,10 +102,10 @@ export class TurnWatchdog {
     return turn !== undefined && parked(turn);
   }
 
-  /** A turn of this bot is answering now: running and not parked on a person or a computer. One that goes silent is
-   * stopped by the sweep, so this never holds anything for longer than toolStallMs without events. */
+  /** A turn of this bot is answering now: running and not waiting on a person. One that goes silent is stopped by the
+   * sweep, so this never holds anything for longer than toolStallMs without events. */
   answering(botId: string): boolean {
-    for (const turn of this.turns.values()) if (turn.botId === botId && !parked(turn)) return true;
+    for (const turn of this.turns.values()) if (turn.botId === botId && !turn.waitingOnHuman) return true;
     return false;
   }
 

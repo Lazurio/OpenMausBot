@@ -57,7 +57,7 @@ export interface ThreadRouteDeps {
 
 export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
   const {
-    store, userName: userNameFor, sessions, groupUsageReader, lendingEnabled,
+    store, userName: userNameFor, sessions, groupUsageReader,
     hostedWorkspace: HOSTED_WORKSPACE, sessionCookie: SESSION_COOKIE, loopback: LOOPBACK, defaultPage: DEFAULT_PAGE,
     pageSize, messagePage, messageWindow, publicBotQueuedMessages, publicGroupState, wireBot,
     botComputerControlSnapshot, messageFileRootsForThread, viewerFor, visibleTo,

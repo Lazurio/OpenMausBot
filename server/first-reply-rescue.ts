@@ -135,13 +135,6 @@ export function createFirstReplyRescue(deps: FirstReplyRescueDeps): { onEvent(ev
           // The error row says what went wrong; the notice is history beside it.
           close(event.threadId, watch, "over");
           return;
-        case "turn.wait_started":
-          // Waiting for the computer is not the AI's silence.
-          pause(watch);
-          return;
-        case "turn.wait_ended":
-          if (watch.phase === "waiting") arm(event.threadId, watch);
-          return;
         case "turn.completed":
           close(event.threadId, watch, "over");
           watches.delete(event.threadId);

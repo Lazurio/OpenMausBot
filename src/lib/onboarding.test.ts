@@ -3,7 +3,6 @@ import {
   aiChoices,
   aiWorks,
   beatsFor,
-  cloudSignInDue,
   companyModelCount,
   completionPatch,
   EMPTY_ONBOARDING,
@@ -14,12 +13,8 @@ import {
   hintSeenPatch,
   LOCAL_VIEWER,
   MET_CHIEF_HINT,
-  onboardingCloudOffered,
-  ONBOARDING_CLOUD_HINT,
   organisationSignIn,
   resumeBeat,
-  showWelcome,
-  welcomeOnScreen,
   welcomeAi,
   welcomeDue,
   welcomeViewer,
@@ -96,35 +91,6 @@ describe("welcomeViewer", () => {
     expect(spotlightsQuiet({ hosted: true, canSave: false })).toBe(true);
     expect(spotlightsQuiet({ hosted: false, canSave: false })).toBe(false);
     expect(spotlightsQuiet(LOCAL_VIEWER)).toBe(false);
-  });
-});
-
-describe("first run on an OMB Cloud home", () => {
-  const connected = welcomeViewer({ kind: "session", scopes: ["admin", "client"], via: "cookie", cloudHome: true });
-  const engine = (id: string, authenticated: boolean | undefined, state = "available") => ({ id, state, authenticated });
-  const ready = (instance: ReturnType<typeof engine>) => instance.state === "available" && instance.authenticated !== false;
-  const signedOut = [engine("claude", false), engine("codex", false), engine("opencodeGo", undefined, "unavailable")];
-
-  it("routes the connected app to the engine sign-in, not the welcome flow", () => {
-    expect(cloudSignInDue(connected, { connected: true, instances: signedOut }, ready)).toBe(true);
-    expect(welcomeDue({ onboarding: EMPTY_ONBOARDING }, { remoteClient: false, legacyDone: false, ...connected })).toBe(false);
-  });
-
-  it("hands over to the chat once any engine can run", () => {
-    for (const signedIn of [engine("claude", true), engine("codex", true), engine("anthropic-key", undefined)]) {
-      expect(cloudSignInDue(connected, { connected: true, instances: [...signedOut, signedIn] }, ready)).toBe(false);
-    }
-  });
-
-  it("waits for the server, and changes nothing anywhere else", () => {
-    expect(cloudSignInDue(connected, { connected: false, instances: signedOut }, ready)).toBe(false);
-    expect(cloudSignInDue(connected, { connected: true, instances: [] }, ready)).toBe(false);
-    expect(cloudSignInDue(null, { connected: true, instances: signedOut }, ready)).toBe(false);
-    expect(cloudSignInDue({ ...connected, canSave: false }, { connected: true, instances: signedOut }, ready)).toBe(false);
-    for (const viewer of [LOCAL_VIEWER, { hosted: true, canSave: true }, welcomeViewer({ kind: "session", scopes: ["admin", "client"] })]) {
-      expect(cloudSignInDue(viewer, { connected: true, instances: signedOut }, ready)).toBe(false);
-      expect(welcomeDue({ onboarding: EMPTY_ONBOARDING }, { remoteClient: false, legacyDone: false, ...viewer })).toBe(true);
-    }
   });
 });
 
@@ -229,7 +195,7 @@ describe("persistence patches", () => {
   it("marks a first run as the one that met the Chief, keeping every hint already seen", () => {
     const now = new Date("2026-10-27T12:00:00.000Z");
     expect(firstRunPatch(undefined, now)).toEqual({ onboarding: { completedAt: now.toISOString(), version: WELCOME_VERSION, hintsSeen: [MET_CHIEF_HINT] } });
-    expect(firstRunPatch({ ...EMPTY_ONBOARDING, hintsSeen: [ONBOARDING_CLOUD_HINT] }, now).onboarding.hintsSeen).toEqual([ONBOARDING_CLOUD_HINT, MET_CHIEF_HINT]);
+    expect(firstRunPatch({ ...EMPTY_ONBOARDING, hintsSeen: ["an-earlier-hint"] }, now).onboarding.hintsSeen).toEqual(["an-earlier-hint", MET_CHIEF_HINT]);
     expect(firstRunPatch({ ...EMPTY_ONBOARDING, hintsSeen: [MET_CHIEF_HINT] }, now).onboarding, "already met").toEqual({ completedAt: now.toISOString(), version: WELCOME_VERSION });
     expect(completionPatch(now).onboarding, "a replay says nothing about a first chat").not.toHaveProperty("hintsSeen");
   });
@@ -253,26 +219,6 @@ describe("the first run's screens", () => {
   });
 });
 
-describe("the onboarding record's Cloud mark", () => {
-  it("still tells a later Cloud pitch that an earlier welcome offered the Cloud", () => {
-    expect(ONBOARDING_CLOUD_HINT).toBe("onboarding-cloud-v1");
-    expect(onboardingCloudOffered(undefined)).toBe(false);
-    expect(onboardingCloudOffered({ ...done, hintsSeen: ["tour-switcher"] })).toBe(false);
-    expect(onboardingCloudOffered({ ...done, hintsSeen: ["tour-switcher", ONBOARDING_CLOUD_HINT] })).toBe(true);
-  });
-});
-
-describe("welcomeOnScreen", () => {
-  it("knows while the welcome is on screen, however often it mounts and unmounts", () => {
-    expect(welcomeOnScreen()).toBe(false);
-    const first = showWelcome(), second = showWelcome();
-    expect(welcomeOnScreen()).toBe(true);
-    first(); first();
-    expect(welcomeOnScreen(), "a second hide of the same mount changes nothing").toBe(true);
-    second();
-    expect(welcomeOnScreen()).toBe(false);
-  });
-});
 
 describe("welcomeFinishedThisLaunch", () => {
   afterEach(() => vi.unstubAllGlobals());

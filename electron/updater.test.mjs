@@ -33,7 +33,7 @@ function page(origin) {
 
 function mainRule() {
   const source = readFileSync(new URL("./main.mjs", import.meta.url), "utf8").replace(/\r\n/g, "\n");
-  const start = source.indexOf("function myCloud() {"), end = source.indexOf("const savedWorkspace = id =>", start);
+  const start = source.indexOf("function myCloud() {"), end = source.indexOf("const cloudLook = createCloudLook(", start);
   expect(start).toBeGreaterThanOrEqual(0);
   expect(end).toBeGreaterThan(start);
   expect(source.includes("registerUpdaterIpc({ pageAllowed: updaterPageAllowed });"), "main.mjs wires the updater to updaterPageAllowed").toBe(true);

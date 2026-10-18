@@ -285,8 +285,6 @@ export const CLIENT_ALLOW: ReadonlyArray<{ methods: readonly string[]; path: Reg
   // The phones those codes opened: a member lists and removes their own only (routes/team-phone.ts visiblePhones).
   { methods: ["GET"], path: /^\/api\/team\/phones$/ },
   { methods: ["DELETE"], path: /^\/api\/team\/phones\/[\w-]+$/ },
-  // The same desktop's device link: a WebSocket bound to that secret too.
-  { methods: ["GET"], path: /^\/api\/shared-computers\/[\w-]+\/link$/, feature: "sharedComputers" },
   // This phone's own apps, keyed by its session (routes/phones.ts): register, poll, lease, answer.
   { methods: ["GET", "PUT", "DELETE"], path: /^\/api\/phones\/self$/ },
   { methods: ["GET"], path: /^\/api\/phones\/self\/jobs$/ },

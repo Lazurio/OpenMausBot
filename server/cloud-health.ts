@@ -5,10 +5,7 @@ import { accessSync, constants, readFileSync, statfsSync } from "node:fs";
 import { availableParallelism, freemem, loadavg, totalmem } from "node:os";
 import { failedTurnCause } from "../shared/failed-turn.ts";
 import type { RoutineRunStatus } from "../shared/routines.ts";
-import { trialCreditKind } from "../shared/trial-credit.ts";
 import type { BoxReport } from "./bot-box/box.ts";
-import type { FirstHourReport } from "./host/first-hour.ts";
-import type { ValueReport } from "./host/value-ledger.ts";
 import type { ProviderSnapshot, RuntimeEvent } from "./contracts.ts";
 import { classifyError } from "./drivers/retry.ts";
 import type { Message, StoreChange } from "./store.ts";
@@ -58,11 +55,10 @@ export interface RoutineHealth { routineId: string; status: RoutineRunStatus; at
 export interface TurnRates { started15m: number; failed15m: number; started24h: number; failed24h: number }
 interface Pending { at: number; botId: string | null; engine: string | null; fallback: string }
 
-/** A cause the server words itself, or the trial credit's refusal: its code needs no stop reason. */
+/** A cause the server words itself: its code needs no stop reason. */
 export function fixedCode(cause: string): string | null {
   for (const [pattern, code] of FIXED_CAUSES) if (pattern.test(cause)) return code;
-  const trial = trialCreditKind(cause);
-  return trial ? `trial_${trial}` : null;
+  return null;
 }
 
 export const classifiedCode = (cause: string): string => match(CODE, classifyError({ text: cause }).reason) ?? "unknown";
@@ -243,8 +239,6 @@ export interface CloudHealthDeps {
   browser: () => { available: boolean; installing: boolean; interrupted: number };
   /** The bot box (server/bot-box): whether turns run boxed here, and the last self-check's count. */
   box?: () => BoxReport;
-  /** A personal Cloud's milestones since its first boot, and the work its Chief did: times and counts only. */
-  firstHour?: () => { firstHour?: FirstHourReport; value?: ValueReport };
   now?: () => number;
 }
 
@@ -285,13 +279,11 @@ export function createCloudHealth(deps: CloudHealthDeps) {
     noteRoutineRun: ledger.noteRoutineRun,
     report(after: string | null | undefined) {
       const read = ledger.read(after);
-      const memory = memoryBytes(), browser = deps.browser(), first = deps.firstHour?.();
       const base = {
         v: 1 as const, version, image, bootedAt: ledger.bootedAt, at: now(),
         turns: read.turns, routines: read.routines, engines: engines(), connectors: connectorState(),
         browser: { available: browser.available, installing: browser.installing, interrupted: browser.interrupted },
         box: boxSummary(deps.box?.()),
-        firstHour: first?.firstHour ?? null, value: first?.value ?? null,
         system: { ...memory, rssBytes: process.memoryUsage.rss(), load1: loadavg()[0] ?? 0, cpus: availableParallelism(), disk: diskBytes(deps.dataDir), eventLogWritable: writable(deps.eventsDir) },
       };
       let budget = CLOUD_HEALTH_MAX_BYTES - JSON.stringify({ ...base, cursor: ledger.cursor(read.seq), truncated: true, incidents: [] }).length;

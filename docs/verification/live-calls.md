@@ -47,7 +47,6 @@ pnpm exec vitest run server/live-settings.test.ts server/live-call-controller.te
 pnpm exec vitest run src/lib/live-call-media.test.ts src/components/CallView.live-mode.test.ts src/components/LiveKeyNeeded.test.ts src/components/LiveCallBar.render.test.ts
 ```
 
-`server/live-call.e2e.test.ts` boots a server with no plan and no key: a
 phone's start (through the companion or by its own client) and a desktop's
 start answer 409 `needsKey`; after the OpenAI key is saved through
 `PUT /api/config`, a phone's call starts with that key; a separate Live key
@@ -136,7 +135,6 @@ no `title`, because nothing was asked; and the snapshot's transcript has
   End a call a failed run left open, or restart the fixture.
 - `OMB_OPENAI_LIVE_URL` crosses into a fixture only when it is a loopback
   `http://127.0.0.1:PORT`, and `OMB_OPENAI_LIVE_KEY` only with it.
-- Without `OMB_OPENAI_LIVE_KEY` the fixture answers every start with `409`
   `needsKey`, and the desktop shows "Live calls use your own OpenAI key" with
   **Open API keys** under the call button. That is the way to see it by hand.
 

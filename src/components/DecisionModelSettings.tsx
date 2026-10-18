@@ -28,12 +28,6 @@ const FAILURES: Record<string, LocaleKey> = {
   misconfigured: "decider.error.misconfigured",
 };
 
-/** Cloud Pro's relay refuses an inactive subscription (402) and a used-up month of decisions (429). */
-const INCLUDED_FAILURES: Record<string, LocaleKey> = {
-  rejected: "decider.included.error.rejected",
-  rate_limited: "decider.included.error.limited",
-};
-
 const OPENROUTER_FAILURES: Record<string, LocaleKey> = {
   ...FAILURES,
   rejected: "decider.openrouter.error.rejected",
@@ -58,19 +52,19 @@ const BY: Record<"jev" | "workersai" | "openrouter", LocaleKey> = {
   jev: "decider.status.byJev", workersai: "decider.status.byWorkersAi", openrouter: "decider.status.byOpenRouter",
 };
 
-/** Who decides and who reads, in a word each: the person's own key, the Cloud plan's, or nothing yet. */
+/** Who decides and who reads, in a word each: the person's own key, or nothing yet. */
 export function helpersStatusLine(config: ConfigStatus | null): string {
   const decider = config?.decider;
   const extraction = config?.helpers?.extraction;
   const decisions = !decider?.configured ? t("decider.status.notSetUp")
-    : decider.included ? t("decider.status.byCloud") : t(BY[decider.provider] ?? BY.jev);
+    : t(BY[decider.provider] ?? BY.jev);
   const reading = !extraction?.provider ? t("decider.status.notSetUp")
-    : extraction.included ? t("decider.status.byCloud") : t(BY[extraction.provider]);
+    : t(BY[extraction.provider]);
   return t("decider.status.line", { decisions, extraction: reading });
 }
 
 /** A fixed sentence per failure: the vendor's own body never reaches the UI. */
-export function deciderFailureText(result: { reason: string; status?: number }, included = false, provider: Provider | "workersai" = "jev"): string {
+export function deciderFailureText(result: { reason: string; status?: number }, provider: Provider | "workersai" = "jev"): string {
   if (provider === "workersai") {
     if (result.reason === "http_error") return t("decider.workersAi.error.http", { status: String(result.status ?? "?") });
     const key = WORKERS_AI_FAILURES[result.reason];
@@ -83,8 +77,6 @@ export function deciderFailureText(result: { reason: string; status?: number }, 
     const key = OPENROUTER_FAILURES[result.reason];
     return key ? t(key) : t("decider.error.other");
   }
-  if (included && result.reason === "http_error" && result.status === 402) return t("decider.included.error.subscription");
-  if (included && INCLUDED_FAILURES[result.reason]) return t(INCLUDED_FAILURES[result.reason]!);
   if (result.reason === "http_error") return t("decider.error.http", { status: String(result.status ?? "?") });
   const key = FAILURES[result.reason];
   return key ? t(key) : t("decider.error.other");
@@ -98,10 +90,9 @@ export function DecisionModelSettings() {
   const provider: Provider = decider?.provider === "openrouter" ? "openrouter" : "jev";
   const openrouter = provider === "openrouter";
   const configured = decider?.configured ?? false;
-  const included = configured && decider?.included === true;
   const usingShared = openrouter && configured && decider?.keySource === "shared";
   const sharedKey = openrouter && decider?.sharedKey === true;
-  const ownKey = configured && !included && !usingShared;
+  const ownKey = configured && !usingShared;
   const enabled = decider?.enabled ?? false;
   const roomRouting = decider?.jobs.roomRouting ?? true;
   const [value, setValue] = useState("");
@@ -113,7 +104,7 @@ export function DecisionModelSettings() {
   const [models, setModels] = useState<ModelList | null>(null);
   const draft = value.trim();
   const clearing = !draft && ownKey;
-  const keyHint: LocaleKey | null = !openrouter || included
+  const keyHint: LocaleKey | null = !openrouter
     ? null
     : usingShared
       ? "decider.openrouter.status.sharedHint"
@@ -177,7 +168,6 @@ export function DecisionModelSettings() {
     setTesting(true);
     setVerdict(null);
     setError(null);
-    const testingIncluded = !draft && included;
     const testingShared = !draft && usingShared;
     try {
       const result = await api<TestResult>("/api/decider/test", { method: "POST", body: JSON.stringify(draft ? { key: draft } : {}) });
@@ -191,7 +181,7 @@ export function DecisionModelSettings() {
             ].join(" ")
             : t("decider.test.ok", { ms: String(result.latencyMs) }),
         }
-        : { ok: false, text: deciderFailureText(result, testingIncluded, provider) });
+        : { ok: false, text: deciderFailureText(result, provider) });
     } catch (cause) {
       setVerdict({ ok: false, text: cause instanceof Error ? cause.message : String(cause) });
     } finally {
@@ -205,7 +195,7 @@ export function DecisionModelSettings() {
         <p className="text-[13px] leading-relaxed text-ink-secondary">{t("decider.intro")}</p>
         <p role="status" data-testid="helpers-status" className="text-[13px] font-medium text-ink">{helpersStatusLine(state.config)}</p>
       </section>
-      <WorkersAiKeyCard failureText={(result) => deciderFailureText(result, false, "workersai")} />
+      <WorkersAiKeyCard failureText={(result) => deciderFailureText(result, "workersai")} />
       <SettingRow title={t("decider.provider.label")}>
         <Select className="w-48"
           data-testid="decider-provider"
@@ -262,9 +252,7 @@ export function DecisionModelSettings() {
         <div role="status" className="mb-2 flex items-center gap-2 text-[13px] text-ink-secondary">
           <span className={cn("size-1.5 rounded-full", configured ? "bg-success" : "bg-raised-hover")} />
           <span className={configured ? "text-success" : undefined}>
-            {included
-              ? t("keys.includedWithCloudPro")
-              : usingShared
+            {usingShared
                 ? t("decider.openrouter.status.shared")
                 : configured
                   ? t(sharedKey ? "decider.openrouter.status.own" : "decider.status.connected")

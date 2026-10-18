@@ -140,7 +140,6 @@ describe("bot patch queue", () => {
         sent.push(patch);
         return bot({
           ...patch,
-          phoneApps: patch.phoneApps ?? undefined,
           peers: patch.peers ?? undefined,
         });
       },

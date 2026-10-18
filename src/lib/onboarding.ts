@@ -1,4 +1,4 @@
-import { ONBOARDING_CLOUD_HINT, WELCOME_VERSION } from "../../electron/onboarding-record.mjs";
+import { WELCOME_VERSION } from "../../electron/onboarding-record.mjs";
 import { freeFallback, rankAis, type AiTestState, type RankableAi } from "../../shared/ai-ranking";
 
 export interface OnboardingStatus {
@@ -9,7 +9,7 @@ export interface OnboardingStatus {
   firstTurnAt?: string;
 }
 
-export { ONBOARDING_CLOUD_HINT, WELCOME_VERSION };
+export { WELCOME_VERSION };
 
 export const EMPTY_ONBOARDING: OnboardingStatus = {
   completedAt: "",
@@ -76,12 +76,6 @@ export function firstRunPatch(
   return { onboarding: { ...completionPatch(now).onboarding, ...(added.length ? { hintsSeen: [...have, ...added] } : {}) } };
 }
 
-/** Where a first run could offer MausBot Cloud: this computer's own page with the Cloud bridge, not a branded build,
- * a hosted or a remote viewer. A first run there settles the Cloud Pro popup, so it never follows on the next launch. */
-export function cloudBeatPossible(input: { bridge: boolean; branded: boolean; hosted: boolean; remote: boolean }): boolean {
-  return input.bridge && !input.branded && !input.hosted && !input.remote;
-}
-
 export function hintSeen(record: OnboardingStatus | undefined, id: string): boolean {
   return (record?.hintsSeen ?? []).includes(id);
 }
@@ -111,24 +105,9 @@ export function resumeBeat(beats: readonly BeatId[], saved: BeatId | undefined):
   return saved && beats.includes(saved) ? saved : beats[0] ?? "meet";
 }
 
-export function onboardingCloudOffered(record: OnboardingStatus | undefined): boolean {
-  return hintSeen(record, ONBOARDING_CLOUD_HINT);
-}
-
-let welcomeShown = 0;
-/** The welcome flow is on screen (WelcomeFlow, until it closes): a Cloud sheet over it never switches the window away. */
-export function showWelcome(): () => void {
-  welcomeShown++;
-  let gone = false;
-  return () => { if (!gone) { gone = true; welcomeShown--; } };
-}
-export function welcomeOnScreen(): boolean {
-  return welcomeShown > 0;
-}
-
 const WELCOME_FINISHED_KEY = "omb.onboarding.welcomeFinished";
-/** The first-run welcome ended in this app session (never a replay): the full-screen Cloud Pro popup waits for a later
- * launch rather than following it. Kept for the window's session, so a reload counts as the same launch. */
+/** The first-run welcome ended in this app session (never a replay): the MausBot welcome waits for a later launch
+ * rather than following it. Kept for the window's session, so a reload counts as the same launch. */
 // Where browser storage is blocked, this page's memory stands in for it.
 let welcomeFinishedRemembered = false;
 export function markWelcomeFinished(): void {
@@ -209,15 +188,6 @@ export function plainSignIn(instance: SignInStep): boolean {
     ? Boolean(instance.authentication)
     : Boolean(instance.install?.server || instance.install?.managed);
 }
-
-export function cloudSignInDue<Instance>(
-  viewer: WelcomeViewer | null,
-  state: { connected: boolean; instances: readonly Instance[] },
-  ready: (instance: Instance) => boolean,
-): boolean {
-  return Boolean(viewer?.cloudHome && viewer.canSave) && state.connected && state.instances.length > 0 && !state.instances.some(ready);
-}
-
 
 export function reducedMotion(): boolean {
   if (typeof document !== "undefined" && document.documentElement.dataset.reducedMotion === "true") return true;

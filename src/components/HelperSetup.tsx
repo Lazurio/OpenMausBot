@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Bot as BotIcon, Smartphone, Sparkles, type LucideIcon } from "lucide-react";
 
-import { track } from "@/lib/analytics";
 import { INTRO_CHIPS, setupSteps, type IntroChip, type SetupStep } from "@/lib/default-bot";
 import { t } from "@/lib/i18n";
 import { phonePairingSettingsAction } from "@/lib/phone-pairing";
@@ -32,7 +31,6 @@ export function HelperSetup() {
   const steps = setupSteps({
     aiReady: state.instances.some(engineReady),
     ownBots: state.bots.filter((bot) => !bot.hidden && !bot.defaultBot).length,
-    onCloud: state.config?.cloudHome === true,
     team: Boolean(state.config?.team),
     remote: typeof window !== "undefined" && window.ogb?.remoteClient?.active === true,
   });
@@ -44,10 +42,7 @@ export function HelperSetup() {
         {steps.map((step) => {
           const { label, icon: Icon } = STEPS[step];
           return (
-            <button key={step} type="button" data-helper-step={step} onClick={() => {
-              if (step === "cloud") track("onboarding_cloud", { action: "start_trial" });
-              dispatch(setupAction(step));
-            }}
+            <button key={step} type="button" data-helper-step={step} onClick={() => dispatch(setupAction(step))}
               className="inline-flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-accent/20">
               <Icon size={14} aria-hidden="true" className="text-accent" />{t(label)}
             </button>
@@ -85,7 +80,6 @@ export function IntroChips({ chips }: { chips: readonly IntroChip[] }) {
   const tap = (chip: IntroChip) => {
     setTapped((now) => new Set([...now, chip]));
     if (chip === "ai") return setConnecting(true);
-    if (chip === "cloud") track("onboarding_cloud", { action: "start_trial" });
     dispatch(chipAction(chip));
   };
   return (

@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { RuntimeEvent } from "../shared/runtime-events.ts";
-import { TRIAL_CREDIT_REFUSED } from "../shared/trial-credit.ts";
 import {
   classifyRoutineFailure, dispatchRefusal, retryNote, ROUTINE_BUSY_RECHECK_MS, ROUTINE_BUSY_WAIT_MS, weekRuns, type RoutineAlert,
 } from "./routine-recovery.ts";
@@ -100,7 +99,6 @@ describe("classifyRoutineFailure", () => {
     ["workspace routing discovery unauthorized (401)", {}, { kind: "owner", cause: "signed_out" }],
     ["Your xAI account is out of credits (xAI says: \"Your team has run out of credits\"). Add credits with xAI, then run it again.", {}, { kind: "owner", cause: "credits" }],
     ["Internal error: API error (status 402 Payment Required): pay up", { setup: true, stopReason: "auth_required" }, { kind: "owner", cause: "credits" }],
-    [TRIAL_CREDIT_REFUSED.used_up, { setup: true, trialCredit: "used_up" }, { kind: "owner", cause: "credits" }],
     ["This Claude account has reached its 5-hour limit.", { stopReason: "quota", limitResetsAt: START + 3_600_000 }, { kind: "owner", cause: "usage_limit", resetsAt: START + 3_600_000 }],
     ["You've hit your weekly limit · resets Oct 12 at 2:30pm (Asia/Calcutta)", {}, { kind: "owner", cause: "usage_limit" }],
     ["Claude Code is too old for this model. Update it.", { setup: true, stopReason: "update_required" }, { kind: "owner", cause: "setup" }],
@@ -362,18 +360,13 @@ describe("an unattended run only its owner can fix", () => {
     expect(h.failed.at(-1)!.alert).toEqual({ detail: SIGN_IN_ACTION });
   });
 
-  it("fails an out-of-credit refusal at once with what to do, and the trial credit says to sign in", async () => {
+  it("fails an out-of-credit refusal at once with what to do", async () => {
     const h = harness();
     const credits = "Your xAI account is out of credits (xAI says: \"Your team has run out of credits\"). Add credits with xAI, then run it again.";
     const run = await h.start(h.routine("maus-1").id);
     h.fail("thread-1", credits, { stopReason: "rpc_error" });
     expect(h.run(run.id)).toMatchObject({ status: "failed", error: credits });
     expect(h.failed[0]!.alert).toEqual({ detail: "This bot's AI account is out of credit. Add credit with the provider, or choose another AI for this bot." });
-
-    const trial = await h.start(h.routine("maus-2").id);
-    h.fail(trial.threadId!, TRIAL_CREDIT_REFUSED.used_up, { setup: true, trialCredit: "used_up" });
-    expect(h.run(trial.id)).toMatchObject({ status: "failed", error: TRIAL_CREDIT_REFUSED.used_up });
-    expect(h.failed[1]!.alert).toEqual({ detail: "The trial Claude credit can't run this. Sign in with your own Claude or ChatGPT account, or add an API key." });
   });
 
   it("waits out a usage limit that resets within twelve hours, once, and says so once", async () => {

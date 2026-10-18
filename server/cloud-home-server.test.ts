@@ -157,17 +157,6 @@ it.skipIf(process.platform === "win32")("rewrites the data folder of the compute
   expect(JSON.parse(readFileSync(join(dataDir, ".backups", "last-restore.json"), "utf8")).pathsRewritten).toBe(true);
 });
 
-  const status = await api("GET", "/api/config");
-  expect(status.status).toBe(200);
-  expect(status.body.tts).toMatchObject({ configured: true, ready: true, provider: "elevenlabs", voice: "preset0voice0id", included: true });
-  expect(status.body.decider).toEqual({ provider: "jev", configured: true, included: true, enabled: true, jobs: { roomRouting: true } });
-  const saved = readFileSync(join(home, ".openmausbot", "config.json"), "utf8");
-  for (const includedToken of includedTokens) {
-    expect(JSON.stringify(status.body)).not.toContain(includedToken);
-    expect(saved).not.toContain(includedToken);
-  }
-});
-
 it("pairs the app on a signed request and tells it its first run is the engine sign-in; no gateway models are served", async () => {
   const body = JSON.stringify({ label: "OpenMausBot app (Cloud)", ttlSeconds: 300 });
   const timestamp = String(Math.floor(Date.now() / 1000)), nonce = randomBytes(16).toString("base64url");

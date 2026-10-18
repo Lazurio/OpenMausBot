@@ -1,10 +1,8 @@
 // One builder for every turn's system prompt, so what a bot receives and the "what the model sees" preview are the same bytes.
 import { soulSystemPrompt } from "./bot-folder.ts";
-import { deviceWord } from "./lent-computers.ts";
 import { agentsToolBridged } from "./drivers/agents-bridge.ts";
 import { teammateAvailabilityPrompt, type RosterMember } from "./peer-roster.ts";
 import { isConversational, type ReplyStyle } from "../shared/reply-style.ts";
-import { useMyComputerLink } from "../shared/use-my-computer.ts";
 import { REPLY_HABITS_PROMPT } from "./reply-habits.ts";
 
 export type PromptPart = { id: string; label: string; text: string };
@@ -86,11 +84,6 @@ export function buildSystemPrompt(
  * the person's own inbox is theirs to give: their request for the task is the authorization, and it goes to that site only. */
 export const SIGN_IN_PROMPT =
 
-/** The Local VM and VPS image's Cua Driver refuses background X11 keys there (they need /dev/uinput, which the hardened
- * container lacks) and pixel clicks on a window this session has not read; the bot is told up front rather than per refusal. */
-export const SANDBOX_DESKTOP_INPUT =
-  " On this desktop, read a window with get_window_state before acting on it and take x,y from that window's own screenshot. Pass delivery_mode \"foreground\" for keys, typing, scrolling and pixel clicks: background input is not available here, and foreground moves focus only inside this desktop, never on the user's own screen.";
-
 const COMPUTER_PARAGRAPH: Record<ComputerPromptKind, string> = {
   local:
     " You can act on the user's computer through the computer tools. Discover the target app/window and inspect its state first. Prefer window-targeted accessibility actions with background delivery so the user can keep working in another app; do not bring OpenMausBot or another app to the front just to inspect it. Use the dedicated browser tools for browser work when available, keeping the user's intended browser profile/account, and OpenMausBot's configuration/proposal tools for supported bot setup rather than clicking through this app. Full-desktop input, app activation, and foreground delivery can move the real cursor, change focus, or switch desktops: use them only when the user asked for foreground control or agrees after background control reports it cannot perform the action. Do not silently retry a background refusal as foreground input, including through shell scripts, AppleScript/System Events, or another automation tool. If a background action unexpectedly changes focus, report it and stop that route rather than continuing to interrupt the user. Never promise that arbitrary desktop actions can run in the background.",
@@ -104,36 +97,10 @@ export function computerPrompt(kind: ComputerPromptKind | null): string {
 
 export const CLOUD_HOME_PLACE = "the user's My Cloud, their always-on OpenMausBot in the cloud, not on their own computer";
 
-// The Cloud prompt names the synced folders; index.ts reads the registry through here.
-export { syncedFolders } from "./cloud-sync-store.ts";
-
-/** Their computer as they know it: "their PC MILIND-PC" on Windows, "their Mac" only on a Mac, else "their own computer". */
-function theirComputer(lent: ReadonlyArray<{ name: string; platform: "darwin" | "win32" | "linux" | null }>): { theirs: string; device: "PC" | "Mac" | "computer" } {
-  const latest = lent[0];
-  if (!latest) return { theirs: "their own computer", device: "computer" };
-  const device = deviceWord(latest.platform);
-  // eslint-disable-next-line no-control-regex
-  const name = latest.name.replace(/[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g, " ").slice(0, 80);
-  return { theirs: `their ${device} (${name})`, device };
-}
-
-export function cloudHomePrompt(sharedComputerTools: boolean, synced: ReadonlyArray<{ computerName: string; pcPath: string; cloudPath: string }> = [],
-  lent: ReadonlyArray<{ name: string; platform: "darwin" | "win32" | "linux" | null }> = []): string {
-  const { theirs, device } = theirComputer(lent);
-  return ` You run on ${CLOUD_HOME_PLACE}.` + (sharedComputerTools
-    ? ` If they ask for something on ${theirs}, check list_shared_computers: a computer they share with the Cloud is reachable through shared_computer, within the folders and apps it allows. If none is online, say so in one sentence: use its say field when it has one (it names the computer and when it was last online), otherwise give them ${useMyComputerLink(device)} to press in OpenMausBot on that ${device}: it asks them once and shares that ${device} with you.${device === "computer" ? " Call it their computer: never assume it is a Mac." : ` It is a ${device}: call it that, never a Mac unless it is one.`}`
-      + ` While that ${device} is away, each folder it lends that the Cloud keeps a copy of still works from that copy: list_shared_computers lists them under away_computers (copy null means a folder only on the ${device}), every read says how fresh the copy is, and a write to a folder lent with editing is saved here and reaches the ${device} when it's on (tell them so in a few words). A file or folder that isn't in the copy is only on the ${device}: say you'll get it when it's on.`
-    : ` You cannot see or use ${theirs}, its screen or its files from here. If they ask for something on it, say so in one sentence.`)
-    + syncedFoldersPrompt(synced);
-}
-
-function syncedFoldersPrompt(synced: ReadonlyArray<{ computerName: string; pcPath: string; cloudPath: string }>): string {
-  if (!synced.length) return "";
-  // eslint-disable-next-line no-control-regex
-  const clean = (value: string, max: number) => value.replace(/[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g, " ").slice(0, max);
-  const shown = synced.slice(0, 20).map((folder) => `${clean(folder.pcPath, 300)} on ${clean(folder.computerName, 80)} → ${clean(folder.cloudPath, 300)}`).join("; ");
-  return ` Folders the person shares from their computer, as read-only copies kept up to date here: ${shown}${synced.length > 20 ? `; and ${synced.length - 20} more` : ""}.`
-    + " A path on that computer inside one of these means its copy here. Read from these copies, never change or delete files in them directly: to change a file in a folder lent with editing, use shared_computer write_file, which reaches their computer; save other work in your own working folder; the person gets it on their computer in Documents › MausBot.";
+export function cloudHomePrompt(): string {
+  return ` You run on ${CLOUD_HOME_PLACE}.`
+    + " You cannot see or use their Mac or PC, its screen or its files from here. If they ask for something on it, say so in one sentence."
+    + " Offer what works here: files and the shell in this folder. Never ask them to set up this computer; it does not exist here.";
 }
 
 export const CREDENTIAL_PROMPT =
