@@ -49,7 +49,6 @@ let host: HTMLDivElement;
 let root: Root;
 let bridge: CloudMoveBridge;
 let push: (state: CloudMoveState) => void;
-let lending: { open: ReturnType<typeof vi.fn> };
 const welcome = { current: null as ReturnType<typeof useCloudWelcome> | null };
 function Probe() { welcome.current = useCloudWelcome(); return null; }
 const render = () => flushSync(() => root.render([createElement(CloudWelcome, { key: "welcome" }), createElement(Probe, { key: "probe" })]));
@@ -93,9 +92,8 @@ beforeEach(() => {
     restorePrevious: vi.fn(), bring: vi.fn(), dismiss: vi.fn().mockResolvedValue(overview({ suggest: false })),
     onState: vi.fn((callback) => { push = callback; return () => {}; }),
   };
-  lending = { open: vi.fn().mockResolvedValue(undefined) };
   window.ogb = {
-    platform: "darwin", cloudMove: bridge, cloudLending: lending,
+    platform: "darwin", cloudMove: bridge,
     workspaces: { state: vi.fn().mockResolvedValue({ local: false, name: "Studio Cloud", origin: CLOUD.origin }), menu: vi.fn() },
   } as unknown as typeof window.ogb;
   host = document.createElement("div");
@@ -293,12 +291,10 @@ describe("CloudWelcome", () => {
     expect(checks).toEqual(["claude", "codex", "codex"]);
   });
 
-  it("files and apps open this computer's Files and Connected apps, then it is ready and says hi to the Chief of Staff", async () => {
+  it("apps open Connected apps, then it is ready and says hi to the Chief of Staff", async () => {
     fixture.state.config.onboarding = { ...EMPTY_ONBOARDING, hintsSeen: [welcomeStepHint("bring"), welcomeStepHint("engine")] };
     render();
     await vi.waitFor(() => expect(text()).toContain("Welcome to Studio Cloud"));
-    click("Open on this computer");
-    expect(lending.open).toHaveBeenCalledOnce();
     click("Connect apps");
     expect(fixture.dispatch).toHaveBeenCalledWith({ type: "togglePlugins", open: true, surface: "apps" });
     click("Finish");

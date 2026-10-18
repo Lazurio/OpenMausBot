@@ -29,7 +29,6 @@ import { cacheUntilConfigChanges,
   routinesInConversationEnabled,
   saveConfig,
   skillAuthoringEnabled,
-  sharedComputersEnabled,
   builtInBrowserEnabled,
   browserProfilePartitionId,
   browserProfilePartitionTarget,
@@ -604,18 +603,8 @@ describe("configuration boundaries", () => {
     expect(() => parseConfigPatch({ features: { shareLearnedSkills: "always" } })).toThrow("features.shareLearnedSkills");
   });
 
-  it("keeps computer sharing off unless config.json explicitly turns it on", () => {
-    expect(sharedComputersEnabled({})).toBe(false);
-    expect(sharedComputersEnabled({ features: {} })).toBe(false);
-    expect(sharedComputersEnabled({ features: { skillAuthoring: true } })).toBe(false);
-    expect(sharedComputersEnabled({ features: { sharedComputers: false } })).toBe(false);
-    expect(sharedComputersEnabled({ features: { sharedComputers: true } })).toBe(true);
-    expect(parseConfigPatch({ features: { sharedComputers: true } })).toEqual({
-      features: { sharedComputers: true },
-    });
-    expect(() => parseConfigPatch({ features: { sharedComputers: "yes" } })).toThrow(
-      "features.sharedComputers",
-    );
+  it("still loads a config.json that turned on the removed computer sharing", () => {
+    expect(parseStoredConfig({ features: { sharedComputers: true, skillAuthoring: true } })).toEqual({ features: { skillAuthoring: true } });
   });
 
   it("keeps routine runs in a hidden thread unless the conversation option is on", () => {

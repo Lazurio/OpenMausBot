@@ -35,7 +35,6 @@ function installCloudPage(copy: string | null) {
       state: async () => overview, start: async () => state, cancel: async () => state, restorePrevious: async () => state,
       dismiss: async () => ({ ...overview, phase: "idle" }), onState: () => () => {},
     },
-    cloudLending: { open: async () => {} },
     cloudPlan: {
       state: async () => ({ status: "paid", tier: "pro", credit: { grantedUsd: 5, remainingUsd: 5, state: "active" } }),
       manage: async () => {}, useThisComputer: async () => {},

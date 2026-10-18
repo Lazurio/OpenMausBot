@@ -879,43 +879,6 @@ test("a server's Copy opens this computer's Settings → Servers on that server'
   assert.deepEqual(calls, [["send", "workspaces:open-settings", "vps", "copy"], ["send", "workspaces:open-settings", "vps"]]);
 });
 
-test("the Cloud's setup checklist can open the lending switch here, and nothing else can", async () => {
-  const local = preload();
-  await local.bridge.cloudLending.open({ origin: "https://evil.example.test", folders: ["/"] });
-  assert.deepEqual(local.invoked, [["cloud-lending:open"]]);
-  const page = preload({ remote: true });
-  assert.ok(page.bridge.cloudLending);
-  assert.deepEqual(Object.keys(page.bridge.cloudLending), ["open"]);
-  const source = readFileSync(new URL("./main.mjs", import.meta.url), "utf8").replace(/\r\n/g, "\n");
-  const start = source.indexOf(IPC_START), end = source.indexOf(IPC_END, start);
-  const handlers = new Map(), opened = [];
-  const localFrame = { url: `${LOCAL}/` }, localContents = { mainFrame: localFrame };
-  const cloudFrame = { url: `${ORIGIN}/` }, cloudContents = { mainFrame: cloudFrame };
-  localOrigin.setLocalOrigin(LOCAL);
-  const context = vm.createContext({
-    ipcMain: { handle: (channel, handler) => handlers.set(channel, handler), on: () => {} },
-    senderIsLocal: localOrigin.isLocalSender, workspaceSenderAllowed: environments.workspaceSenderAllowed, cloudPageSenderAllowed,
-    activeEnvironment: environments.activeEnvironment, rendererOrigin: () => LOCAL, desktopRemoteAccess: false,
-    mainWindow: { isDestroyed: () => false, webContents: localContents },
-    environmentsState: { environments: [], activeId: "local" },
-    cloudAccount: { homeTarget: () => ({ origin: ORIGIN }) }, myCloudOrigin, rememberedHome: null,
-    openLendingSettings: async (...args) => { opened.push(args); },
-  });
-  vm.runInContext(source.slice(start, end), context);
-  const open = handlers.get("cloud-lending:open");
-  await open({ sender: localContents, senderFrame: localFrame }, { origin: "https://evil.example.test" });
-  context.mainWindow.webContents = cloudContents;
-  context.environmentsState = { environments: [{ id: "cloud", name: "My Cloud", origin: ORIGIN }], activeId: "cloud" };
-  await open({ sender: cloudContents, senderFrame: cloudFrame });
-  assert.deepEqual(opened, [[], []]);
-  for (const event of [{ sender: cloudContents, senderFrame: { url: "https://other.example.test/" } }, { sender: {}, senderFrame: cloudFrame }]) {
-    assert.throws(() => open(event), /only available/);
-  }
-  context.environmentsState = { environments: [{ id: "other", name: "Other", origin: "https://other.example.test" }], activeId: "other" };
-  assert.throws(() => open({ sender: cloudContents, senderFrame: cloudFrame }), /only available/);
-  assert.equal(opened.length, 2);
-});
-
 test("Settings on the person's own Cloud shows the plan read only, and can only open the dashboard or switch back", async () => {
   const page = preload({ remote: true });
   assert.deepEqual(Object.keys(page.bridge.cloudPlan), ["state", "manage", "useThisComputer", "noticeSeen"]);
@@ -945,7 +908,6 @@ test("Settings on the person's own Cloud shows the plan read only, and can only 
     cloudAccount: { homeTarget: () => ({ origin: ORIGIN }), state: () => account }, cloudPlanSnapshot, LOCAL_ID: environments.LOCAL_ID, myCloudOrigin, rememberedHome: null,
     cloudTrialNotices: () => ({ due: () => null, seen: (...args) => { calls.push(["notice-seen", ...args]); } }),
     ensureCloudAccount: () => ({ openDashboard: async (...args) => { calls.push(["dashboard", ...args]); return account; } }),
-    openLendingSettings: async () => { calls.push(["lending"]); },
     workspaceMenuAction: action => action(), switchEnvironment: id => { calls.push(["switch", id]); },
   });
   vm.runInContext(source.slice(start, end), context);
@@ -978,11 +940,8 @@ test("Settings on the person's own Cloud shows the plan read only, and can only 
   assert.deepEqual(calls.at(-1), ["switch", environments.LOCAL_ID]);
   context.rememberedHome = { accountId: "someone-else", origin: ORIGIN };
   assert.throws(() => handlers.get("cloud-plan:state")(event), /only available/);
-  assert.throws(() => handlers.get("cloud-lending:open")(event), /only available/);
   context.rememberedHome = { accountId: "a1", origin: ORIGIN };
   assert.throws(() => handlers.get("cloud-plan:state")({ sender: cloudContents, senderFrame: { url: "https://other.example.test/" } }), /only available/);
-  await handlers.get("cloud-lending:open")(event);
-  assert.deepEqual(calls.at(-1), ["lending"]);
   context.cloudAccount = { homeTarget: () => ({ origin: ORIGIN }), state: () => account };
   assert.deepEqual(cloudPlanSnapshot({ status: "reauth-required", message: "expired", lastPlan: { tier: "pro", active: true } }), { status: "signin", tier: "pro" });
   assert.deepEqual(cloudPlanSnapshot({ status: "reauth-required", message: "access-ended", lastPlan: { active: true } }), { status: "signin", tier: "pro" });

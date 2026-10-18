@@ -231,14 +231,13 @@ function runForget(state) {
   const start = MAIN_SOURCE.indexOf("async function forgetEnvironment(");
   const end = MAIN_SOURCE.indexOf("function showContextMenu(", start);
   assert.ok(start > 0 && end > start, "the forget helper exists");
-  const calls = { dialogs: [], shares: [], persisted: [], navigated: [], rm: [] };
+  const calls = { dialogs: [], persisted: [], navigated: [], rm: [] };
   const rmOptions = [];
   const ctx = {
     environmentsState: state,
     localSwitchInFlight: false,
     runningDataDir: null,
     dialog: { showMessageBox: async (options) => { calls.dialogs.push(options); return { response: 0 }; } },
-    sharingController: () => ({ forget: (entry) => calls.shares.push(entry.id) }),
     persistEnvironments: (next) => { calls.persisted.push(next); context.environmentsState = next; },
     withoutEnvironment: env.withoutEnvironment,
     navigateMainWindow: (url) => calls.navigated.push(url),
@@ -262,7 +261,7 @@ function runForget(state) {
 test("forgetting the ACTIVE local environment is refused with {error:active} and touches nothing", async () => {
   const { calls, context } = runForget({ environments: [LOCAL_FIXTURE], activeId: "l1" });
   assert.deepEqual(plain(await context.forgetEnvironment("l1", true)), { ok: false, error: "active" });
-  assert.deepEqual(calls, { dialogs: [], shares: [], persisted: [], navigated: [], rm: [] });
+  assert.deepEqual(calls, { dialogs: [], persisted: [], navigated: [], rm: [] });
 });
 
 test("forgetting a local environment asks nothing of the user, and a failed purge keeps the entry with {error:purge}", async () => {
@@ -276,7 +275,6 @@ test("forgetting a local environment asks nothing of the user, and a failed purg
 test("forgetting a local environment with files kept or purged removes it and answers {ok:true}", async () => {
   const keep = runForget({ environments: [LOCAL_FIXTURE], activeId: "local" });
   assert.deepEqual(plain(await keep.context.forgetEnvironment("l1")), { ok: true });
-  assert.deepEqual(keep.calls.shares, ["l1"]);
   assert.deepEqual(keep.calls.rm, []);
   assert.deepEqual(plain(keep.calls.persisted[0].environments), []);
   assert.equal(keep.calls.dialogs.length, 0);

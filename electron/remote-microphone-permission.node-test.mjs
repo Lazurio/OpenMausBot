@@ -154,6 +154,6 @@ test("main asks through its dialog, remembers on the record and clears a refusal
   assert.match(mainSource, /activeRemoteMicrophone: \(\) => activeEnvironment\(environmentsState\)\?\.microphone === true,/);
   assert.match(mainSource, /\n    askRemoteMicrophone,\n/);
   assert.match(mainSource, /persistEnvironments\(withMicrophone\(environmentsState, env\.id\)\)/);
-  assert.match(mainSource, /sharingController\(\)\.forget\(env\);\n  remoteMicrophoneRefused\.delete\(env\.origin\);/);
+  assert.match(mainSource, /\n  remoteMicrophoneRefused\.delete\(env\.origin\);/);
   assert.match(mainSource, /defaultId: 1,\n        cancelId: 1,\n        message: `Allow “\$\{env\.name\}” to use the microphone\?`/, "Don't Allow is the default");
 });

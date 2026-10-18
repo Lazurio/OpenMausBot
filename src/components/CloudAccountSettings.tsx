@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { CloudAccountBridge, CloudAccountState, CloudPlanBridge, CloudPlanSnapshot } from "../../electron/cloud-account.mjs";
+import type { CloudAccountState, CloudPlanBridge, CloudPlanSnapshot } from "../../electron/cloud-account.mjs";
 import type { CloudCredit, CloudMachine, CloudTrial } from "../../electron/cloud-home.mjs";
 import { CloudMoveSettings } from "./CloudMove";
 import { cloudFilesBridge } from "@/lib/cloud-files";
@@ -9,7 +9,6 @@ import { useCloudOffer } from "@/lib/use-cloud-offer";
 import type { LocaleKey } from "@/locales";
 import { Card } from "./SettingsPrimitives";
 import { StagingMark } from "./cloud-buy/parts";
-import { CloudLending } from "./CloudLending";
 import { OpenFilesButton } from "./OpenFilesButton";
 import { useDesktopCapabilities } from "./DesktopCapabilities";
 
@@ -52,7 +51,7 @@ function trialLines(trial: CloudTrial | undefined, credit: CloudCredit | undefin
 /**
  * Security: status and address come only from the verified native snapshot; the pairing code never reaches this page.
  */
-function cloudHomeCard({ machine, busy, failed, onConnect, lending, trial = false }: { machine: CloudMachine; busy: boolean; failed: boolean; onConnect: () => void; lending?: CloudAccountBridge["lending"]; trial?: boolean }) {
+function cloudHomeCard({ machine, busy, failed, onConnect, trial = false }: { machine: CloudMachine; busy: boolean; failed: boolean; onConnect: () => void; trial?: boolean }) {
   const unreachable = machine.status === "ready" ? machine.unreachable : undefined;
   const connectable = machine.status === "ready" && !unreachable;
   const text = unreachable ? t(unreachable.cause === "host" ? "cloudHome.unreachableHost" : "cloudHome.unreachable")
@@ -69,7 +68,6 @@ function cloudHomeCard({ machine, busy, failed, onConnect, lending, trial = fals
         {cloudFilesBridge() && <OpenFilesButton label={t("cloudHome.filesLink")} className="text-[13px] font-medium text-accent-text underline underline-offset-2 hover:text-ink" />}
       </>}
       {failed && !unreachable && <p role="alert" className="text-[13px] text-danger">{t("cloudHome.connectFailed")}</p>}
-      {lending && <CloudLending bridge={lending} />}
     </div>
   </Card>;
 }
@@ -283,7 +281,7 @@ export function CloudAccountSettings({ linkRequest = 0, cloudHome = false, onCon
       {error && <p role="alert" className="mt-3 text-[13px] text-danger">{t("cloudAccount.actionFailed")}</p>}
       {!account && <button type="button" disabled={busy} className="ui-button mt-3" onClick={() => void perform(() => bridge.state())}>{t("organization.refresh")}</button>}
     </Card>
-    {machine && cloudHomeCard({ machine, busy, failed: homeFailed, onConnect: connectHome, lending: bridge.lending, trial: Boolean(account?.trial) })}
+    {machine && cloudHomeCard({ machine, busy, failed: homeFailed, onConnect: connectHome, trial: Boolean(account?.trial) })}
     {signed && view.kind === "paid" && cloudPhoneCard({ ready: machine?.status === "ready", busy, failed: phoneFailed, onUse: openOnPhone })}
     {machine?.status === "ready" && <CloudMoveSettings destination="cloud" />}
   </>;

@@ -23,16 +23,6 @@ if (process.versions.electron && process.argv.includes(fixtureFlag)) {
   let saved = { activeId: "local", environments: [{ id: "cloud", name: "My cloud team", origin: "https://bots.fixture.example" }] };
   let menuChoice = "workspace-connect";
   let forgetConfirmed = false;
-  let shared = { enabled: false, folders: [], terminal: false, computer: false, connected: false };
-  let sharingConfirmed = false;
-  ipcMain.handle("sharing:state", () => shared);
-  ipcMain.handle("sharing:folder", () => ({ id: "fixture-folder", name: "Invoices", path: "/fixture/Invoices", write: false }));
-  ipcMain.handle("sharing:save", (_event, id, grant) => {
-    calls.push({ kind: "sharing", id, ...grant, confirmed: sharingConfirmed });
-    if (!sharingConfirmed) return null;
-    shared = { ...grant, enabled: true, connected: true }; return shared;
-  });
-  ipcMain.handle("sharing:revoke", () => { shared = { ...shared, enabled: false, connected: false }; return shared; });
   ipcMain.handle("update:get-state", () => ({ status: "idle" }));
   ipcMain.handle("companion:state", () => ({ running: false, enabled: false, devices: [], bind: null, publicUrl: null }));
   ipcMain.handle("desktop:capabilities", () => createRequire(import.meta.url)("../electron/capabilities.cjs").desktopCapabilities({ platform: process.platform }));
@@ -186,37 +176,6 @@ if (process.versions.electron && process.argv.includes(fixtureFlag)) {
     await fill("Name (optional)", "");
     writeFileSync(join(output, "connected-workspaces.png"), (await win.webContents.capturePage()).toPNG());
 
-    assert.equal(await evaluate("document.querySelector('[aria-label^=\"Computer access for \"]') === null"), true, "feature-off workspace offers no computer access");
-    await win.loadURL(`${url}?workspaces=1&share-computer=cloud`);
-    await until(() => evaluate("document.body.textContent.includes('My cloud team')"), "feature-off saved workspace rendered");
-    assert.equal(await evaluate("document.body.textContent.includes('Computer access · My cloud team')"), false, "stale sharing deep link cannot bypass disabled feature");
-    assert.equal(await evaluate(`${button("Choose folder")} === undefined`), true);
-    writeFileSync(join(output, "computer-sharing-disabled.png"), (await win.webContents.capturePage()).toPNG());
-    // Explicitly opt this disposable server in for the unfinished feature's
-    // existing enabled-path regression coverage. Shipped defaults stay off.
-    const enabled = await session.defaultSession.fetch(`${serverUrl}/api/config`, { method: "PATCH", headers: { "content-type": "application/json", origin: serverUrl }, body: JSON.stringify({ features: { sharedComputers: true } }) });
-    assert.equal(enabled.status, 200);
-    await win.loadURL(`${url}?workspaces=1`);
-    await until(() => evaluate("Boolean(document.querySelector('[aria-label=\"Computer access for My cloud team\"]'))"), "explicit fixture opt-in exposes computer access");
-    await evaluate("document.querySelector('[aria-label=\"Computer access for My cloud team\"]').click()");
-    await until(() => evaluate("document.body.textContent.includes('Not shared')"), "computer sharing defaults off");
-    assert.equal(await evaluate("[...document.querySelectorAll('input[type=checkbox]')].every(el => !el.checked)"), true);
-    await evaluate(`${button("Choose folder")}.click()`);
-    await until(() => evaluate("document.body.textContent.includes('/fixture/Invoices')"), "native folder picker populates read-only draft");
-    await evaluate(`${button("Share selected access")}.click()`);
-    await until(() => calls.at(-1)?.kind === "sharing", "native consent requested");
-    assert.equal(shared.enabled, false, "cancel native consent grants nothing");
-    assert.equal(calls.at(-1).folders[0].write, false);
-    assert.equal(calls.at(-1).terminal, false); assert.equal(calls.at(-1).computer, false);
-    sharingConfirmed = true;
-    await until(() => evaluate(`!${button("Share selected access")}.disabled`), "cancel sharing reset");
-    await evaluate(`${button("Share selected access")}.click()`);
-    await until(() => evaluate("document.body.textContent.includes('Sharing while this desktop is open')"), "saved sharing status rendered");
-    writeFileSync(join(output, "computer-access.png"), (await win.webContents.capturePage()).toPNG());
-    await evaluate(`${button("Stop sharing")}.click()`);
-    await until(() => evaluate("document.body.textContent.includes('Not shared')"), "stop sharing applies immediately");
-    await evaluate("document.querySelector('[aria-label=\"Close computer access\"]').click()");
-
     await evaluate("document.querySelector('[aria-label=\"Switch to My cloud team\"]').click()");
     await until(() => saved.activeId === "cloud", "Settings switch selected saved workspace");
     menuChoice = "workspace-local";
@@ -239,13 +198,10 @@ if (process.versions.electron && process.argv.includes(fixtureFlag)) {
     // Real app shell, Settings navigation and onboarding against a disposable
     // fake-engine server. Opening the page must not require local AI setup.
     win.setSize(1180, 850);
-    await win.loadURL(`${url}?app=1&desktop-settings=workspaces&share-computer=cloud`);
+    await win.loadURL(`${url}?app=1&desktop-settings=workspaces`);
     await until(() => evaluate("document.querySelector('[role=dialog]')?.textContent.includes('Connect to a server')"), "app opens top-level workspace Settings");
     assert.equal(await evaluate("location.search.includes('desktop-settings')"), false, "Settings deep link consumed");
     await until(() => evaluate("document.body.textContent.includes('My cloud team')"), "app Settings loaded connections");
-    await until(() => evaluate("document.body.textContent.includes('Computer access · My cloud team')"), "post-pair target opens its access controls");
-    assert.equal(await evaluate("location.search.includes('share-computer')"), false);
-    await evaluate("document.querySelector('[aria-label=\"Close computer access\"]').click()");
     assert.equal(await evaluate("document.querySelector('[aria-label=\"Server address or pairing link\"]') !== null || [...document.querySelectorAll('label')].some(el => el.textContent.includes('Server address or pairing link'))"), true);
     writeFileSync(join(output, "workspace-settings-in-app.png"), (await win.webContents.capturePage()).toPNG());
     await evaluate("window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
@@ -258,31 +214,17 @@ if (process.versions.electron && process.argv.includes(fixtureFlag)) {
     await until(() => evaluate("document.body.textContent.includes('Connect to a server') && document.querySelector('input[aria-label=\"Search settings\"]').value === ''"), "native connection request clears Settings search");
 
     const remote = await open(false);
-    assert.deepEqual(await remote.webContents.executeJavaScript("({ server: typeof window.ogb?.environments, companion: typeof window.ogb?.remoteClient, sharing: typeof window.ogb?.computerSharing, node: typeof window.require, workspaceMethods: Object.keys(window.ogb?.workspaces ?? {}) })"),
-      { server: "undefined", companion: "undefined", sharing: "undefined", node: "undefined", workspaceMethods: ["state", "menu"] });
+    assert.deepEqual(await remote.webContents.executeJavaScript("({ server: typeof window.ogb?.environments, companion: typeof window.ogb?.remoteClient, node: typeof window.require, workspaceMethods: Object.keys(window.ogb?.workspaces ?? {}) })"),
+      { server: "undefined", companion: "undefined", node: "undefined", workspaceMethods: ["state", "menu"] });
     assert.deepEqual(blockedRequests, [], "unexpected external request attempted");
     // Exercise Chromium's actual HttpOnly cookie jar and main-process fetch.
     // The server is the isolated fake-engine fixture, never the user's app.
     const opened = await fetch(`${serverUrl}/api/auth/pairing`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ label: "Electron fixture", scopes: ["client"] }) }).then(response => response.json());
     const paired = await session.defaultSession.fetch(`${serverUrl}/api/auth/pair`, { method: "POST", credentials: "include", headers: { "content-type": "application/json", origin: serverUrl }, body: JSON.stringify({ code: opened.code, cookie: true }) });
     assert.equal(paired.status, 200);
-    const { createComputerSharing } = await import("../electron/computer-sharing.mjs");
-    const { randomUUID } = await import("node:crypto");
-    const nativeEnv = { id: "cookie-fixture", name: "Cookie fixture", origin: serverUrl };
-    const sharing = createComputerSharing({ file: join(output, "native-profile", "sharing.json"), fetch: (...args) => session.defaultSession.fetch(...args), environments: () => [nativeEnv], enabled: async () => true, cuaConnection: async () => null });
-    try {
-      const identity = await sharing.observe(nativeEnv);
-      assert.ok(identity?.sessionId, "main fetch sees real paired session cookie");
-      const folder = join(output, "shared-folder"); mkdirSync(folder);
-      await sharing.save(nativeEnv, { folders: [{ id: randomUUID(), path: folder, write: false }], terminal: false, computer: false }, identity);
-      await until(() => sharing.state(nativeEnv.id).connected === true, "native connector registered using paired cookie");
-      sharing.revoke(nativeEnv);
-      assert.equal(sharing.state(nativeEnv.id).enabled, false);
-    } finally { sharing.close(); }
     const receipt = { passed: true, renderer: ["RemoteComputerSection", "ConnectedWorkspacesSettings", "DesktopWorkspaceSwitcher"], preload: "electron/preload.cjs", calls,
-      checks: ["full custom HTTPS link unchanged", "pending submit disabled", "cancel reset", "rejection and retry", "companion six-digit routing", "390px overflow", "remote-safe bridge", "native connect menu item requests Settings", "hosted URL validation", "optional name", "pairing code excluded from saved list", "switch local/cloud", "cancel/confirm forget", "real app Settings deep link", "native Settings event and search reset", "feature-off hides sharing controls and stale deep link", "explicit opt-in enables fixture sharing", "sharing off by default", "read-only folder selection", "cancel/save sharing", "immediate revoke", "post-pair access deep link", "no sharing bridge in remote renderer"],
-      nativeConnector: "Real HttpOnly pairing cookie → session.defaultSession.fetch → real fixture registration → revoke",
-      limitation: "UI IPC replaces native dialogs, workspace persistence and navigation. Native sharing authentication tested against isolated HTTP server; no public DNS/TLS or live screen control tested." };
+      checks: ["full custom HTTPS link unchanged", "pending submit disabled", "cancel reset", "rejection and retry", "companion six-digit routing", "390px overflow", "remote-safe bridge", "native connect menu item requests Settings", "hosted URL validation", "optional name", "pairing code excluded from saved list", "switch local/cloud", "cancel/confirm forget", "real app Settings deep link", "native Settings event and search reset"],
+      limitation: "UI IPC replaces native dialogs, workspace persistence and navigation. No public DNS/TLS tested." };
     writeFileSync(join(output, "receipt.json"), `${JSON.stringify(receipt, null, 2)}\n`);
     console.log(JSON.stringify(receipt));
     app.exit(0);
@@ -340,6 +282,6 @@ if (process.versions.electron && process.argv.includes(fixtureFlag)) {
   } finally {
     await ui.close();
     await fixture.close();
-    for (const dir of ["home", "user-data", "native-profile", "shared-folder"]) rmSync(join(output, dir), { recursive: true, force: true });
+    for (const dir of ["home", "user-data"]) rmSync(join(output, dir), { recursive: true, force: true });
   }
 }

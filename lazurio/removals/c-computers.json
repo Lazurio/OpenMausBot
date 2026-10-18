@@ -1,0 +1,56 @@
+{
+  "area": "Own computers",
+  "why": "One Environment = one computer: bots work on this host (shell, files, browser), never on a Local VM, a Boat, a VPS or a lent or shared computer of their own.",
+  "files": [
+    "server/shared-computers.ts",
+    "server/shared-computers.test.ts",
+    "server/shared-computers.e2e.test.ts",
+    "server/shared-computers.gate.test.ts",
+    "server/shared-computer-control.ts",
+    "electron/computer-sharing.mjs",
+    "electron/computer-sharing.d.mts",
+    "electron/shared-computer-access.mjs",
+    "electron/shared-computer-access.node-test.mjs",
+    "electron/lending-activity.mjs",
+    "electron/lending-indicator.mjs",
+    "electron/lending-guards.node-test.mjs",
+    "src/components/CloudLending.tsx",
+    "src/components/CloudLending.test.ts",
+    "src/components/LendingActivity.tsx",
+    "src/components/ComputerSharingSettings.tsx",
+    "electron/cloud-lending.node-test.mjs",
+    "server/cloud-lending.e2e.test.ts",
+    "server/cloud-lending-memory.e2e.test.ts"
+  ],
+  "forbidden": [
+    "/api/shared-computers",
+    "/api/desktop/shared-computer-control",
+    "/api/internal/shared-computers",
+    "list_shared_computers",
+    "SHARED_COMPUTER_TOOL_NAMES",
+    "OMB_SHARED_COMPUTERS_ENABLED",
+    "sharedComputersEnabled",
+    "SharedComputerControl",
+    "ComputerSharingSettings",
+    "CloudLendingBridge",
+    "LendingActivityList"
+  ],
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/shared-computers"
+    },
+    {
+      "method": "POST",
+      "path": "/api/shared-computers/connect"
+    },
+    {
+      "method": "POST",
+      "path": "/api/desktop/shared-computer-control",
+      "body": {
+        "id": "00000000-0000-4000-8000-000000000000",
+        "action": "release"
+      }
+    }
+  ]
+}

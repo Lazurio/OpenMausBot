@@ -39,7 +39,7 @@ ipcRenderer.on("app:open-settings", (_event, section) => {
 const localOrigin = process.argv.find((arg) => arg.startsWith("--omb-local-origin="))?.slice("--omb-local-origin=".length) ?? null;
 const isLocalPage = !localOrigin || location.origin === localOrigin;
 const savedServer = id => isLocalPage && typeof id === "string" && /^[\w-]{1,64}$/.test(id) ? [id] : [];
-const REMOTE_SAFE = new Set(["platform", "getCapabilities", "onCapabilitiesChanged", "applySkin", "setUnreadCount", "permStatus", "workspaces", "cloudMove", "cloudLending", "cloudPlan", "desktopNotices", "desktopAnalytics"]);
+const REMOTE_SAFE = new Set(["platform", "getCapabilities", "onCapabilitiesChanged", "applySkin", "setUnreadCount", "permStatus", "workspaces", "cloudMove", "cloudPlan", "desktopNotices", "desktopAnalytics"]);
 function updaterOffered() {
   try { return ipcRenderer.sendSync("update:offered") === true; } catch { return false; }
 }
@@ -298,12 +298,6 @@ const bridge = {
       ipcRenderer.on("cloud-account:state-changed", handler);
       return () => ipcRenderer.removeListener("cloud-account:state-changed", handler);
     },
-    lending: {
-      state: () => ipcRenderer.invoke("lending:state"),
-      chooseFolder: () => ipcRenderer.invoke("lending:folder"),
-      save: input => ipcRenderer.invoke("lending:save", input),
-      stop: () => ipcRenderer.invoke("lending:stop"),
-    },
     files: {
       state: () => ipcRenderer.invoke("files:state"),
       pickFolder: () => ipcRenderer.invoke("files:pick"),
@@ -335,9 +329,6 @@ const bridge = {
       ipcRenderer.on("cloud-move:state-changed", handler);
       return () => ipcRenderer.removeListener("cloud-move:state-changed", handler);
     },
-  } : undefined,
-  cloudLending: process.argv.includes("--omb-company-desktop=1") ? {
-    open: () => ipcRenderer.invoke("cloud-lending:open"),
   } : undefined,
   cloudPlan: process.argv.includes("--omb-company-desktop=1") ? {
     state: () => ipcRenderer.invoke("cloud-plan:state"),
@@ -376,13 +367,6 @@ const bridge = {
       return () => ipcRenderer.removeListener("company-backups:state-changed", handler);
     },
   } : undefined,
-  computerSharing: {
-    state: id => ipcRenderer.invoke("sharing:state", id),
-    chooseFolder: () => ipcRenderer.invoke("sharing:folder"),
-    save: (id, grant) => ipcRenderer.invoke("sharing:save", id, grant),
-    revoke: id => ipcRenderer.invoke("sharing:revoke", id),
-    activity: id => ipcRenderer.invoke("sharing:activity", id),
-  },
   confirm: message => ipcRenderer.invoke("dialog:confirm", message),
   desktopNotices: {
     state: () => ipcRenderer.invoke("desktop-notices:state"),

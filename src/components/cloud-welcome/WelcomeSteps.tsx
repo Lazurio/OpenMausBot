@@ -38,7 +38,6 @@ export function WelcomeEngine({ name, headingRef, onFinish }: { name: string; he
 
 export function WelcomeFiles({ name, headingRef, onFinish }: { name: string; headingRef: Ref<HTMLHeadingElement>; onFinish: () => void }) {
   const { dispatch } = useStore();
-  const lending = window.ogb?.cloudLending;
   const card = (id: string, icon: typeof Plug, title: string, body: string, action?: { label: string; run: () => void }) =>
     <div data-welcome-files={id} className={cn(CARD, CARD_IDLE)}>
       <CardIcon icon={icon} />
@@ -50,8 +49,7 @@ export function WelcomeFiles({ name, headingRef, onFinish }: { name: string; hea
     <StepHeading headingRef={headingRef} title={t("cloudWelcome.files.title")} aside={t("cloudWelcome.files.optional")} sub={t("cloudWelcome.files.sub")} />
     <div className="grid gap-3 @lg/step:grid-cols-2">
       {card("folders", FolderOpen, t("cloudWelcome.files.folders"),
-        t(lending ? "cloudWelcome.files.foldersHint" : "cloudWelcome.files.foldersDesktop", { name }),
-        lending ? { label: t("cloudWelcome.files.foldersAction"), run: () => void lending.open().catch(() => {}) } : undefined)}
+        t("cloudWelcome.files.foldersDesktop", { name }))}
       {card("apps", Plug, t("cloudWelcome.files.apps"), t("cloudWelcome.files.appsHint"),
         { label: t("cloudWelcome.files.appsAction"), run: () => dispatch({ type: "togglePlugins", open: true, surface: "apps" }) })}
     </div>

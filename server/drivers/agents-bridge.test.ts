@@ -25,12 +25,11 @@ import {
 } from "./agents-bridge.ts";
 
 const flag = (on: boolean) => (on ? "1" : "0");
-const profile = (options: { chief?: boolean; skills?: boolean; shared?: boolean; voice?: boolean; cloudHome?: boolean; memory?: boolean; botId?: string } = {}): CatalogProfile =>
+const profile = (options: { chief?: boolean; skills?: boolean; voice?: boolean; cloudHome?: boolean; memory?: boolean; botId?: string } = {}): CatalogProfile =>
   catalogProfileFromEnv({
     OMB_BOT_ID: options.botId ?? "bot-bridge",
     OMB_CHIEF_OF_STAFF: flag(options.chief ?? false),
     OMB_SKILL_AUTHORING_ENABLED: flag(options.skills ?? false),
-    OMB_SHARED_COMPUTERS_ENABLED: flag(options.shared ?? false),
     OMB_VOICE_NOTES: flag(options.voice ?? false),
     OMB_CLOUD_HOME: flag(options.cloudHome ?? false),
     OMB_MEMORY_ENABLED: flag(options.memory ?? true),
@@ -40,8 +39,8 @@ const profile = (options: { chief?: boolean; skills?: boolean; shared?: boolean;
  * matrix does, plus the two the matrix leaves out: memory off and Watcher. */
 function everyProfile(): Array<{ name: string; profile: CatalogProfile }> {
   const all: Array<{ name: string; profile: CatalogProfile }> = [];
-  for (const chief of [true, false]) for (const skills of [false, true]) for (const shared of [false, true]) for (const voice of [false, true]) for (const cloudHome of [false, true]) {
-    all.push({ name: JSON.stringify({ chief, skills, shared, voice, cloudHome }), profile: profile({ chief, skills, shared, voice, cloudHome }) });
+  for (const chief of [true, false]) for (const skills of [false, true]) for (const voice of [false, true]) for (const cloudHome of [false, true]) {
+    all.push({ name: JSON.stringify({ chief, skills, voice, cloudHome }), profile: profile({ chief, skills, voice, cloudHome }) });
   }
   all.push({ name: "memory off", profile: profile({ memory: false }) });
   all.push({ name: "watcher", profile: profile({ botId: WATCHER_OPTIONS_CARD_BOT_ID }) });
@@ -50,7 +49,7 @@ function everyProfile(): Array<{ name: string; profile: CatalogProfile }> {
 
 const bridgeFor = (options: Parameters<typeof profile>[0] = {}) => createToolBridge(availableTools(profile(options)) as BridgeTool[]);
 const names = (tools: readonly { name: string }[]) => tools.map((tool) => tool.name);
-const FULL_CHIEF = { chief: true, skills: true, shared: true, voice: true } as const;
+const FULL_CHIEF = { chief: true, skills: true, voice: true } as const;
 const CHIEF_ONLY = ["create_bot", "list_team_setup", "propose_team_setup", "propose_bot_deletion", "create_room", "manage_room", "retry_thread"];
 
 type Match = { name: string; description: string; inputSchema: Record<string, unknown> };
@@ -122,7 +121,7 @@ describe("what a bridged turn is listed", () => {
     expect(names(bridgeFor().listed)).not.toContain("create_options_card");
     expect(names(bridgeFor({ memory: false }).listed)).not.toContain("memory_update");
     // A role and the other features change only what sits behind use_tool.
-    for (const options of [{ chief: true }, { skills: true }, { shared: true }, { cloudHome: true }]) {
+    for (const options of [{ chief: true }, { skills: true }, { cloudHome: true }]) {
       expect(names(bridgeFor(options).listed), JSON.stringify(options)).toEqual(names(bridgeFor().listed));
     }
   });
@@ -252,7 +251,6 @@ describe("find_tool", () => {
     ["create a new specialist bot", "create_bot"],
     ["delete a teammate", "propose_bot_deletion"],
     ["rename a room or change its members", "manage_room"],
-    ["use the desktop the user shared", "shared_computer"],
     ["open a separate job for each pull request", "start_thread"],
     ["read the whole message from an old conversation", "session_read"],
     ["retry the failed thread", "retry_thread"],
@@ -268,7 +266,6 @@ describe("find_tool", () => {
     ["check how a hand-off is going", "assignment_status"],
     ["make a new room", "create_room"],
     ["my skills", "skills_list"],
-    ["computers shared with this workspace", "list_shared_computers"],
   ])("returns the hidden tool among its few matches for a looser request: %s", async (query, expected) => {
     expect(names((await found(bridgeFor(FULL_CHIEF), query)).matches)).toContain(expected);
   });
@@ -322,7 +319,7 @@ describe("find_tool", () => {
   it("never returns a tool outside this turn's profile", async () => {
     const plain = bridgeFor();
     const allowed = new Set(names(plain.hidden));
-    for (const query of ["create a new specialist bot", "delete a teammate", "set up the team", "retry a failed thread", "share a computer", "save a skill", "send a voice note", ...CHIEF_ONLY, "skill_manage", "shared_computer", "send_voice_note", "vm_exec"]) {
+    for (const query of ["create a new specialist bot", "delete a teammate", "set up the team", "retry a failed thread", "share a computer", "save a skill", "send a voice note", ...CHIEF_ONLY, "skill_manage", "send_voice_note", "vm_exec"]) {
       const answer = await plain.find({ query });
       const matches = answer.isError ? [] : (JSON.parse(answer.text) as FindPayload).matches;
       for (const match of matches) expect(allowed.has(match.name), `${query} → ${match.name}`).toBe(true);
@@ -385,7 +382,7 @@ describe("use_tool", () => {
   it("names a tool outside this turn's profile for the front end to refuse as it refuses a direct call", () => {
     // No answer of its own: the proxy's one unknown-tool check rejects it,
     // in the same words as a direct call.
-    for (const name of ["made_up", "create_bot", "skill_manage", "shared_computer", "send_voice_note", "create_options_card", FIND_TOOL, USE_TOOL]) {
+    for (const name of ["made_up", "create_bot", "skill_manage", "send_voice_note", "create_options_card", FIND_TOOL, USE_TOOL]) {
       expect(bridgeFor().use({ name, arguments: { anything: true } }), name).toEqual({ name, arguments: { anything: true } });
     }
   });
