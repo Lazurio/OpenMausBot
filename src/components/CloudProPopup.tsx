@@ -4,9 +4,7 @@ import type { CloudAccountState, CloudPlanSnapshot } from "../../electron/cloud-
 import type { CloudOffer } from "../../electron/cloud-home.mjs";
 import type { DesktopNoticesBridge, DesktopNoticesState } from "../../electron/desktop-prefs.mjs";
 import { analyticsChoiceKnown, identifyEmail, track } from "@/lib/analytics";
-import { buyOfferAllowed, cloudIntroView, cloudPlanLabel, cloudPlanLine, cloudPlanView, moneyBackLine, trialRunning, usd, type CloudPlanView, type CloudSource } from "@/lib/cloud-plan";
 import { t } from "@/lib/i18n";
-import { cloudPlanFromAccount, cloudPlanFromSnapshot, type CloudPlanFacts } from "@/lib/usage-snapshot";
 import { NotNowButton } from "./NoticeCard";
 import { UPDATES_CONSENT_POPUP } from "./UpdatesConsent";
 

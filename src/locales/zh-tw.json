@@ -748,8 +748,6 @@
   "settings.diagnostics.exporting": "匯出中…",
   "settings.diagnostics.saved": "已儲存至 {path}",
   "settings.diagnostics.elsewhere": "紀錄檔保存在 OpenMausBot 執行的地方。若要開啟或匯出這台電腦的紀錄檔，請使用那台電腦上桌面版 App 的「設定」。MausBot Cloud 支援團隊可以讀取 Cloud 的紀錄檔。",
-  "settings.analytics.title": "使用分析",
-  "settings.analytics.aria": "傳送使用分析",
   "settings.updates.startingDownload": "開始下載…",
   "settings.updates.preparing": "下載完成。macOS 正在準備更新。",
   "settings.updates.readyInstall": "{app} {version} 已就緒，請在終端機中安裝",

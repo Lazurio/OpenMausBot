@@ -861,8 +861,6 @@
   "settings.diagnostics.exporting": "Dışa aktarılıyor…",
   "settings.diagnostics.saved": "{path} konumuna kaydedildi",
   "settings.diagnostics.elsewhere": "Günlükler OpenMausBot'un çalıştığı yerde tutulur. Bu bilgisayarınkileri açmak veya dışa aktarmak için oradaki masaüstü uygulamasında Ayarlar'ı kullanın. Cloud'unkileri MausBot Cloud desteği okuyabilir.",
-  "settings.analytics.title": "Kullanım analitiği",
-  "settings.analytics.aria": "Kullanım analitiği gönder",
   "settings.updates.startingDownload": "İndirme başlatılıyor…",
   "settings.updates.preparing": "İndirme tamamlandı. macOS güncellemeyi hazırlıyor.",
   "settings.updates.readyInstall": "{app} {version} hazır — bir terminalde yükleyin",

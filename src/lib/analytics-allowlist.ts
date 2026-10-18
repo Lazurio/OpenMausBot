@@ -36,7 +36,7 @@ export function credentialProvider(target: unknown): KeyProvider | "other" {
 
 export const ENGINE = [
   "claude", "codex", "gemini", "cursor", "opencode", "qwen", "hermes", "cline", "custom_acp", "pi", "openai_compat", "grok",
-  "grok_api", "kimi", "droid", "antigravity", "minimax", "mistral", "cerebras", "groq", "meta", "muse_code", "deepseek",
+  "grok_api", "kimi", "droid", "minimax", "mistral", "cerebras", "groq", "meta", "muse_code", "deepseek",
 ] as const;
 export type Engine = (typeof ENGINE)[number];
 

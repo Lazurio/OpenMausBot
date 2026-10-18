@@ -1854,7 +1854,6 @@ time, and none after one closes until another launch:
    it comes back on a later launch. It takes focus at its title, keeps Tab
    inside, takes Escape only while focus is in it, and gives focus back when
    it closes unless focus has moved on. `cloud_pro_popup`
-   ([docs/analytics.md](analytics.md)) counts it as shown at most once a day
    on a desktop, however often it comes back, and names the page each event
    is counted on. Only `upgrade`, `manage` and `see_plans` by someone signed
    in to MausBot Cloud first tie their analytics to their Cloud account's
@@ -2101,7 +2100,6 @@ shown, and the dialog offers today's plans at the Admin's prices, charged
 today. Analytics (the app's existing, optional PostHog) register `app_version`
 and `surface` (`local` or `server`) on every event, and count the card, its
 actions, the tip, the dialog's views and checkouts opened, with no content.
-[docs/analytics.md](analytics.md) lists every event and property.
 
 ## This computer's bots move to your Cloud
 

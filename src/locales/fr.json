@@ -360,8 +360,6 @@
   "settings.diagnostics.exporting": "Export en cours…",
   "settings.diagnostics.saved": "Enregistré dans {path}",
   "settings.diagnostics.elsewhere": "Les journaux sont conservés là où tourne OpenMausBot. Pour ouvrir ou exporter ceux de cet ordinateur, utilisez les Paramètres de l'app de bureau qui s'y trouve. L'assistance MausBot Cloud peut lire ceux du Cloud.",
-  "settings.analytics.title": "Statistiques d'usage",
-  "settings.analytics.aria": "Envoyer les statistiques d'usage",
   "settings.updates.startingDownload": "Démarrage du téléchargement…",
   "settings.updates.preparing": "Téléchargement terminé. macOS prépare la mise à jour.",
   "settings.updates.readyInstall": "{app} {version} est prête — installez-la dans un terminal",

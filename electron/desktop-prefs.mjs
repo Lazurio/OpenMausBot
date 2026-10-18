@@ -1,10 +1,9 @@
 // What this desktop keeps whatever page its window shows, whichever port its own page is served on: the notices it
-// has shown, its usage-analytics switch, the app's language and its answer to the product-updates email question.
+// has shown, its usage-analytics switch and the app's language.
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import { localDay } from "./cloud-trial-notice.mjs";
 import { ONBOARDING_CLOUD_HINT, onboardingHints } from "./onboarding-record.mjs";
-import { createUpdatesConsent, parseUpdatesConsent, registerUpdatesConsent } from "./updates-consent.mjs";
 import { accountFullName } from "./system-name.mjs";
 
 export { DESKTOP_PORTS } from "./desktop-ports.mjs";
@@ -42,11 +41,9 @@ function parse(raw) {
     const day = record.shown && typeof record.shown === "object" ? record.shown[id] : undefined;
     return typeof day === "string" && DAY.test(day) ? [[id, day]] : [];
   }));
-  const updatesConsent = parseUpdatesConsent(record.updatesConsent);
   return { seen, shown, ...(typeof record.analytics === "boolean" ? { analytics: record.analytics } : {}),
     ...(isLanguage(record.language) ? { language: record.language } : {}),
-    ...(typeof record.installId === "string" && INSTALL_ID.test(record.installId) ? { installId: record.installId } : {}),
-    ...(updatesConsent ? { updatesConsent } : {}) };
+    ...(typeof record.installId === "string" && INSTALL_ID.test(record.installId) ? { installId: record.installId } : {}) };
 }
 
 /** A record that cannot be written is still kept for this launch. */
@@ -90,25 +87,16 @@ export function createDesktopPrefs({ read, write, now = Date.now }) {
       save({ ...saved, installId });
       return installId;
     },
-    updatesConsent: () => current().updatesConsent ?? null,
-    setUpdatesConsent(value) {
-      const updatesConsent = parseUpdatesConsent(value);
-      if (!updatesConsent) return false;
-      save({ ...current(), updatesConsent });
-      return true;
-    },
   };
 }
 
 /**
- * `cloudAccount()`: the MausBot Cloud sign-in client, for the product-updates question (updates-consent.mjs), which is
- * asked where Cloud offers are (`cloudOffered`); without it nothing is asked and null is returned.
  * `page(event)`: "local" for this computer's page, "cloud" for My Cloud's own page as main verifies it, "server" for
  * another saved server open in this desktop's window, null for anything else. `cloudOffered()`: this desktop sells
  * MausBot Cloud, asked once its Cloud sign-in is restored. `localConfig()`: This computer's own workspace's config.json.
  * `languageChanged(language, sender)`: tells this desktop's other pages the language picked on one of them.
  */
-export function registerDesktopPrefs({ ipcMain, read, write, page, cloudOffered, cloudAccount, localConfig = () => null, languageChanged = () => {}, now = Date.now, systemName = accountFullName }) {
+export function registerDesktopPrefs({ ipcMain, read, write, page, cloudOffered, localConfig = () => null, languageChanged = () => {}, now = Date.now, systemName = accountFullName }) {
   let prefs = null;
   const store = () => prefs ??= createDesktopPrefs({ read, write, now });
   const from = (channel, pages, handler) => (event, ...args) => {
@@ -151,10 +139,4 @@ export function registerDesktopPrefs({ ipcMain, read, write, page, cloudOffered,
     }
     return store().language() === language;
   });
-  if (!cloudAccount) return null;
-  const consent = createUpdatesConsent({ prefs: { installId: () => store().installId(), updatesConsent: () => store().updatesConsent(), setUpdatesConsent: value => store().setUpdatesConsent(value) },
-    account: cloudAccount, available: cloudOffered, now });
-  registerUpdatesConsent({ ipcMain, page, consent });
-  void cloudOffered().then(offered => offered && consent.sync()).catch(() => {});
-  return consent;
 }

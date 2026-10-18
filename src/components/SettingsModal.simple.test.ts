@@ -68,11 +68,6 @@ vi.mock("./UsageSection", () => ({ UsageSection: marker("usage") }));
 vi.mock("./WorkspaceBackupSettings", () => ({ WorkspaceBackupSettings: marker("backups") }));
 vi.mock("./RoomTurnTimeoutSettings", () => ({ RoomTurnTimeoutSettings: () => null }));
 vi.mock("./CompanyBackupSettings", () => ({ CompanyBackupSettings: () => null }));
-vi.mock("./ImportSettings", () => ({ ImportSettings: marker("import") }));
-vi.mock("./UpdatesConsent", async (importOriginal) => ({
-  ...await importOriginal<typeof import("./UpdatesConsent")>(),
-  UpdatesConsentRow: marker("updatesConsent"),
-}));
 vi.mock("./SidebarProfileMenu", async (importOriginal) => ({
   ...await importOriginal<typeof import("./SidebarProfileMenu")>(),
   useServerUpdateItem: () => fixture.serverUpdate,
@@ -151,10 +146,10 @@ describe("Settings in Simple mode", () => {
     for (const id of hidden) expect(SIMPLE_HIDDEN_SECTIONS).toContain(id);
   });
 
-  it("opens General on Account, then Appearance, Notifications, System and Import, with Advanced mode last as a plain row", () => {
+  it("opens General on Account, then Appearance, Notifications and System, with Advanced mode last as a plain row", () => {
     const html = render();
     expect(currentPage(html)).toBe("general");
-    expect(groupLabels(html)).toEqual(["Account", "Appearance", "Notifications", "System", "Import", "Organization"]);
+    expect(groupLabels(html)).toEqual(["Account", "Appearance", "Notifications", "System", "Organization"]);
     expect(blocks(html).at(-1)).toBe("advanced-mode");
     expect([...html.matchAll(/<button[^>]*role="switch"[^>]*>/g)].at(-1)?.[0]).toContain('aria-label="Advanced mode"');
     expect(html).toContain("Show every control, including tools for builders. Nothing is deleted either way.");
@@ -165,11 +160,10 @@ describe("Settings in Simple mode", () => {
 
   it("keeps the everyday rows and leaves the fifteen builder controls to Advanced, where search still points", () => {
     const general = open("general");
-    for (const shown of ['aria-label="Send usage analytics"', 'aria-label="Color my messages with the bot&#x27;s color"', 'aria-label="Send messages with"',
+    for (const shown of ['aria-label="Color my messages with the bot&#x27;s color"', 'aria-label="Send messages with"',
       'aria-label="Notification sounds"', 'aria-label="Show the notification feed"', 'aria-label="App language"', 'role="radiogroup" aria-label="Theme"']) {
       expect(placement(general, shown), shown).toBe("shown");
     }
-    expect(placement(open("updates"), "MARKER:updatesConsent;")).toBe("shown");
     const everyPage = ["general", "engines", "companion", "usage", "updates"].map((section) => open(section as AppSettingsSection)).join("");
     for (const gone of ["Effort for new bots", "Defaults for new bots", "Group turns", "MCP calls", "Parallel threads", "Automatic recovery", "Event log cleanup",
       "Interface font", "Chat width", "Sidebar density", "Pinned bots as circles", "Universal pins", "Tool calls", "This run", "Keep prompt cache warm"]) {
@@ -179,12 +173,14 @@ describe("Settings in Simple mode", () => {
     expect(SIMPLE_ADVANCED_ONLY.map((key) => t(key))).toEqual(expect.arrayContaining(["Effort for new bots", "Interface font", "Keep prompt cache warm"]));
   });
 
-  it("names this app and its version on Updates, then product updates, the welcome tour and diagnostics", () => {
+  it("names this app and its version on Updates, then the welcome tour and diagnostics", () => {
     vi.stubGlobal("window", { ogb: { ...desktop.ogb, updater: { check: vi.fn(), install: vi.fn(), onState: vi.fn() } } });
     fixture.updater = { status: "idle" };
     const html = open("updates");
     expect(html).toMatch(/>OpenMausBot [^<]+<\/div>/);
-    for (const shown of ["Check for updates", "MARKER:updatesConsent;", "Replay welcome tour", "Diagnostics"]) expect(placement(html, shown), shown).toBe("shown");
+    for (const shown of ["Check for updates", "Replay welcome tour", "Diagnostics"]) expect(placement(html, shown), shown).toBe("shown");
+  it("keeps the Claude Code skills switch under MCP calls in Advanced, with no switch for the MCP servers Claude bots always load", () => {
+    fixture.advancedMode = true;
   });
 
   it("checks the server's version from a browser", () => {
@@ -215,11 +211,10 @@ describe("Settings in Simple mode", () => {
     expect(html).toMatch(/aria-expanded="false"[^>]*>[\s\S]*?API keys and connections/);
   });
 
+  it("orders Computer as your devices, then Connect from elsewhere", () => {
     fixture.section = "companion";
     const html = render();
     expect(currentPage(html)).toBe("computer");
-    expect(groupLabels(html)).toEqual(["Your bots’ computers", "Your devices", "Built-in browser"].map((label) => label.replace("’", "&#x27;")));
-    expect(html).toContain('aria-label="Enable the built-in browser"');
   });
 
     fixture.section = "cloudAccount";
@@ -229,6 +224,9 @@ describe("Settings in Simple mode", () => {
     expect(html.indexOf("See all limits")).toBeLessThan(html.indexOf("MARKER:cloudAccount;"));
     expect(placement(html, "MARKER:usage;")).toBe("folded");
     expect(groupLabels(html)).toContain("Plan");
+    expect(blocks(html)).toEqual(["companion", "elsewhere", "remote", "desktopWorkspaces"]);
+    expect(groupLabels(html)).toEqual(["Your devices"]);
+    expect(html).not.toContain("built-in browser");
   });
 
   it("shows a hosted workspace's admins People in Account and Activity as its own group", () => {
@@ -262,7 +260,6 @@ describe("Settings in Simple mode", () => {
   it.each<[AppSettingsSection, string]>([
     ["general", "general"],
     ["appearance", "general"],
-    ["import", "general"],
     ["organization", "general"],
     ["engines", "ai"],
     ["connections", "ai"],
@@ -272,7 +269,6 @@ describe("Settings in Simple mode", () => {
     ["computer", "computer"],
     ["logins", "computer"],
     ["usage", "billing"],
-    ["cloudAccount", "billing"],
     ["updates", "updates"],
   ])("lands a deep link to %s on %s", (section, page) => {
     fixture.section = section;
@@ -320,7 +316,7 @@ describe("Settings in Advanced mode", () => {
     expect(html.indexOf('aria-label="Advanced mode"')).toBeLessThan(html.indexOf("Language"));
     expect(html).toContain("Show every technical control on this device");
     expect(html).not.toContain("More settings");
-    for (const kept of ["Group turns", 'aria-label="Effort for new bots"', 'aria-label="Send usage analytics"', "Diagnostics"]) {
+    for (const kept of ["Group turns", 'aria-label="Effort for new bots"', "Diagnostics"]) {
       expect(placement(html, kept), kept).toBe("shown");
     }
   });
@@ -333,12 +329,6 @@ describe("Settings in Advanced mode", () => {
 });
 
 describe("the built-in browser switch", () => {
-  const browserSwitch = () => fixture.switches.find((props) => props["aria-label"] === "Enable the built-in browser");
-
-  it.each([false, true])("writes features.browser from Devices (advanced: %s)", async (advanced) => {
-    fixture.advancedMode = advanced;
-    fixture.section = "computer";
-    const html = render();
     if (advanced) {
       expect(html.indexOf('aria-label="Enable the built-in browser"')).toBeLessThan(html.indexOf("MARKER:computer;"));
     } else {
@@ -352,8 +342,6 @@ describe("the built-in browser switch", () => {
       method: "PATCH",
       body: JSON.stringify({ features: { browser: true } }),
     });
-  });
-
   it("is no longer on Experimental, which keeps skill drafting", () => {
     fixture.advancedMode = true;
     fixture.section = "experimental";
@@ -362,11 +350,5 @@ describe("the built-in browser switch", () => {
     expect(html).toContain("Bots may write their own skills");
     expect(browserSwitch()).toBeUndefined();
   });
-
-  it("is found by searching for the browser under Bot desktops in Advanced", () => {
-    const computer = SECTIONS.find((entry) => entry.id === "computer")!;
-    const experimental = SECTIONS.find((entry) => entry.id === "experimental")!;
-    expect(computer.keywords).toContain("browser");
-    expect(experimental.keywords).not.toContain("browser");
   });
 });
