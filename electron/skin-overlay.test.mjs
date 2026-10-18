@@ -19,9 +19,12 @@ function cssToken(skin, name) {
 describe("skin overlay chrome", () => {
   it("covers exactly the skins the renderer ships", () => {
     // SKIN_IDS (src/lib/skins.ts) is the source of truth: a skin without a chrome entry keeps the previous caption colour.
+    // Lazurio's Environment skin has no fixed colour to paint: its colours
+    // come from the Environment theme at runtime, the desktop app never
+    // offers it, and the main process leaves the window as it is for it.
     const registered = [...skinIds.matchAll(/"([a-z-]+)"/g)]
       .map(([, id]) => id)
-      .filter((id) => css.includes(`[data-skin="${id}"]`));
+      .filter((id) => css.includes(`[data-skin="${id}"]`) && id !== "environment");
     expect(new Set(registered)).toEqual(new Set(Object.keys(SKIN_CHROME)));
   });
 

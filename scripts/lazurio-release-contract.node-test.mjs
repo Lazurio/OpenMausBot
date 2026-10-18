@@ -188,5 +188,82 @@ NodeTest.test("the shell takes the active skin's colours through its roles", asy
     NodeAssert.match(theme, new RegExp(`\\n\\s*${token}:`), `${token} is a skin token`);
   }
   // MausBot itself reads none of the roles: outside Lazurio it looks as upstream.
-  NodeAssert.doesNotMatch(styles, /--lazurio-/);
+  // The one shell property it reads is the theme's scheme, in the Environment skin (below).
+  NodeAssert.deepEqual([...new Set(styles.match(/--lazurio-[\w-]+/g))], ["--lazurio-color-scheme"]);
+});
+
+// Root decision 0208: a Lazurio Environment has one colour theme, chosen in
+// Apps → Settings, and Chat, Apps and Automate follow it. The shell declares
+// it on the document as the design system's tokens (--lz-*), with dark values
+// that apply as the host says it shows dark. MausBot follows it through one
+// skin, the Environment skin, which only names those tokens; without the
+// shell each one falls back to Midnight's value. Which skin is the default,
+// the one-time move and the picker are tested in src/lib/environment-skin.test.ts.
+NodeTest.test("the Environment skin names the Environment theme, with Midnight as its fallback", async () => {
+  const [page, styles] = await Promise.all([read("index.html"), read("src/styles.css")]);
+  // MausBot has no light and dark of its own: the theme's dark values follow the device.
+  NodeAssert.match(page, /<html lang="en" data-lazurio-appearance="device">/);
+  // The shell marks the document before MausBot's module reads the skin: module
+  // scripts run in document order, and the build puts the app's entry at the
+  // end of <head>, after the shell's.
+  NodeAssert.ok(page.indexOf('src="/.lazurio/shell.js"') < page.indexOf('src="/src/main.tsx"'), "the shell loads first");
+  const rule = (id) => {
+    const rules = [...styles.matchAll(new RegExp(`\\n\\[data-skin="${id}"\\] \\{\\n([^}]*)\\n\\}`, "g"))];
+    NodeAssert.equal(rules.length, 1, `one ${id} block`);
+    return rules[0];
+  };
+  const declarations = (body) => new Map([...body.replace(/\/\*[^]*?\*\//g, "").matchAll(/(--[\w-]+):\s*([^;]+);/g)]
+    .map(([, name, value]) => [name, value.replace(/\s+/g, " ").trim()]));
+  const [environmentRule, environmentBody] = rule("environment");
+  const environment = declarations(environmentBody);
+  // Midnight as it renders: its block, and the focus ring it takes from @theme.
+  const midnight = declarations(rule("midnight")[1]);
+  const meadow = declarations(rule("meadow")[1]);
+  midnight.set("--color-focus", declarations(/@theme \{([^]*?)\n\}/.exec(styles)[1]).get("--color-focus"));
+  NodeAssert.deepEqual([...environment.keys()].sort(), [...midnight.keys()].sort());
+  // The names the shell's interface v1 promises (LazurioPlatform src/shell/interface.ts
+  // `declares.tokens`). Values are never promised; a new name needs the promise first.
+  const promised = [
+    "--lz-accent",
+    "--lz-accent-button",
+    "--lz-accent-button-hover",
+    "--lz-danger",
+    "--lz-danger-bg",
+    "--lz-font-mono",
+    "--lz-font-sans",
+    "--lz-gray-100",
+    "--lz-gray-50",
+    "--lz-green-500",
+    "--lz-info",
+    "--lz-info-bg",
+    "--lz-ink",
+    "--lz-ink-muted",
+    "--lz-line",
+    "--lz-on-accent",
+    "--lz-paper",
+    "--lz-radius-sm",
+    "--lz-red-500",
+    "--lz-success",
+    "--lz-surface",
+    "--lz-warning",
+    "--lz-warning-bg",
+  ];
+  for (const [name, value] of environment) {
+    if (name.startsWith("--color-")) {
+      const [, token, fallback] = /^var\((--lz-[a-z0-9-]+), (.+)\)$/.exec(value) ?? [];
+      NodeAssert.ok(promised.includes(token), `${name}: ${value}`);
+      NodeAssert.equal(fallback, midnight.get(name), `${name} falls back to Midnight's value`);
+    } else if (name === "--code-color-scheme") {
+      NodeAssert.equal(value, `var(--lazurio-color-scheme, ${midnight.get(name)})`);
+    } else if (name.startsWith("--identity-")) {
+      // Bots' name colours are Meadow's: upstream fits them to a white thread,
+      // which the Lazurio theme's surface is.
+      NodeAssert.equal(value, meadow.get(name), name);
+    } else {
+      // The type and corners stay Midnight's: the Environment theme is a colour theme.
+      NodeAssert.equal(value, midnight.get(name), name);
+    }
+  }
+  // Outside the Environment skin MausBot reads neither the theme nor the shell's roles.
+  NodeAssert.doesNotMatch(styles.replace(environmentRule, "").replace(/\/\*[^]*?\*\//g, ""), /--lz-|--lazurio-/);
 });
