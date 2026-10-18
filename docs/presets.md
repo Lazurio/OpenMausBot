@@ -23,7 +23,7 @@ A preset is an allowlist. It can carry only:
 - starter notes (`MEMORY.md` and topic notes).
 
 It has no field for a model, a folder, a computer, an approval level,
-connected apps, MCP servers, a browser, peers or routines. Whatever you have
+MCP servers, a browser, peers or routines. Whatever you have
 chosen for those in New bot (or in your New bot defaults) stays as it is, so
 a preset can never widen what a bot may do. Every stored preset is read
 through the same package parser as every import, so a hand-edited preset

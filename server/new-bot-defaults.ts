@@ -19,8 +19,9 @@ export const botDefaultModelSchema = z.object({
   "choose either a model variant or an effort level");
 
 // Preferences only: consent flags, live grants, bot IDs and execution state can never be replayed as permission grants.
-// Lazurio overlay (DEV-6673 M3): Works on and per-bot computers are removed; saved defaults that name them still load, without them.
-const REMOVED_DEFAULTS = ["computer", "cloudBackend", "autoStartVps"];
+// Lazurio overlay (DEV-6673 M3): Works on, per-bot computers, MausBot's own connected apps and MCP server selection
+// are removed; saved defaults that name them still load, without them.
+const REMOVED_DEFAULTS = ["computer", "cloudBackend", "autoStartVps", "composio", "mcpServers"];
 const withoutRemovedDefaults = (value: unknown) => value && typeof value === "object" && !Array.isArray(value)
   ? Object.fromEntries(Object.entries(value).filter(([key]) => !REMOVED_DEFAULTS.includes(key)))
   : value;
@@ -37,10 +38,8 @@ export const botDefaultsProfileSchema = z.preprocess(withoutRemovedDefaults, pro
   managedSections: strings(100, 60).optional(),
   approvePeerComms: z.boolean().optional(),
   peers: strings(1000, 100).nullable().optional(),
-  composio: z.boolean().optional(),
   browser: z.boolean().optional(),
   browserProfile: z.string().max(100).nullable().optional(),
-  mcpServers: strings(100, 100).nullable().optional(),
   toolScope: z.custom<ToolScope>((value) => value !== undefined && parseToolScope(value).ok, "Invalid tool selection")
     .transform((value) => { const parsed = parseToolScope(value); return parsed.ok ? parsed.scope! : value; }).nullable().optional(),
   parkDirectMessages: z.boolean().optional(),

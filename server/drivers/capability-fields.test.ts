@@ -33,7 +33,6 @@ describe("typed capability fields for computer tools", () => {
     }));
     expect(mounted.adapter.capabilities.computerMcp).toBe(true);
     expect(mounted.adapter.capabilities.dataMcp).toBe(true);
-    expect(mounted.adapter.capabilities.highlevelMcp).toBe(true);
     expect(hasComputerTools(mounted)).toBe(true);
     const bare = await keep(OpenAICompatDriver.create({
       instanceId: "caps-compat-bare", displayName: "Caps Compat Bare", environment: {}, enabled: true,
@@ -41,7 +40,6 @@ describe("typed capability fields for computer tools", () => {
     }));
     expect(bare.adapter.capabilities.computerMcp).toBe(false);
     expect(bare.adapter.capabilities.dataMcp).toBe(false);
-    expect(bare.adapter.capabilities.highlevelMcp).toBe(false);
     expect(hasComputerTools(bare)).toBe(false);
   });
 

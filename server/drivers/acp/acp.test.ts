@@ -19,7 +19,6 @@ import { DroidAgentDriver } from "./droid.ts";
 import { CursorAgentDriver } from "./cursor.ts";
 import { QwenAgentDriver } from "./qwen.ts";
 import { removeTempDir } from "../../testing/cleanup.ts";
-import { startFakeHttpMcp } from "../../testing/fake-http-mcp-server.ts";
 import * as procs from "../../procs.ts";
 import * as quietStatus from "./quiet-status.ts";
 
@@ -1009,31 +1008,6 @@ describe("ACP turns (fake CLI)", () => {
     for (const name of Object.keys(CONTROL_PLANE_FIXTURE)) expect(seen.env[name]).toBeUndefined();
   });
 
-  it("mounts connected apps as a stdio MCP server", async () => {
-    await create();
-    const dump = join(scratch, "composio.json");
-    process.env.FAKE_ACP_DUMP = dump;
-    expect(instance.adapter.capabilities.composioMcp).toBe(true);
-    await instance.adapter.sendTurn({
-      threadId: "t-composio",
-      text: "go",
-      integrations: {
-        composio: {
-          command: process.execPath,
-          args: ["/tmp/connector-proxy.js"],
-          env: { OMB_CONNECTOR_UPSTREAM_URL: "http://127.0.0.1:8799/api/internal/connectors/mcp" },
-        },
-      },
-    });
-    await recorder.until((event) => event.type === "turn.completed");
-    expect(JSON.parse(readFileSync(`${dump}.mcp.json`, "utf8"))).toContainEqual({
-      name: "composio",
-      command: process.execPath,
-      args: ["/tmp/connector-proxy.js"],
-      env: [{ name: "OMB_CONNECTOR_UPSTREAM_URL", value: "http://127.0.0.1:8799/api/internal/connectors/mcp" }],
-    });
-  });
-
   it.each([false, true])("mounts Data through the existing stdio transport unless excluded (excluded=%s)", async (excluded) => {
     await create();
     const dump = join(scratch, "data.json");
@@ -1150,103 +1124,6 @@ describe("ACP turns (fake CLI)", () => {
       env: [{ name: "CUA_DRIVER_EMBEDDED", value: "1" }],
     });
     expect(instance.adapter.capabilities.localComputerMcp).toBe(true);
-  });
-
-  it("mounts user-configured custom MCP servers after the built-ins", async () => {
-    await create();
-    const dump = join(scratch, "custom-dump.json");
-    process.env.FAKE_ACP_DUMP = dump;
-    await instance.adapter.sendTurn({
-      threadId: "t-custom-mcp",
-      text: "go",
-      integrations: {
-        custom: {
-          notes: { command: "npx", args: ["-y", "@x/notes-mcp"], env: { NOTES_TOKEN: "tok-1" } },
-        },
-      },
-    });
-    await recorder.until((event) => event.type === "turn.completed");
-    const seen = JSON.parse(readFileSync(dump, "utf8"));
-    expect(seen.mcpServers).toContainEqual({
-      name: "notes",
-      command: "npx",
-      args: ["-y", "@x/notes-mcp"],
-      env: [{ name: "NOTES_TOKEN", value: "tok-1" }],
-    });
-    expect(instance.adapter.capabilities.customMcp).toBe(true);
-  });
-
-  const remoteServers = {
-    docs: { type: "http" as const, url: "https://docs.example/mcp", headers: { Authorization: "Bearer tok-docs" } },
-    legacy: { type: "sse" as const, url: "https://old.example/sse", headers: {} },
-    notes: { command: "npx", args: [], env: {} },
-  };
-
-  const proxied = (server: { command?: string; args?: string[]; env?: Array<{ name: string; value: string }> }) => {
-    const value = server.env?.find((entry) => entry.name === "OMB_REMOTE_MCP_SERVER")?.value;
-    return value === undefined ? undefined : JSON.parse(value);
-  };
-
-  it.each([
-    ["advertises no remote transport", undefined],
-    ["advertises http and sse", "http,sse"],
-  ])("mounts every url server as OpenMausBot's connector for an agent that %s", async (_name, transports) => {
-    if (transports) process.env.FAKE_ACP_MCP_TRANSPORTS = transports;
-    try {
-      await create();
-      const dump = join(scratch, "remote-mcp.json");
-      process.env.FAKE_ACP_DUMP = dump;
-      await instance.adapter.sendTurn({ threadId: "t-remote-mcp", text: "go", integrations: { custom: remoteServers } });
-      await recorder.until((event) => event.type === "turn.completed");
-      const seen = JSON.parse(readFileSync(dump, "utf8"));
-      expect(seen.mcpServers.map((server: { name: string }) => server.name)).toEqual(["docs", "legacy", "notes"]);
-      expect(seen.mcpServers.some((server: object) => "url" in server || "type" in server)).toBe(false);
-      const docs = seen.mcpServers.find((server: { name: string }) => server.name === "docs");
-      expect(docs.args.join(" ")).toContain("mcp-remote-proxy");
-      expect(docs.args.join(" ")).not.toContain("tok-docs");
-      expect(proxied(docs)).toEqual(remoteServers.docs);
-      expect(docs.env.some((entry: { name: string }) => entry.name === "OMB_REMOTE_MCP_DIRECTORY")).toBe(false);
-      expect(proxied(seen.mcpServers.find((server: { name: string }) => server.name === "legacy"))).toEqual(remoteServers.legacy);
-    } finally {
-      delete process.env.FAKE_ACP_MCP_TRANSPORTS;
-    }
-  });
-
-  // The fake agent connects each mounted server with grok 1.0.25's handshake, which a strict server refuses.
-  it("lists a strict url server's tools through OpenMausBot's connector, even for an agent that speaks http", async () => {
-    const strict = await startFakeHttpMcp({ strictInitialize: "http-400", strictSchema: "2025-11-25",
-      tools: [{ name: "report", inputSchema: { type: "object" } }, { name: "campaigns", inputSchema: { type: "object" } }],
-      requireHeader: { name: "Authorization", value: "Bearer tok-voluum" } });
-    process.env.FAKE_ACP_MCP_TRANSPORTS = "http,sse";
-    try {
-      await create(GrokAgentDriver, "mcp-tools");
-      await instance.adapter.sendTurn({ threadId: "t-strict-acp", text: "go", integrations: { custom: {
-        voluum: { type: "http", url: strict.url, headers: { Authorization: "Bearer tok-voluum" } },
-      } } });
-      expect(await recorder.until((event) => event.type === "turn.completed")).toMatchObject({ ok: true });
-      const text = recorder.events.find((event) => event.type === "item.completed" && (event as { itemType?: string }).itemType === "assistant_text");
-      expect((text as { text?: string } | undefined)?.text).toBe("voluum: report,campaigns");
-      expect(strict.initializes).toEqual([{ protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "OpenMausBot tool proxy", version: "1" } }]);
-    } finally {
-      delete process.env.FAKE_ACP_MCP_TRANSPORTS;
-      await strict.close();
-    }
-  });
-
-  it("keeps a tool selection's gate in front of the connector", async () => {
-    const strict = await startFakeHttpMcp({ strictInitialize: "http-400", tools: [{ name: "report", inputSchema: { type: "object" } }, { name: "campaigns", inputSchema: { type: "object" } }] });
-    try {
-      // Kimi: Grok also checks its own catalog over _x.ai/mcp/list, which the fake does not keep.
-      await create(KimiAgentDriver, "mcp-tools");
-      await instance.adapter.sendTurn({ threadId: "t-strict-acp-scoped", text: "go", toolScope: { allow: ["native:*", "mcp:voluum:report"] },
-        integrations: { custom: { voluum: { type: "http", url: strict.url, headers: {} } } } });
-      expect(await recorder.until((event) => event.type === "turn.completed")).toMatchObject({ ok: true });
-      const text = recorder.events.find((event) => event.type === "item.completed" && (event as { itemType?: string }).itemType === "assistant_text");
-      expect((text as { text?: string } | undefined)?.text).toBe("voluum: report");
-      expect(strict.initializes).toHaveLength(1);
-    } finally {
-      await strict.close();
-    }
   });
 
   it("surfaces a permission ask as request.opened and completes once allowed", async () => {
@@ -1658,10 +1535,7 @@ describe("ACP turns (fake CLI)", () => {
           effort: "high",
           approvalMode: "auto",
           resumeCursor,
-          integrations: {
-            agents,
-            custom: { agents: { command: "must-not-shadow-agents", args: [], env: {} } },
-          },
+          integrations: { agents },
         });
         await recorder.until((e) => e.type === "turn.completed" && e.turnId === turnId);
         const seen = JSON.parse(readFileSync(dump, "utf8"));

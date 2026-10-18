@@ -1,12 +1,8 @@
-// Custom MCP servers reach codex as `-c mcp_servers.<name>.…` overrides, which codex merges into a
-// same-named config.toml table; a stdio command over a remote `url` is "invalid configuration" and kills
-// the turn, so a colliding server mounts under a name of its own.
+// The MCP servers Codex's own config.toml declares: a turn with a tool selection switches them off.
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { isDeepStrictEqual } from "node:util";
 
-import type { McpServerSpec } from "../contracts.ts";
 import { parseToml } from "../toml-lite.ts";
 
 const HEADER = /^[ \t]*\[[ \t]*mcp_servers[ \t]*\.[ \t]*(?:"((?:[^"\\]|\\.)*)"|'([^']*)'|([A-Za-z0-9_-]+))[ \t]*[.\]]/gm;
@@ -45,34 +41,4 @@ export function codexConfigMcp(env: Record<string, string | undefined>): CodexCo
 
 export function codexConfigMcpServerNames(env: Record<string, string | undefined>): Set<string> {
   return codexConfigMcp(env).names;
-}
-
-const texts = (value: unknown): Record<string, string> =>
-  isRecord(value) ? Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, String(entry)])) : {};
-const address = (url: string) => {
-  try {
-    return new URL(url).href;
-  } catch {
-    return url.trim();
-  }
-};
-
-/** Whether codex already starts `server` itself from config.toml under `name`, as a server brought in from there: the
- * same command, arguments and environment, or the same address and headers. A turn without a tool selection runs
- * config.toml's servers, so mounting it as well would run it twice; one with a selection switches them off. */
-export function codexConfigRunsServer(config: CodexConfigMcp, name: string, server: McpServerSpec): boolean {
-  const table = config.tables[name];
-  if (!isRecord(table) || table.enabled === false) return false;
-  if ("url" in server) {
-    return typeof table.url === "string" && address(table.url) === address(server.url) && isDeepStrictEqual(texts(table.http_headers), server.headers);
-  }
-  const args = Array.isArray(table.args) ? table.args.map(String) : [];
-  return table.command === server.command && isDeepStrictEqual(args, server.args) && isDeepStrictEqual(texts(table.env), server.env);
-}
-
-export function mountedMcpServerName(name: string, taken: ReadonlySet<string>): string {
-  if (!taken.has(name)) return name;
-  let candidate = `${name}_openmausbot`;
-  for (let i = 2; taken.has(candidate); i++) candidate = `${name}_openmausbot${i}`;
-  return candidate;
 }

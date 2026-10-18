@@ -7,13 +7,12 @@ export type BotDefaultsProfile = Partial<Pick<WireBot,
   "name" | "title" | "description" | "soul" | "notifications" | "avatarUrl" | "avatarCrop" |
   "mascotBody" | "color" | "voice" | "speakReplies" | "section" | "modelSelection" |
   "approvalMode" | "alwaysAllow" | "chiefOfStaff" |
-  "managedSections" | "approvePeerComms" | "composio" | "browser"
+  "managedSections" | "approvePeerComms" | "browser"
 >> & {
   mascotExpression?: string | null;
   cwd?: string | null;
   peers?: string[] | null;
   browserProfile?: string | null;
-  mcpServers?: string[] | null;
   toolScope?: ToolScope | null;
   parkDirectMessages?: boolean;
   helperModel?: boolean;

@@ -142,16 +142,9 @@ describe("setup navigation", () => {
   });
 
   it("opens one modal with exclusive keyboard ownership", () => {
-    const start = { ...initialState, settingsOpen: true, appSettingsOpen: true, pluginsOpen: true, shortcutsOpen: true, computerOpen: true };
+    const start = { ...initialState, settingsOpen: true, appSettingsOpen: true, shortcutsOpen: true, computerOpen: true };
     const next = reducer(start, { type: "toggleNewBot", open: true });
-    expect(next).toMatchObject({ newBotOpen: true, settingsOpen: false, appSettingsOpen: false, pluginsOpen: false, shortcutsOpen: false, computerOpen: true });
-    expect(reducer(next, { type: "toggleNewBot", open: false })).toMatchObject({ settingsOpen: false, pluginsOpen: false });
-  });
-
-  it("opens the requested Plugins surface and remembers it on reopen", () => {
-    const next = reducer({ ...initialState, settingsOpen: true }, { type: "togglePlugins", open: true, surface: "mcp" });
-    expect(next).toMatchObject({ pluginsOpen: true, pluginsSurface: "mcp", settingsOpen: false });
-    const closed = reducer(next, { type: "togglePlugins", open: false });
-    expect(reducer(closed, { type: "togglePlugins", open: true })).toMatchObject({ pluginsSurface: "mcp" });
+    expect(next).toMatchObject({ newBotOpen: true, settingsOpen: false, appSettingsOpen: false, shortcutsOpen: false, computerOpen: true });
+    expect(reducer(next, { type: "toggleNewBot", open: false })).toMatchObject({ settingsOpen: false });
   });
 });

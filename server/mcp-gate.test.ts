@@ -312,7 +312,7 @@ describe("mcp-gate", () => {
     expect(existsSync(join(scratch, "reply.json.calls"))).toBe(false);
   });
 
-  // Lists the directory's three names beside a plain tool and answers every call with a long text, recording what it ran.
+  // Lists three tool directory-like names beside a plain tool and answers every call with a long text, recording what it ran.
   const DIRECTORY_UPSTREAM = `
 const { createInterface } = require("node:readline");
 const { appendFileSync } = require("node:fs");
@@ -334,20 +334,7 @@ createInterface({ input: process.stdin }).on("line", (line) => {
     return JSON.parse(await nextLine());
   };
 
-  it("checks call_tool against the tool it runs only when its upstream is the tool directory", async () => {
-    const scope = { OMB_GATE_TOOL_SCOPE: JSON.stringify({ allow: ["mcp:shop:read"] }), OMB_GATE_BUDGET: "600" };
-    start({}, { ...scope, OMB_GATE_DIRECTORY: "1" }, DIRECTORY_UPSTREAM);
-    send({ jsonrpc: "2.0", id: 1, method: "tools/list" });
-    expect(JSON.parse(await nextLine()).result.tools.map((tool: { name: string }) => tool.name)).toEqual(["search_tools", "describe_tool", "call_tool", "read"]);
-    expect((await callWith("call_tool", { name: "write", arguments: {} }, 2)).error).toMatchObject({ code: -32602 });
-    expect(ran()).toEqual([]);
-    expect((await callWith("describe_tool", { name: "read" }, 3)).result.content[0].text).toHaveLength(4_000);
-    expect((await callWith("call_tool", { arguments: {} }, 4)).result.content[0].text).toHaveLength(4_000);
-    expect((await callWith("call_tool", { name: "read", arguments: {} }, 5)).result.content[0].text).toContain("TRUNCATED by OpenMausBot");
-    expect(ran()).toEqual(["describe_tool", "call_tool", "call_tool"]);
-  });
-
-  it("treats those names as ordinary tools for any other upstream", async () => {
+  it("treats search_tools, describe_tool and call_tool as ordinary tools", async () => {
     start({}, { OMB_GATE_TOOL_SCOPE: JSON.stringify({ allow: ["mcp:shop:read"] }), OMB_GATE_BUDGET: "600" }, DIRECTORY_UPSTREAM);
     send({ jsonrpc: "2.0", id: 1, method: "tools/list" });
     expect(JSON.parse(await nextLine()).result.tools.map((tool: { name: string }) => tool.name)).toEqual(["read"]);

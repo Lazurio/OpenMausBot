@@ -83,7 +83,6 @@ export interface StdioServerOptions {
   nodeEnv?: Record<string, string>;
   execPath?: string;
   sourceEnv?: NodeJS.ProcessEnv | Record<string, string | undefined>;
-  directory?: { name: string; toolScope?: ToolScope };
   configEnvName?: string;
 }
 
@@ -96,16 +95,7 @@ export function mcpStdioServer(server: unknown, options: StdioServerOptions = {}
   if (options.configEnvName !== undefined && !REMOTE_MCP_CONFIG_ENV.test(options.configEnvName)) {
     throw new Error("Invalid private MCP proxy configuration.");
   }
-  let directory: string | undefined;
-  if (options.directory) {
-    const scope = parseToolScope(options.directory.toolScope);
-    if (!/^[a-z][a-z0-9_-]{0,31}$/.test(options.directory.name) || !scope.ok) throw new Error("Invalid MCP tool search configuration.");
-    directory = JSON.stringify({ name: options.directory.name, ...(scope.scope ? { toolScope: scope.scope } : {}) });
-  }
-  const settings = {
-    OMB_REMOTE_MCP_SERVER: JSON.stringify(remote),
-    ...(directory ? { OMB_REMOTE_MCP_DIRECTORY: directory } : {}),
-  };
+  const settings = { OMB_REMOTE_MCP_SERVER: JSON.stringify(remote) };
   return {
     command: options.execPath ?? process.execPath,
     args: [SPAWNED_PROXIES.mcpRemote, ...(options.configEnvName ? ["--config-env", options.configEnvName] : [])],
@@ -127,7 +117,6 @@ export function gateServer(input: {
   nodeEnv?: Record<string, string>;
   execPath?: string;
   configEnvName?: string;
-  directory?: boolean;
   sourceEnv?: NodeJS.ProcessEnv | Record<string, string | undefined>;
   gateRemote?: boolean;
 }): { command: string; args: string[]; env: Record<string, string> } | null {
@@ -137,12 +126,10 @@ export function gateServer(input: {
   const scoped = parsed.scope !== undefined;
   if (budget <= 0 && !scoped) return null;
   if (!scoped && input.gateRemote !== true && remoteMcpSpec(server)) return null;
-  const directory = input.directory === true && remoteMcpSpec(server) !== undefined;
   const spec = mcpStdioServer(server, {
     nodeEnv: input.nodeEnv,
     execPath: input.execPath,
     sourceEnv: input.sourceEnv,
-    ...(directory ? { directory: { name, ...(scoped ? { toolScope: parsed.scope } : {}) } } : {}),
   });
   if (!spec) {
     if (scoped) throw new Error("Tool selection requires a supported MCP server.");
@@ -157,7 +144,6 @@ export function gateServer(input: {
     OMB_GATE_SPILL_DIR: spillDir(input.threadId),
     OMB_GATE_BUDGET: String(budget),
     ...(scoped ? { OMB_GATE_TOOL_SCOPE: JSON.stringify(parsed.scope) } : {}),
-    ...(directory ? { OMB_GATE_DIRECTORY: "1" } : {}),
   };
   if (input.configEnvName && (!scoped || !/^OMB_GATE_CONFIG_[a-f0-9]{64}$/.test(input.configEnvName))) {
     throw new Error("Invalid private MCP gate configuration.");

@@ -32,7 +32,7 @@ it("shares New bot defaults as a preset, imports it, and creates bots from file 
     expect(await ok("GET", "/api/bot-presets")).toEqual({ presets: [] });
     await ok("PATCH", "/api/config", { newBotDefaults: {
       profile: { name: "Sky", title: "Support", soul: "Be kind. The portal password=Presets-Fixture-77 stays private.\n", color: "blue",
-        approvalMode: "auto", composio: true, browser: true, mcpServers: [], alwaysAllow: ["Bash(*)"], parkDirectMessages: true },
+        approvalMode: "auto", browser: true, alwaysAllow: ["Bash(*)"], parkDirectMessages: true },
       memory: { "MEMORY.md": "- Customers first.\n", "memory/tone.md": "Warm.\n" },
       skills: [{ name: "follow-up", description: "follow-up steps.", source: "fixture", text: skill("follow-up"), enabled: true, warnings: [] }],
       routines: [{ name: "Daily", prompt: "Check the inbox.", schedule: { type: "daily", time: "09:00", weekdays: [1] } }],
@@ -51,7 +51,7 @@ it("shares New bot defaults as a preset, imports it, and creates bots from file 
     expect(preset).toMatchObject({ key: "new-bot-defaults", name: "Support agent", skills: ["follow-up"],
       bot: { name: "Sky", title: "Support", appearance: { color: "blue", avatar: { mime: "image/png", crop: "circle" } } },
       seed: { memory: { "MEMORY.md": "- Customers first.\n", "memory/tone.md": "Warm.\n" } } });
-    expect(JSON.stringify(saved.document)).not.toMatch(/Presets-Fixture-77|"approvalMode"|"composio"|"browser"|"alwaysAllow"|Bash\(|"modelSelection"|Check the inbox|"enabled"/);
+    expect(JSON.stringify(saved.document)).not.toMatch(/Presets-Fixture-77|"approvalMode"|"browser"|"alwaysAllow"|Bash\(|"modelSelection"|Check the inbox|"enabled"/);
     expect(saved.document.package.agents).toEqual([]);
     expect(() => parsePackageDocument(saved.document)).not.toThrow();
     expect((await ok("POST", "/api/teams/export", body)).document.package.release).toBe("1.0.1");

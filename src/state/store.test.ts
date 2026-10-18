@@ -41,7 +41,6 @@ import { LAST_BOT_SECTION_KEY } from "@/lib/last-bot-section";
 import { transcriptLookups } from "@/lib/transcript-derivations";
 import { openLiveEvents, type LiveEventSourceLike, type LiveEventsPlatform } from "../lib/live-events";
 import type { ModelVariantState, RuntimeEvent } from "../../shared/runtime-events";
-import type { ConnectorToolGrant } from "../../shared/wire";
 import type { RoutineRun } from "../lib/routines";
 
 describe("api refusals", () => {
@@ -374,37 +373,6 @@ describe("Settings opened on the phone pairing", () => {
     expect(reducer(opened, { type: "toggleAppSettings", open: true, section: "companion" }).appSettingsPhonePairing).toBe(0);
     expect(reducer(opened, { type: "toggleAppSettings", open: false }).appSettingsPhonePairing).toBe(0);
     expect(reducer(initialState, { ...phone, open: false }).appSettingsPhonePairing).toBe(0);
-  });
-});
-
-describe("connector grants persistence", () => {
-  const announcement = () => ({
-    id: "bot-1",
-    threadId: "thread-1",
-    name: "Maus",
-    title: "Helper",
-    description: "",
-    notifications: true,
-    color: "green" as const,
-    unread: false,
-    modelSelection: { instanceId: "codex", model: "gpt-5.6-sol" },
-    approvalMode: "ask" as const,
-  });
-
-  it("PATCHes the exact explicit tool set the editor saved", async () => {
-    const request = vi.fn(async (_path: string, _init?: RequestInit) => ({ bot: announcement() }));
-    const grants: Record<string, ConnectorToolGrant> = {
-      gmail: { tools: ["GMAIL_FETCH_EMAILS", "GMAIL_SEND_EMAIL"] },
-      slack: { tools: "*" },
-    };
-    await persistBotUpdate("bot-1", { connectorTools: grants }, new AbortController().signal, request);
-    expect(JSON.parse(String(request.mock.calls[0]?.[1]?.body))).toEqual({ connectorTools: grants });
-  });
-
-  it("sends null to drop the record and return to the legacy boolean", async () => {
-    const request = vi.fn(async (_path: string, _init?: RequestInit) => ({ bot: announcement() }));
-    await persistBotUpdate("bot-1", { connectorTools: null }, new AbortController().signal, request);
-    expect(JSON.parse(String(request.mock.calls[0]?.[1]?.body))).toEqual({ connectorTools: null });
   });
 });
 
@@ -1023,7 +991,6 @@ describe("config status frames", () => {
     expect(
       configStatusFromFrame({
         xai: { configured: true },
-        composio: { configured: true, mode: "managed" },
         rooms: { turnTimeoutMinutes: 20 },
         mcp: { callTimeoutMinutes: 30 },
         threads: { maxConcurrentPerBot: 10 },
@@ -1034,7 +1001,6 @@ describe("config status frames", () => {
       }),
     ).toEqual({
       xai: { configured: true },
-      composio: { configured: true, mode: "managed" },
       rooms: { turnTimeoutMinutes: 20 },
       mcp: { callTimeoutMinutes: 30 },
       threads: { maxConcurrentPerBot: 10 },
@@ -1099,7 +1065,6 @@ describe("task rename", () => {
 
 describe("config status", () => {
   const config = configStatusFromFrame({
-    composio: { configured: false },
     rooms: { turnTimeoutMinutes: 5 },
     mcp: { callTimeoutMinutes: 10 },
     features: { skillAuthoring: true },
@@ -2415,7 +2380,6 @@ describe("activity panel", () => {
 
 describe("live config frames", () => {
   const baseFrame: ConfigStatusFrame = {
-    composio: { configured: false },
     rooms: { turnTimeoutMinutes: 10 },
     mcp: { callTimeoutMinutes: 10 },
   };
@@ -2471,7 +2435,7 @@ describe("live config frames", () => {
 
   it("carries the organisation's read-only desktop policy through a config frame", () => {
     const managedPolicy = { organizationName: "Fixture Agency", version: 2, companyModelsOnly: true, allowedEngines: ["codex"],
-      mcp: { allowCustom: false, allowlist: ["github"] }, computers: { thisComputer: false }, remoteAccess: false };
+      computers: { thisComputer: false }, remoteAccess: false };
     expect(configStatusFromFrame({ ...baseFrame, managedPolicy }).managedPolicy).toEqual(managedPolicy);
     expect(configStatusFromFrame({ ...baseFrame, managedPolicy: null }).managedPolicy).toBeNull();
   });

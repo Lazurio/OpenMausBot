@@ -18,7 +18,7 @@ Make PR #230's four new permission-broker collision tests pass on Windows by eli
 
 ### Summary
 
-The Windows CI job fails on PR #230 at exactly one test in the vitest run: `denies a colliding ask id from a second connection on the same broker`, with `Error: connect ENOENT \\.\pipe\openmausbot-perm-1892-t-perm-d`. The same job log shows the real cause: `permission broker unavailable on \\.\pipe\openmausbot-perm-1892-t-perm-d: listen EADDRINUSE: address already in use`. The broker for that test never started because the pipe name was already held by the previous collision test. All four collision tests produce the same pipe name. (The full `pnpm test` job also runs broker:test, updater, and packaged-server; those never executed in the failing run because `vitest run` exited non-zero first, so their Windows status is not evidenced by this run.)
+The Windows CI job fails on PR #230 at exactly one test in the vitest run: `denies a colliding ask id from a second connection on the same broker`, with `Error: connect ENOENT \\.\pipe\openmausbot-perm-1892-t-perm-d`. The same job log shows the real cause: `permission broker unavailable on \\.\pipe\openmausbot-perm-1892-t-perm-d: listen EADDRINUSE: address already in use`. The broker for that test never started because the pipe name was already held by the previous collision test. All four collision tests produce the same pipe name. (The full `pnpm test` job also runs updater and packaged-server; those never executed in the failing run because `vitest run` exited non-zero first, so their Windows status is not evidenced by this run.)
 
 ### Problem Frame
 
@@ -96,7 +96,7 @@ The pre-existing broker tests never hit this because they use distinct thread id
 
 - `pnpm exec vitest run server/drivers/claude.test.ts` — 33 tests declared; on Windows, 33 pass; on macOS and Ubuntu, 32 pass and 1 is skipped (the Windows-only pipe-naming test at line 66).
 - `pnpm typecheck` — clean.
-- Full `pnpm test` on macOS (vitest + broker:test + updater + packaged-server).
+- Full `pnpm test` on macOS (vitest + updater + packaged-server).
 - The Windows `typecheck + test (windows-latest)` job is green on two consecutive runs. If it is not, obtain the job log (authenticated `gh api repos/milind-soni/OpenMausBot/actions/jobs/<id>/logs`) and name the failing test before any further change; do not guess a second fix.
 
 ## Definition of Done

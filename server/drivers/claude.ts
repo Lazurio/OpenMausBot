@@ -1131,10 +1131,6 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
       // Pre-allowed: a headless acceptEdits run silently denies anything unlisted.
       const mcpServers: Record<string, unknown> = {};
       const allowed: string[] = [];
-      if (turn.integrations?.composio) {
-        mcpServers.composio = { ...turn.integrations.composio };
-        allowed.push("mcp__composio");
-      }
       if (turn.integrations?.localComputer) {
         const local = turn.integrations.localComputer;
         mcpServers.computer = {
@@ -1161,9 +1157,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
           : { ...turn.integrations.browser };
         allowed.push("mcp__browser");
       }
-      for (const name of ["data", "highlevel"] as const) {
-        if (turn.integrations?.[name]) { mcpServers[name] = { ...turn.integrations[name] }; allowed.push(`mcp__${name}`); }
-      }
+      if (turn.integrations?.data) { mcpServers.data = { ...turn.integrations.data }; allowed.push("mcp__data"); }
       if (turn.integrations?.dweb) {
         mcpServers.dweb = {
           command: process.execPath,
@@ -1175,16 +1169,11 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
         };
         allowed.push("mcp__dweb");
       }
-      // User servers are not pre-allowed, so acceptEdits routes each call to the broker. Remote
+      // The bot folder's servers are not pre-allowed, so acceptEdits routes each call to the broker. Remote
       // entries are already in the CLI's shape and it connects itself: Claude Code 2.1.292 sends only
       // spec-defined initialize fields (2025-11-25), so strict servers accept it, and it keeps its MCP
       // tool search for big catalogs.
       const botOwned = new Set<string>();
-      for (const [name, server] of Object.entries(turn.integrations?.custom ?? {})) {
-        if (Object.hasOwn(mcpServers, name)) continue;
-        mcpServers[name] = { ...server };
-        botOwned.add(name);
-      }
       // --strict-mcp-config makes this the CLI's only MCP source, so the bot project's servers merge
       // last, never shadowing a harness mount. Never for a guest: its folder could declare a command.
       if (isolated && turn.cwd && !turn.guestConfined) {
@@ -1196,7 +1185,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
       }
       for (const name of turn.toolScope === undefined ? botOwned : Object.keys(mcpServers)) {
         if (!canUseMcpServer(turn.toolScope, name)) { delete mcpServers[name]; continue; }
-        const gated = gateServer({ name, server: mcpServers[name], threadId, nodeEnv: NODE_ENV_FLAG, toolScope: turn.toolScope, ...customServerGate(name, botOwned.has(name), turn.integrations?.customResultBudgets, turnEnvironment) });
+        const gated = gateServer({ name, server: mcpServers[name], threadId, nodeEnv: NODE_ENV_FLAG, toolScope: turn.toolScope, ...customServerGate(name, botOwned.has(name), undefined, turnEnvironment) });
         if (gated) mcpServers[name] = { ...gated, ...((mcpServers[name] as { alwaysLoad?: unknown })?.alwaysLoad === true ? { alwaysLoad: true } : {}) };
       }
       allowed.splice(0, allowed.length, ...allowed.filter((name) => Object.hasOwn(mcpServers, name.slice("mcp__".length))));
@@ -2085,12 +2074,10 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
           sessionModelSwitch: "in-session",
           guestTurns: "confined",
           agentsMcp: true,
-        customMcp: true,
           computerMcp: true,
-          composioMcp: true,
           phoneMcp: true,
           browserMcp: true,
-          dataMcp: true, highlevelMcp: true,
+          dataMcp: true,
           images: true,
           nativeImageInput: true,
           effortLevels: ["low", "medium", "high", "xhigh", "max"],

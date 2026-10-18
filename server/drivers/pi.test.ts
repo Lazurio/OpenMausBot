@@ -147,48 +147,36 @@ describe("piLineReader", () => {
 });
 
 describe("buildMcpServers", () => {
-  it("mounts a selected custom mail server without unrelated built-ins", () => {
-    const servers = buildMcpServers({ threadId: "selected", text: "Read mail", toolScope: { allow: ["mcp:mail:*"] }, integrations: {
+  it("mounts a selected Data server, gated, without unrelated built-ins", () => {
+    const servers = buildMcpServers({ threadId: "selected", text: "Query", toolScope: { allow: ["mcp:data:*"] }, integrations: {
       agents: { command: "node", args: ["agents"], env: {} },
       localComputer: { command: "node", args: ["computer"], env: {} },
-      custom: { mail: { command: "node", args: ["mail"], env: { SYNTHETIC: "1" } } },
-    } });
-    expect(Object.keys(servers ?? {})).toEqual(["mail"]);
-    expect(servers?.mail).toMatchObject({ scope: "custom" });
+      data: { command: "node", args: ["data"], env: { SYNTHETIC: "1" } },
+    } }) as Record<string, { args: string[] }>;
+    expect(Object.keys(servers ?? {})).toEqual(["data"]);
+    expect(servers.data.args[0]).toContain("mcp-gate");
   });
 
   it("rejects malformed policy and mounts nothing for native-only selection", () => {
     expect(() => buildMcpServers({ threadId: "bad", text: "Stop", toolScope: { allow: null } as never })).toThrow(/tool selection/i);
     expect(buildMcpServers({ threadId: "native", text: "Draft", toolScope: { allow: ["native:read", "native:write"] }, integrations: { agents: { command: "node", args: [], env: {} } } })).toBeNull();
   });
-  it("gates a URL server that has its own result limit, and only that one", () => {
-    const url = { type: "http" as const, url: "https://mcp.example.test/mcp", headers: {} };
-    const servers = buildMcpServers({ threadId: "t", text: "hi", integrations: {
-      custom: { motion: { ...url }, shop: { ...url } },
-      customResultBudgets: { motion: 40_000 },
-    } }) as Record<string, { args: string[]; env: Record<string, string> }>;
-    expect(servers.motion.env.OMB_GATE_BUDGET).toBe("40000");
-    expect(servers.motion.args[0]).toContain("mcp-gate");
-    expect(servers.shop.env).not.toHaveProperty("OMB_GATE_BUDGET");
-    expect(servers.shop.args[0]).toContain("mcp-remote-proxy");
-  });
-
   it("returns null when there are no integrations", () => {
     expect(buildMcpServers({ threadId: "t", text: "hi" })).toBeNull();
   });
 
-  it("passes composio/agents/phone through as stdio servers", () => {
+  it("passes data/agents/phone through as stdio servers", () => {
     const servers = buildMcpServers({
       threadId: "t",
       text: "hi",
       integrations: {
-        composio: { command: "node", args: ["c"], env: { A: "1" } },
+        data: { command: "node", args: ["c"], env: { A: "1" } },
         agents: { command: "node", args: ["a"], env: { B: "2" } },
         phone: { command: "node", args: ["p"], env: {} },
       },
     });
     expect(servers).toEqual({
-      composio: { command: "node", args: ["c"], env: { A: "1" } },
+      data: { command: "node", args: ["c"], env: { A: "1" } },
       agents: { command: "node", args: ["a"], env: { B: "2" } },
       phone: { command: "node", args: ["p"], env: {} },
     });
@@ -203,23 +191,6 @@ describe("buildMcpServers", () => {
       },
     });
     expect(servers?.computer).toEqual({ command: "node", args: ["mcp"], env: { X: "y" } });
-  });
-
-  it("searches a URL server's catalog through the remote proxy, behind the gate when selected", () => {
-    const whop = { type: "http" as const, url: "https://mcp.example.test/mcp", headers: { Authorization: "Bearer disposable-pi-token" } };
-    const servers = buildMcpServers({ threadId: "t", text: "hi", integrations: { custom: { whop, notes: { command: "node", args: ["notes"], env: {} } } } });
-    const mounted = servers?.whop as { command: string; args: string[]; env: Record<string, string> };
-    expect(mounted).toMatchObject({ command: process.execPath, scope: "custom", directory: true });
-    expect(mounted.args[0]).toContain("mcp-remote-proxy");
-    expect(JSON.parse(mounted.env.OMB_REMOTE_MCP_DIRECTORY)).toEqual({ name: "whop" });
-    expect(JSON.stringify(mounted.args)).not.toContain("disposable-pi-token");
-    expect(servers?.notes).not.toHaveProperty("directory");
-    const toolScope = { allow: ["mcp:whop:*"], deny: ["mcp:whop:payments_create"] };
-    const scoped = buildMcpServers({ threadId: "t", text: "hi", toolScope, integrations: { custom: { whop } } })?.whop as { args: string[]; env: Record<string, string> };
-    expect(scoped).toMatchObject({ directory: true });
-    expect(scoped.args[0]).toContain("mcp-gate");
-    expect(scoped.env.OMB_GATE_DIRECTORY).toBe("1");
-    expect(JSON.parse(JSON.parse(scoped.env.OMB_GATE_UPSTREAM).env.OMB_REMOTE_MCP_DIRECTORY)).toEqual({ name: "whop", toolScope });
   });
 
   it("marks a host computer with scope so the extension gates its tools", () => {
@@ -805,7 +776,7 @@ describe("PiDriver turns (fake CLI)", () => {
       threadId: "t-mcp",
       text: "hi",
       integrations: {
-        composio: { command: "node", args: ["connector-proxy.js"], env: { COMPOSIO_KEY: "ck" } },
+        data: { command: "node", args: ["data-proxy.js"], env: { OMB_DATA_TOKEN: "dk" } },
       },
     });
     await recorder.until((e) => e.type === "turn.completed" && e.turnId === turnId);
@@ -822,7 +793,7 @@ describe("PiDriver turns (fake CLI)", () => {
     expect(mcpRow!.argv[extIndex + 1]).toContain("pi-mcp-extension");
 
     const servers = mcpRow!.mcpConfig!.mcpServers!;
-    expect(servers.composio).toMatchObject({ command: "node", args: ["connector-proxy.js"], env: { COMPOSIO_KEY: "ck" } });
+    expect(servers.data).toMatchObject({ command: "node", args: ["data-proxy.js"], env: { OMB_DATA_TOKEN: "dk" } });
   });
 
   it("rides the toolUse auto-continue and only settles on the final end_turn", async () => {

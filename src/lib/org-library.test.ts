@@ -31,7 +31,7 @@ function entry(patch: Partial<OrgLibraryPackage> = {}): OrgLibraryPackage {
     publisher: { organizationId: "33333333-3333-4333-8333-333333333333", name: "Acme Partners", self: false },
     mode: "available",
     release: { version: "1.3.0", sha256: "a".repeat(64), sizeBytes: 10, formatVersion: 2, publishedAt: 1, notes: "" },
-    contents: { bots: 3, skills: 3, presets: 1, rooms: 1, routines: 2, connections: 1, botNames: ["Morgan", "Scout", "Quill"] },
+    contents: { bots: 3, skills: 3, presets: 1, rooms: 1, routines: 2, botNames: ["Morgan", "Scout", "Quill"] },
     scanFindings: 0,
     blob: "ready",
     installed: null,
@@ -61,8 +61,8 @@ describe("the shelf card", () => {
     expect(orgCardNotes(entry({ release: null, installed: { installId: "b".repeat(32), release: "1.3.0", status: "withdrawn" } }))).toEqual([
       "Withdrawn by Acme Partners",
     ]);
-    expect(orgContentsLine(entry().contents)).toBe("Bots: 3 · Skills: 3 · Preset bots: 1 · Group chats: 1 · Routines: 2 · Connections: 1");
-    expect(orgContentsLine({ bots: 0, skills: 2, presets: 0, rooms: 0, routines: 0, connections: 0, botNames: [] })).toBe("Skills: 2");
+    expect(orgContentsLine(entry().contents)).toBe("Bots: 3 · Skills: 3 · Preset bots: 1 · Group chats: 1 · Routines: 2");
+    expect(orgContentsLine({ bots: 0, skills: 2, presets: 0, rooms: 0, routines: 0, botNames: [] })).toBe("Skills: 2");
   });
 
   it("renders cards with Add, Added and update text, and no confirm step", () => {

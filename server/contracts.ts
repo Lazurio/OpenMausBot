@@ -121,8 +121,6 @@ export interface SendTurnInput {
   preloadBrowserTools?: boolean;
   /** Per-bot integrations the driver may hand to the agent as tools. */
   integrations?: {
-    /** A harness-owned stdio bridge to Composio, so connection requests become trusted chat cards. */
-    composio?: { command: string; args: string[]; env: Record<string, string> };
     /** Stdio connection to a computer MCP server. `scope` is set only for the host desktop, so host-only approval rules never apply elsewhere. */
     localComputer?: {
       command: string;
@@ -142,14 +140,8 @@ export interface SendTurnInput {
     browser?: { command: string; args: string[]; env: Record<string, string> };
     /** The Data tools' MCP proxy: DuckDB on this bot's own database. */
     data?: { command: string; args: string[]; env: Record<string, string> };
-    /** The HighLevel CRM tools' MCP proxy: the harness holds the tokens and the per-bot verdict. */
-    highlevel?: { command: string; args: string[]; env: Record<string, string> };
     /** dweb daemon tools; `url` is the dweb HTTP base. */
     dweb?: { url: string };
-    /** The user's MCP servers, mounted without any pre-allow; a driver skips a kind it cannot speak. */
-    custom?: Record<string, McpServerSpec>;
-    /** Characters of one tool result per `custom` server; 0 = never trim, a missing name = the app default. */
-    customResultBudgets?: Record<string, number>;
   };
   cwd?: string;
   /** Also load the person's own CLI MCP setup (Claude Code user scope, claude.ai connectors). */
@@ -190,16 +182,12 @@ export interface ProviderAdapter {
     agentsMcp?: boolean;
     /** The driver mounts isolated computer MCP descriptors. */
     computerMcp?: boolean;
-    /** The driver mounts integrations.composio. */
-    composioMcp?: boolean;
     /** True when the driver can mount the first-party physical-phone MCP. */
     phoneMcp?: boolean;
     /** The driver can mount the built-in browser MCP. */
     browserMcp?: boolean;
     /** The driver can mount the Data tools MCP. */
     dataMcp?: boolean;
-    /** The driver can mount the HighLevel CRM tools MCP. */
-    highlevelMcp?: boolean;
     /** The engine accepts images in the prompt (gates composer paste). */
     images?: boolean;
     /** sendTurn consumes `images` as structured input, so dispatch strips the attachment path from `text`. */
@@ -214,8 +202,6 @@ export interface ProviderAdapter {
     steerImages?: boolean;
     /** True only when local MCP calls can reach the human approval channel; full-auto/bypass instances must leave this false. */
     localComputerMcp?: boolean;
-    /** The driver mounts integrations.custom. */
-    customMcp?: boolean;
     /** A resumeCursor turn runs in that exact native session, or fails, or starts a new one from recoveryText (session.started says
      * `rebuilt`), never a blank one. */
     strictResume?: boolean;

@@ -7,7 +7,7 @@ import type { EgressHost } from "./policy.ts";
 export const REDDIT_HOSTS = ["reddit.com", "redd.it", "redditmedia.com", "redditstatic.com", "reddit.app.link"] as const;
 
 /** What a bot reads instead of a Reddit page. */
-export const REDDIT_REFUSAL = "Reddit blocks bots that browse from cloud computers and can ban the person's account, so this browser doesn't open Reddit. Use the Reddit connected app if it's connected, or ask the person to do this on their own computer.";
+export const REDDIT_REFUSAL = "Reddit blocks bots that browse from cloud computers and can ban the person's account, so this browser doesn't open Reddit. Use a Reddit tool already signed in on this computer if there is one, or ask the person to do this on their own computer.";
 
 /** Whether `name`, as a URL or a SOCKS request carries it, is one of Reddit's names or under one. */
 export function isRedditHost(name: string): boolean {

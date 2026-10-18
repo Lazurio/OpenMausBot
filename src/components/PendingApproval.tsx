@@ -1,12 +1,11 @@
 import { memo, useState, type ReactNode } from "react";
-import { ChevronDown, Send, ShieldCheck, TriangleAlert } from "lucide-react";
+import { ChevronDown, ShieldCheck, TriangleAlert } from "lucide-react";
 import { useStore, type Bot, type Message } from "@/state/store";
 import { cn } from "@/lib/cn";
 import { t, tFromServer } from "@/lib/i18n";
 import type { LocaleKey } from "@/locales";
 import { SkillRequestPreview } from "@/components/SkillRequestPreview";
 import { APPROVAL_CODE_CHIP, toolLabel } from "./ApprovalCard";
-import { outboundSummary } from "@/lib/approval-summary";
 import { reviewedSkillSha256 } from "../../shared/skill-request";
 import { useOwnerOrAdmin } from "@/lib/use-owner-or-admin";
 
@@ -116,9 +115,6 @@ function isDurable(pending: Pending): boolean {
 }
 
 function rowText(pending: Pending, botName?: string): { line: string; inline?: string } {
-  const card = pending.message.card;
-  const outbound = card ? outboundSummary(card) : undefined;
-  if (outbound) return { line: outbound.headline };
   if (isDurable(pending)) return { line: label(pending) };
   const detail = firstLine(pending.commandAllowlist?.command ?? pending.detail);
   if (!botName) return { line: label(pending), inline: detail || undefined };
@@ -143,10 +139,7 @@ export const PendingApprovalPanel = memo(function PendingApprovalPanel({
   locale?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const outbound = pending.message.card ? outboundSummary(pending.message.card) : undefined;
-  const heldNote = outbound?.opaque && pending.heldCode === "approval.held.outbound"
-    ? t("approval.opaqueCode")
-    : tFromServer(pending.heldCode, pending.held);
+  const heldNote = tFromServer(pending.heldCode, pending.held);
   const { line, inline } = rowText(pending, botName);
   const detailsId = `approval-details-${pending.requestId}`;
   return (
@@ -167,25 +160,17 @@ export const PendingApprovalPanel = memo(function PendingApprovalPanel({
         <ShieldCheck size={16} className="shrink-0 self-center text-accent" aria-hidden="true" />
         <div className="flex min-w-0 flex-1 basis-52 items-baseline gap-2" aria-live="polite">
           <span className="min-w-0 max-w-[60%] shrink-0 truncate text-[13px] font-medium leading-5 text-ink" title={line}>{line}</span>
-          {outbound?.summary && (
-            <span className="min-w-0 shrink-[4] truncate text-[13px] leading-5 text-ink-secondary" title={outbound.summary}>{outbound.summary}</span>
-          )}
           {inline && (
             <code className={cn(APPROVAL_CODE_CHIP, "shrink-[4] pb-[3px] pt-[5px]")} title={inline}>
               <span className="truncate">{inline}</span>
             </code>
           )}
-          {heldNote && (outbound ? (
-            <span title={heldNote} className={cn(APPROVAL_CONTROL, "h-auto cursor-default items-baseline bg-warning/10 px-2.5 py-1 text-warning")}>
-              <Send size={13} aria-hidden="true" className="self-center" />
-              {t("approval.compact.maySend")}
-            </span>
-          ) : (
+          {heldNote && (
             <span title={heldNote} className="inline-flex shrink-0 self-center text-warning">
               <TriangleAlert size={14} aria-hidden="true" />
               <span className="sr-only">{heldNote}</span>
             </span>
-          ))}
+          )}
           {count > 1 && (
             <span className="shrink-0 rounded-full bg-control px-1.5 text-[11px] leading-5 tabular-nums text-ink-secondary">
               {t("approval.position", { index: index + 1, count })}

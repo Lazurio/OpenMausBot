@@ -5,7 +5,6 @@ import { finalizeBrowserCleanupMutation, requireBrowserCleanupAcknowledged } fro
 import type { BrowserLive } from "../browser-live.ts";
 import type { BrowserRuntime } from "../browser-runtime.ts";
 import { CLOUD_PERSONAL_REFUSAL } from "../cloud-owner.ts";
-import * as composio from "../composio.ts";
 import {
   browserProfilePartitionTarget,
   browserProfileReplacementConflict,
@@ -184,19 +183,6 @@ export function createConfigRoutes(deps: ConfigRouteDeps): RouteHandler {
       providerConfigBusy.set(true);
       try {
 
-      const requestedComposioKey = patch.composio?.apiKey;
-      if (requestedComposioKey !== undefined) {
-        if (requestedComposioKey.trim()) {
-          try {
-            const prepared = await composio.prepareProjectSession(requestedComposioKey, cfg.composio);
-            patch.composio = { ...patch.composio, ...prepared };
-          } catch (error) {
-            return json(res, 400, { error: error instanceof Error ? error.message : String(error) });
-          }
-        } else {
-          patch.composio = { ...patch.composio, apiKey: "", sessionId: "" };
-        }
-      }
       // Validated against each voice provider's own credential, so no service is ever sent another's key.
       const newTts = patch.tts;
       if (newTts?.key?.trim()) {
@@ -275,7 +261,6 @@ export function createConfigRoutes(deps: ConfigRouteDeps): RouteHandler {
           // Supplied credentials are already in the OS-encrypted store: tombstone them so no older plaintext survives the merge.
           const persisted = structuredClone(patch);
           if (persisted.xai?.key !== undefined) persisted.xai.key = "";
-          if (persisted.composio?.apiKey !== undefined) persisted.composio.apiKey = "";
           if (persisted.opencodeGo?.apiKey !== undefined) persisted.opencodeGo.apiKey = "";
           if (persisted.tts?.key !== undefined) persisted.tts.key = "";
           if (persisted.tts?.fishKey !== undefined) persisted.tts.fishKey = "";

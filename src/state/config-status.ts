@@ -27,7 +27,6 @@ export interface ConfigStatus {
   fleet?: { available: boolean };
   budgets?: { monthlyUsd?: number; warnAtPercent?: number };
   billing?: { currency?: string; prices?: Record<string, { inputPerMillion: number; outputPerMillion: number; cachedInputPerMillion?: number }> };
-  composio: { configured: boolean; mode?: "managed" | "self-hosted" | "unavailable" };
   rooms: { turnTimeoutMinutes: number };
   /** Per-call ceiling (minutes) for a bot's MCP tools. Absent from servers
    * older than the setting; read it with mcpCallTimeoutMinutes(). */
@@ -113,7 +112,6 @@ export interface ManagedPolicySummary {
   version: number;
   companyModelsOnly: boolean;
   allowedEngines: "all" | string[];
-  mcp: { allowCustom: boolean; allowlist: string[] };
   computers: { thisComputer: boolean };
   remoteAccess: boolean;
 }

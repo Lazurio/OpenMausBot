@@ -8,11 +8,10 @@ import type { MausState } from "@/lib/mascot";
 import { api, useStore } from "@/state/store";
 import { Spotlight } from "./Spotlight";
 
-const COPY: Record<SpotlightId, { key: "onboarding.spot.composer" | "onboarding.spot.model" | "onboarding.spot.approval" | "onboarding.spot.connector"; mascot: MausState }> = {
+const COPY: Record<SpotlightId, { key: "onboarding.spot.composer" | "onboarding.spot.model" | "onboarding.spot.approval"; mascot: MausState }> = {
   "spot.composer": { key: "onboarding.spot.composer", mascot: "happy" },
   "spot.model": { key: "onboarding.spot.model", mascot: "curious" },
   "spot.approval": { key: "onboarding.spot.approval", mascot: "suspicious" },
-  "spot.connector": { key: "onboarding.spot.connector", mascot: "curious" },
 };
 
 export function FirstConversationTour({ quiet = false }: { quiet?: boolean }) {
@@ -48,9 +47,6 @@ export function FirstConversationTour({ quiet = false }: { quiet?: boolean }) {
     approvalVisible: Boolean(
       bot?.messages.some((m) => m.kind === "options" && m.card?.requestId && m.card.tool && !m.card.answered && !m.card.dismissed),
     ),
-    connectorVisible: Boolean(
-      bot?.messages.some((m) => m.kind === "connector" && m.connector && !m.connector.dismissed && m.connector.status !== "connected"),
-    ),
   };
 
   const dismiss = useCallback(() => {
@@ -74,7 +70,7 @@ export function FirstConversationTour({ quiet = false }: { quiet?: boolean }) {
     const next = nextSpotlight(observation, seen, active);
     if (next !== active) setActive(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eligible, seen, active, dismiss, observation.replyStarted, observation.replyFinished, observation.approvalVisible, observation.connectorVisible]);
+  }, [eligible, seen, active, dismiss, observation.replyStarted, observation.replyFinished, observation.approvalVisible]);
 
   if (!eligible || !active || !bot || cardAnswered(active, observation)) return null;
   const copy = COPY[active];

@@ -146,7 +146,7 @@ describe("createOpenAIChatRuntime tool approvals", () => {
     const dir = mkdtempSync(join(tmpdir(), "omb-api-scope-")); mcpDir.push(dir);
     const receipt = join(dir, "calls.txt");
     const calls = [
-      { index: 0, id: "selected", type: "function", function: { name: "fx_write", arguments: "{}" } },
+      { index: 0, id: "selected", type: "function", function: { name: "data_write", arguments: "{}" } },
       { index: 1, id: "withheld", type: "function", function: { name: "ask_user", arguments: JSON.stringify({ questions: [{ question: "Must not be shown" }] }) } },
     ];
     const first = `data: ${JSON.stringify({ choices: [{ index: 0, delta: { tool_calls: calls } }] })}\n\n`
@@ -166,9 +166,9 @@ describe("createOpenAIChatRuntime tool approvals", () => {
       : await MinimaxDriver.create({ ...common, config: MinimaxDriver.defaultConfig() });
     const events: RuntimeEvent[] = []; instance.adapter.onEvent((event) => events.push(event));
     try {
-      await instance.adapter.sendTurn({ threadId: "scoped-api", text: "Use only the selected tool.", approvalMode: "full", toolScope: { allow: ["mcp:fx:write"] }, integrations: { custom: { fx: toolServer(receipt) } } });
+      await instance.adapter.sendTurn({ threadId: "scoped-api", text: "Use only the selected tool.", approvalMode: "full", toolScope: { allow: ["mcp:data:write"] }, integrations: { data: toolServer(receipt) } });
       await vi.waitFor(() => expect(bodies.length).toBeGreaterThan(0), { timeout: 10_000 });
-      expect(bodies[0].tools.map((tool: any) => tool.function.name)).toEqual(["fx_write"]);
+      expect(bodies[0].tools.map((tool: any) => tool.function.name)).toEqual(["data_write"]);
       await vi.waitFor(() => expect(events.some((event) => event.type === "turn.completed")).toBe(true), { timeout: 10_000 });
       expect(events.filter((event) => event.type === "request.opened")).toEqual([]);
       expect(readFileSync(receipt, "utf8")).toBe("write\n");
@@ -181,7 +181,7 @@ describe("createOpenAIChatRuntime tool approvals", () => {
 
   const cardRaisedFor = async (approvalMode: "ask" | "full") => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(
-      'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"c1","type":"function","function":{"name":"fx_write","arguments":"{}"}}]}}]}\n\n'
+      'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"c1","type":"function","function":{"name":"data_write","arguments":"{}"}}]}}]}\n\n'
         + 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n\n',
       { status: 200, headers: { "content-type": "text/event-stream" } },
     )));
@@ -194,7 +194,7 @@ describe("createOpenAIChatRuntime tool approvals", () => {
     instance.adapter.onEvent((event) => events.push(event));
     await instance.adapter.sendTurn({
       threadId: "thread", text: "hi", approvalMode,
-      integrations: { custom: { fx: toolServer() } },
+      integrations: { data: toolServer() },
     });
     await vi.waitFor(() => {
       if (!events.some((e) => e.type === "request.opened" || e.type === "item.started" || e.type === "turn.completed")) {
@@ -283,7 +283,7 @@ describe("createOpenAIChatRuntime tool approvals", () => {
       });
     `);
     chmodSync(script, 0o755);
-    const callBody = 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"c1","type":"function","function":{"name":"fx_write","arguments":"{}"}}]}}]}\n\n'
+    const callBody = 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"c1","type":"function","function":{"name":"data_write","arguments":"{}"}}]}}]}\n\n'
       + 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n\n';
     const finalBody = 'data: {"choices":[{"index":0,"delta":{"content":"Done after failure."}}]}\n\n'
       + 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n';
@@ -303,7 +303,7 @@ describe("createOpenAIChatRuntime tool approvals", () => {
     try {
       await instance.adapter.sendTurn({
         threadId: "toolerr", text: "Use the tool, then answer.", approvalMode: "full",
-        integrations: { custom: { fx: { command: script, args: [], env: {} } } },
+        integrations: { data: { command: script, args: [], env: {} } },
       });
       await vi.waitFor(() => expect(events.some((event) => event.type === "turn.completed")).toBe(true), { timeout: 10_000 });
       expect(bodies).toHaveLength(2);
@@ -361,19 +361,19 @@ describe("createOpenAIChatRuntime tool approvals", () => {
     }, 20_000);
 
     it("ends the turn ok when the bot runs tools again after the round and they succeed", async () => {
-      expect(await run([toolCall("c1", "nope"), answer, toolCall("c2", "fx_write"), answer], 1, { custom: { fx: toolServer() } }))
+      expect(await run([toolCall("c1", "nope"), answer, toolCall("c2", "data_write"), answer], 1, { data: toolServer() }))
         .toMatchObject({ requests: 4, corrective: 1, ok: true });
     }, 20_000);
 
     it("never sends a denial back, and a denial during a round keeps the turn failed", async () => {
       expect(await run([toolCall("a1", "ask_user"), answer], 5))
         .toEqual({ requests: 2, corrective: 0, ok: false, stopReason: "tool_error" });
-      expect(await run([toolCall("c1", "nope"), answer, toolCall("a2", "ask_user"), toolCall("c2", "fx_write"), answer], 5, { custom: { fx: toolServer() } }))
+      expect(await run([toolCall("c1", "nope"), answer, toolCall("a2", "ask_user"), toolCall("c2", "data_write"), answer], 5, { data: toolServer() }))
         .toEqual({ requests: 5, corrective: 1, ok: false, stopReason: "tool_error" });
     }, 20_000);
 
     it("without rounds, a later call that succeeds does not clear the failure", async () => {
-      expect(await run([toolCall("c1", "nope"), toolCall("c2", "fx_write"), answer], undefined, { custom: { fx: toolServer() } }))
+      expect(await run([toolCall("c1", "nope"), toolCall("c2", "data_write"), answer], undefined, { data: toolServer() }))
         .toEqual({ requests: 3, corrective: 0, ok: false, stopReason: "tool_error" });
     }, 20_000);
   });
@@ -468,7 +468,7 @@ describe("createOpenAIChatRuntime mid-turn steer", () => {
   });
 
   it("delivers mid-turn asides into the next completion request after the tool round", async () => {
-    const toolCallBody = 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"c1","type":"function","function":{"name":"fx_write","arguments":"{}"}}]}}]}\n\n'
+    const toolCallBody = 'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"c1","type":"function","function":{"name":"data_write","arguments":"{}"}}]}}]}\n\n'
       + 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n\n';
     const finalBody = 'data: {"choices":[{"index":0,"delta":{"content":"done."}}]}\n\n'
       + 'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n';
@@ -491,7 +491,7 @@ describe("createOpenAIChatRuntime mid-turn steer", () => {
     instance.adapter.onEvent((event) => events.push(event));
     await instance.adapter.sendTurn({
       threadId: "t", text: "hi", approvalMode: "full",
-      integrations: { custom: { fx: toolServer() } },
+      integrations: { data: toolServer() },
     });
     // Request 1 must be in flight before the asides are parked: they belong to the next round.
     await vi.waitFor(() => {

@@ -41,26 +41,23 @@ describe("result budget", () => {
   });
 });
 
-describe("tool directory configuration", () => {
-  it("asks the remote proxy for a directory only when the caller does", () => {
-    expect(mcpStdioServer(remote)!.env).not.toHaveProperty("OMB_REMOTE_MCP_DIRECTORY");
-    const scope = { allow: ["mcp:whop:*"], deny: ["mcp:whop:payments_create"] };
-    const searched = mcpStdioServer(remote, { directory: { name: "whop", toolScope: scope } })!;
-    expect(searched.args).toHaveLength(1);
-    expect(searched.args![0]).toContain("mcp-remote-proxy");
-    expect(JSON.parse(searched.env!.OMB_REMOTE_MCP_DIRECTORY)).toEqual({ name: "whop", toolScope: scope });
-    expect(JSON.parse(mcpStdioServer(remote, { directory: { name: "whop" } })!.env!.OMB_REMOTE_MCP_DIRECTORY)).toEqual({ name: "whop" });
-    expect(mcpStdioServer(server, { directory: { name: "notes" } })).toBe(server);
+describe("remote proxy configuration", () => {
+  it("runs a URL server through the remote proxy and leaves a command server as it is", () => {
+    const proxied = mcpStdioServer(remote)!;
+    expect(proxied.args).toHaveLength(1);
+    expect(proxied.args![0]).toContain("mcp-remote-proxy");
+    expect(JSON.parse(proxied.env!.OMB_REMOTE_MCP_SERVER)).toEqual(remote);
+    expect(mcpStdioServer(server)).toBe(server);
   });
 
   it("keeps a shared environment's settings in one private record", () => {
     const record = `OMB_REMOTE_MCP_CONFIG_${"0".repeat(64)}`;
-    const proxy = mcpStdioServer(remote, { nodeEnv: { ELECTRON_RUN_AS_NODE: "1" }, directory: { name: "whop" }, configEnvName: record })!;
+    const proxy = mcpStdioServer(remote, { nodeEnv: { ELECTRON_RUN_AS_NODE: "1" }, configEnvName: record })!;
     expect(proxy.args!.slice(1)).toEqual(["--config-env", record]);
     expect(Object.keys(proxy.env!).sort()).toEqual(["ELECTRON_RUN_AS_NODE", record]);
     const settings = JSON.parse(proxy.env![record]);
     expect(JSON.parse(settings.OMB_REMOTE_MCP_SERVER)).toEqual(remote);
-    expect(JSON.parse(settings.OMB_REMOTE_MCP_DIRECTORY)).toEqual({ name: "whop" });
+    expect(Object.keys(settings)).toEqual(["OMB_REMOTE_MCP_SERVER"]);
     expect(proxy.args!.join(" ")).not.toContain("disposable-remote-token");
   });
 
@@ -97,10 +94,7 @@ describe("tool directory configuration", () => {
       expect(plain.NODE_USE_ENV_PROXY).toBe("0");
       expect(plain.NO_PROXY).toBeUndefined();
       expect(plain.no_proxy).toBe(sourceEnv.no_proxy);
-      for (const descriptor of [
-        gateServer({ name: "whop", server: http, threadId: "disposable-thread", budget: 0, toolScope: { allow: [] }, sourceEnv })!,
-        gateServer({ name: "whop", server: http, threadId: "disposable-thread", budget: 0, toolScope: { allow: [] }, directory: true, sourceEnv })!,
-      ]) expect(JSON.parse(descriptor.env.OMB_GATE_UPSTREAM).env.NODE_USE_ENV_PROXY).toBe("0");
+      expect(JSON.parse(gateServer({ name: "whop", server: http, threadId: "disposable-thread", budget: 0, toolScope: { allow: [] }, sourceEnv })!.env.OMB_GATE_UPSTREAM).env.NODE_USE_ENV_PROXY).toBe("0");
       expect(JSON.parse(gateServer({ name: "whop", server: remote, threadId: "disposable-thread", budget: 0, toolScope: { allow: [] }, sourceEnv })!.env.OMB_GATE_UPSTREAM).env.NODE_USE_ENV_PROXY).toBe("1");
     }
     expect(mcpStdioServer(http, { sourceEnv: { NODE_USE_ENV_PROXY: "1" } })!.env!.NODE_USE_ENV_PROXY).toBe("0");
@@ -111,23 +105,6 @@ describe("tool directory configuration", () => {
 
   it("refuses settings the proxy could not read", () => {
     expect(() => mcpStdioServer(remote, { configEnvName: "OMB_REMOTE_MCP_SERVER" })).toThrow(/private MCP proxy/);
-    expect(() => mcpStdioServer(remote, { directory: { name: "Not A Name" } })).toThrow(/tool search/);
-    expect(() => mcpStdioServer(remote, { directory: { name: "whop", toolScope: { allow: null } as never } })).toThrow(/tool search/);
-  });
-
-  it("puts a scoped directory inside the gate, which looks through call_tool", () => {
-    const scope = { allow: ["mcp:whop:payments_list"] };
-    const gated = gateServer({ name: "whop", server: remote, threadId: "disposable-thread", budget: 0, toolScope: scope, directory: true })!;
-    expect(gated.args[0]).toContain("mcp-gate");
-    expect(gated.env.OMB_GATE_DIRECTORY).toBe("1");
-    const upstream = JSON.parse(gated.env.OMB_GATE_UPSTREAM);
-    expect(upstream.args[0]).toContain("mcp-remote-proxy");
-    expect(JSON.parse(upstream.env.OMB_REMOTE_MCP_DIRECTORY)).toEqual({ name: "whop", toolScope: scope });
-    const plain = gateServer({ name: "whop", server: remote, threadId: "disposable-thread", budget: 0, toolScope: scope })!;
-    expect(plain.env).not.toHaveProperty("OMB_GATE_DIRECTORY");
-    expect(JSON.parse(plain.env.OMB_GATE_UPSTREAM).env).not.toHaveProperty("OMB_REMOTE_MCP_DIRECTORY");
-    expect(gateServer({ ...input, toolScope: { allow: [] }, directory: true })!.env).not.toHaveProperty("OMB_GATE_DIRECTORY");
-    expect(gateServer({ name: "whop", server: remote, threadId: "disposable-thread", budget: 8_000, directory: true })).toBeNull();
   });
 
   it("gates an unselected URL server only when its own result limit is set", () => {
@@ -135,7 +112,7 @@ describe("tool directory configuration", () => {
     expect(hasOwnResultBudget("whop", { whop: 0 })).toBe(false);
     expect(hasOwnResultBudget("whop", { other: 40_000 })).toBe(false);
     expect(hasOwnResultBudget("whop", undefined)).toBe(false);
-    const gated = gateServer({ name: "whop", server: remote, threadId: "disposable-thread", budget: 40_000, gateRemote: true, directory: true })!;
+    const gated = gateServer({ name: "whop", server: remote, threadId: "disposable-thread", budget: 40_000, gateRemote: true })!;
     expect(gated.env.OMB_GATE_BUDGET).toBe("40000");
     expect(gated.env).not.toHaveProperty("OMB_GATE_TOOL_SCOPE");
     expect(JSON.parse(gated.env.OMB_GATE_UPSTREAM).args[0]).toContain("mcp-remote-proxy");

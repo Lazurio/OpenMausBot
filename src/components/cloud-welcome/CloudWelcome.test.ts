@@ -291,12 +291,11 @@ describe("CloudWelcome", () => {
     expect(checks).toEqual(["claude", "codex", "codex"]);
   });
 
-  it("apps open Connected apps, then it is ready and says hi to the Chief of Staff", async () => {
+  it("offers no apps step, then it is ready and says hi to the Chief of Staff", async () => {
     fixture.state.config.onboarding = { ...EMPTY_ONBOARDING, hintsSeen: [welcomeStepHint("bring"), welcomeStepHint("engine")] };
     render();
     await vi.waitFor(() => expect(text()).toContain("Welcome to Studio Cloud"));
-    click("Connect apps");
-    expect(fixture.dispatch).toHaveBeenCalledWith({ type: "togglePlugins", open: true, surface: "apps" });
+    expect(text()).not.toContain("Connect apps");
     click("Finish");
     expect(text()).toContain("Studio Cloud is ready");
     expect(text()).toContain("Your bots now run 24/7. Close your laptop whenever you like.");

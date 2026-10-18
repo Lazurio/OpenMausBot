@@ -45,8 +45,7 @@ import {
 } from "./local-inject.ts";
 import { appendNative } from "./native.ts";
 import { allowsTool, canUseMcpServer, parseToolScope } from "../../shared/tool-scope.ts";
-import { customServerGate, gateServer, mcpStdioServer } from "../mcp-gate-config.ts";
-import { remoteMcpSpec } from "../mcp-http.ts";
+import { gateServer, mcpStdioServer } from "../mcp-gate-config.ts";
 
 const DRIVER_KIND = "piAgent";
 const PI_ARGS = ["--mode", "rpc", "--no-session"];
@@ -99,7 +98,6 @@ export function buildMcpServers(turn: SendTurnInput): Record<string, unknown> | 
   const parsed = parseToolScope(turn.toolScope);
   if (!parsed.ok) throw new Error(parsed.error);
   const servers: Record<string, unknown> = {};
-  if (turn.integrations?.composio) servers.composio = { ...turn.integrations.composio };
   if (turn.integrations?.localComputer) {
     const local = turn.integrations.localComputer;
     servers.computer = {
@@ -120,17 +118,14 @@ export function buildMcpServers(turn: SendTurnInput): Record<string, unknown> | 
     };
   }
   if (turn.integrations?.browser) servers.browser = { ...turn.integrations.browser };
-  for (const name of ["data", "highlevel"] as const) if (turn.integrations?.[name]) servers[name] = { ...turn.integrations[name] };
-  for (const [name, server] of Object.entries(turn.integrations?.custom ?? {})) servers[name] = { ...server, scope: "custom" };
+  if (turn.integrations?.data) servers.data = { ...turn.integrations.data };
   for (const [name, server] of Object.entries(servers)) {
     if (parsed.scope !== undefined && !canUseMcpServer(parsed.scope, name)) { delete servers[name]; continue; }
-    // pi registers every tool it is given and has no tool search of its own.
-    const directory = remoteMcpSpec(server) !== undefined;
-    const gated = gateServer({ name, server, toolScope: parsed.scope, threadId: turn.threadId, nodeEnv: NODE_ENV_FLAG, directory, ...customServerGate(name, name in (turn.integrations?.custom ?? {}), turn.integrations?.customResultBudgets) });
-    const stdio = gated ?? mcpStdioServer(server, { nodeEnv: NODE_ENV_FLAG, ...(directory ? { directory: { name } } : {}) });
+    const gated = gateServer({ name, server, toolScope: parsed.scope, threadId: turn.threadId, nodeEnv: NODE_ENV_FLAG, budget: 0 });
+    const stdio = gated ?? mcpStdioServer(server, { nodeEnv: NODE_ENV_FLAG });
     if (!stdio) throw new Error("Pi MCP server configuration is invalid");
     const original = server as { scope?: string };
-    servers[name] = { ...stdio, ...(original.scope ? { scope: original.scope } : {}), ...(directory ? { directory: true } : {}) };
+    servers[name] = { ...stdio, ...(original.scope ? { scope: original.scope } : {}) };
   }
   return Object.keys(servers).length ? servers : null;
 }
@@ -1099,11 +1094,9 @@ export const PiDriver: ProviderDriver<PiConfig> = {
           // pi core has no MCP client of its own.
           agentsMcp: true,
           computerMcp: true,
-          composioMcp: true,
           phoneMcp: true,
-          customMcp: true,
           browserMcp: true,
-          dataMcp: true, highlevelMcp: true,
+          dataMcp: true,
           localComputerMcp: true,
           images: true,
           nativeImageInput: true,

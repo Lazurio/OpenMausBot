@@ -15,14 +15,14 @@ pnpm exec vitest run server/presets.e2e.test.ts --silent=false
 This launches and cleans its own fake-engine fixture through
 `launchVerificationServer` (no live URL, no user data). Through the public API
 it saves New bot defaults that carry things a preset must never hold (Auto
-approval, connected apps, a command allowlist, a routine) plus a password in
+approval, a command allowlist, a routine) plus a password in
 the standing instructions, then checks:
 
 - `POST /api/teams/export` with `kind: "library"`: a dry run counts one
   preset and one skill and writes no `published-library.json`; saving writes
   `support-agent-1.0.0.openmaus.json` with the preset (name, look, picture,
   standing instructions, skill, starter notes), reports the redacted
-  instructions, contains no password, approval, connected-app, model or
+  instructions, contains no password, approval, model or
   routine field, and the next save suggests `1.0.1`;
 - a team export includes the defaults preset only with
   `includeDefaultsPreset: true`;
@@ -83,7 +83,7 @@ OMB_UI_E2E=1 pnpm exec vitest run scripts/testing/presets-ui.e2e.test.ts --silen
 ```
 
 The first command covers the New bot grouping, the draft fields a preset
-fills (never the model, computer, approval or connected apps), the picture,
+fills (never the model, computer or approval), the picture,
 the summary lines, creation passing the preset and leaving its skills and
 notes to the server, the share request, part names, the preset file's
 contents list and its import preview. The second owns a disposable

@@ -60,7 +60,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   fixture.values = [];
   fixture.refs = [];
-  fixture.config = { anthropic: { configured: false }, composio: { configured: false } };
+  fixture.config = { anthropic: { configured: false }, opencodeGo: { configured: false } };
   vi.stubGlobal("window", {});
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -95,21 +95,14 @@ describe("a key saved in Settings → API keys", () => {
     expectNoKeyIn(fixture.track.mock.calls);
   });
 
-  it("reports a Composio key refused over the desktop bridge as rejected", async () => {
-    const setCredential = vi.fn().mockRejectedValue(new Error(`Error invoking remote method 'credential:set': KeyRejected: That doesn't look like a Composio API key: ${KEY.slice(0, 12)}`));
+  it("reports a key refused over the desktop bridge as rejected", async () => {
+    const setCredential = vi.fn().mockRejectedValue(new Error(`Error invoking remote method 'credential:set': KeyRejected: That doesn't look like an OpenCode Go API key: ${KEY.slice(0, 12)}`));
     vi.stubGlobal("window", { ogb: { setCredential } });
-    await paste({ section: "composio" });
-    expect(setCredential).toHaveBeenCalledWith("composioApiKey", KEY);
+    await paste({ section: "opencodeGo" });
+    expect(setCredential).toHaveBeenCalledWith("opencodeGoApiKey", KEY);
     expect(fixture.api).not.toHaveBeenCalled();
-    expect(fixture.track.mock.calls).toEqual([["api_key_saved", { provider: "composio", via: "settings", result: "rejected" }]]);
+    expect(fixture.track.mock.calls).toEqual([["api_key_saved", { provider: "opencode_go", via: "settings", result: "rejected" }]]);
     expectNoKeyIn(fixture.track.mock.calls);
-  });
-
-  it("reports a Composio key the server checked as ok, without testing it again", async () => {
-    fixture.api.mockResolvedValueOnce({ composio: { configured: true } });
-    await paste({ section: "composio" });
-    expect(fixture.api).toHaveBeenCalledOnce();
-    expect(fixture.track.mock.calls).toEqual([["api_key_saved", { provider: "composio", via: "settings", result: "ok" }]]);
   });
 
   it("reports a cleared key as removed, once, and a failed clear not at all", async () => {
@@ -124,20 +117,5 @@ describe("a key saved in Settings → API keys", () => {
     await flush();
     expect(fixture.api).toHaveBeenCalledTimes(2);
     expect(fixture.track.mock.calls).toEqual([["api_key_removed", { provider: "anthropic", via: "settings" }]]);
-  });
-
-  it("reports a cleared Composio key only when the project was self-hosted, not for the managed connection", async () => {
-    const clear = () => render({ section: "composio" }).find((node) => node.type === "button" && JSON.stringify(node.props.children).includes("Clear"))!;
-    const managed = { composio: { configured: true, mode: "managed" } };
-    fixture.config = managed;
-    fixture.api.mockResolvedValue(managed);
-    clear().props.onClick!();
-    await flush();
-    expect(fixture.api).toHaveBeenCalledOnce();
-    expect(fixture.track).not.toHaveBeenCalled();
-    fixture.config = { composio: { configured: true, mode: "self-hosted" } };
-    clear().props.onClick!();
-    await flush();
-    expect(fixture.track.mock.calls).toEqual([["api_key_removed", { provider: "composio", via: "settings" }]]);
   });
 });

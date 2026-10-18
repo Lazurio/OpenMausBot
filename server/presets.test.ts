@@ -202,7 +202,7 @@ describe("creating a bot from a preset", () => {
     expect(record.installedPackage).toEqual({ id: "sales-desk", name: "Sales desk", release: "1.3.0", requiredApps: [], source: "file",
       installId: imported.installId, presetKey: "support" });
     expect(record.modelSelection).toEqual({ instanceId: "claude", model: "default-model" });
-    for (const field of ["approvalMode", "autoApprove", "computer", "cwd", "composio", "mcpServers", "browser"] as const) {
+    for (const field of ["approvalMode", "autoApprove", "computer", "cwd", "browser"] as const) {
       expect(record).not.toHaveProperty(field);
     }
   });
@@ -234,8 +234,8 @@ describe("sharing my New bot defaults as a preset", () => {
     profile: {
       name: "Sky", title: "Support", description: "Answers customers.", soul: "Be kind.\n", color: "blue", mascotExpression: "happy",
       modelSelection: { instanceId: "claude", model: "opus" }, cwd: "/Users/me/secret", approvalMode: "full",
-      alwaysAllow: ["Bash(*)"], chiefOfStaff: true, managedSections: ["Ops"], peers: ["x"], composio: true, browser: true,
-      browserProfile: "work", mcpServers: ["crm"], section: "Support", approvePeerComms: true, parkDirectMessages: true, avatarCrop: "rounded",
+      alwaysAllow: ["Bash(*)"], chiefOfStaff: true, managedSections: ["Ops"], peers: ["x"], browser: true,
+      browserProfile: "work", section: "Support", approvePeerComms: true, parkDirectMessages: true, avatarCrop: "rounded",
     },
     memory: { "MEMORY.md": "- Customers first.\n", "memory/tone.md": "Warm.\n" },
     skills: [{ name: "follow-up", description: "follow-up steps.", source: "https://github.com/acme/skills", text: skillText("follow-up"), enabled: true, warnings: [] }],

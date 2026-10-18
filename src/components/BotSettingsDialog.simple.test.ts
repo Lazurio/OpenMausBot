@@ -7,7 +7,6 @@ import type { BotOverview } from "@/lib/bot-overview-types";
 import type { Bot, BotSettingsSection, Message } from "@/state/store";
 import { AVATAR_FOCUS_CENTER, AVATAR_ZOOM_MIN } from "../../shared/bot-avatar";
 import type { ManagedSkill } from "./bot-settings/SkillsSection";
-import type { BotApps } from "./bot-settings/useBotApps";
 
 // Hook-by-call-order harness: component state survives between renders, effects never run, and handlers are read off
 // the element tree.
@@ -32,7 +31,6 @@ const fixture = vi.hoisted(() => {
       toggle: (() => Promise.resolve()) as (skill: ManagedSkill) => Promise<void>,
     },
     derived: {} as Record<string, unknown>,
-    apps: { phase: "ready", apps: [], connectedSlugs: [] } as BotApps,
   };
 });
 vi.mock("react", async (original) => ({
@@ -67,10 +65,6 @@ vi.mock("./bot-settings/SkillsSection", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./bot-settings/SkillsSection")>()),
   useManagedSkills: () => ({ ...fixture.skills, setReviewing: () => {}, enableReviewed: () => Promise.resolve() }),
 }));
-vi.mock("./bot-settings/useBotApps", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./bot-settings/useBotApps")>()),
-  useBotApps: () => fixture.apps,
-}));
 vi.mock("@/state/store", async (importOriginal) => {
   const store = await importOriginal<typeof import("@/state/store")>();
   return {
@@ -92,11 +86,11 @@ const { LibraryTab } = await import("./bot-panel/LibraryTab");
 const { ComputerTab } = await import("./bot-panel/ComputerTab");
 const { SettingsTab } = await import("./bot-panel/SettingsTab");
 const { PageBody, SetupPage } = await import("./bot-panel/pages");
-const { AppsCard, BrowserLogins } = await import("./bot-panel/apps-and-logins");
+const { BrowserLogins } = await import("./bot-panel/apps-and-logins");
 const { botLibraryItems, memoryEntries } = await import("./bot-panel/library-items");
 const { PAGES, sectionTarget } = await import("./bot-panel/page-registry");
 const { openBotSettings } = await import("./bot-panel/panel-link");
-const { PageHeader } = await import("./bot-panel/rows");
+const { PageHeader, SwitchRow } = await import("./bot-panel/rows");
 const { ChatMoreMenu } = await import("./ChatMoreMenu");
 const { SoulField } = await import("./SoulField");
 const { LocalComputerAutoWarning } = await import("./LocalComputerAutoWarning");
@@ -196,9 +190,6 @@ const routine = (extra: Partial<Routine> = {}): Routine => ({
   schedule: { type: "daily", time: "09:00", weekdays: [1, 2, 3, 4, 5] }, durationMinutes: 15,
   nextRunAt: Date.UTC(2099, 0, 5, 9), createdAt: 1, updatedAt: 1, ...extra,
 });
-const app = (slug: string, scope: "read" | "write" | null) => ({
-  slug, label: slug[0]!.toUpperCase() + slug.slice(1), blurb: `${slug} things`, card: { logo: null, domain: null, label: slug }, scope,
-});
 const overviewWith = (setup: BotOverview["setup"]): BotOverview => ({
   who: { name: "Scout", title: "", blurb: "", soulLead: "" }, does: [], reaches: [], wont: [], recent: [], setup,
 });
@@ -219,9 +210,8 @@ beforeEach(() => {
   fixture.derived = {
     patch, approvalMode: "ask", engine: { driverKind: "claudeAgent" }, trustedModesAvailable: false, activeState: "idle",
     botRoutines: [], canCoordinate: true, sectionName: "General", mascotMotion: null,
-    canUseConnectedApps: true, connectedAppsConfigured: true, connectedAppsEnabled: true, browserEnabled: true,
+    browserEnabled: true,
   };
-  fixture.apps = { phase: "ready", apps: [], connectedSlugs: [] };
 });
 
 describe("the bot panel in Simple mode", () => {
@@ -327,8 +317,8 @@ describe("the bot panel in Simple mode", () => {
     expect(sectionTarget("usage").anchor).toBe("activity");
   });
 
-  // App tool grants (PluginsPanel), MCP access, a place's tool selection, the working folder.
-  it.each(["apps", "mcp", "tools", "folder"] as const)("opens Access on the %s page when a link names it", (page) => {
+  // A place's tool selection, the working folder.
+  it.each(["tools", "folder"] as const)("opens Access on the %s page when a link names it", (page) => {
     try {
       openBotSettings(fixture.dispatch, "access", { page });
       expect(shown(panel(makeBot(), "access"))).toEqual({ tab: undefined, page });
@@ -477,7 +467,7 @@ describe("the Details tab", () => {
     expect(has(details(makeBot(), overviewWith([{ id: "soul", label: "Write instructions", done: true }])), "data-panel-page", "setup")).toBe(false);
     const rendered = details(makeBot(), overviewWith([
       { id: "soul", label: "Write instructions", done: false, section: "soul" },
-      { id: "apps", label: "Connect an app", done: false, section: "access" },
+      { id: "folder", label: "Choose a working folder", done: false, section: "access" },
     ]));
     expect(rendered.html).toContain("2 ideas to make Scout more useful");
     click(find(rendered, "data-panel-page", "setup"));
@@ -637,64 +627,6 @@ describe("the Details tab", () => {
   });
 });
 
-describe("the Apps card", () => {
-  const card = (bot: Bot, onOpenAccess = vi.fn()) =>
-    capture(() => AppsCard({ bot, derived: derived(), apps: fixture.apps, onOpenAccess }));
-
-  it("gives each connected app a switch for this bot, and writes the same record as Access", () => {
-    fixture.apps = { phase: "ready", connectedSlugs: ["github", "gmail", "slack"], apps: [app("github", "write"), app("gmail", "write"), app("slack", "write")] };
-    const rendered = card(makeBot());
-    expect(rendered.html).toContain("github things");
-    click(find(rendered, "aria-label", "Scout can use Github"));
-    expect(patch).toHaveBeenLastCalledWith({ connectorScopes: { apps: { gmail: "write", slack: "write" } } });
-
-    fixture.apps = { phase: "ready", connectedSlugs: ["github", "gmail", "slack"], apps: [app("github", null), app("gmail", "read"), app("slack", "write")] };
-    const scoped = card(makeBot({ connectorScopes: { apps: { gmail: "read", slack: "write" } } }));
-    expect(find(scoped, "aria-label", "Scout can use Github").props.checked).toBe(false);
-    expect(scoped.html).toContain("Read only");
-    click(find(scoped, "aria-label", "Scout can use Github"));
-    expect(patch).toHaveBeenLastCalledWith({ connectorScopes: { apps: { gmail: "read", slack: "write", github: "write" } } });
-  });
-
-  it("turns all apps off or on with the bot's own switch, and holds the app switches while it is off", () => {
-    fixture.apps = { phase: "ready", connectedSlugs: ["gmail"], apps: [app("gmail", "write")] };
-    const rendered = card(makeBot());
-    const master = rendered.nodes.find((node) => node.props["data-panel-row"] === "apps")!;
-    expect(master.props.title).toBe("Let Scout use apps");
-    (master.props.onChange as () => void)();
-    expect(patch).toHaveBeenLastCalledWith({ composio: false });
-
-    fixture.derived.connectedAppsEnabled = false;
-    fixture.apps = { phase: "ready", connectedSlugs: ["gmail"], apps: [app("gmail", null)] };
-    expect(find(card(makeBot({ composio: false })), "aria-label", "Scout can use Gmail").props.disabled).toBe(true);
-    fixture.derived.canUseConnectedApps = false;
-    const cannot = card(makeBot({ composio: false }));
-    expect(cannot.nodes.find((node) => node.props["data-panel-row"] === "apps")!.props.disabled).toBe(true);
-    expect(cannot.html).toContain("The model Scout runs on can&#x27;t use apps.");
-  });
-
-  it("says what it knows about the list: checking, unreadable, or empty", () => {
-    fixture.apps = { phase: "loading", apps: [], connectedSlugs: [] };
-    expect(card(makeBot()).html).toContain("Checking…");
-    fixture.apps = { phase: "unknown", apps: [], connectedSlugs: [] };
-    expect(card(makeBot()).html).toContain("Couldn&#x27;t check your apps just now.");
-    fixture.apps = { phase: "ready", apps: [], connectedSlugs: [] };
-    expect(card(makeBot()).html).toContain("No apps connected yet.");
-  });
-
-  it("opens App access and tools, and the app catalog from Add app", () => {
-    const onOpenAccess = vi.fn();
-    const rendered = card(makeBot(), onOpenAccess);
-    click(find(rendered, "data-panel-link", "apps"));
-    expect(onOpenAccess).toHaveBeenCalled();
-    click(find(rendered, "data-panel-link", "add-app"));
-    expect((fixture.dispatch as ReturnType<typeof vi.fn>).mock.calls).toEqual([
-      [{ type: "toggleSettings", open: false }],
-      [{ type: "togglePlugins", open: true, surface: "apps" }],
-    ]);
-  });
-});
-
 describe("the browser logins", () => {
   const logins = (bot: Bot, onOpenBrowser = vi.fn(), browserEnabled = true) =>
     capture(() => BrowserLogins({ bot, browserEnabled, onOpenBrowser }));
@@ -843,7 +775,7 @@ describe("the Settings tab", () => {
     expect(order.every((index) => index > -1)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     for (const text of ["What Scout does", "Voice", "Notifications", "Team", "Chief of Staff", "Ask me before contacting other bots",
-      "MCP servers", "Tool selection", "Webhooks", "Always allowed", "Get it on your phone", "Phone and email", "Overview",
+      "Tool selection", "Webhooks", "Always allowed", "Get it on your phone", "Phone and email", "Overview",
       "What Scout sees", "History", "Usage for all bots", "Pin to top", "Duplicate", "Copy conversation ID",
       "Mark all conversations as read", "Archive Scout", "Delete Scout"]) expect(html).toContain(text);
     expect(html).not.toContain("Who can see it");
@@ -853,7 +785,7 @@ describe("the Settings tab", () => {
 
   it("opens each page from its row", () => {
     const rendered = settings(makeBot());
-    for (const page of ["blurb", "voice", "team", "mcp", "tools", "webhooks", "always", "overview", "prompt", "history"]) {
+    for (const page of ["blurb", "voice", "team", "tools", "webhooks", "always", "overview", "prompt", "history"]) {
       click(find(rendered, "data-panel-page", page));
       expect(onOpen).toHaveBeenLastCalledWith(page);
     }
@@ -955,8 +887,8 @@ describe("the drill-in pages", () => {
 
   it("renders the full sections, or the part a page needs", () => {
     expect(ofType(body("model"), ModelSection)!.props.bot).toMatchObject({ id: "scout" });
-    expect(ofType(body("approvals"), PermissionsSection)!.props.parts).toEqual(["approval", "outbound"]);
-    for (const [page, parts] of [["apps", ["apps"]], ["mcp", ["mcp"]], ["tools", ["tools"]], ["webhooks", ["webhooks"]], ["always", ["always"]]] as const) {
+    expect(ofType(body("approvals"), PermissionsSection)!.props.parts).toEqual(["approval"]);
+    for (const [page, parts] of [["tools", ["tools"]], ["webhooks", ["webhooks"]], ["always", ["always"]]] as const) {
       expect(ofType(body(page), AccessSection)!.props.parts).toEqual(parts);
     }
     expect(ofType(body("routines"), RoutinesSection)!.props.routines).toBe(fixture.derived.botRoutines);
@@ -1076,9 +1008,8 @@ describe("the bot settings dialog", () => {
 
 describe("the panel's switches", () => {
   it("are the shared switch, in the bot's own color when on", () => {
-    fixture.apps = { phase: "ready", connectedSlugs: ["gmail"], apps: [app("gmail", "write")] };
-    const html = capture(() => AppsCard({ bot: makeBot({ color: "blue" }), derived: derived(), apps: fixture.apps, onOpenAccess: vi.fn() })).html;
-    expect(html.match(/role="switch"/g)).toHaveLength(2);
+    const html = capture(() => SwitchRow({ title: "Ask first", checked: true, onChange: vi.fn(), color: "blue" })).html;
+    expect(html.match(/role="switch"/g)).toHaveLength(1);
     expect(html).toContain("background-color:#377FE6");
     expect(Switch).toBeDefined();
   });

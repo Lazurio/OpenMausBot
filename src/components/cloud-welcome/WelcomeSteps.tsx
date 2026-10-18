@@ -1,5 +1,5 @@
 import type { Ref } from "react";
-import { Check, CircleAlert, FolderOpen, Plug } from "lucide-react";
+import { Check, CircleAlert, FolderOpen } from "lucide-react";
 import { cloudEngineChoices, useCloudEngineChoices } from "@/components/CloudEngineSignIn";
 import { useCloudPlanSnapshot } from "@/components/CloudTrialNotice";
 import { engineReady } from "@/components/EngineLibrary";
@@ -7,7 +7,7 @@ import { usd } from "@/lib/cloud-plan";
 import { welcomeCredit } from "@/lib/cloud-welcome";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
-import { useStore, type Bot } from "@/state/store";
+import type { Bot } from "@/state/store";
 import { CARD, CARD_IDLE, CardIcon, Footer, PRIMARY, QUIET, SECONDARY, StepHeading } from "./parts";
 
 export function WelcomeEngine({ name, headingRef, onFinish }: { name: string; headingRef: Ref<HTMLHeadingElement>; onFinish: () => void }) {
@@ -37,8 +37,7 @@ export function WelcomeEngine({ name, headingRef, onFinish }: { name: string; he
 }
 
 export function WelcomeFiles({ name, headingRef, onFinish }: { name: string; headingRef: Ref<HTMLHeadingElement>; onFinish: () => void }) {
-  const { dispatch } = useStore();
-  const card = (id: string, icon: typeof Plug, title: string, body: string, action?: { label: string; run: () => void }) =>
+  const card = (id: string, icon: typeof FolderOpen, title: string, body: string, action?: { label: string; run: () => void }) =>
     <div data-welcome-files={id} className={cn(CARD, CARD_IDLE)}>
       <CardIcon icon={icon} />
       <span className="text-[14.5px] font-semibold text-ink">{title}</span>
@@ -50,8 +49,6 @@ export function WelcomeFiles({ name, headingRef, onFinish }: { name: string; hea
     <div className="grid gap-3 @lg/step:grid-cols-2">
       {card("folders", FolderOpen, t("cloudWelcome.files.folders"),
         t("cloudWelcome.files.foldersDesktop", { name }))}
-      {card("apps", Plug, t("cloudWelcome.files.apps"), t("cloudWelcome.files.appsHint"),
-        { label: t("cloudWelcome.files.appsAction"), run: () => dispatch({ type: "togglePlugins", open: true, surface: "apps" }) })}
     </div>
     <Footer>
       <button type="button" className={PRIMARY} onClick={onFinish}>{t("cloudWelcome.files.finish")}</button>

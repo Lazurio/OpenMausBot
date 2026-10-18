@@ -102,7 +102,7 @@ test("the server reads back exactly what Electron sends, at spawn and after", ()
   assert.equal(proPlanFromEnvironment({ OMB_PRO_PLAN: "1" }), true);
   assert.equal(proPlanFromEnvironment({ OMB_PRO_PLAN: " 1 " }), true);
   for (const value of [undefined, "", "0", "true", "yes", "pro", "2"]) assert.equal(proPlanFromEnvironment({ OMB_PRO_PLAN: value }), false, String(value));
-  for (const other of [undefined, null, "openmausbot:pro-plan", [], { type: "openmausbot:managed-composio", access: null }]) assert.equal(proPlanFromMessage(other), null);
+  for (const other of [undefined, null, "openmausbot:pro-plan", [], { type: "openmausbot:other", access: null }]) assert.equal(proPlanFromMessage(other), null);
   for (const malformed of [{ type: PRO_PLAN_MESSAGE }, { type: PRO_PLAN_MESSAGE, pro: "yes" }, { type: PRO_PLAN_MESSAGE, pro: 1 }]) {
     assert.throws(() => proPlanFromMessage(malformed), /Pro plan/);
   }
@@ -134,7 +134,7 @@ test("main starts its server with the answer and hands it every change", () => {
     refreshCloudMenus: () => {}, announceCloudReady: () => {},
     createCloudAccountClient: options => { signIn.options = options; return { state: () => signIn.state }; },
   });
-  vm.runInContext(`${slice("function syncProPlan(", "\nfunction syncManagedComposioCredentials")}\n${slice("function ensureCloudAccount() {", "\n/** The free trial")}`, context);
+  vm.runInContext(`${slice("function syncProPlan(", "\nfunction escapeHtml")}\n${slice("function ensureCloudAccount() {", "\n/** The free trial")}`, context);
   const publish = state => { signIn.state = state; signIn.options.onState(state); };
 
   assert.deepEqual(context.proPlanRelay.environment(), { [PRO_PLAN_ENV]: "0" });

@@ -28,10 +28,6 @@ describe("ToolActivity in Simple mode", () => {
     expect(html).toContain("Run a command · Failed · Tool details");
     expect(html).not.toContain('title="pnpm test --filter api"');
   });
-
-  it("names a Composio slug by its action", () => {
-    expect(render({ name: "GITHUB_GET_A_COMMIT", ok: true })).toContain("Get a commit · Completed");
-  });
 });
 
 describe("ToolActivity in Advanced mode", () => {

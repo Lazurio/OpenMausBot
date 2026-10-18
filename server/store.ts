@@ -34,10 +34,9 @@ import type {
   WireMessage, WireTask, BotProject as BotProjectRecord,
 } from "../shared/wire.ts";
 import { movesThreadToTop } from "../shared/wire.ts";
-import { parseConnectorTools } from "./connector-tools.ts";
 import { sameModelSelection } from "../shared/thread-model.ts";
 export type {
-  BotActivity, ConnectorCardData, GroupDefaultResponder, OptionCardData,
+  BotActivity, GroupDefaultResponder, OptionCardData,
   SecretRequestCardData, Surface, TaskClosedBy, TaskOpenedBy, TaskUsage,
 } from "../shared/wire.ts";
 export type { GroupTask as GroupTaskRecord, BotProject as BotProjectRecord } from "../shared/wire.ts";
@@ -211,14 +210,6 @@ function redactBotAuthored<T extends Omit<Message, "id" | "at"> & { at?: number 
       };
     }
     out.card = card;
-  }
-  if (out.connector) {
-    out.connector = {
-      ...out.connector,
-      label: redactSecretsInText(out.connector.label),
-      description: redactSecretsInText(out.connector.description),
-      error: out.connector.error ? redactSecretsInText(out.connector.error) : undefined,
-    };
   }
   if (out.secret) {
     out.secret = {
@@ -506,6 +497,10 @@ export class Store {
         for (const removed of ["surface", "surfaceSource"]) {
           if (Object.hasOwn(task, removed)) { delete (task as unknown as Record<string, unknown>)[removed]; botsMigrated = true; }
         }
+      }
+      // Lazurio overlay (DEV-6673 M3): MausBot's own connected apps, MCP server selection and outbound allowance are removed.
+      for (const removed of ["composio", "connectorTools", "connectorScopes", "mcpServers", "outbound"]) {
+        if (Object.hasOwn(b, removed)) { delete (b as unknown as Record<string, unknown>)[removed]; botsMigrated = true; }
       }
       if (b.managedSections !== undefined && (!b.chiefOfStaff || !Array.isArray(b.managedSections) ||
           b.managedSections.length > 100 || b.managedSections.some(section => typeof section !== "string" || section.length > 60))) {
@@ -1557,9 +1552,7 @@ export class Store {
         next = { id: operation.botId, threadId: operation.threadId, name: operation.fields.name,
           title: "", description: "", soul: "", notifications: true, color: COLORS[nextBots.length % COLORS.length], unread: false,
           resumeCursors: {}, createdAt, ...operation.fields, ...newBotCwd(operation.fields.cwd), modelSelection,
-          autoApprove: false, composio: false, approvePeerComms: false,
-          // Absent would mean every tool once connected apps are turned on.
-          connectorTools: {},
+          autoApprove: false, approvePeerComms: false,
           // A restricted Chief never creates a bot everyone sees.
           ...(chief.visibility && chief.visibility !== "everyone" ? { visibility: structuredClone(chief.visibility) } : {}),
           tasks: [{ threadId: operation.threadId, title: UNTITLED_THREAD, createdAt, updatedAt: createdAt, resumeCursors: {},
@@ -1676,11 +1669,6 @@ export class Store {
   patchBot(id: string, patch: Partial<BotRecord>): BotRecord | null {
     const bot = this.bot(id);
     if (!bot) return null;
-    if (patch.connectorTools !== undefined) {
-      const parsed = parseConnectorTools(patch.connectorTools);
-      if (!parsed.ok) throw new Error(parsed.error);
-      patch = { ...patch, connectorTools: parsed.grants };
-    }
     if (Object.hasOwn(patch, "toolScope")) {
       const parsed = parseToolScope(patch.toolScope);
       if (!parsed.ok) throw new Error(parsed.error);

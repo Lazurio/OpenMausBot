@@ -18,7 +18,7 @@ if (!enabled) console.log("skipping bot tools UI e2e: no agent-browser; set OMB_
 const LAUNCH_TIMEOUT_MS = forced && !binary ? 600_000 : 180_000;
 
 interface FixtureInfo { ui: string; url: string; dataDir: string; logPath: string }
-interface SavedBot { id: string; name: string; soul?: string; mcpServers?: string[]; computer?: string; browser?: boolean }
+interface SavedBot { id: string; name: string; soul?: string; computer?: string; browser?: boolean }
 
 describe("bot setup and tools in the real renderer", () => {
   let child: ChildProcess | undefined;
@@ -28,7 +28,7 @@ describe("bot setup and tools in the real renderer", () => {
     await waitForExit(child, { graceMs: 30_000 });
   });
 
-  (enabled ? it : it.skip)("creates roles, configures per-bot MCP access, and recovers a rejected preset", async () => {
+  (enabled ? it : it.skip)("creates roles, opens a bot's settings, and recovers a rejected preset", async () => {
     let stdout = "";
     let stderr = "";
     // Windows kill("SIGINT") terminates immediately instead of delivering a
@@ -129,7 +129,7 @@ describe("bot setup and tools in the real renderer", () => {
     await runControlOmb(["send", "--bot", created[0].id, "--text", "Reply briefly for the sidebar test.", "--url", info.url]);
     expect((await runControlOmb(["wait", "--bot", created[0].id, "--timeout", "20", "--url", info.url]) as { status: string }).status).toBe("settled");
     await openTools();
-    await expect.poll(snapshot, { timeout: 10_000 }).toContain("No MCP servers added yet.");
+    await expect.poll(snapshot, { timeout: 10_000 }).toContain("Working folder");
     const usageExpanded = () => evaluate("[...document.querySelectorAll('[role=dialog] button')].find(b => b.textContent.trim() === 'Usage')?.getAttribute('aria-expanded')");
     const openHeaderUsage = async () => {
       await click("More");
@@ -158,33 +158,6 @@ describe("bot setup and tools in the real renderer", () => {
     await ui("screenshot", "--out", `${info.logPath}.settings.png`);
     await click("Overview");
     await expect.poll(snapshot, { timeout: 10_000 }).toContain("Optional ways to customize this bot. You can start chatting now.");
-    await click("Access");
-    await click("Add an MCP server…");
-    // The registry loads on mount; Paste config is disabled until it finishes.
-    await expect.poll(() => evaluate("[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Paste config')?.disabled"), { timeout: 10_000 }).toBe(false);
-    await click("Paste config");
-    await expect.poll(() => evaluate("Boolean(document.querySelector('textarea[aria-label=\"Paste config\"]'))"), { timeout: 10_000 }).toBe(true);
-    const pasted = await ui("snapshot", "--interactive");
-    const textarea = Object.entries(pasted.refs as Record<string, { role: string; name: string }>)
-      .find(([, entry]) => entry.role === "textbox" && entry.name === "Paste config");
-    expect(textarea).toBeDefined();
-    await ui("type", "--ref", `@${textarea![0]}`, "--text", JSON.stringify({ mcpServers: {
-      fixture: { command: process.execPath, args: ["-e", "process.exit(0)"] },
-    } }));
-    await click("Add servers");
-    const registry = async () => (await fetch(`${info.url}/api/mcp/servers`).then((response) => response.json())).servers;
-    await expect.poll(registry, { timeout: 10_000 }).toMatchObject([{ name: "fixture", enabled: false }]);
-    await expect.poll(snapshot, { timeout: 10_000 }).toContain("Turn fixture on");
-    await click("Turn fixture on");
-    await expect.poll(registry, { timeout: 10_000 }).toMatchObject([{ name: "fixture", enabled: true }]);
-    await press("Escape");
-    await openTools();
-    await expect.poll(() => evaluate("document.querySelector('[aria-label=\"Let this bot use fixture\"]')?.getAttribute('aria-checked')"), { timeout: 10_000 }).toBe("true");
-    await click("Let this bot use fixture");
-    await expect.poll(async () => (await bots()).find((bot) => bot.id === created[0].id)?.mcpServers, { timeout: 10_000 }).toEqual([]);
-    await press("Escape");
-    await openTools();
-    await expect.poll(() => evaluate("document.querySelector('[aria-label=\"Let this bot use fixture\"]')?.getAttribute('aria-checked')"), { timeout: 10_000 }).toBe("false");
 
     // Opening New Bot above settings must replace the old modal, not leave
     // two focus traps competing. Escape closes only the one remaining layer.

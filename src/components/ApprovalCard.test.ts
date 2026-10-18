@@ -489,87 +489,6 @@ describe("ApprovalCard expired proposals", () => {
   });
 });
 
-describe("ApprovalCard outbound holds", () => {
-  const subtitle = [
-    "Linear · Create linear comment",
-    '{"issueId":"2f04bc73","body":"In flight"}',
-    "",
-    "Linear · Create linear comment",
-    '{"issueId":"1c2755f","body":"From Discord"}',
-  ].join("\n");
-  const outboundMessage = (answered?: string): Message => ({
-    id: "outbound-card",
-    role: "bot",
-    kind: "options",
-    at: 1,
-    card: {
-      title: "Send on your behalf?",
-      subtitle,
-      options: ["Allow", "Deny"],
-      requestId: "req-outbound",
-      tool: "LINEAR_CREATE_LINEAR_COMMENT",
-      heldCode: "approval.held.outbound",
-      held: "This sends something on your behalf, so it always asks first.",
-      answered,
-      outboundRequest: {
-        tool: "LINEAR_CREATE_LINEAR_COMMENT",
-        app: "Linear",
-        calls: [
-          { app: "Linear", label: "Create linear comment" },
-          { app: "Linear", label: "Create linear comment" },
-        ],
-      },
-    },
-  });
-  const bot = { id: "bot-1", name: "Kiwi" } as never as Bot;
-
-  it("names the app and the actions instead of the tool slug", () => {
-    const html = renderToStaticMarkup(createElement(ApprovalCard, { bot, message: outboundMessage() }));
-    expect(html).toContain("Send to Linear?");
-    expect(html).toContain("Create linear comment ×2");
-    expect(html).not.toContain("LINEAR CREATE LINEAR COMMENT");
-    expect(html).not.toContain("LINEAR_CREATE_LINEAR_COMMENT");
-    expect(html).not.toContain("issueId");
-    expect(html).toContain('class="sr-only"');
-    expect(html).toContain("Waiting for your answer below");
-  });
-
-  it("settles into one quiet line", () => {
-    const html = renderToStaticMarkup(createElement(ApprovalCard, { bot, message: outboundMessage("allow") }));
-    expect(html).toContain('data-approval-row="settled"');
-    expect(html).toContain("Send to Linear</span>");
-    expect(html).toContain("· Create linear comment ×2");
-    expect(html).toContain("· Allowed");
-    expect(html).not.toContain("issueId");
-    expect(html).not.toContain("always asks first");
-  });
-
-  it("heads the composer strip the same way", () => {
-    const [pending] = pendingApprovals([outboundMessage()]);
-    const strip = renderToStaticMarkup(createElement(PendingApprovalPanel, { pending: pending!, count: 1, index: 0 }));
-    expect(strip).toContain("Send to Linear?");
-    expect(strip).toContain("Create linear comment ×2");
-    expect(strip).not.toContain("Approval requested");
-    expect(strip).not.toContain("LINEAR_CREATE_LINEAR_COMMENT");
-  });
-
-  it("reads the subtitle back for a card from an older computer", () => {
-    const message = outboundMessage();
-    message.card!.outboundRequest = { tool: "LINEAR_CREATE_LINEAR_COMMENT", app: "Linear" };
-    const html = renderToStaticMarkup(createElement(ApprovalCard, { bot, message }));
-    expect(html).toContain("Send to Linear?");
-    expect(html).toContain("Create linear comment ×2");
-  });
-
-  it("phrases a Composio slug on a plain permission card as words", () => {
-    const message = outboundMessage();
-    message.card!.outboundRequest = undefined;
-    message.card!.tool = "mcp__composio__LINEAR_CREATE_LINEAR_COMMENT";
-    const html = renderToStaticMarkup(createElement(ApprovalCard, { bot, message }));
-    expect(html).toContain("Kiwi wants to create linear comment");
-  });
-});
-
 describe("ApprovalCard for a change that applied on its own", () => {
   const applied = (card: Partial<NonNullable<Message["card"]>>): Message => ({
     id: "applied-card",
@@ -700,24 +619,6 @@ describe("one approval, one card", () => {
       ...(answered ? { answered } : {}),
     },
   });
-  const proxy = (answered?: string): Message => ({
-    id: "proxy-card",
-    role: "bot",
-    kind: "options",
-    at: 1,
-    card: {
-      title: "Send on your behalf?",
-      subtitle: 'Composio · Proxy execute\n{"code_to_execute":"res, err = run_composio_tool(\\"GITHUB_GET_A_COMMIT\\", {})"}',
-      options: ["Allow", "Deny"],
-      requestId: "r-proxy",
-      tool: "COMPOSIO_PROXY_EXECUTE",
-      heldCode: "approval.held.outbound",
-      held: "This sends something on your behalf, so it always asks first.",
-      outboundRequest: { tool: "COMPOSIO_PROXY_EXECUTE", app: "Composio", calls: [{ app: "Composio", label: "Proxy execute" }] },
-      ...(answered ? { answered } : {}),
-    },
-  });
-
   it("keeps a waiting command to one line in the transcript, the composer holds the decision", () => {
     const line = renderToStaticMarkup(createElement(ApprovalCard, { bot: { name: "Dev" }, message: command() }));
     expect(line).toContain('data-approval-row="pending"');
@@ -753,32 +654,13 @@ describe("one approval, one card", () => {
     expect(line).toContain("· Denied");
   });
 
-  it("names code run on Composio plainly and keeps the code behind Details", () => {
-    const line = renderToStaticMarkup(createElement(ApprovalCard, { bot: { name: "Ursa" }, message: proxy("allow") }));
-    expect(line).toContain("Run code on Composio</span>");
-    expect(line).toContain("· Allowed");
-    expect(line).not.toContain("Proxy execute");
-    expect(line).not.toContain("code_to_execute");
-    expect(line).not.toContain("always asks first");
-
-    const [pending] = pendingApprovals([proxy()]);
-    const panel = renderToStaticMarkup(createElement(PendingApprovalPanel, { pending: pending!, count: 1, index: 0, botName: "Ursa" }));
-    const row = visibleRow(panel);
-    expect(row).toContain("Run code on Composio?");
-    expect(row).not.toContain("code_to_execute");
-    expect(row).toContain('aria-label="Details"');
-    expect(row).toContain(">May send</span>");
-    expect(row).toContain('title="This runs code that could send or change things in your apps, so it always asks first."');
-    expect(panel).not.toContain("This sends something");
-    expect(panel.slice(panel.indexOf('id="approval-details-'))).toContain("code_to_execute");
-  });
-
-  it("keeps a real send's arguments under the composer details", () => {
-    const send: Message = { ...proxy(), card: { ...proxy().card!, subtitle: 'Slack · Send message\n{"text":"hi"}', tool: "SLACK_SEND_MESSAGE",
-      outboundRequest: { tool: "SLACK_SEND_MESSAGE", app: "Slack", calls: [{ app: "Slack", label: "Send message" }] } } };
+  it("flags a held send with the held note and keeps its arguments under the composer details", () => {
+    const send: Message = { ...command(), card: { ...command().card!, subtitle: '{"text":"hi"}', tool: "SLACK_SEND_MESSAGE",
+      heldCode: "approval.held.outbound", held: "This sends something on your behalf, so it always asks first." } };
     const [pending] = pendingApprovals([send]);
     const panel = renderToStaticMarkup(createElement(PendingApprovalPanel, { pending: pending!, count: 1, index: 0 }));
-    expect(panel).toContain("Send to Slack?");
+    expect(visibleRow(panel)).toContain('title="This sends something on your behalf, so it always asks first."');
+    expect(panel).not.toContain("May send");
     expect(panel).toContain("{&quot;text&quot;:&quot;hi&quot;}");
   });
 });

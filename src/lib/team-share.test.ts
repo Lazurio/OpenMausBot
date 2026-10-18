@@ -161,10 +161,8 @@ describe("part names", () => {
   it("turns part paths into words and never shows a value", () => {
     expect(describePart("agents[scout].soul", document)).toBe("Scout · standing instructions");
     expect(describePart('agents[scout].seed.memory["memory/pricing.md"]', document)).toBe("Scout · starter notes · memory/pricing.md");
-    expect(describePart("connections[crm].mcp.url", document)).toBe("CRM · address");
     expect(describePart("team.brief", document)).toBe("shared instructions");
     expect(describePart("package.summary", document)).toBe("summary");
-    expect(describeSkip({ part: "connections[local]", reason: "stdio_server" }, document)).toBe("local · connection — runs a command on this computer, so it is not shared");
     expect(describeSkip({ part: "agents[scout].appearance.avatar", reason: "something_new" }, document)).toBe("Scout · picture — something_new");
     expect(describeSkip({ part: "agents[scout].skills[step-31]", reason: "bot_skill_limit" }, document))
       .toBe("Scout · skill · step-31 — a bot can share at most 30 skills (switched-on skills go first)");

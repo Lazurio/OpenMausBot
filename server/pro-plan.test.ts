@@ -23,7 +23,7 @@ describe("ProPlan", () => {
 
   it("lets other private messages pass, and refuses a malformed one without changing the answer", () => {
     const plan = new ProPlan({ cloudHome: false, env: proPlanEnvironment(true), log: () => {} });
-    expect(plan.receive({ type: "openmausbot:managed-composio", access: null })).toBe(false);
+    expect(plan.receive({ type: "openmausbot:other", access: null })).toBe(false);
     expect(plan.receive(undefined)).toBe(false);
     expect(() => plan.receive({ type: PRO_PLAN_MESSAGE, pro: "no" })).toThrow(/Pro plan/);
     expect(plan.liveCallsAllowed()).toBe(true);

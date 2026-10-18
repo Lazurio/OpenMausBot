@@ -26,7 +26,7 @@ mcp:mail:read_notes
 ```
 
 `native:*` includes the engine's native tools. `mcp:mail:*` includes all tools
-on the configured server named `mail`. Partial wildcards, such as
+on the MCP server named `mail`. Partial wildcards, such as
 `native:read*`, are invalid. A valid name that is not available selects
 nothing; it does not fall back to all tools. The Allow and Exclude lists each
 accept up to 256 selectors, with at most 1024 characters per selector.
@@ -53,9 +53,8 @@ native:write
 mcp:mail:read_notes
 ```
 
-Select the `mail` server in the existing MCP servers card too. A selector
-does not enable a disabled server, connect an account, or grant integration
-access.
+A selector does not enable a disabled server, connect an account, or grant
+integration access.
 
 **Grok CLI with one custom MCP tool** needs its native lookup and call tools
 explicitly selected:

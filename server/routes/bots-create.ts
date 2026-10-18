@@ -6,7 +6,6 @@ import type { createCloudRoutineAuthors } from "../cloud-lending.ts";
 import type { AppConfig } from "../config.ts";
 import type { ModelSelection } from "../contracts.ts";
 import type { hostedModelPolicy } from "../hosted-models.ts";
-import { MAX_MCP_SERVERS, mcpServerNameError } from "../mcp-registry.ts";
 import { journalMemoryWrite } from "../memory-journal.ts";
 import { resolveBotCreationDefaults } from "../new-bot-defaults.ts";
 import { PRESET_UNAVAILABLE_MESSAGE, applyPresetToBot, presetOffered, type OrgInstallStatus, type PresetStore } from "../presets.ts";
@@ -85,9 +84,6 @@ export function createBotCreateRoutes(deps: BotCreateRouteDeps): RouteHandler {
       if (settings.browserProfile && settings.browserProfile !== "guest" && !(cfg.browserProfiles ?? []).some(profile => profile.id === settings.browserProfile)) {
         return json(res, 400, { error: "browserProfile must name an existing browser profile" });
       }
-      if (settings.mcpServers?.some(name => mcpServerNameError(name) !== null) || (settings.mcpServers?.length ?? 0) > MAX_MCP_SERVERS) {
-        return json(res, 400, { error: "Invalid MCP server selection" });
-      }
       if (settings.managedSections?.length) {
         if (!settings.chiefOfStaff || settings.managedSections.some(name => name !== "" && !store.sections.includes(name))) {
           return json(res, 400, { error: "Only a Chief may manage existing additional teams" });
@@ -150,7 +146,7 @@ export function createBotCreateRoutes(deps: BotCreateRouteDeps): RouteHandler {
           // Lazurio: a request that names no folder keeps the one creation gave
           // the bot (OMB_DEFAULT_BOT_CWD); an explicit empty one still clears it.
           cwd: settings.cwd === undefined ? bot.cwd : checkedCwd.cwd ?? undefined,
-          peers: ordinary.peers ?? undefined, mcpServers: ordinary.mcpServers ?? undefined,
+          peers: ordinary.peers ?? undefined,
           browserProfile: ordinary.browserProfile || undefined,
           autoApprove: ordinary.approvalMode === "auto",
         });

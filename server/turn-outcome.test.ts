@@ -118,16 +118,16 @@ const call = (name: string, ok: boolean, fields: Partial<NonNullable<Message["to
 
 describe("outwardActions", () => {
   it("names the sends, posts and payments a turn completed, once each, in order", () => {
-    const rows = [call("GMAIL_SEND_EMAIL", true), call("GMAIL_FETCH_EMAILS", true), call("mcp__composio__SLACK_SEND_MESSAGE", true),
-      call("GMAIL_SEND_EMAIL", true), call("COMPOSIO_PROXY_EXECUTE", true), call("Read", true), call("mcp__agents__coordinate_bots", true)];
-    expect(outwardActions(rows)).toEqual(["GMAIL_SEND_EMAIL", "mcp__composio__SLACK_SEND_MESSAGE", "COMPOSIO_PROXY_EXECUTE"]);
+    const rows = [call("GMAIL_SEND_EMAIL", true), call("GMAIL_FETCH_EMAILS", true), call("mcp__chat__SLACK_SEND_MESSAGE", true),
+      call("GMAIL_SEND_EMAIL", true), call("Read", true), call("mcp__agents__coordinate_bots", true)];
+    expect(outwardActions(rows)).toEqual(["GMAIL_SEND_EMAIL", "mcp__chat__SLACK_SEND_MESSAGE"]);
   });
 
   it("reads a commit, a push or a payment out of a shell command, by any engine's name for the shell", () => {
     expect(outwardActions([call("Bash", true, { input: '{\n  "command": "git add -A && git commit -m \\"export\\""\n}' })])).toEqual(["git commit"]);
     expect(outwardActions([call("shell", true, { summary: "git push origin main" })])).toEqual(["git push"]);
     expect(outwardActions([call("mcp__dev-tools__exec", true, { input: "stripe charge create --amount 500" })])).toEqual(["charge"]);
-    expect(outwardActions([call("COMPOSIO_REMOTE_BASH_TOOL", true, { input: "git commit -am x && git push" })])).toEqual(["git commit", "git push"]);
+    expect(outwardActions([call("mcp__remote__bash", true, { input: "git commit -am x && git push" })])).toEqual(["git commit", "git push"]);
     expect(outwardActions([call("Bash", true, { input: "git log --oneline | grep pushed" })])).toEqual([]);
     expect(outwardActions([call("Read", true, { input: "docs/git push.md" })])).toEqual([]);
     expect(outwardActions([call("Bash", true, { input: "echo hi" })])).toEqual([]);

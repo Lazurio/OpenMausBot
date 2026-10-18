@@ -1,9 +1,8 @@
 // Packages are untrusted: import only adds new records, sets every privilege-bearing field itself, and rolls back on any failure.
 import { createHash, randomUUID } from "node:crypto";
 
-import { mcpServerNameError, MAX_MCP_SERVERS, parseStoredMcpServer } from "./mcp-registry.ts";
 import {
-  AGENT_PARTS, agentReleaseValues, connectionLocalValue, connectionReleaseValue, pair, pairs, playbookValues,
+  AGENT_PARTS, agentReleaseValues, pair, pairs, playbookValues,
   ROOM_PARTS, roomReleaseValues, ROUTINE_PARTS, routineReleaseValues, scheduleValue, sha256Hex, TEAM_PARTS,
   type AgentPart, type PartPair, type TeamPart,
 } from "./package-parts.ts";
@@ -52,11 +51,6 @@ export interface PackageImportDeps {
   memory: {
     writeIndex(botId: string, text: string): void;
     writeTopic(botId: string, name: string, text: string): void;
-  };
-  mcp: {
-    servers(): Readonly<Record<string, unknown>>;
-    refusal(name: string, server: object): string | undefined;
-    persist(next: Record<string, unknown>): void;
   };
   sections: { writeBrief(section: string, text: string): void };
   images: { save(bytes: Uint8Array, mime: string): string };
@@ -133,17 +127,6 @@ export function memberFromAgent(agent: PackageAgent): TeamManifestMember {
       ...(agent.appearance.mascotBody ? { mascotBody: agent.appearance.mascotBody } : {}),
     },
   };
-}
-
-/** Never an existing or reserved name, so a slot can never bind to credentials already here. */
-function freeServerName(key: string, taken: Readonly<Record<string, unknown>>): string | null {
-  for (let n = 1; n < 100; n += 1) {
-    const name = n === 1 ? key : `${key}-${n}`;
-    if (name.length > 32) return null;
-    if (mcpServerNameError(name) || Object.hasOwn(taken, name)) continue;
-    return name;
-  }
-  return null;
 }
 
 type ImportSource =
@@ -227,7 +210,6 @@ function runImport(source: ImportSource, options: PackageImportOptions, deps: Pa
   const importedBots: BotRecord[] = [];
   const createdGroups: GroupRecord[] = [];
   const createdRoutines: Routine[] = [];
-  const createdServers: string[] = [];
   const createdPresets: string[] = [];
   const skipped: ImportSkip[] = [];
   const orgIndex: OrgInstallIndex = { kind: "team", section: "", team: { parts: {} }, bots: {}, rooms: {}, routines: {}, connections: {} };
@@ -246,41 +228,8 @@ function runImport(source: ImportSource, options: PackageImportOptions, deps: Pa
     // Always a new section: never merge into an existing one or replace its Chief.
     section = takeImportName(teamName, existingSections, 60);
 
-    const serverForKey = new Map<string, string>();
+    // Lazurio overlay (DEV-6673 M3): a package's MCP connections are not imported; MCP servers come from the bot's folder.
     const connections: PackageImportResult["connections"] = [];
-    if (pkg?.connections?.length) {
-      const next: Record<string, unknown> = { ...deps.mcp.servers() };
-      for (const connection of pkg.connections) {
-        const part = `connections[${connection.key}]`;
-        if (Object.keys(next).length >= MAX_MCP_SERVERS) {
-          skipped.push({ part, reason: "too_many_connections" });
-          continue;
-        }
-        const serverName = freeServerName(connection.key, next);
-        const server = {
-          type: connection.mcp.transport,
-          url: connection.mcp.url,
-          ...(connection.mcp.valueNames.length ? { headers: Object.fromEntries(connection.mcp.valueNames.map((header) => [header, ""])) } : {}),
-          enabled: false,
-        };
-        if (!serverName || !parseStoredMcpServer(serverName, server).ok) {
-          skipped.push({ part, reason: "connection_invalid" });
-          continue;
-        }
-        if (deps.mcp.refusal(serverName, server)) {
-          skipped.push({ part, reason: "connection_refused_by_policy" });
-          continue;
-        }
-        next[serverName] = server;
-        createdServers.push(serverName);
-        serverForKey.set(connection.key, serverName);
-        connections.push({ key: connection.key, name: serverName, label: connection.label });
-        if (org) {
-          orgIndex.connections[connection.key] = { name: serverName, ...pair(connectionReleaseValue(connection), connectionLocalValue(server)) };
-        }
-      }
-      if (createdServers.length) deps.mcp.persist(next);
-    }
 
     const playbookByKey = new Map((pkg?.playbooks ?? []).map((playbook) => [playbook.key, playbook]));
     const skillByName = new Map((pkg?.skills?.entries ?? []).map((skill) => [skill.name, skill]));
@@ -322,15 +271,12 @@ function runImport(source: ImportSource, options: PackageImportOptions, deps: Pa
             ...(org ? { publisher: { ...org.publisher }, ref: org.ref, sha256: org.sha256 } : {}),
           }
         : undefined;
-      // No connected apps (absence would mean allowed) and no approval level: an imported bot starts at the defaults.
+      // No approval level: an imported bot starts at the defaults.
       store.patchBot(created.id, {
-        composio: false,
-        connectorTools: {},
         // The publisher's choice, with no card: recording only keeps evidence in this workspace.
         ...(agent?.recordBrowserSteps === true ? { recordBrowserSteps: true } : {}),
         ...(playbooks.length ? { playbooks } : {}),
         ...(installed ? { installedPackage: installed } : {}),
-        ...(agent?.connections ? { mcpServers: agent.connections.flatMap((key) => serverForKey.has(key) ? [serverForKey.get(key)!] : []) } : {}),
         ...avatar,
       });
       for (const skillName of agent?.skills ?? []) {
@@ -365,7 +311,7 @@ function runImport(source: ImportSource, options: PackageImportOptions, deps: Pa
           },
           playbooks: playbookValues(written.playbooks ?? []),
           skills: [...(agent.skills ?? [])].sort(),
-          connections: [...(written.mcpServers ?? [])].sort(),
+          connections: [],
           approval: "ask",
         };
         store.patchBot(created.id, { packageBase: pairs(AGENT_PARTS, agentReleaseValues(agent, playbookByKey), local) });
@@ -495,11 +441,6 @@ function runImport(source: ImportSource, options: PackageImportOptions, deps: Pa
     for (const created of createdGroups) store.deleteGroup(created.id);
     for (const bot of importedBots) store.deleteBot(bot.id);
     deps.presets?.remove(createdPresets);
-    if (createdServers.length) {
-      const next: Record<string, unknown> = { ...deps.mcp.servers() };
-      for (const serverName of createdServers) delete next[serverName];
-      deps.mcp.persist(next);
-    }
     if (section && store.sections.includes(section)) store.changeEmptySection(section, null);
     throw error;
   }

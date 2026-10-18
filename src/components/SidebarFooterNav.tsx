@@ -1,4 +1,4 @@
-import { FolderOpen, Network, Puzzle, Zap } from "lucide-react";
+import { FolderOpen, Network, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
@@ -60,28 +60,6 @@ function NavRow({
   );
 }
 
-export function SidebarAppsButton() {
-  const { state, dispatch } = useStore();
-  const label = t("sidebar.nav.apps");
-  return (
-    <button
-      type="button"
-      data-tour="nav-apps"
-      data-sidebar-nav="apps"
-      onClick={() => dispatch({ type: "togglePlugins", open: true })}
-      aria-label={label}
-      title={label}
-      aria-pressed={state.pluginsOpen}
-      className={cn(
-        "flex size-[46px] shrink-0 items-center justify-center rounded-xl transition-colors",
-        state.pluginsOpen ? "bg-raised text-accent" : "text-ink-secondary hover:bg-raised/50 hover:text-ink",
-      )}
-    >
-      <Puzzle size={18} />
-    </button>
-  );
-}
-
 export function SidebarFooterNav({
   density,
   rail = false,
@@ -127,16 +105,6 @@ export function SidebarFooterNav({
   const rows = (
     <>
       {automationsRow}
-      {iconsOnly && <NavRow
-        id="apps"
-        label={t("sidebar.nav.apps")}
-        tourId="nav-apps"
-        iconsOnly={iconsOnly}
-        rail={rail}
-        active={state.pluginsOpen}
-        icon={(active) => <Puzzle size={iconSize} className={tone(active)} />}
-        onClick={() => dispatch({ type: "togglePlugins", open: true })}
-      />}
       {advanced && (
         <NavRow
           id="team-map"

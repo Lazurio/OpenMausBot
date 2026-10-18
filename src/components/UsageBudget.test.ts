@@ -13,7 +13,6 @@ afterEach(() => vi.unstubAllGlobals());
 
 function config(features: string[], extra: Partial<ConfigStatus> = {}): ConfigStatus {
   return {
-    composio: { configured: false },
     rooms: { turnTimeoutMinutes: 30 },
     edition: { edition: features.length ? "enterprise" : "oss", features },
     ...extra,

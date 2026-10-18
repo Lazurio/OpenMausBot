@@ -240,7 +240,6 @@ describe("find_tool", () => {
     ["change my name and title", "propose_profile"],
     ["switch this bot to a different model", "propose_model"],
     ["search my earlier conversations", "session_search"],
-    ["add an MCP server", "add_mcp_server"],
     ["see how the threads I opened are going", "list_threads"],
     ["write a line to today's log", "memory_log"],
     ["remember a decision for the whole team", "propose_team_memory"],

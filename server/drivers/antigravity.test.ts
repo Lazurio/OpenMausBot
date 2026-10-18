@@ -717,7 +717,7 @@ describe("Antigravity driver over shared ACP", () => {
       resumeCursor: "fake-acp-session",
       model: "gemini-3.8-flash-low",
       integrations: {
-        custom: { docs: { command: "docs-mcp", args: ["serve"], env: { TOKEN: "scoped" } } },
+        data: { command: "data-mcp", args: ["serve"], env: { TOKEN: "scoped" } },
       },
       cwd: fake.directory,
     });
@@ -737,7 +737,7 @@ describe("Antigravity driver over shared ACP", () => {
       { method: "session/set_config_option", params: { sessionId: "fake-acp-session", configId: "mode", value: approvalMode === "full" ? "yolo" : approvalMode === "edits" ? "auto_edit" : "default" } },
     ]);
     const mcp = JSON.parse(readFileSync(`${dump}.mcp.json`, "utf8"));
-    expect(mcp).toEqual([{ name: "docs", command: "docs-mcp", args: ["serve"], env: [{ name: "TOKEN", value: "scoped" }] }]);
+    expect(mcp).toEqual([{ name: "data", command: "data-mcp", args: ["serve"], env: [{ name: "TOKEN", value: "scoped" }] }]);
     // Checked on every OS, so the macOS and Linux runs prove the dump carries TEMP.
     const expectedTemp = process.platform === "win32" ? antigravityTempDir(DATA_DIR, instanceId) : fake.directory;
     expect([dumpState.env.TEMP, dumpState.env.TMP]).toEqual([expectedTemp, expectedTemp]);

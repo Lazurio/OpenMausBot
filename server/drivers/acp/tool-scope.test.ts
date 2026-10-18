@@ -143,20 +143,20 @@ it("refuses an unsupported inherited Grok harness before spawning instead of ove
 
 it("gates eligible ACP servers and retires a pooled process when selection changes", async () => {
   const f = await fixture(GeminiAgentDriver);
-  const turn = { threadId: "scoped", text: "Fixture", approvalMode: "full" as const, toolScope: { allow: ["native:*", "mcp:notes:read"] }, integrations: {
+  const turn = { threadId: "scoped", text: "Fixture", approvalMode: "full" as const, toolScope: { allow: ["native:*", "mcp:data:read"] }, integrations: {
     agents: { command: "node", args: ["agents"], env: {} },
-    custom: { notes: { type: "http" as const, url: "https://example.test/mcp", headers: { authorization: "Bearer synthetic" } } },
+    data: { command: "node", args: ["data"], env: { OMB_DATA_TOKEN: "synthetic-capability" } },
   } };
   await f.instance.adapter.sendTurn(turn);
   await f.recorder.until((event) => event.type === "turn.completed");
   const servers = JSON.parse(readFileSync(`${f.dump}.mcp.json`, "utf8"));
-  expect(servers.map((server: { name: string }) => server.name)).toEqual(["notes"]);
+  expect(servers.map((server: { name: string }) => server.name)).toEqual(["data"]);
   const env = Object.fromEntries(servers[0].env.map((entry: { name: string; value: string }) => [entry.name, entry.value]));
-  expect(JSON.parse(env.OMB_GATE_TOOL_SCOPE)).toEqual({ allow: ["native:*", "mcp:notes:read"] });
-  expect(servers[0].args).not.toContain("Bearer synthetic");
+  expect(JSON.parse(env.OMB_GATE_TOOL_SCOPE)).toEqual({ allow: ["native:*", "mcp:data:read"] });
+  expect(JSON.stringify(servers[0].args)).not.toContain("synthetic-capability");
   const before = Number(readFileSync(f.launches, "utf8"));
   f.recorder.events.length = 0;
-  await f.instance.adapter.sendTurn({ ...turn, toolScope: { allow: ["native:*", "mcp:notes:write"] } });
+  await f.instance.adapter.sendTurn({ ...turn, toolScope: { allow: ["native:*", "mcp:data:write"] } });
   await f.recorder.until((event) => event.type === "turn.completed");
   expect(Number(readFileSync(f.launches, "utf8"))).toBe(before + 1);
 });

@@ -105,15 +105,6 @@ describe("what the app may do", () => {
     ["POST", "/api/routines/routine_1/run"],
     ["POST", "/api/routine-runs/run_1/cancel"],
     ["POST", "/api/routine-runs/run_1/seen"],
-    ["GET", "/api/connectors/catalog"],
-    ["GET", "/api/connectors/connected"],
-    ["GET", "/api/connectors"],
-    ["POST", "/api/connectors/slack/authorize"],
-    ["DELETE", "/api/connectors/slack/accounts/ca_123"],
-    ["GET", "/api/bots/bot_123/connector-cards/msg_2/status"],
-    ["POST", "/api/bots/bot_123/connector-cards/msg_2/authorize"],
-    ["POST", "/api/bots/bot_123/connector-cards/msg_2/resume"],
-    ["POST", "/api/bots/bot_123/connector-cards/msg_2/dismiss"],
     ["POST", "/api/bots/bot_123/secret-cards/msg_2/resume"],
     ["POST", "/api/bots/bot_123/secret-cards/msg_2/dismiss"],
     ["POST", "/api/bots/bot_123/sign-in-cards/msg_3/done"],
@@ -135,7 +126,6 @@ describe("what it may not", () => {
       ["POST", "/api/local-computer/start"],
       ["POST", "/api/webhooks"],
       ["POST", "/api/webhooks/wh_1/rotate"],
-      ["DELETE", "/api/connectors/gmail"],
       ["POST", "/api/teams/import"],
     ] as Array<[string, string]>) {
       const denial = ask(method, path);
@@ -262,7 +252,9 @@ describe("what it may not", () => {
     expect(allowed("POST", "/api/routine-runs/run_1/retry")).toBe(false);
     expect(allowed("DELETE", "/api/connectors/slack")).toBe(false);
     expect(allowed("GET", "/api/connectors/connected/all")).toBe(false);
-    expect(allowed("DELETE", "/api/connectors/slack/accounts/ca_123")).toBe(true);
+    expect(allowed("DELETE", "/api/connectors/slack/accounts/ca_123")).toBe(false);
+    expect(allowed("GET", "/api/connectors")).toBe(false);
+    expect(allowed("POST", "/api/bots/bot_123/connector-cards/msg_2/resume")).toBe(false);
     expect(allowed("DELETE", "/api/connectors/slack/accounts/../gmail")).toBe(false);
     expect(allowed("POST", "/api/bots/bot_123/secret-cards/msg_2/provided")).toBe(false);
     expect(allowed("POST", "/api/bots/bot_123/sign-in-cards/msg_3/resume")).toBe(false);

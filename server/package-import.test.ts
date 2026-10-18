@@ -9,7 +9,7 @@ const FIXTURES = join(import.meta.dirname, "..", "shared", "package-fixtures");
 const fixture = (name: string): any => JSON.parse(readFileSync(join(FIXTURES, name), "utf8"));
 let home: string;
 
-async function installation(options: { refuse?: (name: string) => string | undefined; servers?: Record<string, unknown> } = {}) {
+async function installation() {
   home = mkdtempSync(join(tmpdir(), "omb-package-import-"));
   vi.resetModules();
   vi.stubEnv("HOME", home);
@@ -31,26 +31,20 @@ async function installation(options: { refuse?: (name: string) => string | undef
     createTask: () => null,
     startTurn: async () => {},
   });
-  const mcp = { servers: { ...options.servers } as Record<string, unknown> };
   const events: string[] = [];
   const deps = {
     store,
     routines,
     skills: { install: skills.installSkill, setEnabled: skills.setSkillEnabled, installOrg: skills.installOrgSkill },
     memory: { writeIndex: workspace.writeMemoryFile, writeTopic: workspace.writeMemoryTopic },
-    mcp: {
-      servers: () => mcp.servers,
-      refusal: (name: string) => options.refuse?.(name),
-      persist: (next: Record<string, unknown>) => { mcp.servers = next; },
-    },
     sections: { writeBrief: (section: string, text: string) => void sections.writeSectionContext(section, text) },
     images: { save: (bytes: Uint8Array, mime: string) => botAvatarUrlFromStoredPath(saveImage(Buffer.from(bytes), mime).path)! },
     broadcast: (event: { kind: string }) => { events.push(event.kind); },
     defaultSelection: () => ({ instanceId: "claude", model: "default-model" }),
   };
   const snapshot = () => JSON.stringify({ bots: store.bots.map((bot) => bot.id), groups: store.groups.map((group) => group.id),
-    routines: routines.listRoutines().map((routine) => routine.id), sections: store.sections, servers: mcp.servers });
-  return { store, routines, skills, workspace, sections, importer, parsePackageDocument, deps, mcp, events, snapshot };
+    routines: routines.listRoutines().map((routine) => routine.id), sections: store.sections });
+  return { store, routines, skills, workspace, sections, importer, parsePackageDocument, deps, events, snapshot };
 }
 
 afterEach(async () => {
@@ -61,8 +55,8 @@ afterEach(async () => {
 });
 
 describe("importing a whole team", () => {
-  it("adds every part from a file: persona, picture, brief, Chief, rooms, paused routines, skills off, valueless connections, notes", async () => {
-    const app = await installation({ servers: { crm: { type: "http", url: "https://existing.example.com", headers: { Authorization: "Bearer mine" }, enabled: true } } });
+  it("adds every part from a file: persona, picture, brief, Chief, rooms, paused routines, skills off, no connections, notes", async () => {
+    const app = await installation();
     const document: PackageDocument = app.parsePackageDocument(fixture("full-team.v2.json"));
     const result = app.importer.importPackageDocument(document, { trust: "file", mode: "add" }, app.deps);
     if (result.alreadyAdded) throw new Error("unexpected");
@@ -73,7 +67,7 @@ describe("importing a whole team", () => {
     expect(lead).toMatchObject({
       name: "Morgan", title: "Sales lead", soul: "You coordinate the desk. Keep answers short and cite the price list.\n",
       color: "purple", mascotExpression: "focused", section: "Sales desk", chiefOfStaff: true,
-      composio: false, connectorTools: {}, avatarCrop: "circle", modelSelection: { instanceId: "claude", model: "default-model" },
+      avatarCrop: "circle", modelSelection: { instanceId: "claude", model: "default-model" },
       playbooks: [expect.objectContaining({ key: "qualify" })],
       installedPackage: { id: "sales-desk", release: "1.3.0", source: "file", agentKey: "lead", suggestedApproval: "auto",
         requiredApps: [expect.objectContaining({ slug: "hubspot" })] },
@@ -98,11 +92,7 @@ describe("importing a whole team", () => {
       expect.objectContaining({ name: "research-brief", enabled: false }),
     ]);
     expect(result.offeredSkills).toEqual(["objection-handling"]);
-    expect(result.connections).toEqual([{ key: "crm", name: "crm-2", label: "CRM" }]);
-    expect(app.mcp.servers["crm-2"]).toEqual({ type: "http", url: "https://mcp.example.com/crm", headers: { Authorization: "" }, enabled: false });
-    expect(app.mcp.servers.crm).toMatchObject({ headers: { Authorization: "Bearer mine" } });
-    expect(lead.mcpServers).toEqual(["crm-2"]);
-    expect(byKey.get("writer")!.mcpServers).toBeUndefined();
+    expect(result.connections).toEqual([]);
     expect(app.workspace.readMemoryFile(lead.id).text).toContain("short summaries");
     expect(app.workspace.readMemoryTopic(lead.id, "pricing.md")).toContain("49 per seat");
     expect(result.notes).toBe(2);
@@ -145,18 +135,6 @@ describe("importing a whole team", () => {
     expect(second.section).toBe("Sales desk 2");
     expect(second.bots[0]!.name).toBe("Morgan 2");
     expect(second.installId).not.toBe(first.installId);
-    expect(second.connections[0]!.name).toBe("crm-2");
-  });
-
-  it("records a connection the organization's policy refuses and imports the rest", async () => {
-    const app = await installation({ refuse: (name) => (name === "crm" ? "Not approved by Acme." : undefined) });
-    const result = app.importer.importPackageDocument(app.parsePackageDocument(fixture("full-team.v2.json")), { trust: "file", mode: "add" }, app.deps);
-    if (result.alreadyAdded) throw new Error("unexpected");
-    expect(result.skipped).toContainEqual({ part: "connections[crm]", reason: "connection_refused_by_policy" });
-    expect(result.connections).toEqual([]);
-    expect(app.mcp.servers).toEqual({});
-    expect(result.bots).toHaveLength(3);
-    expect(app.store.bot(result.bots.find((bot) => bot.installedPackage?.agentKey === "lead")!.id)!.mcpServers).toEqual([]);
   });
 
   it("leaves nothing behind when the last step fails", async () => {

@@ -60,7 +60,6 @@ export interface TeamImportResult {
   name: string;
   members: number;
   presets?: number;
-  connections?: number;
 }
 
 type ImportSource = "library" | "file" | "github";
@@ -152,7 +151,6 @@ export function TeamImportDetails({ pending, importedNames, org = false }: {
           {!(pending.library && !pending.playbooks) && <span className="flex items-center gap-1.5 rounded-full bg-raised px-3 py-1.5"><BookOpen size={13} />{pending.playbooks} playbooks</span>}
           {!pending.library && <span className="flex items-center gap-1.5 rounded-full bg-raised px-3 py-1.5"><CalendarClock size={13} />{pending.version === 2 ? t("teamImport.routinesPaused", { count: pending.routines }) : `${pending.routines} paused routines`}</span>}
           {pending.kind === "package" && pending.version !== 2 && <span className="flex items-center gap-1.5 rounded-full bg-raised px-3 py-1.5"><Plug size={13} />{pending.apps.length} connections</span>}
-          {Boolean(pending.connections?.length) && <span className="flex items-center gap-1.5 rounded-full bg-raised px-3 py-1.5"><Plug size={13} />{t("teamImport.connections", { count: pending.connections?.length ?? 0 })}</span>}
           {Boolean(pending.notes) && <span className="flex items-center gap-1.5 rounded-full bg-raised px-3 py-1.5"><NotebookPen size={13} />{t("teamImport.notes", { count: pending.notes ?? 0 })}</span>}
           {Boolean(pending.presets?.length) && <span className="flex items-center gap-1.5 rounded-full bg-raised px-3 py-1.5"><Users size={13} />{t("teamImport.presets", { count: pending.presets?.length ?? 0 })}</span>}
         </div>
@@ -174,16 +172,6 @@ export function TeamImportDetails({ pending, importedNames, org = false }: {
         <div className="mt-4 rounded-xl border border-hairline px-4 py-3 text-[12.5px] text-ink-secondary">
           <div className="font-medium text-ink">{t("teamImport.offeredSkills")}</div>
           <p className="mt-1 break-words">{pending.offeredSkills?.join(", ")}</p>
-        </div>
-      )}
-      {Boolean(pending.connections?.length) && (
-        <div className="mt-4 rounded-xl border border-hairline px-4 py-3 text-[12.5px] text-ink-secondary">
-          <div className="font-medium text-ink">{t("teamImport.connections", { count: pending.connections?.length ?? 0 })}</div>
-          <ul className="mt-1">
-            {pending.connections?.map((connection, index) => (
-              <li key={`${connection.label}-${index}`} className="truncate">{connection.label} · {connection.url}</li>
-            ))}
-          </ul>
         </div>
       )}
       {pending.members.length > 0 && <div className="mt-6 text-[12px] font-medium text-ink-secondary">Team members</div>}
@@ -217,7 +205,7 @@ export function TeamImportDetails({ pending, importedNames, org = false }: {
             : pending.version === 2
             ? t("teamImport.sharedTeamSafety")
             : pending.kind === "package"
-            ? "Bots, Chief of Staff, group chats, and reviewed playbooks are loaded. Suggested routines arrive paused, and connected apps stay off until you approve them. Conversations, credentials, permissions, and computer access stay private."
+            ? "Bots, Chief of Staff, group chats, and reviewed playbooks are loaded. Suggested routines arrive paused. Conversations, credentials, permissions, and computer access stay private."
             : "Only roles and appearance are loaded. Your conversations, account connections, permissions, and computer access stay private."}
         </p>
       </div>
@@ -423,7 +411,6 @@ export function TeamLibraryPanel({
         bots: Bot[];
         groups?: Group[];
         routines?: Routine[];
-        connections?: unknown[];
         presets?: unknown[];
       };
       for (const bot of response.bots) dispatch({ type: "botAdded", bot });
@@ -435,7 +422,6 @@ export function TeamLibraryPanel({
       onImported({
         name: pending.name,
         members: response.bots.length,
-        ...(response.connections?.length ? { connections: response.connections.length } : {}),
         ...(response.presets?.length ? { presets: response.presets.length } : {}),
       });
     } catch (cause) {
@@ -472,7 +458,7 @@ export function TeamLibraryPanel({
       const response = (await api("/api/org-library/add", {
         method: "POST",
         body: JSON.stringify({ packageId: entry.packageId }),
-      })) as { alreadyAdded: boolean; bots?: Bot[]; groups?: Group[]; routines?: Routine[]; connections?: unknown[] };
+      })) as { alreadyAdded: boolean; bots?: Bot[]; groups?: Group[]; routines?: Routine[] };
       for (const bot of response.bots ?? []) dispatch({ type: "botAdded", bot });
       for (const group of response.groups ?? []) dispatch({ type: "groupPatched", group });
       for (const routine of response.routines ?? []) dispatch({ type: "routinePatched", routine });
@@ -483,7 +469,6 @@ export function TeamLibraryPanel({
         onImported({
           name: entry.name,
           members: response.bots!.length,
-          ...(response.connections?.length ? { connections: response.connections.length } : {}),
         });
         return;
       }
