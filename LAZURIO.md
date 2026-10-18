@@ -59,6 +59,20 @@ Folder, read its agent instructions and call the `composio` CLI the operator
   ([`docs/lazurio-github-intake.md`](docs/lazurio-github-intake.md)). Off
   unless `OMB_GITHUB_INTAKE=1`. Wired through the route module
   `server/routes/github-intake.ts`.
+- **Steward team**: [`lazurio/teams/steward.openmaus.json`](lazurio/teams/steward.openmaus.json),
+  a leader (Henry, Chief of Staff, delegating through `coordinate_bots`) and
+  three workers who review pull requests on their exact head and publish only
+  on an explicit instruction. Releases ship it at `package/lazurio/teams/`,
+  so an Environment imports it from the installed release (Templates →
+  Import, or `POST /api/teams/import`) and points `OMB_GITHUB_INTAKE_BOT` at
+  the leader. Another persona imports the same file and renames the leader;
+  nothing in the instructions names the persona. Steward teams run on
+  **Full access, without a sandbox** (Organization Admin decision of
+  2026-10-01, issue #3): the Environment, one Machine with one operator, is
+  the boundary. Full is upstream's default level (#2808), so imported bots
+  start on it and nothing needs setting; Full also survives an engine
+  change. Questions and missing credentials still reach a person; GitHub
+  rights and branch rules stay the limit.
 
 How to release, rebuild on a new upstream tag, what the overlay contains and
 how Machines consume a release:
