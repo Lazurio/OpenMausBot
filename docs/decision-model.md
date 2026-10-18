@@ -132,17 +132,6 @@ The log stays on this machine: workspace backups leave it out.
   `openrouterBaseUrl` set to anything else, only a key saved here is used. If
   the shared key is later removed, a switch left on stops having any effect
   until a key is saved again.
-- **Cloud Pro:** decisions are included, with no key to paste. With no key of
-  the person's own, the Cloud home uses its relay token
-  (`OMB_CLOUD_DECIDER_TOKEN`), sent only to the Admin's relay, never to Jev
-  or `baseUrl`, and only for room routing and the key check (other jobs need
-  a key of the person's own). Settings says **Included with your Cloud plan**, and
-  the master switch is on until someone switches it off. A key saved here
-  always wins; clearing it falls back to the included decisions. The relay
-  speaks Jev's API only, so the included decisions are Jev's: with OpenRouter
-  selected nothing is included and you need an OpenRouter key. See
-  [cloud-pro.md](cloud-pro.md), "Included Boat computers, voice and
-  decisions".
 
 The keys are write-only: `GET /api/config` reports only whether one is saved,
 the provider and model, and which switches are on. Engines never inherit

@@ -82,30 +82,21 @@ is present. Three ways to make the server reachable from elsewhere:
   own certificate and the link uses this machine's MagicDNS name, so only
   devices on your tailnet can reach it. Needs Tailscale signed in and HTTPS
   certificates enabled for the tailnet (admin console → DNS).
-- **A public address, no domain, no proxy, no open port:**
+- **A fleet workspace's public address, no domain, no proxy, no open port:**
 
   ```sh
-  npx openmausbot login          # once: an emailed code signs this machine in
-  npx openmausbot serve --tunnel
+  OMB_INSTALLATION_CREDENTIAL=… npx openmausbot serve --tunnel
   ```
 
-  `login` reserves an address like `https://c-….openmausbot.com` for this
-  machine; `serve --tunnel` connects it through a Cloudflare tunnel (the same
-  one the desktop app uses for its companion) and prints the pairing link at
-  that address. The first run downloads `cloudflared` (pinned version and
-  digest) into the data dir. Only traffic through the tunnel reaches the
-  server, and it still has to pair: the tunnel lands on a separate listener
-  the server treats as "through a proxy", never as the owner. That listener
-  also gzips JSON replies of 1 KB or more when the client accepts gzip, since
-  the hop to Cloudflare runs on this machine's upload uncompressed; the
-  loopback port never compresses. `npx openmausbot logout` releases the
-  address. The account credentials live in
-  `~/.openmausbot/tunnel-account.json` (mode 0600).
-  Starting it from a fleet or a container, where nobody can type an emailed
-  code? Set `OMB_INSTALLATION_CREDENTIAL` to the installation credential the
-  fleet issued and skip `login`: the address and connector token are fetched
-  at every start and nothing is written to disk. A rejected credential stops
-  the start with a clear message rather than serving locally.
+  The installation credential the fleet issued fetches an address like
+  `https://c-….openmausbot.com` and its connector token at every start;
+  nothing is written to disk. `serve --tunnel` connects it through a Cloudflare
+  tunnel and prints the pairing link at that address. The first run downloads
+  `cloudflared` (pinned version and digest) into the data dir. Only traffic
+  through the tunnel reaches the server, and it still has to pair: the tunnel
+  lands on a separate listener the server treats as "through a proxy", never
+  as the owner. A rejected or missing credential stops the start with a clear
+  message rather than serving locally.
 - **Your own domain, still one command:**
 
   ```sh
@@ -436,30 +427,6 @@ Folder transfers are limited to 256 KiB per file and do not follow links or
 delete files. Local screen control also needs OS permissions and a supported
 desktop driver. Microphone access is not included.
 
-**Bring this computer's bots and chats.** When the server you just connected
-is empty, its page shows **Bring your bots and chats from this computer**
-with **Copy** and **Not now**; **Copy** takes you to this computer's
-**Settings → Servers → Copy this computer here** for that server, where you
-start it (a server's own page never starts a copy itself). Any time later, that
-button on the server's row replaces what the server has (backed up on the
-server first; **Swap {server} back** puts it back; copying again replaces that
-backup, and the panel says so). On the server's own page, **Settings → Backups
-→ Import from this computer** leads to the same place. No file, no password: the app uploads the encrypted workspace
-backup directly, continues where a dropped connection left it, and the server
-restarts itself to install it. API keys, engine sign-ins and paired devices
-stay where they are on both sides; routines arrive paused. The desktop app must
-be paired with an owner code (not `--client`), and a server whose email sign-in
-lets someone besides you in (a member, a second admin or a whole `@domain`
-added with `openmausbot access add`) never receives one; your own address
-alone is fine. Behind a proxy, allow uploads of at least 1 MB
-(nginx: `client_max_body_size 64m`); smaller parts are tried before the copy
-says so. How each
-way of running the server restarts itself: `openmausbot serve` and
-`service install` start it again in the same process, the Docker and Podman
-images run `server-launcher.js`, which does the same inside the container; a
-server started any other way installs the copy at its next start. Details:
-[docs/copy-workspace.md](copy-workspace.md).
-
 Only conversations you start yourself on that server can use what you share;
 other people's bots, routines and webhooks there cannot. Keys and sign-in
 stores (`~/.ssh`, cloud CLIs, browser profiles, keychains) and `.git`
@@ -566,7 +533,7 @@ an email sign-in list, say), or `OMB_LOOPBACK_TRUST=owner` to opt a hosted
 workspace back into the old behaviour (the log then warns). Any other value
 means `service`. The desktop app ignores the setting: its local changes
 already need the app's own per-launch capability. MausBot Cloud ignores
-it too and is always `service` (docs/cloud-pro.md).
+it too and is always `service`.
 
 With `service` on a self-hosted server:
 

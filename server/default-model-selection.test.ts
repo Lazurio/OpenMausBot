@@ -208,17 +208,16 @@ describe("new bot default model selection wiring in index.ts", () => {
   };
   const companyClaude = { ...claude, instanceId: "company.fixture.anthropic", models: { default: "company-claude", options: [{ id: "company-claude", label: "Company" }] } };
   const signedOut = { ...claude, snapshot: { state: "available", authenticated: false } satisfies ProviderSnapshot };
-  function server(instances: unknown[], { enrolled = false, companyModelsOnly = false, saved, credit = null, configs = {} }: { enrolled?: boolean; companyModelsOnly?: boolean; saved?: ModelSelection; credit?: string | null; configs?: Record<string, { enabled?: boolean; access?: EngineAccess }> } = {}) {
+  function server(instances: unknown[], { enrolled = false, companyModelsOnly = false, saved, configs = {} }: { enrolled?: boolean; companyModelsOnly?: boolean; saved?: ModelSelection; configs?: Record<string, { enabled?: boolean; access?: EngineAccess }> } = {}) {
     const managedPolicy = new ManagedDesktopPolicy();
     if (companyModelsOnly) managedPolicy.apply({ organizationId: "11111111-1111-4111-8111-111111111111", organizationName: "Fixture Company", expiresAt: Date.now() + 60_000,
       version: 1, companyModelsOnly: true, allowedEngines: "all", mcp: { allowCustom: true, allowlist: [] },
       computers: { thisComputer: true }, remoteAccess: true });
     const managedDesktop = { owns: (instanceId: string) => enrolled && instanceId.startsWith("company.") };
-    const cloudCredit = credit ? { owns: (instanceId: string) => instanceId === credit } : null;
     const describe = vi.fn(async () => instances);
-    const defaultSelection = new Function("hostedModels", "cfg", "registry", "managedDesktop", "managedPolicy", "BUILT_IN_DRIVERS", "selectDefaultModelSelection", "cloudCredit", "providerConfigs",
+    const defaultSelection = new Function("hostedModels", "cfg", "registry", "managedDesktop", "managedPolicy", "BUILT_IN_DRIVERS", "selectDefaultModelSelection", "providerConfigs",
       `${code}; return defaultSelection;`)(undefined, { defaultModelSelection: saved }, { describe }, managedDesktop, managedPolicy,
-      [{ driverKind: "claudeAgent", metadata: { displayName: "Claude" } }], selectDefaultModelSelection, cloudCredit, () => configs) as (saved?: ModelSelection | null, instances?: readonly SelectableInstance[]) => Promise<ModelSelection>;
+      [{ driverKind: "claudeAgent", metadata: { displayName: "Claude" } }], selectDefaultModelSelection, () => configs) as (saved?: ModelSelection | null, instances?: readonly SelectableInstance[]) => Promise<ModelSelection>;
     return { defaultSelection, describe, close: () => managedPolicy.close() };
   }
 
@@ -240,15 +239,6 @@ describe("new bot default model selection wiring in index.ts", () => {
     await expect(fixture.defaultSelection(null, [codex])).resolves.toEqual({ instanceId: "codex", model: "codex-default" });
     expect(fixture.describe).not.toHaveBeenCalled();
     fixture.close();
-  });
-
-  it("on a Cloud home, the trial's Claude credit runs a new bot only while nothing of the person's own can", async () => {
-    const credit = { instanceId: "trial-credit", driverKind: "openai-compat", snapshot: { state: "available", authenticated: true } satisfies ProviderSnapshot,
-      models: { default: "claude-haiku-4-5", options: [{ id: "claude-haiku-4-5", label: "Claude Haiku 4.5" }] } };
-    // Their Claude is signed out: the credit, not a sign-in screen.
-    await expect(server([signedOut, credit], { credit: "trial-credit" }).defaultSelection()).resolves.toEqual({ instanceId: "trial-credit", model: "claude-haiku-4-5" });
-    await expect(server([credit, claude], { credit: "trial-credit" }).defaultSelection()).resolves.toEqual({ instanceId: "claude", model: "claude-default" });
-    await expect(server([credit, codex], { credit: "trial-credit" }).defaultSelection()).resolves.toMatchObject({ instanceId: "codex" });
   });
 
   it("passes the enrolment into the choice, and is the plain choice without one", async () => {

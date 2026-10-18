@@ -1,4 +1,4 @@
-import { ONBOARDING_CLOUD_HINT, WELCOME_VERSION } from "../../electron/onboarding-record.mjs";
+import { WELCOME_VERSION } from "../../electron/onboarding-record.mjs";
 
 export interface OnboardingStatus {
   completedAt: string;
@@ -8,7 +8,7 @@ export interface OnboardingStatus {
   firstTurnAt?: string;
 }
 
-export { ONBOARDING_CLOUD_HINT, WELCOME_VERSION };
+export { WELCOME_VERSION };
 
 export const EMPTY_ONBOARDING: OnboardingStatus = {
   completedAt: "",
@@ -73,14 +73,12 @@ export function hintSeenPatch(
 }
 
 
-export type BeatId = "hello" | "reel" | "engines" | "permissions" | "phone" | "cloud" | "bot";
+export type BeatId = "hello" | "reel" | "engines" | "permissions" | "phone" | "bot";
 
 export interface BeatOptions {
   dictation: boolean;
   reel: boolean;
   hosted?: boolean;
-  /** MausBot Cloud can be bought from this desktop now (cloudBeatWanted); the first bot stays the last beat. */
-  cloud?: boolean;
 }
 
 export function beatsFor(options: BeatOptions): BeatId[] {
@@ -90,36 +88,8 @@ export function beatsFor(options: BeatOptions): BeatId[] {
   beats.push("engines");
   if (options.dictation) beats.push("permissions");
   beats.push("phone");
-  if (options.cloud) beats.push("cloud");
   beats.push("bot");
   return beats;
-}
-
-export function onboardingCloudOffered(record: OnboardingStatus | undefined): boolean {
-  return hintSeen(record, ONBOARDING_CLOUD_HINT);
-}
-
-/** Where the welcome may offer MausBot Cloud at all: this computer's own page with the Cloud bridge, not a branded
- * build, not a hosted or remote viewer. */
-export function cloudBeatPossible(input: { bridge: boolean; branded: boolean; hosted: boolean; remote: boolean }): boolean {
-  return input.bridge && !input.branded && !input.hosted && !input.remote;
-}
-
-/** ...and whether it does: as the buy sheet decides, an account that may buy (buyOfferAllowed) and the Admin's offer
- * loaded. Anything unknown is no beat: onboarding never waits for it. */
-export function cloudBeatWanted(input: { bridge: boolean; branded: boolean; hosted: boolean; remote: boolean; mayBuy: boolean | null; offer: unknown }): boolean {
-  return cloudBeatPossible(input) && input.mayBuy === true && Boolean(input.offer);
-}
-
-let welcomeShown = 0;
-/** The welcome flow is on screen (WelcomeFlow, until it closes): a Cloud sheet over it never switches the window away. */
-export function showWelcome(): () => void {
-  welcomeShown++;
-  let gone = false;
-  return () => { if (!gone) { gone = true; welcomeShown--; } };
-}
-export function welcomeOnScreen(): boolean {
-  return welcomeShown > 0;
 }
 
 export function nextBeat(beats: readonly BeatId[], current: BeatId): BeatId | null {
@@ -143,7 +113,6 @@ export function beatWidth(beat: BeatId): number {
     case "reel":
       return 720;
     case "bot":
-    case "cloud":
       return 520;
     default:
       return 460;
@@ -185,15 +154,6 @@ export function engineSummary<Instance extends SummaryInstance>(
   const company = options.company ? instances.filter((instance) => instance.managed && ready(instance)).length : 0;
   return { ready: personal, setup, company, allReady: company > 0 || (personal.length > 0 && setup.length === 0) };
 }
-
-export function cloudSignInDue<Instance>(
-  viewer: WelcomeViewer | null,
-  state: { connected: boolean; instances: readonly Instance[] },
-  ready: (instance: Instance) => boolean,
-): boolean {
-  return Boolean(viewer?.cloudHome && viewer.canSave) && state.connected && state.instances.length > 0 && !state.instances.some(ready);
-}
-
 
 export function reducedMotion(): boolean {
   if (typeof document !== "undefined" && document.documentElement.dataset.reducedMotion === "true") return true;

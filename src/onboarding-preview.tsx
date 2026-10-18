@@ -1,6 +1,5 @@
 // Dev-only gallery of the welcome flow's beats, served at /onboarding-preview.html; not in the packaged app.
 import { StrictMode, useEffect, useState } from "react";
-import type { CloudOffer } from "../electron/cloud-home.mjs";
 import { createRoot } from "react-dom/client";
 import { DesktopCapabilitiesProvider } from "@/components/DesktopCapabilities";
 import { WelcomeFlow } from "@/components/onboarding/WelcomeFlow";
@@ -18,12 +17,8 @@ const PREVIEW_BOT = {
   soul: "",
 } as unknown as Bot;
 
-const BEATS = beatsFor({ dictation: true, reel: true, cloud: true });
+const BEATS = beatsFor({ dictation: true, reel: true });
 
-/** The Cloud beat's stand-in for the Admin's offer (the app reads its own). */
-const PREVIEW_CLOUD_OFFER: CloudOffer = { recommended: "pro", creditUsd: 5, reminderDays: 1, refundDays: 14, plans: [
-  { tier: "personal", label: "Personal", amount: 2900, trialDays: 3 }, { tier: "pro", label: "Pro", amount: 4900, trialDays: 3 },
-  { tier: "max", label: "Max", amount: 9900, trialDays: 3 }] };
 
 /** ?beat=engines&skin=linen&reduced=1&all=1 opens any state directly; ?w=390&h=760 sizes the stage like a narrow window. */
 function fromUrl() {
@@ -55,7 +50,6 @@ function Stage({ skin, beat, run, scale = 1, entrance }: { skin: SkinId; beat: B
           dictation
           entrance={entrance}
           initialBeat={beat}
-          cloudOffer={PREVIEW_CLOUD_OFFER}
           bot={PREVIEW_BOT}
           onDone={() => {}}
         />

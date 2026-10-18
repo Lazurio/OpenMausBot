@@ -97,13 +97,6 @@ const __APP_VERSION__: string;
     ogb?: {
       platform: NodeJS.Platform;
       organization?: import("../../electron/managed-desktop.mjs").ManagedDesktopBridge;
-      cloudAccount?: import("../../electron/cloud-account.mjs").CloudAccountBridge;
-      /** Copy this computer here: this computer's page names a saved server (or
-       * "cloud"); a server's own page is answered about itself only, and its
-       * Copy opens this computer's Settings on that copy (the verified Cloud's starts it). */
-      cloudMove?: import("../../electron/cloud-move.mjs").CloudMoveBridge;
-      /** Settings on the person's own Cloud: the plan, read only. */
-      cloudPlan?: import("../../electron/cloud-account.mjs").CloudPlanBridge;
       desktopNotices?: import("../../electron/desktop-prefs.mjs").DesktopNoticesBridge;
       desktopAnalytics?: import("../../electron/desktop-prefs.mjs").DesktopAnalyticsBridge;
       companyBackups?: {

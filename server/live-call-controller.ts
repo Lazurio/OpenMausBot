@@ -46,7 +46,6 @@ export interface LiveCallDeps {
   personKey?(auth: RequestAuth): string | undefined;
   activity(botId: string, threadId: string): LiveActivity;
   broadcast(frame: { kind: "live.call"; botId: string; threadId: string; call: LiveCallState | null }): void;
-  pro(): boolean;
   settings(): { key: string; voice: string; readTypedReplies: boolean; idleMinutes: number };
   createSession(input: { key: string; sdp: string; botId: string; threadId: string; voice: string }): Promise<{ sessionId: string; sdp: string }>;
   openSocket(url: string, key: string): LiveSocket;
@@ -69,17 +68,6 @@ export class LiveCallSignedOutError extends LiveSessionError {
   constructor() {
     super("The sign-in that started this call has ended.", 401);
   }
-}
-
-export class LiveCallNeedsProError extends LiveSessionError {
-  constructor() {
-    super("Live calls from your phone need a Pro plan.", 402);
-  }
-}
-
-/** The companion vouches for `device`: a phone cannot choose its device id or drop it. */
-export function liveCallFromPhone(input: { device?: string; client: LiveClient }): boolean {
-  return Boolean(input.device) || input.client === "ios" || input.client === "android";
 }
 
 type AppendKind = "instructions" | "thinking" | "commentary";
@@ -158,7 +146,6 @@ export class LiveCallController {
   async start(input: { auth: RequestAuth; device?: string; botId: string; botName: string; threadId: string; client: LiveClient; sdp: string }): Promise<{ call: LiveCallState; sdp: string }> {
     if (this.call && this.call.state.status !== "ended") throw new LiveCallBusyError({ ...this.call.state });
     if (input.device && this.revokedDevices.has(input.device)) throw new LiveCallSignedOutError();
-    if (liveCallFromPhone(input) && !this.deps.pro()) throw new LiveCallNeedsProError();
     const settings = this.deps.settings();
     const key = settings.key.trim();
     if (!key) throw new LiveSessionError("Add an OpenAI API key to use Live calls.", 409);

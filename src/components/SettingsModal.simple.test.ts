@@ -146,13 +146,6 @@ describe("Settings in Simple mode", () => {
     expect(html).toContain('aria-label="Enable the built-in browser"');
   });
 
-  it("stacks OMB Cloud and Organization on Account in the desktop app", () => {
-    fixture.section = "cloudAccount";
-    const html = render();
-    expect(currentPage(html)).toBe("account");
-    expect(blocks(html)).toEqual(["cloudAccount", "organization"]);
-  });
-
   it("adds People and Activity to Account for a hosted workspace's admins in a browser", () => {
     vi.stubGlobal("window", {});
     fixture.ownerOrAdmin = true;
@@ -188,7 +181,6 @@ describe("Settings in Simple mode", () => {
     ["remote", "computers"],
     ["desktopWorkspaces", "computers"],
     ["computer", "computers"],
-    ["cloudAccount", "account"],
     ["organization", "account"],
   ])("lands a deep link to %s on %s", (section, page) => {
     fixture.section = section;

@@ -1,16 +1,11 @@
 // Phone onboarding only chooses a route; the caller starts, verifies and stops it, and mints or cancels its pairing code.
 import type { CliOptions } from "./cli.ts";
-import { SetupCancelled, type SetupIo } from "./cli-prompts.ts";
+import type { SetupIo } from "./cli-prompts.ts";
 
 export type PhoneKind = "ios" | "android";
 export interface PhoneSetupResult {
   options: CliOptions;
   phone?: PhoneKind;
-}
-export interface PhoneSetupDependencies {
-  /** May read saved tunnel credentials, but must not sign in or start a tunnel. */
-  accountReady?(options: CliOptions): boolean | Promise<boolean>;
-  login(options: CliOptions, io: SetupIo): Promise<number>;
 }
 
 /** An HTTPS origin, not proof a phone can reach it; never a pasted invitation, password, query token, localhost or unspecified bind. */
@@ -34,27 +29,11 @@ export function normalizePhoneOrigin(raw: string): string | null {
 export async function runPhoneSetup(
   options: CliOptions,
   io: SetupIo,
-  deps: PhoneSetupDependencies,
 ): Promise<PhoneSetupResult> {
   const skip = (): PhoneSetupResult => ({ options });
   const selected = (phone: PhoneKind, route: Partial<CliOptions> = {}): PhoneSetupResult => ({
     options: { ...options, ...route, client: true, pair: true }, phone,
   });
-  const signIn = async (): Promise<boolean> => {
-    try {
-      if (await deps.accountReady?.(options)) {
-        io.log("Your saved OpenMausBot account can be reused. The connection will be checked when the server starts.");
-        return true;
-      }
-      io.log("Sign in to an OpenMausBot account using an emailed code. This is separate from your AI provider account.");
-      if (await deps.login(options, io) === 0) return true;
-    } catch (error) {
-      if (error instanceof SetupCancelled) throw error;
-      // Account errors can carry credentials or URLs: never echo them into terminal logs.
-    }
-    io.log("Phone access could not be prepared. Your AI provider setup is still saved; you can try phone setup later.");
-    return false;
-  };
   for (;;) {
     const device = await io.choose("Use OpenMausBot on your phone?", [
       "Skip for now",
@@ -63,7 +42,8 @@ export async function runPhoneSetup(
     ], 0);
     if (device === 0) return skip();
     const phone: PhoneKind = device === 1 ? "ios" : "android";
-    if (options.tunnel) return await signIn() ? selected(phone) : skip();
+    // Lazurio overlay (DEV-6673 M3): no managed public address through an OpenMausBot account; a fleet's --tunnel is already set up.
+    if (options.tunnel) return selected(phone);
     if (options.tailscale) {
       io.log("Keep Tailscale connected on both this computer and your phone, on the same tailnet.");
       return selected(phone);
@@ -77,22 +57,14 @@ export async function runPhoneSetup(
     let back = false;
     while (!back) {
       const route = await io.choose("How should your phone reach this computer?", [
-        "Managed HTTPS address — protected by pairing",
         "Existing Tailscale — only your tailnet",
         "Existing HTTPS address — advanced",
         "Back to phone choice",
         "Skip for now",
-      ], 4);
-      if (route === 4) return skip();
-      if (route === 3) { back = true; continue; }
+      ], 3);
+      if (route === 3) return skip();
+      if (route === 2) { back = true; continue; }
       if (route === 0) {
-        io.log("This creates a public HTTPS endpoint through Cloudflare. Chat and settings require device pairing; the sign-in page and basic server identity are public.");
-        io.log("Starting it may download the Cloudflare connector. It stays active while OpenMausBot runs; stop OpenMausBot to close the connection.");
-        if (!await io.confirm("Allow this managed public endpoint and connector download?", false)) continue;
-        if (!await signIn()) return skip();
-        return selected(phone, { tunnel: true, tailscale: false, publicUrl: undefined });
-      }
-      if (route === 1) {
         io.log("Tailscale must already be installed and signed in on this computer and phone, with HTTPS certificates enabled for the tailnet.");
         if (!await io.confirm("Allow OpenMausBot to serve HTTPS to your tailnet while it runs?", false)) continue;
         return selected(phone, { tailscale: true, tunnel: false, publicUrl: undefined });

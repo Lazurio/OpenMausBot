@@ -1,8 +1,7 @@
-import { FolderOpen, Network, Zap } from "lucide-react";
+import { Network, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
-import { useCloudFilesReady } from "@/lib/cloud-files";
 import { t } from "@/lib/i18n";
 import { useAdvancedMode } from "@/lib/interface-mode";
 import { isRoutineProblemRun } from "@/lib/routines";
@@ -90,17 +89,8 @@ export function SidebarFooterNav({
     icon={(active) => <Zap size={iconSize} className={tone(active)} />}
     onClick={() => dispatch({ type: "showRoutines", view: "list" })}
   />;
-  const filesRow = useCloudFilesReady() && <NavRow
-    id="files"
-    label={t("sidebar.nav.files")}
-    iconsOnly={iconsOnly}
-    rail={rail}
-    active={state.activeView === "files"}
-    icon={(active) => <FolderOpen size={iconSize} className={tone(active)} />}
-    onClick={() => dispatch({ type: "showFiles" })}
-  />;
-  // Simple mode keeps Automations and Files, without the Tools header.
-  if (!advanced && !iconsOnly) return <nav aria-label={t("sidebar.tools")} className="flex flex-col gap-0.5">{automationsRow}{filesRow}</nav>;
+  // Simple mode keeps Automations, without the Tools header.
+  if (!advanced && !iconsOnly) return <nav aria-label={t("sidebar.tools")} className="flex flex-col gap-0.5">{automationsRow}</nav>;
 
   const rows = (
     <>
@@ -116,7 +106,6 @@ export function SidebarFooterNav({
           onClick={() => dispatch({ type: "showTeamMap" })}
         />
       )}
-      {filesRow}
     </>
   );
 

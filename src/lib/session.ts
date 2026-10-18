@@ -3,7 +3,7 @@ export interface EnvironmentDescriptor {
   label: string;
   platform: string;
   version: string;
-  capabilities: { remoteSessions: true; selfUpdate: "desktop-managed" | "operator"; emailSignIn?: boolean; cloudHome?: true };
+  capabilities: { remoteSessions: true; selfUpdate: "desktop-managed" | "operator"; cloudHome?: true };
 }
 
 export type SessionState =
@@ -69,17 +69,6 @@ export function takeBrowserSignInFromLocation(): string | null {
 
 export const BROWSER_SIGN_IN_FAILED = "This sign-in link has expired or was already used. On My Cloud, choose “Use in your browser” again.";
 
-/** Never trusted on its own; the one-time code still goes to the address itself. */
-export function takeInvitedEmailFromLocation(): string | null {
-  const params = new URLSearchParams(location.search);
-  const email = params.get("email")?.trim().toLowerCase() ?? "";
-  if (!email) return null;
-  params.delete("email");
-  const search = params.toString();
-  history.replaceState(null, "", location.pathname + (search ? `?${search}` : "") + location.hash);
-  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ? email : null;
-}
-
 export function defaultDeviceLabel(userAgent: string = navigator.userAgent): string {
   const browser = /Edg\//.test(userAgent) ? "Edge" : /OPR\//.test(userAgent) ? "Opera" : /Chrome\//.test(userAgent) ? "Chrome" : /Firefox\//.test(userAgent) ? "Firefox" : /Safari\//.test(userAgent) ? "Safari" : "Browser";
   const os = /iPhone/.test(userAgent) ? "iPhone" : /iPad/.test(userAgent) ? "iPad" : /Android/.test(userAgent) ? "Android" : /Mac OS X/.test(userAgent) ? "Mac" : /Windows/.test(userAgent) ? "Windows" : /Linux/.test(userAgent) ? "Linux" : "";
@@ -134,27 +123,6 @@ export function signInWithBrowserGrant(credential: string, attemptId: string, fe
 export function cloudOwnerOf(session: unknown): string | null {
   const record = Object(session) as { cloudHome?: unknown; owner?: unknown };
   return record.cloudHome === true && typeof record.owner === "string" && record.owner ? record.owner : null;
-}
-
-async function postAuth(path: string, body: Record<string, unknown>, fetchImpl: typeof fetch): Promise<{ ok: true } | { ok: false; error: string }> {
-  let res: Response;
-  try {
-    res = await fetchImpl(path, { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-  } catch (error) {
-    return { ok: false, error: `could not reach the server (${error instanceof Error ? error.message : String(error)})` };
-  }
-  const parsed: unknown = await res.json().catch(() => ({}));
-  if (res.ok) return { ok: true };
-  const error = Reflect.get(Object(parsed), "error");
-  return { ok: false, error: typeof error === "string" ? error : `${res.status} ${res.statusText}` };
-}
-
-export function startEmailSignIn(email: string, fetchImpl: typeof fetch = fetch): Promise<{ ok: true } | { ok: false; error: string }> {
-  return postAuth("/api/auth/email/start", { email }, fetchImpl);
-}
-
-export function verifyEmailSignIn(input: { email: string; code: string; label: string }, fetchImpl: typeof fetch = fetch): Promise<{ ok: true } | { ok: false; error: string }> {
-  return postAuth("/api/auth/email/verify", { email: input.email, code: input.code, label: input.label }, fetchImpl);
 }
 
 export function reasonWorthShowing(reason: string | undefined): string | null {

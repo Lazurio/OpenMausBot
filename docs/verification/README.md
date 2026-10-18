@@ -28,8 +28,7 @@ exception: `OMB_OPENAI_LIVE_URL` crosses when it is a loopback
 `http://127.0.0.1:PORT` (the fake GPT-Live that
 `node --experimental-strip-types server/testing/fake-openai-live.ts` prints),
 and `OMB_OPENAI_LIVE_KEY` crosses only with it, so that key can only ever
-reach the fake. `OMB_PRO_PLAN` crosses only as `1`: Live calls from a phone need a Pro plan,
-and that is how a server the desktop app did not start says so.
+reach the fake. 
 
 Pass the printed URL explicitly from a second terminal:
 
@@ -116,9 +115,6 @@ The [optional organization connection smoke](organization-settings.md) checks
 the real Settings panel and production desktop client against a synthetic
 Admin server, including cancellation, revocation and unchanged normal startup.
 
-The [personal Cloud account smoke](cloud-account.md) checks optional browser
-sign-in, server-verified Pro status and sign-out in a disposable Electron profile.
-
 The [embedded server recovery smoke](desktop-server-recovery.md) crashes real
 Electron-owned fixture servers, verifies bounded recovery and private access,
 and proves quit cancels recovery without replaying an interrupted fixture turn.
@@ -130,9 +126,6 @@ The [external runtimes recipe](external-runtime.md) proves a bot's standing
 comms capability from `external-runtimes.json` against a disposable server and
 the fake engine: scope, on-demand token reads, `coordinate_bots` roots polled
 through `assignment_status`, and immediate dispatch to a free teammate.
-
-The [cloud preview fixture](cloud-preview.md) mounts the real Computer panel
-against an isolated server for image decoding, loading, and recovery UI checks.
 
 The [live browser fixture](browser-live.md) mounts the real Browser panel with
 an explicitly selected native engine and Chrome in a disposable home, covering

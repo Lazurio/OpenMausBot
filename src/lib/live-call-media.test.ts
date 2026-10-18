@@ -112,18 +112,6 @@ describe("live call media", () => {
     expect(currentCall()).toBeNull();
   });
 
-  it("shows the Pro prompt, never the key form, and releases the microphone", async () => {
-    request.mockRejectedValueOnce(new ApiError("Live calls from your phone need a Pro plan.", 402, { needsPro: true }));
-    await startLiveCall({ botId: "b1", threadId: "t1" });
-    expect(liveMedia()).toMatchObject({ phase: "idle", needsPro: true, needsKey: false, botId: "b1", threadId: "t1", notice: null, action: null });
-    expect(track.stopped).toBe(true);
-    expect(peer.closed).toBe(true);
-    expect(currentCall()).toBeNull();
-    expect(endRequests()).toEqual([]);
-    await startLiveCall({ botId: "b1", threadId: "t1" });
-    expect(liveMedia()).toMatchObject({ phase: "starting", needsPro: false, callId: "c1" });
-  });
-
   it("says who is on the line when another call runs", async () => {
     const other = { ...call, callId: "c0", client: "ios", status: "live" } as const;
     request.mockRejectedValueOnce(new ApiError("A Live call is already running.", 409, { activeCall: other }));
@@ -500,15 +488,6 @@ describe("live call media", () => {
     expect(liveMedia()).toMatchObject({ needsKey: true, botId: "b1" });
     dismissStartPrompt("b1");
     expect(liveMedia()).toMatchObject({ phase: "idle", needsKey: false, botId: null });
-  });
-
-  it("drops the Pro prompt only for the bot it was left for", async () => {
-    request.mockRejectedValueOnce(new ApiError("Live calls from your phone need a Pro plan.", 402, { needsPro: true }));
-    await startLiveCall({ botId: "b1", threadId: "t1" });
-    dismissStartPrompt("b2");
-    expect(liveMedia()).toMatchObject({ needsPro: true, botId: "b1" });
-    dismissStartPrompt("b1");
-    expect(liveMedia()).toMatchObject({ phase: "idle", needsPro: false, botId: null });
   });
 
   it("plays blocked audio on the next click and clears the hint", async () => {

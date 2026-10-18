@@ -233,14 +233,8 @@ import { hostedModelPolicy, HOSTED_MODEL_POLICY_HEADER } from "./hosted-models.t
 import { CLOUD_HOME_SECRET_KEYS, CLOUD_IGNORED_KEYS, cloudHomeConfiguration, cloudHomePlaceRefusal, firstCloudTurnPatch } from "./cloud-home.ts";
 import { createCloudHealth } from "./cloud-health.ts";
 import { createCloudSignedRoutes } from "./routes/cloud-signed.ts";
-import { noteSyncBotTurn } from "./routes/cloud-sync.ts";
 import { CLOUD_PERSONAL_REFUSAL, type CloudOwnership } from "./cloud-owner.ts"; import { settleCloudHome } from "./cloud-home-settle.ts"; import { CLOUD_OUTSIDE_KEY, outsideDriven } from "./cloud-sharing.ts";
-import { createCloudMoveRoutes, workspaceShared } from "./cloud-move-http.ts";
 import { RESTART_EXIT_CODE } from "./restart.ts";
-import { holdIncludedServices, trialCreditCredential } from "./included-services.ts";
-import { CloudCreditProvider } from "./cloud-credit-provider.ts";
-import { createCreditMoves } from "./cloud-credit-moves.ts";
-import { TRIAL_CREDIT_OWN_AI } from "./trial-credit.ts";
 import type { ProviderInstance } from "./contracts.ts";
 import { readyToRun, selectDefaultModelSelection, withNewBotEffort, type SelectableInstance } from "./default-model-selection.ts";
 import { threadModelFallback, type ThreadEngine } from "./thread-model.ts";
@@ -271,7 +265,6 @@ import { createDecider, deciderReady, describeDecider } from "./decider/index.ts
 import { decideRoomResponder, type RoomRoutingInput } from "./decider/room-routing.ts";
 import { createLiveSession, liveAttachUrl, liveHistoryFrom, LiveSessionError, type LiveBot, type LiveHistoryMessage } from "./live-call.ts";
 import { LiveCallController, LiveCallSignedOutError, type LiveSocket } from "./live-call-controller.ts";
-import { ProPlan } from "./pro-plan.ts";
 import { recordLiveCall, spokenLineFields, titleLiveCall } from "./live-call-record.ts";
 import { narrateTool, toUtterances } from "./tts/speech-text.ts";
 import { turnStartLogLine } from "./turn-log.ts";
@@ -344,7 +337,7 @@ import {
   botPersona,
   buildSystemPrompt,
   userProfileSystemPrompt,
-  cloudHomePrompt, syncedFolders,
+  cloudHomePrompt,
   computerPrompt,
   CREDENTIAL_PROMPT,
   longCommandsPrompt,
@@ -437,7 +430,7 @@ import { createWorkspaceBackupRoutes, isWorkspaceBackupSessionControl } from "./
 import { applyPendingWorkspaceRestore, readLastWorkspaceRestore, type WorkspaceRestoreResult } from "./workspace-backup.ts";
 import { repairMovedWorkspacePaths } from "./moved-paths-repair.ts";
 import { createCustomDomainVerifier, customDomainIpv4, normalizeCustomDomain } from "./custom-domain.ts";
-import { allowedScopes, createEmailSignIn, parseAllowList } from "./account-signin.ts";
+import { allowedScopes, parseAllowList } from "./account-signin.ts";
 import { ProviderAuthSessions } from "./provider-auth-sessions.ts";
 import {
   clearSessionCookie,
@@ -622,7 +615,6 @@ if (CLOUD_HOME) {
   console.log(`cloud home ${CLOUD_HOME.machineId}: bots run on the engines the person signs in to here`);
   for (const warning of CLOUD_HOME.warnings) console.warn(`cloud home: ${warning}`);
 }
-holdIncludedServices(CLOUD_ENV);
 for (const key of CLOUD_HOME_SECRET_KEYS) delete process.env[key];
 if (CLOUD_HOME && Object.keys(CLOUD_SECRETS).length === 0) {
   console.warn("cloud home: its secrets came in this process's environment, which anything running as the same user can read in /proc; start it with cloud-home-start");
@@ -672,9 +664,6 @@ bindDecisionRetention(() => decisionRetentionDays(cfg.decisions?.retentionDays))
 bindSafetyFloor(() => cfg);
 const decider = createDecider({ config: () => cfg, dataDir: DATA_DIR });
 const customDomainVerifier = createCustomDomainVerifier({ environmentId: ENVIRONMENT_ID });
-const emailSignIn = createEmailSignIn({
-  allow: signInAllowList,
-});
 let customDomainRevision = 0;
 function savedCustomDomain(): string | null {
   if (DESKTOP_MANAGED || !cfg.customDomain) return null;
@@ -1539,7 +1528,6 @@ const browserCleanup: BrowserCleanupCoordinator = new BrowserCleanupCoordinator(
   },
 });
 const phoneSecrets = new PhoneSecretBridge(postDesktopPrivateMessage);
-const proPlan = new ProPlan({ cloudHome: CLOUD_HOME !== null });
 utilityParentPort?.on("message", (event) => {
   const message = event?.data;
   try {
@@ -1547,7 +1535,6 @@ utilityParentPort?.on("message", (event) => {
     if (handleDesktopTrustedApprovalMessage(message)) return;
     if (browserCleanup.receive(message)) return;
     if (phoneSecrets.receive(message)) return;
-    if (proPlan.receive(message)) return;
   } catch (error) {
     console.error(`[desktop-sync] rejected private parent message: ${error instanceof Error ? error.message : String(error)}`);
   }
@@ -1587,18 +1574,6 @@ const managedDesktop = new ManagedDesktopProviders({
     broadcast({ kind: "config", ...configStatus() });
     resyncOpenCodeProviderKeys();
   },
-});
-const cloudCredit = CLOUD_HOME ? new CloudCreditProvider({
-  registry, dataDirectory: DATA_DIR, credential: trialCreditCredential(),
-  onChange: ids => {
-    bus.attach(ids.flatMap(id => { const instance = registry.get(id); return instance ? [instance] : []; }));
-    void companyRuntimeStarted.then(() => { broadcast({ kind: "config", ...configStatus() }); return refreshUnsetModelSelections(); }).catch(() => {});
-  },
-  onDefault: (from, to) => void companyRuntimeStarted.then(() => creditMoves?.followDefault(from, to)),
-  log: line => console.warn(line),
-}) : null;
-const cloudCreditStarted = (cloudCredit?.start() ?? Promise.resolve()).catch((error) => {
-  console.warn(`[trial credit] could not start: ${error instanceof Error ? error.message : String(error)}`);
 });
 openCodeOrganisationManaged = () => managedPolicy.current() !== null || managedDesktop.enrolled();
 utilityParentPort?.on("message", event => {
@@ -2513,18 +2488,17 @@ function selectableInstances<T extends SelectableInstance>(instances: readonly T
 async function defaultSelection(saved: ModelSelection | null = cfg.defaultModelSelection ?? null, instances?: readonly SelectableInstance[]) {
   if (hostedModels) return hostedModels.select(saved ?? undefined);
   return selectDefaultModelSelection(selectableInstances(instances ?? await registry.describe()), saved ?? undefined, {
-    company: (instanceId) => managedDesktop.owns(instanceId) || cloudCredit?.owns(instanceId) === true,
+    company: (instanceId) => managedDesktop.owns(instanceId),
     refusal: (instance) => policyModelRefusal(instance),
   });
 }
 const selectionContext = {
-  company: (instanceId: string) => managedDesktop.owns(instanceId) || cloudCredit?.owns(instanceId) === true,
+  company: (instanceId: string) => managedDesktop.owns(instanceId),
   refusal: (instance: SelectableInstance) => policyModelRefusal(instance),
 };
 
 async function refreshUnsetModelSelections(instances?: readonly SelectableInstance[]): Promise<void> {
   const selectable = selectableInstances(instances ?? await registry.describe());
-  creditMoves?.settle(selectable);
   bootSelection = await defaultSelection(undefined, selectable.filter(instance => readyToRun(instance, selectionContext)));
   if (hostedModels || !bootSelection.instanceId || !bootSelection.model) return;
   const selection = withNewBotEffort(bootSelection, cfg.newBots?.effort,
@@ -2826,9 +2800,6 @@ const store = new Store(
   (selection) => withNewBotEffort(selection, cfg.newBots?.effort, registry.get(selection.instanceId)?.adapter.capabilities.effortLevels),
   (instanceId) => registry.cliTarget(instanceId)?.driverKind,
 );
-const creditMoves = cloudCredit && createCreditMoves({ credit: cloudCredit, store, context: selectionContext, threadBusy, saveDefault: saveNewBotModel,
-  defaults: () => [cfg.defaultModelSelection, cfg.newBotDefaults?.profile.modelSelection], engineName: id => registry.get(id)?.displayName ?? id,
-  log: line => console.warn(line) });
 const skillsHost = createSkillsLibraryHost({ store, cfg, appendSkillRequestCard, engineConfig: (instanceId) => providerConfigs()[instanceId] });
 const { listBotSkills, readBotSkillFile } = skillsHost;
 const cloudHealth = CLOUD_HOME ? createCloudHealth({ store, bus, dataDir: DATA_DIR, eventsDir: EVENTS_DIR, version: serverVersion(), image: process.env.OMB_CLOUD_IMAGE,
@@ -2841,7 +2812,6 @@ let followupsReady = false;
 const sendSequencer = new SendSequencer();
 // Before the new-bot default is read: a saved default may name the engine.
 await retryComputerEngineMove();
-if (store.needsSeed()) await Promise.race([cloudCreditStarted, new Promise(resolve => setTimeout(resolve, 15_000).unref())]);
 if (store.needsSeed()) await refreshUnsetModelSelections();
 else enginesRead = refreshUnsetModelSelections().catch(
   (error) => console.warn(`[engines] reading the engines at start failed: ${error instanceof Error ? error.message : String(error)}`),
@@ -2954,7 +2924,7 @@ function previewSystemPrompt(bot: BotRecord) {
       }),
     },
     { id: "shell", label: "Long-running commands", text: privateWorkspace ? longCommandsPrompt() : "" },
-    { id: "cloud-home", label: "My Cloud", text: CLOUD_HOME ? cloudHomePrompt(syncedFolders(DATA_DIR)) : "" },
+    { id: "cloud-home", label: "My Cloud", text: CLOUD_HOME ? cloudHomePrompt() : "" },
     { id: "browser", label: "Browser", text: browserOn ? browserSystemPrompt(bot.browserProfile) : "" },
     { id: "coordination", label: "Team", text: agentsMounted && coordination ? ` ${coordination}` : "" },
     { id: "credential", label: "Credentials", text: agentsMounted ? CREDENTIAL_PROMPT : "" },
@@ -5302,8 +5272,6 @@ const memoryUpkeep = createMemoryUpkeep({
 
 bus.subscribe((event: RuntimeEvent) => {
   if (!CLOUD_HOME || event.type !== "turn.completed" || shouldIgnoreProviderEvent(event)) return;
-  const turnBot = store.botByThread(event.threadId);
-  if (turnBot) noteSyncBotTurn(turnBot.id, event.threadId);
   const patch = firstCloudTurnPatch({
     cloudHome: true, recorded: cfg.onboarding?.firstTurnAt, ok: event.ok,
     known: Boolean(store.botByThread(event.threadId) ?? store.groupByThread(event.threadId)),
@@ -6841,8 +6809,7 @@ async function acceptDirectSend(
 
       // Provider discovery yields, and probes afresh for an engine installed or signed in since; the transcript reservation after these checks must stay synchronous.
       const profile = store.bot(botId);
-      if (profile && ((!profile.modelSelection.instanceId && !profile.modelSelection.model) ||
-        creditMoves?.due(profile, threadId, registry.instances().flatMap(instance => threadEngine(instance.instanceId) ?? [])))) {
+      if (profile && !profile.modelSelection.instanceId && !profile.modelSelection.model) {
         if (enginesRead) await enginesRead;
         registry.forgetSnapshots(); await refreshUnsetModelSelections();
       }
@@ -7724,7 +7691,7 @@ async function startTurn(
         { id: "shell", label: "Long-running commands", text: worksInWorkspace ? longCommandsPrompt() : "" },
         { id: "computer", label: "Computer", text: computerPrompt(computerPromptKind) },
         { id: "plan", label: "Surface", text: surfacePrompt({ computer: mountedComputer, browser: Boolean(integrations.browser) }, { cloudHome: Boolean(CLOUD_HOME) }) },
-        { id: "cloud-home", label: "My Cloud", text: CLOUD_HOME ? cloudHomePrompt(syncedFolders(DATA_DIR)) : "" },
+        { id: "cloud-home", label: "My Cloud", text: CLOUD_HOME ? cloudHomePrompt() : "" },
         { id: "browser", label: "Browser", text: integrations.browser ? browserSystemPrompt(bot.browserProfile) : "" },
         { id: "data", label: "Data", text: integrations.data ? BUILT_IN_DATA_SYSTEM_PROMPT : "" },
         { id: "coordination", label: "Team", text: coordinationPrompt ? ` ${coordinationPrompt}` : "" },
@@ -9230,7 +9197,7 @@ async function runClaimedGroupMemberTurn(
     { id: "files", label: "File locations", text: workspace ? workspaceLocationsPrompt(bot.id, cwd, readyBot.cwd, { attachFile: Boolean(integrations.agents) && !CLOUD_HOME && !HOSTED_WORKSPACE }) : "" },
     { id: "shell", label: "Long-running commands", text: workspace ? longCommandsPrompt() : "" },
     { id: "plan", label: "Surface", text: surfacePrompt({ computer: null, browser: Boolean(integrations.browser) }, { cloudHome: Boolean(CLOUD_HOME) }) },
-    { id: "cloud-home", label: "My Cloud", text: CLOUD_HOME ? cloudHomePrompt(syncedFolders(DATA_DIR)) : "" },
+    { id: "cloud-home", label: "My Cloud", text: CLOUD_HOME ? cloudHomePrompt() : "" },
     { id: "browser", label: "Browser", text: integrations.browser ? browserSystemPrompt(bot.browserProfile) : "" },
     { id: "data", label: "Data", text: integrations.data ? BUILT_IN_DATA_SYSTEM_PROMPT : "" },
     { id: "recall", label: "Recall", text: integrations.agents && bot.memoryEnabled !== false ? SESSION_SEARCH_SYSTEM_PROMPT : "" },
@@ -11143,7 +11110,6 @@ async function describeInstances() {
   void retryComputerEngineMove();
   const engines = selectableInstances(await registry.describe());
   await refreshUnsetModelSelections(engines);
-  const ownReady = cloudCredit !== null && engines.some(instance => !selectionContext.company(instance.instanceId) && readyToRun(instance, selectionContext));
   return engines.map((instance) => {
     const entry = configs[instance.instanceId];
     const described = {
@@ -11153,10 +11119,6 @@ async function describeInstances() {
     };
     if (hostedModels) return { ...described, readOnly: true,
       install: undefined, authentication: undefined, cli: undefined, cliCandidates: [],
-    };
-    if (cloudCredit?.owns(instance.instanceId)) return { ...described, readOnly: true, trialCredit: cloudCredit.status(),
-      install: undefined, authentication: undefined, cli: undefined, cliCandidates: [],
-      ...(ownReady && described.snapshot.state === "available" ? { snapshot: { state: "unavailable" as const, reason: TRIAL_CREDIT_OWN_AI } } : {}),
     };
     const policyReason = policyModelRefusal(instance);
     const policy = policyReason ? { policy: { organizationName: managedPolicy.current()!.organizationName, reason: policyReason } } : {};
@@ -11392,11 +11354,6 @@ const workspaceBackupAccess = {
 const workspaceCopyAccess = { dataDir: DATA_DIR, appVersion: serverVersion(), readBody, restored: workspaceRestore, ...workspaceBackupAccess };
 const workspaceBackupRoutes = createWorkspaceBackupRoutes(workspaceCopyAccess);
 let restartRequested = false;
-const cloudMoveRoutes = createCloudMoveRoutes({
-  ...workspaceCopyAccess, environmentId: ENVIRONMENT_ID, store,
-  sharedWorkspace: () => workspaceShared({ hosted: HOSTED_WORKSPACE, cloudHome: Boolean(CLOUD_HOME), signIn: signInAllowList() }),
-  restart: () => { restartRequested = true; gracefulShutdown(); },
-});
 
 // `workspaceAccess` is assigned at boot, after this line: read it per request.
 ROUTES.push(createHostedSlackRoutes({ bot: (id) => store.bot(id), hostedReady: () => Boolean(workspaceAccess) && entitled("admin") }));
@@ -11725,7 +11682,6 @@ const liveCalls = new LiveCallController({
     return task.activity === "waiting-on-you" ? "waiting" : "working";
   },
   broadcast: (frame) => broadcast(frame, { adminOnly: true }),
-  pro: () => proPlan.liveCallsAllowed(),
   settings: () => ({ key: cfg.live?.key ?? "", ...liveSettingsFor(cfg) }),
   createSession: ({ key, sdp, botId, threadId, voice }) => createLiveSession({ key, sdp, voice, bot: liveBotFor(botId), history: liveHistoryFor(threadId), cloudHome: Boolean(CLOUD_HOME) }),
   // Node's WebSocket (undici) accepts headers in its second argument.
@@ -11806,7 +11762,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     }
     // Hosted workspaces have one sign-in authority: a missing optional layer must never reactivate email/QR credential minting.
     if (HOSTED_WORKSPACE) {
-      if (method === "POST" && ["/api/auth/pair", "/api/pair", "/api/auth/pairing", "/api/auth/email/start", "/api/auth/email/verify"].includes(path)) {
+      if (method === "POST" && ["/api/auth/pair", "/api/pair", "/api/auth/pairing"].includes(path)) {
         return json(res, 403, { error: "Sign in through the workspace portal." });
       }
       if (workspaceAccess) {
@@ -11815,14 +11771,14 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         return json(res, 503, { error: "Workspace sign-in is unavailable." });
       }
     }
-    if (method === "POST" && ["/api/auth/pair", "/api/pair", "/api/auth/pairing", "/api/auth/email/start", "/api/auth/email/verify"].includes(path)) {
+    if (method === "POST" && ["/api/auth/pair", "/api/pair", "/api/auth/pairing"].includes(path)) {
       const refusal = managedPolicy.remoteAccessRefusal();
       if (refusal) return json(res, 403, { error: refusal, code: "managed_policy" });
     }
     // Two public routes come first; everything else needs the loopback owner or a paired session with the right scope.
     if (method === "GET" && !path.startsWith("/api/") && !path.startsWith("/.well-known/") && serveStatic(res, path)) return;
     if (method === "GET" && path === "/.well-known/openmausbot/environment") {
-      return json(res, 200, environmentDescriptor({ environmentId: ENVIRONMENT_ID, desktopManaged: DESKTOP_MANAGED, emailSignIn: !HOSTED_WORKSPACE && !CLOUD_HOME && emailSignIn.enabled(), cloudHome: Boolean(CLOUD_HOME) }));
+      return json(res, 200, environmentDescriptor({ environmentId: ENVIRONMENT_ID, desktopManaged: DESKTOP_MANAGED, cloudHome: Boolean(CLOUD_HOME) }));
     }
     const domainCheck = /^\/\.well-known\/openmausbot\/domain-check\/([a-f0-9]{64})$/.exec(path);
     if (method === "GET" && domainCheck) {
@@ -11830,43 +11786,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       const challenge = customDomainVerifier.challenge(domainCheck[1]);
       return json(res, challenge ? 200 : 404, challenge ?? { error: "No active domain check." });
     }
-    // Never on a Cloud home: it is personal, and the owner's devices sign in through the Admin.
-    if (CLOUD_HOME && method === "POST" && (path === "/api/auth/email/start" || path === "/api/auth/email/verify")) {
-      return json(res, 403, { error: CLOUD_PERSONAL_REFUSAL, code: "cloud_personal" });
-    }
-    if (method === "POST" && (path === "/api/auth/email/start" || path === "/api/auth/email/verify")) {
-      if (!/^application\/json\b/i.test(String(req.headers["content-type"] ?? ""))) {
-        return json(res, 415, { error: "send the sign-in request as JSON (content-type: application/json)" });
-      }
-      if (!emailSignIn.enabled()) return json(res, 404, { error: "email sign-in is not set up on this server; use a pairing code" });
-      const source = requestSource(req);
-      const allowed = sessions.attemptAllowed(source);
-      if (!allowed.ok) return json(res, 429, { error: `too many failed sign-in attempts from your address; try again in ${Math.ceil(allowed.retryAfterMs / 1000)}s` });
-      const body = await readBody(req);
-      const email = typeof body?.email === "string" ? body.email : "";
-      if (path === "/api/auth/email/start") {
-        const started = await emailSignIn.start(email);
-        if (!started.ok) {
-          if (started.status === 403) sessions.noteFailure(source);
-          return json(res, started.status, { error: started.error });
-        }
-        return json(res, 200, { ok: true });
-      }
-      const code = typeof body?.code === "string" ? body.code : "";
-      const label = typeof body?.label === "string" ? body.label : "";
-      const verified = await emailSignIn.verify(email, code);
-      if (!verified.ok) {
-        if (verified.status === 401 || verified.status === 403) sessions.noteFailure(source);
-        console.warn(`email sign-in refused from ${source}: ${verified.error}`);
-        return json(res, verified.status, { error: verified.error });
-      }
-      sessions.clearFailures(source);
-      const issued = sessions.issue({ label: label.trim() || labelFromUserAgent(req.headers["user-agent"]), scopes: verified.scopes, userId: verified.userId, email: verified.email });
-      const environment = environmentDescriptor({ environmentId: ENVIRONMENT_ID, desktopManaged: DESKTOP_MANAGED, emailSignIn: true });
-      const secure = requestOrigin(req)?.startsWith("https://") === true;
-      res.setHeader("set-cookie", serializeSessionCookie(SESSION_COOKIE, issued.token, { secure, maxAgeSeconds: cookieMaxAgeSeconds(issued.session) }));
-      return json(res, 200, { session: issued.session, environment });
-    }
+    // Lazurio overlay (DEV-6673 M3): the OpenMausBot account's email-code sign-in is removed; devices pair.
     if (cloudSigned && await cloudSigned({ req, res, url, path, method })) return;
     if (method === "POST" && path === "/api/auth/pair") {
       // JSON only: a cross-site HTML form cannot send this content type without a preflight, so no unused code is planted as a session.
@@ -11891,7 +11811,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         console.warn(`pairing refused from ${requestSource(req)}: ${result.error}`);
         return json(res, result.status, { error: result.error });
       }
-      const environment = environmentDescriptor({ environmentId: ENVIRONMENT_ID, desktopManaged: DESKTOP_MANAGED, emailSignIn: !CLOUD_HOME && emailSignIn.enabled(), cloudHome: Boolean(CLOUD_HOME) });
+      const environment = environmentDescriptor({ environmentId: ENVIRONMENT_ID, desktopManaged: DESKTOP_MANAGED, cloudHome: Boolean(CLOUD_HOME) });
       if (wantsCookie) {
         const previous = browser ? sessions.authenticate(parseCookies(req.headers.cookie).get(SESSION_COOKIE)) : null;
         if (previous && previous.id !== result.session.id) sessions.revoke(previous.id);
@@ -11972,9 +11892,8 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     beginAdminAudit(req, res, method, path, auth);
 
     if (await workspaceBackupRoutes(req, res, path, auth)) return;
-    if (await cloudMoveRoutes(req, res, path, auth)) return;
     // Count requests until their handler returns, not until the browser disconnects: a cancelled upload can still write.
-    if (path.startsWith("/api/") && path !== "/api/events" && path !== "/api/health" && path !== "/api/sync/changes" && !isWorkspaceBackupSessionControl(method, path)) {
+    if (path.startsWith("/api/") && path !== "/api/events" && path !== "/api/health" && !isWorkspaceBackupSessionControl(method, path)) {
       releaseWorkspaceRequest = workspaceMaintenance.request();
     }
 

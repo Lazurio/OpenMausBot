@@ -79,7 +79,7 @@ function providerError(json: CompletionJson): string | null {
 
 const MACHINE_CODE = /^[a-z][a-z0-9_]*$/;
 
-/** A failed response's own error message, then its machine code (trial-credit.ts parses it), else the raw body. */
+/** A failed response's own error message, then its machine code, else the raw body. */
 function httpErrorDetail(body: string, limit = 500): string {
   let json: CompletionJson | undefined;
   try { json = object(JSON.parse(body)); } catch { json = undefined; }
@@ -815,7 +815,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         }
         if (abort.signal.aborted) { ok = false; stopReason = "interrupted"; }
         if (failure && (!abort.signal.aborted || cleanupFailed)) {
-          // "upstream" (an OpenAI-compatible URL) names no provider, and the Cloud trial credit reads its raw line.
+          // "upstream" (an OpenAI-compatible URL) names no provider.
           const message = options.httpErrorLabel === "upstream" ? failure : outOfCreditsMessage(options.httpErrorLabel, failure);
           emit({ ...base(turn.threadId, turnId), type: "runtime.error", message, terminal: !abort.signal.aborted });
         }

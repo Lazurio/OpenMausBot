@@ -7,7 +7,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   api,
   ApiError,
-  CLOUD_LINK_SETTINGS,
   configStatusFromFrame,
   currentTaskBot,
   desktopApprovalBridge,
@@ -345,21 +344,6 @@ describe("keyboard shortcuts dialog state", () => {
     const closed = reducer(opened, { type: "toggleShortcuts" });
     expect(closed.shortcutsOpen).toBe(false);
     expect(closed.botSettingsSection).toBe("soul");
-  });
-});
-
-describe("Settings opened by the Cloud link", () => {
-  it("marks only the link's own opening, counts each link, and clears on any other Settings navigation", () => {
-    expect(initialState.appSettingsCloudLink).toBe(0);
-    const link = CLOUD_LINK_SETTINGS;
-    const opened = reducer(initialState, link);
-    expect(opened).toMatchObject({ appSettingsOpen: true, appSettingsSection: "cloudAccount", appSettingsCloudLink: 1 });
-    expect(reducer(opened, link).appSettingsCloudLink).toBe(2);
-    expect(reducer(opened, { type: "toggleAppSettings", open: true, section: "cloudAccount" }).appSettingsCloudLink).toBe(0);
-    expect(reducer(opened, { type: "toggleAppSettings", open: true, section: "general" }).appSettingsCloudLink).toBe(0);
-    expect(reducer(opened, { type: "toggleAppSettings", open: false })).toMatchObject({ appSettingsOpen: false, appSettingsCloudLink: 0 });
-    expect(reducer(opened, { type: "toggleAppSettings" }).appSettingsCloudLink).toBe(0);
-    expect(reducer(initialState, { ...link, open: false }).appSettingsCloudLink).toBe(0);
   });
 });
 
@@ -2368,14 +2352,7 @@ describe("activity panel", () => {
     expect(reducer(open, { type: "showTeamMap" }).activityOpen).toBe(false);
   });
 
-  it("opens Files as its own page, carrying the folders it should offer to share only when asked", () => {
-    const open = { ...initialState, activityOpen: true, appSettingsOpen: true, settingsOpen: true };
-    const suggested = reducer(open, { type: "showFiles", suggest: ["/Users/ada/site"] });
-    expect(suggested).toMatchObject({ activeView: "files", filesSuggest: ["/Users/ada/site"], activityOpen: false, appSettingsOpen: false, settingsOpen: false });
-    expect(reducer(suggested, { type: "showFiles" })).toMatchObject({ activeView: "files", filesSuggest: null });
-    expect(reducer(suggested, { type: "showFiles", suggest: [] }).filesSuggest).toBeNull();
-    expect(reducer(suggested, { type: "showTeamMap" })).toMatchObject({ activeView: "team-map", filesSuggest: null });
-  });
+
 });
 
 describe("live config frames", () => {

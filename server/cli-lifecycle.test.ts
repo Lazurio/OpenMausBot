@@ -8,15 +8,14 @@ import { isWorkspaceRunning, runOnboardingCommand, runServe, type CliOptions } f
 import { qrToString } from "./cli-pairing.ts";
 
 const mocks = vi.hoisted(() => ({
-  // the fleet path is off in these tests: no credential in the environment
-  fleetCredential: vi.fn(() => null),
+  // no fleet credential unless a test sets one
+  fleetCredential: vi.fn((): string | null => null),
   fleetAccess: vi.fn(),
   FLEET_CREDENTIAL_ENV: "OMB_INSTALLATION_CREDENTIAL",
   denyLogOpen: false,
   spawn: vi.fn(),
   tailscaleStatus: vi.fn(), tailscaleServe: vi.fn(), tailscaleServeOff: vi.fn(),
-  createTunnelAccount: vi.fn(), createTunnelOrigin: vi.fn(), cleanupTunnelOrigin: vi.fn(),
-  describeTunnelAccount: vi.fn(), tunnelAccess: vi.fn(), ensureCloudflared: vi.fn(),
+  createTunnelOrigin: vi.fn(), cleanupTunnelOrigin: vi.fn(), ensureCloudflared: vi.fn(),
   guardianEntry: vi.fn(), startTunnel: vi.fn(),
 }));
 vi.mock("node:child_process", async (original) => ({
@@ -84,9 +83,8 @@ beforeEach(() => {
   mocks.tailscaleStatus.mockResolvedValue({ status: { cli: "/fixture/tailscale", dnsName: "fixture.tail.test", addresses: [], backendState: "Running" } });
   mocks.tailscaleServe.mockResolvedValue({ origin: "https://fixture.tail.test" });
   mocks.tailscaleServeOff.mockResolvedValue(undefined);
-  mocks.createTunnelAccount.mockReturnValue({ credentials: { status: "available", read: () => ({}) }, service: { retry: async () => ({}), restore: async () => ({}), dispose: vi.fn() } });
-  mocks.describeTunnelAccount.mockReturnValue({ email: "fixture@example.test" });
-  mocks.tunnelAccess.mockReturnValue({ endpoint: "https://fixture.openmausbot.test" });
+  mocks.fleetCredential.mockReturnValue(null);
+  mocks.fleetAccess.mockResolvedValue({ endpoint: "https://fixture.openmausbot.test", token: "fixture-connector" });
   mocks.ensureCloudflared.mockResolvedValue("/fixture/cloudflared");
   mocks.guardianEntry.mockReturnValue("/fixture/guardian");
   mocks.createTunnelOrigin.mockReturnValue({ socketPath: join(dataDir, "fixture.sock") });
@@ -158,40 +156,12 @@ describe("CLI startup lifecycle", () => {
       if (healthRequests === 3) interrupt();
       return Response.json({ app: "openmausbot", pid: childPid });
     }));
+    mocks.fleetCredential.mockReturnValue("fixture-installation-credential");
     expect(await runServe({ ...options, tunnel: true }, vi.fn())).toBe(0);
     expect(healthRequests).toBe(3);
     expect(mocks.startTunnel).not.toHaveBeenCalled();
     expect(children[0]!.kill).toHaveBeenCalledWith("SIGTERM");
     expect(mocks.cleanupTunnelOrigin).toHaveBeenCalledOnce();
-  });
-
-  it("hands the running tunnel to background endpoint recovery and takes it back on stop", async () => {
-    let healthRequests = 0;
-    // Nothing answers before serve starts its server; then it is up.
-    vi.stubGlobal("fetch", vi.fn(async () => (++healthRequests === 1
-      ? Response.json({}, { status: 503 })
-      : Response.json({ app: "openmausbot", pid: childPid }))));
-    const service = { retry: vi.fn(async () => ({})), restore: vi.fn(), dispose: vi.fn() };
-    mocks.createTunnelAccount.mockReturnValue({ credentials: { status: "available", read: () => ({}) }, service });
-    const running = { started: Promise.resolve(), stop: vi.fn().mockResolvedValue(undefined) };
-    mocks.startTunnel.mockImplementation(() => {
-      setTimeout(interrupt, 10);
-      return running;
-    });
-    let servingAtRestore: unknown = "not called";
-    service.restore.mockImplementation(async () => {
-      servingAtRestore = recovery().running();
-      return {};
-    });
-    const recovery = () => mocks.createTunnelAccount.mock.calls[0]![0].recovery as { running(): unknown };
-
-    expect(await runServe({ ...options, tunnel: true }, vi.fn())).toBe(0);
-    expect(mocks.startTunnel).toHaveBeenCalledOnce();
-    expect(service.restore).toHaveBeenCalledOnce();
-    expect(servingAtRestore).toBe(running);
-    expect(recovery().running()).toBeNull();
-    expect(service.dispose).toHaveBeenCalled();
-    expect(running.stop).toHaveBeenCalledOnce();
   });
 
   it("reopens a matching desktop workspace even when its server PID differs from the lease owner", async () => {

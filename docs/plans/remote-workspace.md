@@ -113,7 +113,7 @@ desktop-first agent app and adopt these points as requirements:
    line as `openmausbot serve --tailscale`.
 3. **Managed tunnel**: the cloudflared managed-tunnel channel the companion
    already uses — zero network configuration. Rides on the same sessions.
-   Shipped for the command line as `openmausbot login` + `serve --tunnel`
+   Shipped for the command line as `serve --tunnel` with a fleet installation credential
    (`server/tunnel.ts`): the tunnel gateway forwards to a second, IPC
    listener on the harness, on which every request is "through a proxy" by
    construction.
