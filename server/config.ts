@@ -241,8 +241,6 @@ const featureConfigSchema = z.object({
   showToolCalls: z.boolean().optional(),
   /** Built-in browser. On unless false; each bot also has its own switch. */
   browser: z.boolean().optional(),
-  /** Computer sharing. Off unless true, set by hand: there is no Settings toggle. */
-  sharedComputers: z.boolean().optional(),
   claudeUserMcp: z.boolean().optional(), // Claude bots also load this machine's Claude Code MCP servers. Off unless true: tools cost tokens.
   claudeUserSkills: z.boolean().optional(), // Claude bots also load the skills in ~/.claude/skills, in place. Off unless true.
   /** LLM-generated titles for new threads. Off unless true. */
@@ -706,11 +704,6 @@ export function showToolCallsEnabled(cfg: AppConfig): boolean {
 
 export function builtInBrowserEnabled(cfg: AppConfig, _env: NodeJS.ProcessEnv = process.env): boolean {
   return cfg.features?.browser !== false;
-}
-
-/** Security: off unless true because a read-only folder grant can still be escalated to a shell. */
-export function sharedComputersEnabled(cfg: AppConfig): boolean {
-  return cfg.features?.sharedComputers === true;
 }
 
 export function claudeUserMcpEnabled(cfg: Pick<AppConfig, "features">): boolean {

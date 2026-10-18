@@ -33,14 +33,6 @@ describe("workspace backup data boundary", () => {
     expect(restoredWorkspaceConfig(portable, { helper: { instanceId: "openrouter" } }).helper).toEqual({ instanceId: "openrouter" });
   });
 
-  it("keeps the destination's own computer-sharing switch, whatever the backup says", () => {
-    const portable = portableWorkspaceConfig({ features: { browser: true, sharedComputers: true } });
-    expect(restoredWorkspaceConfig(portable, { features: { sharedComputers: false } }).features).toEqual({ browser: true, sharedComputers: false });
-    expect(restoredWorkspaceConfig(portable, {}).features).toEqual({ browser: true });
-    expect(restoredWorkspaceConfig(portableWorkspaceConfig({ features: { sharedComputers: true } }), {})).not.toHaveProperty("features");
-    expect(restoredWorkspaceConfig({}, { features: { sharedComputers: true, browser: true } }).features).toEqual({ sharedComputers: true });
-  });
-
   it.each([
     "providers/account/.credentials.json", "providers/antigravity/profile/antigravity-acp/acp_token.json",
     "workspace-credentials.json", "browser-engine-key", "caddy/data/certificates/private.key",

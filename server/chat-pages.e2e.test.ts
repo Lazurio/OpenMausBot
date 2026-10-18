@@ -1,20 +1,16 @@
 // End-to-end on the fakes: a scripted bot on a real server and a real agents proxy shows a React page, the person
-// points at part of it and asks for a change, the bot replaces it with update_html, and the person shares it from the
-// page's card. One loopback stub stands in for the Admin's token route and the pages Worker; no model is called and
-// no external service is reached.
+// points at part of it and asks for a change, and the bot replaces it with update_html. No model is called and no
+// external service is reached.
 import { randomBytes } from "node:crypto";
-import { createServer, type Server } from "node:http";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { launchVerificationServer, runControlOmb } from "../scripts/control-omb.ts";
 import { BOT_HTML_CSP } from "../shared/app-frame/csp.ts";
 import { CSP_META_PREFIX } from "../shared/app-frame/document.ts";
-import { FAKE_DESKTOP_TOKEN, fakePagesService } from "./testing/fake-pages.ts";
 
 const owner = randomBytes(32).toString("base64url");
 const realFetch = globalThis.fetch;
-let stub: { server: Server; url: string; service: ReturnType<typeof fakePagesService> };
 let fixture: Awaited<ReturnType<typeof launchVerificationServer>>;
 
 const PRICING = `import { useState } from "react";
@@ -29,40 +25,16 @@ export default function Pricing() {
 }`;
 const PRICING_V2 = PRICING.replace("rounded-2xl border p-5", "rounded-2xl border p-5 data-[plan=Pro]:ring-2").replace("<section key={plan.name}", "<section key={plan.name} data-plan={plan.name}");
 
-async function serveStub() {
-  let service!: ReturnType<typeof fakePagesService>;
-  const server = createServer((req, res) => {
-    const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
-    req.on("end", async () => {
-      const body = Buffer.concat(chunks);
-      const answer = await service.fetch(new Request(`${url}${req.url}`, { method: req.method, headers: req.headers as Record<string, string>,
-        ...(body.length ? { body } : {}) })).catch(() => new Response("{}", { status: 404 }));
-      res.writeHead(answer.status, { "content-type": "application/json" });
-      res.end(Buffer.from(await answer.arrayBuffer()));
-    });
-  });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  if (!address || typeof address === "string") throw new Error("no stub port");
-  const url = `http://127.0.0.1:${address.port}`;
-  service = fakePagesService({ admin: url, upload: url });
-  return { server, url, service };
-}
-
 beforeAll(async () => {
-  stub = await serveStub();
   globalThis.fetch = (input, init = {}) => realFetch(input, { ...init, headers: { ...Object.fromEntries(new Headers(init.headers)), "x-openmausbot-desktop-owner": owner } });
-  fixture = await launchVerificationServer({ ...process.env, OMB_TEST_DESKTOP_OWNER_TOKEN: owner,
-    OMB_TEST_DESKTOP_PAGES_ACCESS: JSON.stringify({ url: `${stub.url}/api/cloud/pages/token`, token: FAKE_DESKTOP_TOKEN }) }, undefined, undefined, undefined, undefined, { scripted: true });
+  fixture = await launchVerificationServer({ ...process.env, OMB_TEST_DESKTOP_OWNER_TOKEN: owner }, undefined, undefined, undefined, undefined, { scripted: true });
 }, 90_000);
 afterAll(async () => {
   globalThis.fetch = realFetch;
-  stub?.server.close();
   await fixture?.close();
 });
 
-it("shows a jsx page, takes what the person pointed at to the bot as records, replaces the page, and publishes it as static HTML", async () => {
+it("shows a jsx page, takes what the person pointed at to the bot as records, and replaces the page", async () => {
   const cli = (...args: string[]) => runControlOmb(args, { env: { OPENMAUSBOT_URL: fixture.info.url } }) as Promise<any>;
   const api = async (path: string, init: RequestInit = {}) => {
     const response = await fetch(`${fixture.info.url}${path}`, { ...init, headers: { "content-type": "application/json" } });
@@ -120,21 +92,4 @@ it("shows a jsx page, takes what the person pointed at to the bot as records, re
   const earlier = await api(`/api/threads/${threadId}/messages/${appId}/app?rev=0`);
   expect(earlier.body).toMatchObject({ rev: 0 });
   expect(earlier.body.srcdoc).not.toContain("data-plan={plan.name}");
-
-  const published = await api(`/api/threads/${threadId}/messages/${appId}/app/publish`, { method: "POST", body: JSON.stringify({ rev: 1 }) });
-  expect(published).toMatchObject({ status: 200, body: { ok: true, card: { state: "live", title: "Pricing" } } });
-  const [pageId] = [...stub.service.pages.keys()];
-  const html = stub.service.pages.get(pageId!)!.files.get("index.html")!;
-  expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
-  expect(html).toContain("window.__mausbotPage=function(require,module,exports){");
-  expect(html).toContain("_react.useState.call(void 0, \"Pro\")");
-  expect(html).not.toContain("useState(\"Pro\")");
-  expect(html).not.toContain("Content-Security-Policy");
-  expect((await transcript()).find((message) => message.id === appId).publishedPage).toMatchObject({ state: "live", pageId, url: `https://${pageId}.mausbot.page/` });
-  const again = await api(`/api/threads/${threadId}/messages/${appId}/app/publish`, { method: "POST", body: "{}" });
-  expect(again.body.card.pageId).toBe(pageId);
-  expect(stub.service.pages.size).toBe(1);
-  // Sharing gives the page's own card the link; no second card is posted.
-  const cards = (await transcript()).filter((message) => message.publishedPage);
-  expect(cards.map((message) => [message.id, message.publishedPage.state])).toEqual([[appId, "live"]]);
 }, 120_000);

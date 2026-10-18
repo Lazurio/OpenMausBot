@@ -14,23 +14,11 @@ export function portableWorkspaceConfig(value: unknown): Record<string, unknown>
   return Object.fromEntries(PORTABLE_CONFIG_KEYS.filter((key) => config[key] !== undefined).map((key) => [key, config[key]]));
 }
 
-// Computer sharing opens routes and a desktop connector here: a restore never turns it on or off.
-const DESTINATION_FEATURES = ["sharedComputers"] as const;
-
 export function restoredWorkspaceConfig(portable: unknown, destination: unknown): Record<string, unknown> {
   if (!destination || typeof destination !== "object" || Array.isArray(destination)) throw new Error("Invalid destination workspace configuration; connections were not changed.");
   const merged = { ...destination } as Record<string, unknown>;
   for (const key of PORTABLE_CONFIG_KEYS) delete merged[key];
-  const restored = { ...merged, ...portableWorkspaceConfig(portable) };
-  const own = (destination as { features?: Record<string, unknown> }).features ?? {};
-  const features: Record<string, unknown> = { ...(restored.features as Record<string, unknown> | undefined) };
-  for (const key of DESTINATION_FEATURES) {
-    delete features[key];
-    if (own[key] !== undefined) features[key] = own[key];
-  }
-  if (Object.keys(features).length) restored.features = features;
-  else delete restored.features;
-  return restored;
+  return { ...merged, ...portableWorkspaceConfig(portable) };
 }
 
 export function excludedWorkspaceAuthPath(path: string): boolean {

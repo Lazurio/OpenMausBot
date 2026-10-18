@@ -223,8 +223,6 @@
       "update_widget",
       "show_html",
       "update_html",
-      "list_shared_computers",
-      "shared_computer",
       "post_to_room",
       "create_bot",
       "list_team_setup",
@@ -325,8 +323,6 @@
       "manage_trigger",
       "propose_profile",
       "propose_model",
-      "list_shared_computers",
-      "shared_computer",
       "memory_update",
       "memory_log",
       "session_search",
@@ -436,8 +432,6 @@
       "post_to_room",
       "request_credential",
       "request_sign_in",
-      "list_shared_computers",
-      "shared_computer",
       "select_computer",
       "vm_exec",
       "send_voice_note",
@@ -459,8 +453,6 @@
   "skills+voice+cloud-home": {
     "tools": [
       "tool_result_read",
-      "list_shared_computers",
-      "shared_computer",
       "list_room_targets",
       "coordinate_bots",
       "assignment_status",
@@ -507,8 +499,6 @@
   "skills+voice+non-chief+cloud-home": {
     "tools": [
       "tool_result_read",
-      "list_shared_computers",
-      "shared_computer",
       "list_room_targets",
       "coordinate_bots",
       "assignment_status",
@@ -545,8 +535,6 @@
   "skills+voice+escalations": {
     "tools": [
       "tool_result_read",
-      "list_shared_computers",
-      "shared_computer",
       "list_room_targets",
       "coordinate_bots",
       "assignment_status",

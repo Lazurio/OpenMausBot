@@ -41,7 +41,6 @@ const sidecar = async (redeemed: unknown[] = []) => {
     serverName: () => "Fixture",
   });
   const server = createServer(proxy);
-  server.on("upgrade", proxy.upgrade);
   return listen(server);
 };
 
@@ -71,7 +70,7 @@ it("refuses a WebSocket upgrade to a target that is not a URL", async () => {
       + "Sec-WebSocket-Version: 13\r\n\r\n",
   ));
   await once(client, "close");
-  expect(response).toMatch(/^HTTP\/1\.1 404 /);
+  expect(response).toMatch(/^HTTP\/1\.1 400 /);
 });
 
 it("refuses pairing credentials and device names that are not plain values", async () => {

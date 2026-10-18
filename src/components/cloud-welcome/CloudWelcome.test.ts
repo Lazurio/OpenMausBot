@@ -45,7 +45,6 @@ const credit = { instanceId: "trial", driverKind: "openai-compat", displayName: 
 
 let host: HTMLDivElement;
 let root: Root;
-let lending: { open: ReturnType<typeof vi.fn> };
 const welcome = { current: null as ReturnType<typeof useCloudWelcome> | null };
 function Probe() { welcome.current = useCloudWelcome(); return null; }
 const render = () => flushSync(() => root.render([createElement(CloudWelcome, { key: "welcome" }), createElement(Probe, { key: "probe" })]));
@@ -83,7 +82,6 @@ beforeEach(() => {
     if (patch.onboarding) return { ...fixture.state.config, onboarding: { ...fixture.state.config.onboarding, ...patch.onboarding } };
     throw new Error(`unexpected ${path}`);
   });
-  lending = { open: vi.fn().mockResolvedValue(undefined) };
   window.ogb = {
     platform: "darwin", cloudLending: lending,
     cloudSendPage: { notice: vi.fn().mockResolvedValue(quiet), dismiss: vi.fn(), onNotice: vi.fn(() => () => {}) },
@@ -292,12 +290,9 @@ describe("CloudWelcome", () => {
     expect(lending.open).toHaveBeenCalledOnce();
   });
 
-  it("files and apps open this computer's Files and Connected apps, then it is ready and says hi to the Chief of Staff", async () => {
     fixture.state.config.onboarding = { ...EMPTY_ONBOARDING, hintsSeen: [welcomeStepHint("bring"), welcomeStepHint("engine")] };
     render();
     await vi.waitFor(() => expect(text()).toContain("Welcome to Studio Cloud"));
-    click("Open on this computer");
-    expect(lending.open).toHaveBeenCalledOnce();
     click("Connect apps");
     expect(fixture.dispatch).toHaveBeenCalledWith({ type: "togglePlugins", open: true, surface: "apps" });
     click("Finish");

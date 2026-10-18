@@ -13,7 +13,6 @@ import { shortPath } from "@/lib/short-path";
 import { useDesktopCapabilities } from "../DesktopCapabilities";
 import { CloudBackendPicker } from "../CloudBackendPicker";
 import { Switch } from "../SettingsPrimitives";
-import { PhoneAppsCard } from "./PhoneAppsCard";
 import { ProposalStatus } from "./ProposalStatus";
 import { ToolSelectionCard } from "./ToolSelectionCard";
 import { useCloudPlan } from "../ProIntroduction";
@@ -498,27 +497,6 @@ function ResearchCard({ bot, patch }: { bot: Bot; patch: (patch: { xResearch: bo
   );
 }
 
-function RecordStepsRow({ on, browserOn, myChrome, onChange }: { on: boolean; browserOn: boolean; myChrome: boolean; onChange: (on: boolean) => void }) {
-  return (
-    <div className="mt-3 flex items-center justify-between gap-4 border-t border-hairline/40 pt-3">
-      <div>
-        <div className="text-[14px] font-medium text-ink">{t("botAccess.recordSteps.title")}</div>
-        <div className="mt-0.5 text-[13px] text-ink-secondary">
-          {!browserOn ? t("botAccess.recordSteps.needsBrowser") : on ? t("botAccess.recordSteps.on") : t("botAccess.recordSteps.off")}
-          {browserOn && on && myChrome ? ` ${t("botAccess.recordSteps.myChrome")}` : ""}
-        </div>
-      </div>
-      <Switch
-        checked={on && browserOn}
-        aria-label={t("botAccess.recordSteps.title")}
-        disabled={!browserOn}
-        onClick={() => onChange(!on)}
-        className="disabled:cursor-not-allowed"
-      />
-    </div>
-  );
-}
-
 export function cloudPreferenceShown(bot: Pick<Bot, "computer">, config: { cloudHome?: boolean } | null | undefined): boolean {
   return (!bot.computer || bot.computer === "cloud") && !config?.cloudHome;
 }
@@ -625,6 +603,7 @@ export function CloudPreference({ bot, patch }: { bot: Bot; patch: ReturnType<ty
 }
 
 export type AccessPart = "worksOn" | "folder" | "apps" | "phone" | "xResearch" | "mcp" | "tools" | "browser" | "webhooks" | "always";
+export type AccessPart = "folder" | "webhooks" | "always";
 
 export function AccessSection({
   bot,
@@ -789,8 +768,6 @@ export function AccessSection({
           />
         )}
       </div>}
-
-      {!draft && shows("xResearch") && <ResearchCard bot={bot} patch={patch} />}
 
       {!draft && shows("webhooks") && <div className="rounded-xl bg-card p-4">
         <div className="text-[15px] font-medium text-ink">{t("botAccess.webhooks.title")}</div>

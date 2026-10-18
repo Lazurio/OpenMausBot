@@ -42,24 +42,21 @@ function profiles(): Record<string, Record<string, string>> {
   const all: Record<string, Record<string, string>> = {};
   for (const chief of [true, false]) {
     for (const skills of [false, true]) {
-      for (const shared of [false, true]) {
-        for (const voice of [false, true]) {
-          const name = [skills && "skills", shared && "shared", voice && "voice", !chief && "non-chief"]
-            .filter(Boolean).join("+") || "default";
-          all[name] = {
-            OMB_SKILL_AUTHORING_ENABLED: flag(skills),
-            OMB_SHARED_COMPUTERS_ENABLED: flag(shared),
-            OMB_VOICE_NOTES: flag(voice),
-            OMB_CHIEF_OF_STAFF: flag(chief),
-          };
-        }
+      for (const voice of [false, true]) {
+        const name = [skills && "skills", voice && "voice", !chief && "non-chief"]
+          .filter(Boolean).join("+") || "default";
+        all[name] = {
+          OMB_SKILL_AUTHORING_ENABLED: flag(skills),
+          OMB_VOICE_NOTES: flag(voice),
+          OMB_CHIEF_OF_STAFF: flag(chief),
+        };
       }
     }
   }
-  for (const name of ["skills+shared+voice", "skills+shared+voice+non-chief"]) {
+  for (const name of ["skills+voice", "skills+voice+non-chief"]) {
     all[`${name}+cloud-home`] = { ...all[name]!, OMB_CLOUD_HOME: "1" };
   }
-  all["skills+shared+voice+escalations"] = { ...all["skills+shared+voice"]!, OMB_ESCALATIONS: "1" };
+  all["skills+voice+escalations"] = { ...all["skills+voice"]!, OMB_ESCALATIONS: "1" };
   all["skills+voice+escalations+team"] = { ...all["skills+voice+escalations"]!, OMB_TEAM_PEOPLE: "1" };
   all["default+legacy-switches"] = { ...all.default!, OMB_ROOM_TURN: "1", OMB_OWN_THREAD_CREATION: "1", OMB_EXTERNAL_RUNTIME: "1" };
   for (const name of ["default", "skills+voice"]) all[`${name}+mausbot`] = { ...all[name]!, OMB_MAUSBOT: "1" };
@@ -249,7 +246,7 @@ describe("agents proxy tools/list golden with the tool bridge on", () => {
     }
     // So a bot that is not a Chief is not told the Chief-only tools exist.
     const nonChief = Object.keys(PROFILES).filter((name) => PROFILES[name]!.OMB_CHIEF_OF_STAFF === "0");
-    expect(nonChief).toHaveLength(9);
+    expect(nonChief).toHaveLength(5);
     for (const name of nonChief) {
       for (const tool of CHIEF_ONLY_TOOLS) expect(wires[name], `${name}: ${tool}`).not.toContain(tool);
       const chiefTwin = name === "non-chief" ? "default" : name.replace("+non-chief", "");

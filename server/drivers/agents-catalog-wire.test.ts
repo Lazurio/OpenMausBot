@@ -28,26 +28,23 @@ function profiles(): Record<string, Profile> {
   const all: Record<string, Profile> = {};
   for (const chief of [true, false]) {
     for (const skills of [false, true]) {
-      for (const shared of [false, true]) {
-        for (const voice of [false, true]) {
-          const name = [skills && "skills", shared && "shared", voice && "voice", !chief && "non-chief"]
-            .filter(Boolean).join("+") || "default";
-          all[name] = {
-            env: {
-              OMB_SKILL_AUTHORING_ENABLED: flag(skills),
-              OMB_SHARED_COMPUTERS_ENABLED: flag(shared),
-              OMB_VOICE_NOTES: flag(voice),
-              OMB_CHIEF_OF_STAFF: flag(chief),
-            },
-          };
-        }
+      for (const voice of [false, true]) {
+        const name = [skills && "skills", voice && "voice", !chief && "non-chief"]
+          .filter(Boolean).join("+") || "default";
+        all[name] = {
+          env: {
+            OMB_SKILL_AUTHORING_ENABLED: flag(skills),
+            OMB_VOICE_NOTES: flag(voice),
+            OMB_CHIEF_OF_STAFF: flag(chief),
+          },
+        };
       }
     }
   }
-  for (const name of ["skills+shared+voice", "skills+shared+voice+non-chief"]) {
+  for (const name of ["skills+voice", "skills+voice+non-chief"]) {
     all[`${name}+cloud-home`] = { env: { ...all[name]!.env, OMB_CLOUD_HOME: "1" } };
   }
-  all["skills+shared+voice+escalations"] = { env: { ...all["skills+shared+voice"]!.env, OMB_ESCALATIONS: "1" } };
+  all["skills+voice+escalations"] = { env: { ...all["skills+voice"]!.env, OMB_ESCALATIONS: "1" } };
   // A Team Cloud mounts message_person; the fullest profile carries it.
   all["skills+voice+escalations+team"] = { env: { ...all["skills+voice+escalations"]!.env, OMB_TEAM_PEOPLE: "1" } };
   all["default+legacy-switches"] = {
@@ -230,7 +227,7 @@ describe("agents proxy tools/list golden", () => {
   it("shows only a Chief of Staff the Chief-only tools, and for_bot_id on another bot's profile or model", () => {
     type SchemaTool = Tool & { description: string; inputSchema: { properties: Record<string, unknown> } };
     const nonChief = Object.keys(PROFILES).filter((name) => PROFILES[name]!.env.OMB_CHIEF_OF_STAFF === "0");
-    expect(nonChief).toHaveLength(9);
+    expect(nonChief).toHaveLength(5);
     for (const name of nonChief) {
       const chiefTools = toolsOf(wires[name === "non-chief" ? "default" : name.replace("+non-chief", "")]!) as SchemaTool[];
       const tools = new Map((toolsOf(wires[name]!) as SchemaTool[]).map((tool) => [tool.name, tool]));
@@ -305,7 +302,7 @@ describe("agents proxy tools/list from the packaged bundle", () => {
 
 describe("agents proxy tools/list wire size", () => {
   it("prints per-tool and total UTF-8 bytes", () => {
-    const shown = [FULL, "skills+shared+voice+non-chief"];
+    const shown = [FULL, "skills+voice+non-chief"];
     const perTool = new Map<string, Record<string, number>>();
     for (const name of shown) {
       for (const tool of toolsOf(wires[name]!)) {

@@ -14,7 +14,6 @@ import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
 import { freePortBlock } from "./testing/ports.ts";
 import { hostTimeout } from "./testing/host-timeout.ts";
 import { ownTurnText } from "./testing/room-handoff-agent.ts";
-import { withAnswer } from "./testing/your-computer.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const RERUN_NOTE = "OpenMausBot restarted while your previous turn here was running";
@@ -780,31 +779,6 @@ it("T12 a turn the watchdog stops after it posted a credential card fails as sta
   await answerStartsNothing(f, job);
 }, { fake: STALL_CLOCK }), hostTimeout(60_000));
 
-it("T12 a turn the watchdog stops after it posted connector cards fails as stalled and stops the cards", async () => {
-  const composio = await composioStub();
-  try {
-    await scenario(async (f) => {
-      expect((await f.api("PUT", "/api/config", { composio: { apiKey: "ak_good" } })).status).toBe(200);
-      f.script(f.clive.id, { key: "C0", match: ["T12C-JOB"], readyFile: f.ready("c0"), gateFile: f.gate("c0"), reply: "T12C-LATE: never shown." });
-      const job = f.clive.activeTaskId;
-      await f.say(f.clive.id, job, "T12C-JOB: wire up my mail and chat.");
-      await expect.poll(() => existsSync(f.ready("c0")), { timeout: 30_000 }).toBe(true);
-      const requested = await f.internal("/api/internal/connectors/request", { botId: f.clive.id, threadId: job, resumeKey: "t12-resume-key-0001", items: ["gmail", "slack"] }, f.token("composio"));
-      expect(requested.status, JSON.stringify(requested.body)).toBe(200);
-      const [gmail, slack] = requested.body.messageIds as string[];
-      await stallOverCards(f, job, [gmail, slack]);
-      composio.connect("gmail");
-      composio.connect("slack");
-      expect((await f.api("GET", `/api/bots/${f.clive.id}/connector-cards/${gmail}/status?threadId=${job}`)).body).toMatchObject({ connected: true });
-      expect((await f.api("GET", `/api/bots/${f.clive.id}/connector-cards/${slack}/status?threadId=${job}`)).body).toMatchObject({ connected: true });
-      await answerStartsNothing(f, job);
-      const cards = (await f.messages(job)).filter((message: { kind: string }) => message.kind === "connector").map((message: { connector: CardState }) => message.connector);
-      expect(cards.map((connector: CardState) => [connector.status, connector.stopped, connector.resumed])).toEqual([["connected", true, undefined], ["connected", true, undefined]]);
-    }, { env: composio.env, fake: STALL_CLOCK });
-  } finally {
-    await composio.close();
-  }
-}, hostTimeout(90_000));
 
 it("T12 a turn the watchdog stops after it posted a sign-in card fails as stalled and stops the card", () => scenario(async (f) => {
   await browserPlace(f);

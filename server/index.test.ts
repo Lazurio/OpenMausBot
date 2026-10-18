@@ -9347,7 +9347,6 @@ describe("harness HTTP API", () => {
     const untouched = JSON.parse(readFileSync(join(home, ".openmausbot", "config.json"), "utf8"));
     expect(untouched.features?.skillAuthoring).toBeUndefined();
     expect(untouched.features?.skillReview).toBeUndefined();
-    expect(untouched.features?.sharedComputers).toBeUndefined();
 
     const saved = await api("PATCH", "/api/config", {
       features: { skillAuthoring: false },

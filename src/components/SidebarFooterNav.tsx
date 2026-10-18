@@ -1,7 +1,6 @@
-import { FolderOpen, Puzzle, UsersRound, Zap } from "lucide-react";
+import { UsersRound, Zap } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { useAppTriggers } from "@/lib/app-triggers";
 import { cn } from "@/lib/cn";
 import { useCloudFilesReady } from "@/lib/cloud-files";
 import { t } from "@/lib/i18n";
@@ -84,17 +83,15 @@ export function SidebarAppsButton() {
   );
 }
 
-/** An unseen failed run, or an app trigger in trouble. */
+/** An unseen failed run. */
 export function useAutomationsNeedYou(): boolean {
   const { state } = useStore();
-  const appTriggers = useAppTriggers();
-  return state.routineRuns.some((run) => isRoutineProblemRun(run) && !run.seenAt) || appTriggers.triggers.some((trigger) => trigger.enabled && trigger.problem);
+  return state.routineRuns.some((run) => isRoutineProblemRun(run) && !run.seenAt);
 }
 
 export function SidebarBottomButtons() {
   return (
     <div data-sidebar-bottom-buttons="" className="flex shrink-0 items-center gap-0.5">
-      <SidebarAppsButton />
       <UpdateIndicator />
     </div>
   );
@@ -129,32 +126,12 @@ export function SidebarFooterNav({
     icon={(active) => <Zap size={iconSize} className={tone(active)} />}
     onClick={() => dispatch({ type: "showRoutines", view: "list" })}
   />;
-  const filesRow = useCloudFilesReady() && <NavRow
-    id="files"
-    label={t("sidebar.nav.files")}
-    iconsOnly={iconsOnly}
-    rail={rail}
-    active={state.activeView === "files"}
-    icon={(active) => <FolderOpen size={iconSize} className={tone(active)} />}
-    onClick={() => dispatch({ type: "showFiles" })}
-  />;
   if (!advanced && !iconsOnly) return null;
-  const appsRow = iconsOnly && <NavRow
-    id="apps"
-    label={t("sidebar.nav.apps")}
-    tourId="nav-apps"
-    iconsOnly={iconsOnly}
-    rail={rail}
-    active={state.pluginsOpen}
-    icon={(active) => <Puzzle size={iconSize} className={tone(active)} />}
-    onClick={() => dispatch({ type: "togglePlugins", open: true })}
-  />;
-  if (rail) return <nav data-tour="tools" aria-label={t("sidebar.tools")} className="flex flex-col items-center gap-0.5">{appsRow}</nav>;
+  if (rail) return null;
 
   const rows = (
     <>
       {automationsRow}
-      {appsRow}
       {(advanced || iconsOnly) && (
         <NavRow
           id="team-map"

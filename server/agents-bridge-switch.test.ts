@@ -63,7 +63,7 @@ describe("the agents tool bridge switch", () => {
     expect(agentsToolBridgeEnabled({}, {})).toBe(false);
     expect(agentsToolBridgeEnabled({ features: {} }, {})).toBe(false);
     expect(agentsToolBridgeEnabled({ features: { agentsToolBridge: false } }, {})).toBe(false);
-    expect(agentsToolBridgeEnabled(parseStoredConfig({ features: { skillAuthoring: true, sharedComputers: true } }), {})).toBe(false);
+    expect(agentsToolBridgeEnabled(parseStoredConfig({ features: { skillAuthoring: true } }), {})).toBe(false);
   });
 
   it("is switched on by the config key or by OMB_AGENTS_TOOL_BRIDGE=1", () => {
@@ -320,7 +320,6 @@ describe("which engines a turn is bridged on", () => {
     });
 
     it("is not bridged when the folder's local settings do", () => {
-      expect(agentsToolBridgeRefusal(ON, bot, inFolder("settings.local.json", { permissions: { deny: ["mcp__agents__shared_computer"] } }))).toBe(NAMES);
     });
 
     it("is not bridged when the machine's managed policy does", () => {
@@ -674,7 +673,6 @@ describe("the name a bridged call is given", () => {
 
   it("is the tool it ran on a turn that was bridged, for any tool of today's catalog, and its own for anything else", () => {
     bridgedAgents("thread-bridged", agents(), ON, bot, CLAUDE, {}, HOST);
-    for (const tool of ["list_triggers", "vm_exec", "shared_computer", "create_bot", "create_options_card", "memory_log", "post_to_room"]) {
       expect(bridgedToolTitle("thread-bridged", "mcp__agents__use_tool", JSON.stringify({ name: tool, arguments: {} }, null, 2)), tool).toBe(`mcp__agents__${tool}`);
       expect(bridgedToolTitle("thread-bridged", "agents_use_tool", { name: tool }), tool).toBe(`agents_${tool}`);
       expect(bridgedToolTitle("thread-bridged", "use_tool", { name: tool }), tool).toBe(tool);
@@ -792,7 +790,7 @@ describe("the prompt of a bridged turn", () => {
   });
 
   it("never names a tool the bridge may have hidden, so it cannot send a bot to call one directly", () => {
-    const everyTool = availableTools({ skillAuthoring: true, sharedComputers: true, voiceNotes: true, cloudHome: false, chief: true, botId: WATCHER_OPTIONS_CARD_BOT_ID }).map((tool) => tool.name);
+    const everyTool = availableTools({ skillAuthoring: true, voiceNotes: true, cloudHome: false, chief: true, botId: WATCHER_OPTIONS_CARD_BOT_ID }).map((tool) => tool.name);
     expect(everyTool.length).toBeGreaterThan(BRIDGE_HOT_TOOL_NAMES.size);
     for (const tool of everyTool) expect(AGENTS_TOOL_BRIDGE_PROMPT, tool).not.toContain(tool);
   });

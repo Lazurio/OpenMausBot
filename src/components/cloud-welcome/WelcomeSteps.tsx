@@ -65,7 +65,6 @@ export function WelcomeEngine({ name, headingRef, onFinish }: { name: string; he
  * once it is home, its own Settings say what the person's computer shares. */
 export function WelcomeFiles({ name, headingRef, onFinish }: { name: string; headingRef: Ref<HTMLHeadingElement>; onFinish: () => void }) {
   const { dispatch } = useStore();
-  const lending = window.ogb?.cloudLending;
   const home = useCloudPlanSnapshot(window.ogb?.cloudPlan)?.home === true;
   const card = (id: string, icon: typeof Plug, title: string, body: string, action?: { label: string; run: () => void }) =>
     <div data-welcome-files={id} className={cn(CARD, CARD_IDLE)}>

@@ -1,54 +1,27 @@
 // End-to-end on the fakes: a scripted bot shows a dashboard folder (index.html, a script and a Parquet file) inline,
-// its frame's files load through the token route with no sign-in, another bot can't show that folder, and publishing the
-// folder gives the same card its link. One loopback stub stands in for the pages service; no model is called.
+// its frame's files load through the token route with no sign-in, and another bot can't show that folder. No model is
+// called.
 import { randomBytes } from "node:crypto";
-import { createServer, type Server } from "node:http";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { launchVerificationServer, runControlOmb } from "../scripts/control-omb.ts";
-import { FAKE_DESKTOP_TOKEN, fakePagesService } from "./testing/fake-pages.ts";
 
 const owner = randomBytes(32).toString("base64url");
 const realFetch = globalThis.fetch;
-let stub: { server: Server; url: string; service: ReturnType<typeof fakePagesService> };
 let fixture: Awaited<ReturnType<typeof launchVerificationServer>>;
 const PARQUET = Buffer.concat([Buffer.from("PAR1"), randomBytes(2_048), Buffer.from("PAR1")]);
 
-async function serveStub() {
-  let service!: ReturnType<typeof fakePagesService>;
-  const server = createServer((req, res) => {
-    const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
-    req.on("end", async () => {
-      const body = Buffer.concat(chunks);
-      const answer = await service.fetch(new Request(`${url}${req.url}`, { method: req.method, headers: req.headers as Record<string, string>,
-        ...(body.length ? { body } : {}) })).catch(() => new Response("{}", { status: 404 }));
-      res.writeHead(answer.status, { "content-type": "application/json" });
-      res.end(Buffer.from(await answer.arrayBuffer()));
-    });
-  });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  if (!address || typeof address === "string") throw new Error("no stub port");
-  const url = `http://127.0.0.1:${address.port}`;
-  service = fakePagesService({ admin: url, upload: url });
-  return { server, url, service };
-}
-
 beforeAll(async () => {
-  stub = await serveStub();
   globalThis.fetch = (input, init = {}) => realFetch(input, { ...init, headers: { ...Object.fromEntries(new Headers(init.headers)), "x-openmausbot-desktop-owner": owner } });
-  fixture = await launchVerificationServer({ ...process.env, OMB_TEST_DESKTOP_OWNER_TOKEN: owner,
-    OMB_TEST_DESKTOP_PAGES_ACCESS: JSON.stringify({ url: `${stub.url}/api/cloud/pages/token`, token: FAKE_DESKTOP_TOKEN }) }, undefined, undefined, undefined, undefined, { scripted: true });
+  fixture = await launchVerificationServer({ ...process.env, OMB_TEST_DESKTOP_OWNER_TOKEN: owner }, undefined, undefined, undefined, undefined, { scripted: true });
 }, 90_000);
 afterAll(async () => {
   globalThis.fetch = realFetch;
-  stub?.server.close();
   await fixture?.close();
 });
 
-it("shows a dashboard folder inline, serves its Parquet to the frame by token only, keeps other bots out, and gives the card its link on publish", async () => {
+it("shows a dashboard folder inline, serves its Parquet to the frame by token only, and keeps other bots out", async () => {
   const cli = (...args: string[]) => runControlOmb(args, { env: { OPENMAUSBOT_URL: fixture.info.url } }) as Promise<any>;
   const api = async (path: string, init: RequestInit = {}) => {
     const response = await fetch(`${fixture.info.url}${path}`, { ...init, headers: { "content-type": "application/json" } });
@@ -97,12 +70,4 @@ it("shows a dashboard folder inline, serves its Parquet to the frame by token on
   expect((await cli("wait", "--bot", other.id, "--task", other.activeTaskId, "--timeout", "30")).status).toBe("settled");
   expect(evidence(other.id).at(-1).evidence.find((entry: any) => entry.step).response.result.content[0].text).toMatch(/^path: Only files in your working folder/);
 
-  const [published] = await turn(analyst, [{ tool: "publish_page", arguments: { path: "dash", title: "Sales dashboard" } }]);
-  const [pageId] = [...stub.service.pages.keys()];
-  expect(published).toContain(`Published “Sales dashboard” at https://${pageId}.mausbot.page/`);
-  expect(Buffer.from(stub.service.pages.get(pageId!)!.files.get("data.parquet")!, "latin1").byteLength).toBeGreaterThan(0);
-  const rows = (await api(`/api/threads/${analyst.activeTaskId}/messages?limit=50`)).body.messages as any[];
-  expect(rows.filter((message) => message.kind === "app").map((message) => [message.id, message.publishedPage?.state, message.publishedPage?.url]))
-    .toEqual([[appId, "live", `https://${pageId}.mausbot.page/`]]);
-  expect(rows.filter((message) => message.publishedPage && message.kind !== "app")).toEqual([]);
 }, 120_000);

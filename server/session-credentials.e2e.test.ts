@@ -62,7 +62,6 @@ async function fixture(test: (f: any) => Promise<void>, { thisComputer = false }
     const log = openSync(logPath, "a", 0o600);
     // With this computer, started as the desktop app starts its own server, which hears the driver record over its parent port.
     server = spawn(process.execPath, ["--experimental-strip-types",
-      ...(thisComputer ? ["--import", pathToFileURL(fileURLToPath(new URL("./testing/desktop-parent.mjs", import.meta.url))).href] : []),
       fileURLToPath(new URL("./index.ts", import.meta.url))], {
       cwd: fileURLToPath(new URL("..", import.meta.url)),
       env: {

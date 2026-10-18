@@ -22,9 +22,6 @@ declare global {
 /** The package.json version, inlined by Vite's define at build time. */
 const __APP_VERSION__: string;
 
-  type DesktopSharedFolder = import("../../electron/computer-sharing.mjs").SharedFolder;
-  type DesktopComputerSharing = import("../../electron/computer-sharing.mjs").SharingState;
-  type DesktopLendingActivity = import("../../electron/computer-sharing.mjs").LendingActivityEntry;
 
   type DesktopCapabilities = {
     host: {
@@ -197,15 +194,6 @@ const __APP_VERSION__: string;
         forget: (id: string, purge?: boolean) => Promise<{ ok: boolean; error?: string } | void>;
         /** `panel` "copy": that server's Copy this computer here panel; otherwise its Computer access. */
         onOpenSettings?: (callback: (computerId?: string | null) => void) => () => void;
-      };
-      /** Local main-window only. Hosted renderers cannot grant themselves access. */
-      computerSharing?: {
-        state(id: string): Promise<DesktopComputerSharing>;
-        chooseFolder(): Promise<DesktopSharedFolder | null>;
-        save(id: string, grant: Pick<DesktopComputerSharing, "folders" | "terminal" | "computer">): Promise<DesktopComputerSharing | null>;
-        revoke(id: string): Promise<DesktopComputerSharing>;
-        /** This computer's own record of what that server's bots did here, newest first. */
-        activity(id: string): Promise<DesktopLendingActivity[]>;
       };
       confirm(message: string): Promise<boolean>;
       getCapabilities(): Promise<DesktopCapabilities>;

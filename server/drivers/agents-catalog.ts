@@ -196,20 +196,6 @@ const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "list_shared_computers",
-    description: "List online desktop computers explicitly shared with this workspace, and their allowed folders/capabilities. These are the user's computers, not this server. An offline or unshared computer cannot be accessed. Folder paths use opaque folder IDs and relative paths.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-  },
-  {
-    name: "shared_computer",
-    description: "Use a desktop explicitly shared by the user. Discover computer_id and folder_id with list_shared_computers. list_files/read_file/write_file are confined to chosen folders; paths are relative. read_file returns sha256; overwriting requires expected_sha256. Binary files support base64 encoding. run_command requires a SEPARATE unrestricted terminal grant and stops after timeout_seconds (default 120, at most 240): run longer jobs in the background with output to a file, then read it. computer_tools lists the native computer-control tools; computer_call invokes one with arguments and needs a SEPARATE computer-control grant. To browse there, open pages with launch_app urls (the person's own browser) and use get_window_state, click and type_text: the browser_* tools need a DevTools endpoint most browsers lack. Never substitute the server's filesystem when this desktop is offline. Actions are not retried automatically; inspect an uncertain outcome before retrying.",
-    inputSchema: { type: "object", additionalProperties: false, properties: {
-      computer_id: { type: "string" }, action: { type: "string", enum: ["list_files", "read_file", "write_file", "run_command", "computer_tools", "computer_call"] },
-      folder_id: { type: "string" }, path: { type: "string" }, content: { type: "string" }, encoding: { type: "string", enum: ["utf8", "base64"] }, expected_sha256: { type: "string" },
-      command: { type: "string" }, timeout_seconds: { type: "integer", minimum: 1, maximum: 240 }, tool_name: { type: "string" }, arguments: { type: "object", additionalProperties: true },
-    }, required: ["computer_id", "action"] },
-  },
-  {
     name: "list_room_targets",
     description: "Discover actual OpenMausBot teammates you can reach, in every department, and rooms. Works in a normal bot conversation too; no room is required. Returns bot and room IDs, roles and working folders, never other conversations' history. Use these bots, not native coding helpers with similar names, when the user asks their team to work together.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
@@ -894,8 +880,6 @@ const TOOL_DEFINITIONS = [
 });
 
 const SKILL_TOOL_NAMES = new Set(["skills_list", "skill_manage"]);
-// Never advertised when sharing is off: a model shown a tool it cannot use spends turns finding out.
-export const SHARED_COMPUTER_TOOL_NAMES = new Set(["list_shared_computers", "shared_computer"]);
 const VOICE_TOOL_NAMES = new Set(["send_voice_note"]);
 const CHIEF_ONLY_TOOL_NAMES = new Set([
   "create_bot", "list_team_setup", "list_team_library", "propose_team_setup", "propose_bot_deletion", "create_room", "manage_room", "retry_thread",
@@ -927,15 +911,12 @@ function catalogTools(profile: CatalogProfile) {
   const AUTHORING_TOOLS = profile.skillAuthoring
     ? BOT_SCOPED_TOOLS
     : BOT_SCOPED_TOOLS.filter((tool) => !SKILL_TOOL_NAMES.has(tool.name));
-  const SHAREABLE_TOOLS = profile.sharedComputers
-    ? AUTHORING_TOOLS
-    : AUTHORING_TOOLS.filter((tool) => !SHARED_COMPUTER_TOOL_NAMES.has(tool.name));
   const VOICE_READY_TOOLS = profile.voiceNotes
-    ? SHAREABLE_TOOLS
-    : SHAREABLE_TOOLS.filter((tool) => !VOICE_TOOL_NAMES.has(tool.name));
   const RESEARCH_READY_TOOLS = profile.xResearch === true
     ? VOICE_READY_TOOLS
     : VOICE_READY_TOOLS.filter((tool) => !RESEARCH_TOOL_NAMES.has(tool.name));
+    ? AUTHORING_TOOLS
+    : AUTHORING_TOOLS.filter((tool) => !VOICE_TOOL_NAMES.has(tool.name));
   const ROLE_TOOLS = profile.chief
     ? RESEARCH_READY_TOOLS
     : RESEARCH_READY_TOOLS.filter((tool) => !CHIEF_ONLY_TOOL_NAMES.has(tool.name)).map((tool) => {

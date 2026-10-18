@@ -85,7 +85,7 @@ desktop app.
 
 Full access does not bypass operating system privacy controls,
 authentication, CAPTCHA or MFA, service permissions,
-or workspace/team ownership and computer-sharing grants. Full Access controls
+or workspace/team ownership. Full Access controls
 approval prompts; it does not sign in for you, enable a feature you disabled,
 or grant another bot access to a different workspace.
 

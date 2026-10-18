@@ -1,13 +1,20 @@
+{
+  "area": "Own computers",
+  "why": "One Environment = one computer: bots work on this host (shell, files, browser), never on a Local VM, a Boat, a VPS or a lent or shared computer of their own.",
+  "files": [
     "electron/cloud-lending-ipc.d.mts",
     "electron/cloud-lending-ipc.mjs",
     "electron/cloud-lending-ipc.node-test.mjs",
+    "electron/computer-sharing.d.mts",
     "electron/device-link-protocol.d.mts",
     "electron/device-link-protocol.mjs",
     "electron/device-link.d.mts",
     "electron/device-link.mjs",
     "electron/device-link.node-test.mjs",
+    "electron/lending-activity.mjs",
     "electron/lending-dialogs.mjs",
     "electron/lending-dialogs.node-test.mjs",
+    "electron/lending-guards.node-test.mjs",
     "electron/lent-folders.d.mts",
     "electron/lent-folders.mjs",
     "electron/lent-folders.node-test.mjs",
@@ -56,7 +63,9 @@
     "server/vps-hosts.test.ts",
     "server/vps-hosts.ts",
     "shared/map-computer.ts",
+    "src/components/CloudLending.test.ts",
     "src/components/ComputerNode.tsx",
+    "src/components/ComputerSharingSettings.tsx",
     "src/components/LentComputers.test.ts",
     "src/components/LentComputers.tsx",
     "src/components/LentComputersCard.test.ts",
@@ -68,6 +77,18 @@
     "src/lib/team-canvas-computers.test.ts",
     "src/lib/team-canvas-computers.ts",
     "src/locales/vm-confirm.test.ts",
+  ],
+  "forbidden": [
+    "/api/shared-computers",
+    "/api/desktop/shared-computer-control",
+    "/api/internal/shared-computers",
+    "list_shared_computers",
+    "SHARED_COMPUTER_TOOL_NAMES",
+    "OMB_SHARED_COMPUTERS_ENABLED",
+    "sharedComputersEnabled",
+    "SharedComputerControl",
+    "ComputerSharingSettings",
+    "CloudLendingBridge",
     "memory, or computer access",
     "\"lending.useMyComputer",
     "Use my Mac",
@@ -76,6 +97,23 @@
     "\"canvasComputers.",
     "\"mapComputer.",
     "VpsComputersCard"
+  ],
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/shared-computers"
+    },
+    {
+      "method": "POST",
+      "path": "/api/shared-computers/connect"
+    },
+    {
+      "method": "POST",
+      "path": "/api/desktop/shared-computer-control",
+      "body": {
+        "id": "00000000-0000-4000-8000-000000000000",
+        "action": "release"
+      }
     },
     {
       "method": "GET",
@@ -88,6 +126,7 @@
     {
       "method": "GET",
       "path": "/api/computers/frames"
+    }
     "companion/test/malformed-requests.test.ts",
     "electron/cloud-staging.node-test.mjs",
     "electron/home-window.node-test.mjs",
@@ -99,3 +138,5 @@
     "src/components/RoomHeader.tsx",
     "src/components/SidebarBotMenu.tsx",
     "src/components/SidebarSimpleRail.tsx",
+  ]
+}

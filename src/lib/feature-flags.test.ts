@@ -61,14 +61,6 @@ describe("experimental feature flags", () => {
     expect(showToolCallsEnabled({ features: { showToolCalls: true } })).toBe(true);
   });
 
-  it("keeps computer sharing off unless the server says it is on", () => {
-    expect(sharedComputersEnabled(null)).toBe(false);
-    expect(sharedComputersEnabled({})).toBe(false);
-    expect(sharedComputersEnabled({ features: {} })).toBe(false);
-    expect(sharedComputersEnabled({ features: { sharedComputers: false } })).toBe(false);
-    expect(sharedComputersEnabled({ features: { sharedComputers: true } })).toBe(true);
-  });
-
   it("offers Regenerate title only while the server has generated titles on", () => {
     expect(llmThreadTitlesEnabled(null)).toBe(false);
     expect(llmThreadTitlesEnabled({ features: {} })).toBe(false);

@@ -72,7 +72,6 @@ beforeEach(() => {
   vi.stubGlobal("window", { ogb: { platform: "darwin", cloudLending: { open } }, addEventListener: vi.fn(), removeEventListener: vi.fn() });
   vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {} });
   vi.mocked(api).mockImplementation(async (path: string, init?: RequestInit) => {
-    if (path === "/api/shared-computers") return { computers: lent };
     if (path === "/api/config" && init?.method === "PUT") {
       const patch = JSON.parse(String(init.body));
       return { ...f.state.config, onboarding: { ...f.state.config.onboarding, ...patch.onboarding } };

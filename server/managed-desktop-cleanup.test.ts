@@ -20,7 +20,7 @@ function section(start: string, end: string) {
 const code = ts.transpileModule([
   // noteTeammatesLeftRunning lives in host/person-stop.ts now and is stubbed below, so the two interrupts are one slice.
   section("async function interruptDirectThread(", "async function interruptAllDirectThreads("),
-  section("function releaseTurnResources(", "async function bindTurnComputer("),
+  section("function releaseTurnResources(", "function botForThread("),
   section("async function stopCompanyInstances(", "async function persistProviderInstance("),
 ].join("\n"), { compilerOptions: { target: ts.ScriptTarget.ESNext } }).outputText;
 const reloadProvidersCode = ts.transpileModule(
@@ -44,7 +44,6 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
   const vmLeases = new Map<string, object>(), approvals = new Set<string>(), screens = new Set<string>(), watched = new Set<string>();
   const autoVmClaims = new Map<string, { owner: { threadId: string; generation: string } }>();
   // An open "may I use your computer?" question, by thread, for the generation that asked it.
-  const yourComputerAsks = new Map<string, string>();
   const started = new Map<string, ReturnType<typeof deferred>>(), interrupted = new Map<string, ReturnType<typeof deferred>>();
   const interruptCalls: string[] = [], cancelled: string[] = [], revoked: string[] = [], messages: string[] = [], settled: string[] = [], detached: string[] = [];
   const roomStops: Array<{ threadId: string; status: string; detail: string; byHarness?: boolean }> = [];
@@ -62,7 +61,6 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
     else { speakers.set(threadId, { botId: threadId, name: "Company turn" }); groups.set(threadId, { id: threadId, busyBotId: threadId }); }
     vmLeases.set(threadId, {}); approvals.add(threadId); screens.add(threadId); watched.add(threadId);
     autoVmClaims.set(threadId, { owner: { threadId, generation: `company-${threadId}` } });
-    yourComputerAsks.set(threadId, `company-${threadId}`);
     started.set(threadId, deferred()); interrupted.set(threadId, deferred());
   }
   const context = vm.createContext({
@@ -90,10 +88,6 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
     turnResourceOwners: owners, directTurnGenerationByThread: generations, directTurnBots: directBots, groupSpeakers: speakers,
     activeGroupSpeaker: (groupId: string) => speakers.get(groupId),
     directRequestOwners,
-    autoVmClaims,
-    cancelYourComputerAsks: (threadId: string, generation?: string) => {
-      if (generation === undefined || yourComputerAsks.get(threadId) === generation) yourComputerAsks.delete(threadId);
-    },
     turnResources: { release() {} }, cloudComputerPower: { released() {} }, settlingResourceOwners: new Map(), turnComputerResources: new Map(), teamComputerTurns: new Map(),
     coordinator: { stopAwaitingDirect: (threadId: string) => { stopAwaiting.push(threadId); return []; } },
     noteTeammatesLeftRunning() {}, stopParkedCards: (threadId: string) => stoppedCards.push(threadId),
@@ -114,7 +108,7 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
   vm.runInContext(code, context, { filename: "index.ts (Company cleanup ownership fixture)" });
   return {
     bots, tasks, groups, owners, directBots, speakers, vmLeases, approvals, screens, watched,
-    autoVmClaims, yourComputerAsks,
+    bots, tasks, groups, owners, directBots, speakers, approvals, watched,
     interruptCalls, cancelled, revoked, messages, settled, detached, roomStops, causes,
     directRequestOwners, stopAwaiting, patched,
     context,
@@ -218,7 +212,6 @@ for (const kind of ["direct", "group"] as const) {
     expect(f.owners.has("first")).toBe(false);
     expect(f.vmLeases.has("first")).toBe(false);
     expect(f.autoVmClaims.has("first")).toBe(false);
-    expect(f.yourComputerAsks.has("first")).toBe(false);
     expect(f.approvals.has("first")).toBe(false);
     expect(f.watched.has("first")).toBe(false);
     if (kind === "direct") {

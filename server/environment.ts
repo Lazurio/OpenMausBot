@@ -23,8 +23,6 @@ export interface EnvironmentDescriptor {
   capabilities: {
     /** Pairing and sessions are available (this build). */
     remoteSessions: true;
-    /** Only while the maintainer flag `features.sharedComputers` is on; otherwise absent, like a build without the feature. */
-    sharedComputers?: true;
     lendingDetails?: true;
     /** A Cloud home with lending on: a lent computer may open the device link and lend its internet connection. */
     deviceLink?: true;
@@ -131,9 +129,6 @@ export function environmentDescriptor(input: { environmentId: string; desktopMan
     version: serverVersion(),
     capabilities: {
       remoteSessions: true,
-      // Never advertise a protocol this server would refuse.
-      // lendingDetails: a lent computer may say its platform, and this server remembers what was lent to it.
-      ...(input.sharedComputers === true ? { sharedComputers: true as const, lendingDetails: true as const, commandTimeouts: true as const } : {}),
       ...(input.sharedComputers === true && input.cloudHome === true ? { deviceLink: true as const } : {}),
       ...(input.sharedComputers === true && input.cloudHome === true && input.cloudTeam !== true ? { myChromeLink: true as const } : {}),
       ...(input.cloudHome === true ? { cloudHome: true as const, move: 1 as const } : {}),

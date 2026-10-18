@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import type { CloudAccountBridge, CloudAccountState, CloudPlanBridge, CloudPlanSnapshot } from "../../electron/cloud-account.mjs";
 import type { CloudCredit, CloudMachine, CloudTrial } from "../../electron/cloud-home.mjs";
 import { planTeam, teamPlan } from "../../electron/cloud-team-plan.mjs";
 import { cloudFilesBridge } from "@/lib/cloud-files";
@@ -11,7 +10,6 @@ import type { LocaleKey } from "@/locales";
 import { Card } from "./SettingsPrimitives";
 import { StagingMark } from "./cloud-buy/parts";
 import { CloudKeepHere } from "./CloudKeepHere";
-import { CloudLending } from "./CloudLending";
 import { CloudSetupSteps } from "./CloudSetupSteps";
 import { useCloudSendNotice } from "./CloudSendStrip";
 import { LentComputersCard } from "./LentComputers";
@@ -70,7 +68,6 @@ function cloudHomeCard({ machine, busy, failed, onConnect, lending, trial = fals
         {!team && cloudFilesBridge() && <OpenFilesButton label={t("cloudHome.filesLink")} className="text-[13px] font-medium text-accent-text underline underline-offset-2 hover:text-ink" />}
       </>}
       {failed && !unreachable && <p role="alert" className="text-[13px] text-danger">{t("cloudHome.connectFailed")}</p>}
-      {lending && <CloudLending bridge={lending} moving={Boolean(moving)} />}
     </div>
   </Card>;
 }

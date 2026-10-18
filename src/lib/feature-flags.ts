@@ -60,10 +60,6 @@ export function showToolCallsEnabled(config: FeatureFlagConfig | null | undefine
   return config?.features?.showToolCalls === true;
 }
 
-export function sharedComputersEnabled(config: FeatureFlagConfig | null | undefined): boolean {
-  return config?.features?.sharedComputers === true;
-}
-
 export function claudeUserMcpEnabled(config: FeatureFlagConfig | null | undefined): boolean {
   return config?.features?.claudeUserMcp === true;
 }

@@ -1243,25 +1243,6 @@ function handle(msg: any) {
         });
         return;
       }
-      if (mode === "lend-question" && agentsMcp) {
-        const entry = agentsMcp;
-        const list = () => driveMcp(entry, [{ name: "list_shared_computers", args: () => ({}) }]).catch((e) => `error ${(e as Error).message}`);
-        void (async () => {
-          const before = await list();
-          pendingPermissionId = 9003;
-          onPermissionAnswered = () => {
-            void list().then((after) => {
-              out({ jsonrpc: "2.0", method: "session/update", params: { update: { sessionUpdate: "agent_message_chunk", content: { text: `before: ${before} | after: ${after}` } } } });
-              complete();
-            });
-          };
-          out({ jsonrpc: "2.0", id: pendingPermissionId, method: "session/request_permission", params: {
-            toolCall: { toolCallId: "interaction_folder", kind: "other", title: "Which folder should I read?" },
-            options: [{ optionId: "docs-id", kind: "allow_once", name: "Docs" }, { optionId: "other-id", kind: "allow_once", name: "Other" }],
-          } });
-        })();
-        return;
-      }
       if (mode === "question") {
         pendingPermissionId = 9002;
         onPermissionAnswered = () => {

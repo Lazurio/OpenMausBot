@@ -367,13 +367,11 @@ it("offers its bots the browser and cloud computers only, and tells them they ca
     const dump = join(home, "spawn-hang.json");
     await expect.poll(() => existsSync(dump), { timeout: 15_000 }).toBe(true);
     const { systemPrompt, mcpConfig } = JSON.parse(readFileSync(dump, "utf8"));
-    expect(systemPrompt).toContain(cloudHomePrompt(true));
-    expect(systemPrompt).toContain("check list_shared_computers");
     expect(systemPrompt).not.toMatch(/Local VM is an isolated desktop|user's host|host desktop|select an available Local VM/);
+    expect(systemPrompt).toContain(cloudHomePrompt());
     const agents = mcpConfig.mcpServers.agents;
     expect(agents.env.OMB_CLOUD_HOME).toBe("1");
     const preview = (await api("GET", `/api/bots/${botId}/system-prompt`)).body.sections as Array<{ id: string; text: string }>;
-    expect(preview.find((section) => section.id === "cloud-home")?.text).toBe(cloudHomePrompt(true));
     const select = (surface?: string) => fetch(`${base}/api/internal/computer/select`, {
       method: surface === undefined ? "GET" : "POST",
       headers: { authorization: `Bearer ${agents.env.OMB_COMMS_TOKEN}`, ...(surface === undefined ? {} : { "content-type": "application/json" }) },
@@ -388,6 +386,7 @@ it("offers its bots the browser and cloud computers only, and tells them they ca
       expect(refused.status).toBe(409);
       expect(((await refused.json()) as { error: string }).error).toBe(cloudHomePlaceRefusal(surface));
     }
+    expect(preview.find((section) => section.id === "cloud-home")?.text).toBe(cloudHomePrompt());
   } finally {
     rmSync(join(home, "hang"), { force: true });
     await api("POST", `/api/bots/${botId}/interrupt`, { body: {} });
