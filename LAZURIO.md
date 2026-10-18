@@ -37,6 +37,9 @@ upstream own keep `openmausbot` (the release assets, the npm package and its
 Bots use the Environment's sign-ins like every other agent there (Lazurio
 decisions 0162 and 0172), Composio included: they work in the Lazurio
 Folder, read its agent instructions and call the `composio` CLI the operator
+connected apps, computers and sign-ins are removed from the code
+([below](#what-the-overlay-removes)). Narrower access than the Environment's
+means a separate Environment.
 
 ## What the overlay adds
 
@@ -76,11 +79,23 @@ Folder, read its agent instructions and call the `composio` CLI the operator
   change. Questions and missing credentials still reach a person; GitHub
   rights and branch rules stay the limit.
 
+## What the overlay removes
+
+**Decided on 2026-10-18 (issue #35, DEV-6673 M3).** What contradicts the
+Lazurio model is removed from the code, not hidden: agents read the source,
+the CLI and the API, and must not find tools Lazurio does not want them to
+use. One Environment is one computer; its bots and agents share it and its
+signed-in accounts, and integrations come from the Environment.
+
+- **Own integrations**: Composio (key, managed broker and its Worker,
+  connector tools, per-bot app switches, the Apps panel and its sidebar
+  button), HighLevel, Whop, the tool directory for big apps, the per-bot MCP
   a saved config). Since v0.1.130 also treg research and the X card with
   their keys, the phone's apps as bot tools, app-event Automations (app
   triggers, `list_trigger_events`), MCP app connections, a team's shared
   connections, apps a bot inherits from its Chief and the suggestion to add
   a helper-model key. Every Claude bot gets the Environment's user-scope MCP
+- **Own sign-ins**: saved logins (`fill_login`), 1Password and the in-app
   own configuration folders, the Cursor sign-in for a Grok Bot import (the
   paste import stays), and with them the server's sign-in sessions and
 - **Own computers**: Local VMs (Cua containers) with their image updates, the
@@ -110,14 +125,26 @@ Folder, read its agent instructions and call the `composio` CLI the operator
   tour's name and e-mail form, the `@devs` bug report to the MausBot team
   (`report_bug`) with the recent log it attached, and the "Product updates by
   email" question in the web and desktop apps. `src/lib/analytics.ts` keeps upstream's
+  function names as no-ops, so nothing is collected, stored or sent.
+
+A write that names a removed setting (`PUT /api/config` with `box`, `vps`,
 `localVm`, `composio`, `treg`, `mcpServers`, `features.sharedComputers`,
 `browser`, `browserProfile`, `recordBrowserSteps`, `vpsAlias`,
 `appsFromCreator`, `xResearch` or `phoneApps`. Every bot and thread
+
+Each area has a manifest in [`lazurio/removals/`](lazurio/removals): the
+upstream files it deletes and changes (CI allows exactly those), the strings
+no shipped source, catalog or document may contain any more
+(`scripts/lazurio-removals.node-test.mjs`) and the API routes that must answer
+404 on the running server (`server/lazurio-removals.e2e.test.ts`). A rebuild
+on a new upstream tag re-applies each area by intent; the manifests say what
+must stay gone. The Electron desktop app is not part of the distribution, so
 its own Cloud, desktop-viewer and Cua driver code is left as upstream has it,
 apart from what the server no longer answers (lending, Cloud files sync, the
 product-updates question, published pages and the X research token); the
 forbidden strings leave its own Cloud files (`electron/cloud-*`) out of the
 scan.
+
 ## The Lazurio shell
 
 **Decided on 2026-10-03 (the Lazurio shell decisions); in the overlay since
