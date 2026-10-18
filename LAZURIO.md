@@ -43,10 +43,11 @@ upstream own keep `openmausbot` (the release assets, the npm package and its
 Bots use the Environment's sign-ins like every other agent there (Lazurio
 decisions 0162 and 0172), Composio included: they work in the Lazurio
 Folder, read its agent instructions and call the `composio` CLI the operator
-signed in from the Launchpad Settings. OpenMausBot's own **Connected apps**
-(a Composio project key with its own Composio user) stay unconfigured: they
-would hold a second, separate set of connections. Narrower access than the
-Environment's means a separate Environment.
+signed in from the Launchpad Settings, and reach MCP servers such as Executor
+through the Folder's `.mcp.json` and `~/.codex/config.toml`. MausBot's own
+connected apps, computers and sign-ins are removed from the code
+([below](#what-the-overlay-removes)). Narrower access than the Environment's
+means a separate Environment.
 
 ## What the overlay adds
 
@@ -87,6 +88,54 @@ Environment's means a separate Environment.
   rights and branch rules stay the limit.
 - **The Lazurio shell slot** in `index.html` and the sidebar
   ([below](#the-lazurio-shell)); nothing renders outside Lazurio.
+
+## What the overlay removes
+
+**Decided on 2026-10-18 (issue #35, DEV-6673 M3).** What contradicts the
+Lazurio model is removed from the code, not hidden: agents read the source,
+the CLI and the API, and must not find tools Lazurio does not want them to
+use. One Environment is one computer; its bots and agents share it and its
+signed-in accounts, and integrations come from the Environment.
+
+- **Own integrations**: Composio (key, managed broker and its Worker,
+  connector tools, per-bot app switches, the Apps panel and its sidebar
+  button), HighLevel, Whop, the tool directory for big apps, the per-bot MCP
+  server registry, and the first-run import of other apps' settings, skills
+  and MCP servers. Claude bots still read the Folder's `.mcp.json` (and, with
+  "Also use my Claude Code MCP servers", the person's own setup); Codex bots
+  read `~/.codex/config.toml`.
+- **Own sign-ins**: saved logins (`fill_login`), 1Password and the in-app
+  Claude, Codex and Grok sign-in flows. Engines use the computer's own logins
+  (`codex login`, `claude auth login`, done in the Environment's settings) and
+  MausBot only reads their status. The ChatGPT plan and Antigravity engines
+  keep their sign-in, their only way to authenticate.
+- **Own computers**: Local VMs (Cua containers), the Boat cloud computer, VPS
+  computers, lent, shared and team computers, "Works on" and
+  `select_computer`. Bots work on the host and in the browser.
+- **MausBot Cloud**: purchase and upsell, the Pro plan, Cloud credit, moving
+  to and syncing with Cloud, and the OpenMausBot account sign-in
+  (`openmausbot login`). The cloud-home server mode itself, upstream's own
+  hosting, stays for now: it is woven into owner and guest checks.
+- **Telemetry to upstream**: upstream's PostHog analytics and the welcome
+  tour's name and e-mail form. `src/lib/analytics.ts` keeps upstream's
+  function names as no-ops, so nothing is collected, stored or sent.
+
+A write that names a removed setting (`PUT /api/config` with `box`, `vps`,
+`localVm`, `composio`, `mcpServers`, `features.sharedComputers` or a removed
+new-bot default) is refused with 400 as a whole, never half-applied; a saved
+`config.json` that still has one loads and drops it. Upstream's server-side
+warning gate for Auto on this computer (`acknowledgeLocalAuto`) stays on every
+path upstream has it, and now covers every bot, since every bot works on this
+computer.
+
+Each area has a manifest in [`lazurio/removals/`](lazurio/removals): the
+upstream files it deletes and changes (CI allows exactly those), the strings
+no shipped source, catalog or document may contain any more
+(`scripts/lazurio-removals.node-test.mjs`) and the API routes that must answer
+404 on the running server (`server/lazurio-removals.e2e.test.ts`). A rebuild
+on a new upstream tag re-applies each area by intent; the manifests say what
+must stay gone. The Electron desktop app is not part of the distribution, so
+its own Cloud and desktop-viewer code is left as upstream has it.
 
 ## The Lazurio shell
 

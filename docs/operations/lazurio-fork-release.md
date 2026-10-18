@@ -122,6 +122,7 @@ release offers it.
 | `lazurio: Steward team for the GitHub intake` | The team Lazurio Organizations run behind the intake: leader Henry (Chief of Staff, delegating through `coordinate_bots`) and three workers with exact-head review and explicit-publication rules, as a portable team file (`lazurio/teams/steward.openmaus.json`) the archive ships. Lazurio-only; never proposed upstream. |
 | `lazurio: the Lazurio shell slot, rail, column head, Buddy and colour roles` | The Lazurio shell's rail, column head and Buddy in an Environment (the Lazurio shell decisions of 2026-10-03), in the colours of the active skin (2026-10-04): `index.html` and one element in `src/components/Sidebar.tsx`; see [`LAZURIO.md`](../../LAZURIO.md#the-lazurio-shell). Outside Lazurio nothing renders and nothing reads the colour roles. Lazurio-only; never proposed upstream. |
 | `lazurio: the Environment skin follows the Environment theme (0208)` | One colour theme per Environment, which Chat, Apps and Automate follow (root decision 0208). One more skin, added the way upstream adds a skin (its block in `src/styles.css`, its line in `src/lib/skins.ts`), names the theme's tokens that the shell declares, with Midnight's values as fallbacks. It is the default and offered only where the shell marks the Environment theme on the document (a Platform with decision 0208), each browser there moves to it once, and `index.html` lets the theme's dark values follow the device. Upstream's checks that measure a skin's values leave it out. See [`LAZURIO.md`](../../LAZURIO.md#the-environment-skin). Outside Lazurio nothing changes. Lazurio-only; never proposed upstream. |
+| `lazurio: guards for the upstream features removed from the code` and the `lazurio: remove …` commits after it (DEV-6673 M3) | What contradicts the Lazurio model is removed from the code, not hidden (issue #35): MausBot's own integrations, sign-ins, computers, MausBot Cloud purchase and account, and telemetry to upstream, plus the browser build's decorative window dots. One manifest per area in `lazurio/removals/` names the upstream files it deletes and changes and what must stay gone; see [`LAZURIO.md`](../../LAZURIO.md#what-the-overlay-removes). Lazurio-only; never proposed upstream. |
 
 Drop a commit as soon as upstream offers an equivalent. Upstream files the
 overlay changes are listed in `allowed_upstream_changes` in
@@ -132,9 +133,9 @@ never committed.
 
 Approval levels are upstream's: new bots start on Full access (upstream
 #2808), which any client may set, so the overlay adds nothing for it.
-Deliberately not in this overlay (DEV-6673 M2–M4): pairing without a code,
-and removing what a Lazurio Environment provides itself (per-bot computers,
-own integrations and sign-ins, own browsers).
+Deliberately not in this overlay yet (DEV-6673 M2 and M4): pairing without a
+code, and removing MausBot's own browsers in favour of the Environment
+Browser.
 
 ## When to release
 
@@ -168,7 +169,11 @@ else stays blocked by `non_fast_forward`.
    `X.Y.Z-lazurio.0` version of the `archive` job. The contract test checks
    that they agree.
 3. Review `allowed_upstream_changes`: remove files the overlay no longer
-   changes; add a file only as a reviewed decision with its reason.
+   changes; add a file only as a reviewed decision with its reason. Re-apply
+   each removal in `lazurio/removals/` by intent on the new tag and refresh
+   its `files` and `changes`; its `forbidden` strings and `routes` say what
+   must stay gone, so new upstream code for a removed feature fails the
+   removals contract test.
 4. Open a pull request and wait for a green `Lazurio Fork CI`. A rebuild
    never contains the old `main`, so GitHub reports the pull request as
    conflicting and starts no `pull_request` workflow for it. Dispatch the
