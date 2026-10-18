@@ -1,6 +1,6 @@
 import { track } from "@/lib/analytics";
 import { OrganizationIdentity } from "./OrganizationIdentity";
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch } from "react";
+import { createElement, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch } from "react";
 import { createPortal } from "react-dom";
 import {
   Activity,
@@ -1795,6 +1795,8 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
     >
       <GlassScrollFrame className="flex-1">
       <GlassBar edge="top">
+      {/* Lazurio shell (LAZURIO.md): the Environment picker and the app switch, above the upstream top row. Undefined, it renders nothing. */}
+      {createElement("lazurio-column-head", { active: "automate" })}
       <div
         data-sidebar-top-row
         className={cn(
