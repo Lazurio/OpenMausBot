@@ -473,7 +473,8 @@ posixOnly("Live call e2e", () => {
       const lines = async (): Promise<Line[]> => ((await (await fetch(`${base}/api/threads/${bot.threadId}/messages`)).json()) as { messages: Line[] }).messages;
       const original = (await lines()).find((m) => m.card?.requestId)!;
       expect((await post(`/api/bots/${bot.id}/interrupt`, { threadId: bot.threadId })).status).toBe(200);
-      await expect.poll(() => isBusy(bot.id), { timeout: 5_000 }).toBe(false);
+      // The question stays open for the call, so the agent never ends its prompt: the ACP driver's 5 s cancel fallback does.
+      await expect.poll(() => isBusy(bot.id), { timeout: 15_000 }).toBe(false);
       live.emit(session.id, { type: "session.input_transcript.delta", delta: "Green", start_ms: 5_000, end_ms: 5_300 });
       live.emit(session.id, { type: "session.delegation.created", offset_ms: 5_400, delegation: { id: "del_late", target: "client" } });
       await expect.poll(async () => (await lines()).find((m) => m.id === original.id)?.card, { timeout: 5_000 }).toMatchObject({ answered: "answer", answeredText: "Green", answeredBy: { kind: "loopback", via: "call" } });

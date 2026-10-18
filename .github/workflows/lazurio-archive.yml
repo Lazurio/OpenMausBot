@@ -1,0 +1,76 @@
+name: Lazurio OpenMausBot archive
+
+# Builds and smoke-tests the linux-x64 archive Lazurio Machines install:
+# upstream's own npm package, built from the exact source under the release
+# version by scripts/lazurio-release-archive.sh. Called by lazurio-release.yml
+# before publishing and by lazurio-fork-ci.yml on every pull request; see
+# docs/operations/lazurio-fork-release.md.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Exact release version (X.Y.Z-lazurio.N)
+        required: true
+        type: string
+      source_sha:
+        description: Exact 40-character source commit
+        required: true
+        type: string
+      source_repository:
+        description: Repository that holds the source commit
+        required: false
+        default: ${{ github.repository }}
+        type: string
+
+permissions:
+  contents: read
+  id-token: none
+
+jobs:
+  build:
+    name: Archive linux-x64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Fetch exact source without credentials
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_REPOSITORY: ${{ inputs.source_repository }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-lazurio\.[0-9]+$ ]]
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git init .
+          git remote add origin "${GITHUB_SERVER_URL}/${SOURCE_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 origin "$SOURCE_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
+
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install locked dependencies
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and smoke-test the archive
+        run: bash scripts/lazurio-release-archive.sh "$VERSION" release-archive
+
+      - name: Upload the archive
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: archive-linux-x64
+          path: release-archive/openmausbot-${{ inputs.version }}-linux-x64.tar.gz
+          if-no-files-found: error
