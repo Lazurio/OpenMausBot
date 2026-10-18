@@ -453,7 +453,6 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     delete process.env.FAKE_CLAUDE_STEER_SILENCE_SCALE;
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.XAI_API_KEY;
-    delete process.env.COMPOSIO_API_KEY;
     delete process.env.OMB_FISH_AUDIO_API_KEY;
     delete process.env.OPENCODE_API_KEY;
     delete process.env.OMB_TTS_KEY;
@@ -1414,19 +1413,18 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     expect(seen.argv[seen.argv.indexOf("--setting-sources") + 1]).toBe("project");
   });
 
-  it("mounts a url server in the CLI's own shape, header values in the private file", async () => {
+  it("mounts a project url server in the CLI's own shape, header values in the private file", async () => {
     await create();
     const dump = join(scratch, "remote-mcp.json");
     process.env.FAKE_CLAUDE_DUMP = dump;
+    const projectDir = join(scratch, "remote-project");
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(join(projectDir, ".mcp.json"), JSON.stringify({ mcpServers: {
+      docs: { type: "http", url: "https://docs.example/mcp", headers: { Authorization: "Bearer tok-docs" } },
+      legacy: { type: "sse", url: "https://old.example/sse", headers: {} },
+    } }));
 
-    await instance.adapter.sendTurn({
-      threadId: "t-remote-mcp",
-      text: "hi",
-      integrations: { custom: {
-        docs: { type: "http", url: "https://docs.example/mcp", headers: { Authorization: "Bearer tok-docs" } },
-        legacy: { type: "sse", url: "https://old.example/sse", headers: {} },
-      } },
-    });
+    await instance.adapter.sendTurn({ threadId: "t-remote-mcp", text: "hi", cwd: projectDir });
     await recorder.until((e) => e.type === "turn.completed");
 
     const seen = JSON.parse(readFileSync(dump, "utf8"));
@@ -1436,23 +1434,29 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     expect(JSON.stringify(seen.argv)).not.toContain("tok-docs");
   });
 
-  it("keeps a selected url server's whole catalog: Claude Code searches tools itself", async () => {
+  it("puts a selected project url server behind the gate, through the remote proxy", async () => {
     await create();
     const dump = join(scratch, "remote-mcp-scoped.json");
     process.env.FAKE_CLAUDE_DUMP = dump;
+    const projectDir = join(scratch, "remote-scoped-project");
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(join(projectDir, ".mcp.json"), JSON.stringify({ mcpServers: {
+      docs: { type: "http", url: "https://docs.example/mcp", headers: { Authorization: "Bearer tok-docs" } },
+    } }));
     await instance.adapter.sendTurn({
       threadId: "t-remote-mcp-scoped",
       text: "hi",
+      cwd: projectDir,
       toolScope: { allow: ["native:*", "mcp:docs:*"] },
-      integrations: { custom: { docs: { type: "http", url: "https://docs.example/mcp", headers: { Authorization: "Bearer tok-docs" } } } },
     });
     await recorder.until((e) => e.type === "turn.completed");
-    const docs = JSON.parse(readFileSync(dump, "utf8")).mcpConfig.mcpServers.docs;
+    const seen = JSON.parse(readFileSync(dump, "utf8"));
+    const docs = seen.mcpConfig.mcpServers.docs;
     expect(docs.args[0]).toContain("mcp-gate");
-    expect(docs.env).not.toHaveProperty("OMB_GATE_DIRECTORY");
+    expect(JSON.parse(docs.env.OMB_GATE_TOOL_SCOPE)).toEqual({ allow: ["native:*", "mcp:docs:*"] });
     const upstream = JSON.parse(docs.env.OMB_GATE_UPSTREAM);
     expect(upstream.args[0]).toContain("mcp-remote-proxy");
-    expect(upstream.env).not.toHaveProperty("OMB_REMOTE_MCP_DIRECTORY");
+    expect(JSON.stringify(seen.argv)).not.toContain("tok-docs");
   });
 
   it("preserves only the selected account's auth settings in a private file", async () => {
@@ -1677,16 +1681,17 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     expect(seen.argv[seen.argv.indexOf("--allowedTools") + 1]).not.toContain("mcp__shop");
   });
 
-  it("mounts a bot's own MCP server behind the result gate", async () => {
+  it("mounts a bot project's MCP server behind the result gate", async () => {
     await create();
     const dump = join(scratch, "gate.json");
     process.env.FAKE_CLAUDE_DUMP = dump;
+    const projectDir = join(scratch, "gate-project");
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(join(projectDir, ".mcp.json"), JSON.stringify({ mcpServers: {
+      shop: { command: "npx", args: ["-y", "mcp-remote", "https://example.test/shop"], env: { SHOP_TOKEN: "secret" } },
+    } }));
 
-    await instance.adapter.sendTurn({
-      threadId: "t-gate",
-      text: "hi",
-      integrations: { custom: { shop: { command: "npx", args: ["-y", "mcp-remote", "https://example.test/shop"], env: { SHOP_TOKEN: "secret" } } } },
-    });
+    await instance.adapter.sendTurn({ threadId: "t-gate", text: "hi", cwd: projectDir });
     await recorder.until((e) => e.type === "turn.completed");
 
     const seen = JSON.parse(readFileSync(dump, "utf8"));
@@ -1703,58 +1708,18 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     expect(seen.mcpConfig.mcpServers.ogb.args[0]).not.toContain("mcp-gate");
   });
 
-  it("mounts bot servers directly when the result budget is turned off", async () => {
+  it("mounts bot project servers directly when the result budget is turned off", async () => {
     const dump = join(scratch, "gate-off.json");
     await create(undefined, { FAKE_CLAUDE_DUMP: dump, OMB_MCP_RESULT_BUDGET: "0" });
+    const projectDir = join(scratch, "gate-off-project");
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(join(projectDir, ".mcp.json"), JSON.stringify({ mcpServers: { shop: { command: "npx", args: ["shop"], env: {} } } }));
 
-    await instance.adapter.sendTurn({
-      threadId: "t-gate-off",
-      text: "hi",
-      integrations: { custom: { shop: { command: "npx", args: ["shop"], env: {} } } },
-    });
+    await instance.adapter.sendTurn({ threadId: "t-gate-off", text: "hi", cwd: projectDir });
     await recorder.until((e) => e.type === "turn.completed");
 
     const seen = JSON.parse(readFileSync(dump, "utf8"));
     expect(seen.mcpConfig.mcpServers.shop).toMatchObject({ command: "npx", args: ["shop"] });
-  });
-
-  it("gives each bot server its own result budget, over the app-wide one", async () => {
-    const dump = join(scratch, "gate-own.json");
-    await create(undefined, { FAKE_CLAUDE_DUMP: dump, OMB_MCP_RESULT_BUDGET: "0" });
-
-    await instance.adapter.sendTurn({
-      threadId: "t-gate-own",
-      text: "hi",
-      integrations: {
-        custom: { motion: { command: "effectcraft-mcp", args: [], env: {} }, shop: { command: "npx", args: ["shop"], env: {} } },
-        customResultBudgets: { motion: 40_000 },
-      },
-    });
-    await recorder.until((e) => e.type === "turn.completed");
-
-    const seen = JSON.parse(readFileSync(dump, "utf8"));
-    expect(seen.mcpConfig.mcpServers.motion.env.OMB_GATE_BUDGET).toBe("40000");
-    // the others keep the app-wide setting (here: off)
-    expect(seen.mcpConfig.mcpServers.shop).toMatchObject({ command: "npx", args: ["shop"] });
-  });
-
-  it("gates a URL server with its own result limit; other URL servers keep their native connection", async () => {
-    const dump = join(scratch, "gate-own-url.json");
-    await create(undefined, { FAKE_CLAUDE_DUMP: dump });
-
-    await instance.adapter.sendTurn({
-      threadId: "t-gate-own-url",
-      text: "hi",
-      integrations: {
-        custom: { motion: { type: "http", url: "https://motion.example.test/mcp", headers: {} }, docs: { type: "http", url: "https://docs.example.test/mcp", headers: {} } },
-        customResultBudgets: { motion: 40_000 },
-      },
-    });
-    await recorder.until((e) => e.type === "turn.completed");
-
-    const seen = JSON.parse(readFileSync(dump, "utf8"));
-    expect(seen.mcpConfig.mcpServers.motion.env.OMB_GATE_BUDGET).toBe("40000");
-    expect(seen.mcpConfig.mcpServers.docs).toEqual({ type: "http", url: "https://docs.example.test/mcp", headers: {} });
   });
 
   it("leaves an http project server unmounted by the gate rather than mangling it", async () => {
@@ -1838,19 +1803,22 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     }
   });
 
-  it("mounts custom MCP servers without pre-allowing their tools", async () => {
+  it("mounts bot project MCP servers without pre-allowing their tools", async () => {
     await create();
     const dump = join(scratch, "custom-mcp.json");
     process.env.FAKE_CLAUDE_DUMP = dump;
+    const projectDir = join(scratch, "notes-project");
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(join(projectDir, ".mcp.json"), JSON.stringify({ mcpServers: {
+      notes: { command: "npx", args: ["-y", "@x/notes-mcp"], env: { NOTES_TOKEN: "tok-notes" } },
+      constructor: { command: "fixture-constructor", args: [], env: {} },
+    } }));
 
     await instance.adapter.sendTurn({
       threadId: "t-custom-mcp",
       text: "hi",
+      cwd: projectDir,
       integrations: {
-        custom: {
-          notes: { command: "npx", args: ["-y", "@x/notes-mcp"], env: { NOTES_TOKEN: "tok-notes" } },
-          constructor: { command: "fixture-constructor", args: [], env: {} },
-        },
         agents: {
           command: process.execPath,
           args: ["/fake/agents-proxy.js"],
@@ -1921,35 +1889,6 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     expect(seen.argv[seen.argv.indexOf("--allowedTools") + 1]).toContain("mcp__dweb");
   });
 
-  it("mounts the user's connected apps and claims the capability that gates them", async () => {
-    await create();
-    const dump = join(scratch, "dump.json");
-    process.env.FAKE_CLAUDE_DUMP = dump;
-
-    expect(instance.adapter.capabilities.composioMcp).toBe(true);
-    await instance.adapter.sendTurn({
-      threadId: "t-composio",
-      text: "hi",
-      integrations: {
-        composio: {
-          command: process.execPath,
-          args: ["/tmp/connector-proxy.js"],
-          env: { OMB_CONNECTOR_UPSTREAM_URL: "https://example.test/mcp" },
-        },
-      },
-    });
-    await recorder.until((e) => e.type === "turn.completed");
-
-    const seen = JSON.parse(readFileSync(dump, "utf8"));
-    expect(seen.mcpConfig.mcpServers.composio).toMatchObject({
-      command: process.execPath,
-      args: ["/tmp/connector-proxy.js"],
-      env: { OMB_CONNECTOR_UPSTREAM_URL: "https://example.test/mcp" },
-    });
-    expect(JSON.stringify(seen.argv)).not.toContain("ak_test");
-    expect(seen.argv[seen.argv.indexOf("--allowedTools") + 1]).toContain("mcp__composio");
-  });
-
   it.each([
     ["a completed turn", "happy"],
     ["a crashed turn", "exit-early"],
@@ -1962,10 +1901,10 @@ describe("ClaudeDriver turns (fake CLI)", () => {
       threadId: "t-cleanup",
       text: "hi",
       integrations: {
-        composio: {
+        data: {
           command: process.execPath,
-          args: ["/tmp/connector-proxy.js"],
-          env: { OMB_CONNECTOR_UPSTREAM_URL: "https://example.test/mcp" },
+          args: ["/tmp/data-proxy.js"],
+          env: { OMB_DATA_TOKEN: "synthetic-turn-capability" },
         },
       },
     });
@@ -3427,7 +3366,7 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     await create(undefined, { CLAUDE_CONFIG_DIR: instanceConfigDir });
     const dump = join(scratch, "generate-text-env.json");
     process.env.FAKE_CLAUDE_DUMP = dump;
-    const names = ["XAI_API_KEY", "COMPOSIO_API_KEY", "OMB_FISH_AUDIO_API_KEY", "OPENCODE_API_KEY", "OMB_TTS_KEY"] as const;
+    const names = ["XAI_API_KEY", "OMB_FISH_AUDIO_API_KEY", "OPENCODE_API_KEY", "OMB_TTS_KEY"] as const;
     for (const name of names) process.env[name] = `${name}-must-not-leak`;
 
     await expect(instance.generateText?.("summarize safely")).resolves.toBe("fake generated text");

@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { flushSync } from "react-dom";
-import type { BotVisibility, CardAnswerer, ConnectorToolGrant, EffortLevel, InstalledPackageMetadata, LiveCallState, ServerFrame, GroupThreadUsage, SteerQueueReason, WireGroup, OptionCardData as WireOptionCard } from "../../shared/wire";
+import type { BotVisibility, CardAnswerer, EffortLevel, InstalledPackageMetadata, LiveCallState, ServerFrame, GroupThreadUsage, SteerQueueReason, WireGroup, OptionCardData as WireOptionCard } from "../../shared/wire";
 import { movesThreadToTop } from "../../shared/wire";
 import { DATA_ROUTES, type DataSheet, type DataTable } from "../../shared/data-surface";
 import type { NotificationLogEntry } from "../../shared/notification";
@@ -102,25 +102,11 @@ export interface OptionCardData extends Pick<WireOptionCard, "fixedOptions" | "w
   undone?: boolean;
   routineRequest?: RoutineRequestCardData;
   skillRequest?: SkillRequestCardData;
-  outboundRequest?: { tool: string; app: string | null; calls?: Array<{ app: string | null; label: string }> };
   teamMemoryRequest?: { section: string; entryId: string; kind: string; revision?: string };
   profileRequest?: ProfileRequestCardData;
   modelRequest?: ModelRequestCardData;
   teamSetupRequest?: import("../../shared/team-setup").TeamSetupRequest;
   questionRequest?: QuestionRequestCardData;
-}
-
-export interface ConnectorCardData {
-  slug: string;
-  label: string;
-  description: string;
-  status: "required" | "authorizing" | "connected" | "failed";
-  resumeKey: string;
-  alias?: string;
-  error?: string;
-  dismissed?: boolean;
-  resumed?: boolean;
-  stopped?: boolean;
 }
 
 export interface SecretRequestCardData {
@@ -143,13 +129,12 @@ export type ComputerControlState = { held: boolean; helpReason: string | null; h
 export interface Message extends Pick<import("../../shared/wire").WireMessage, "widget" | "routedBy" | "quickModel"> {
   id: string;
   role: "bot" | "user";
-  kind: "text" | "options" | "activity" | "screen" | "connector" | "secret" | "signin" | "routine.run" | "goal.run" | "digest" | "compaction" | "call" | "widget";
+  kind: "text" | "options" | "activity" | "screen" | "secret" | "signin" | "routine.run" | "goal.run" | "digest" | "compaction" | "call" | "widget";
   text?: string;
   digest?: TurnDigest;
   compaction?: import("../../shared/wire").WireMessage["compaction"];
   attachments?: import("../../shared/wire").WireMessage["attachments"];
   card?: OptionCardData;
-  connector?: ConnectorCardData;
   secret?: SecretRequestCardData;
   signIn?: import("../../shared/wire").SignInRequestCardData;
   routineRun?: RoutineRunCardData;
@@ -333,17 +318,12 @@ export interface Bot {
   managedSections?: string[];
   approvePeerComms?: boolean;
   peers?: string[];
-  composio?: boolean;
-  connectorTools?: Record<string, ConnectorToolGrant>;
-  connectorScopes?: { apps: Record<string, "read" | "write"> };
-  outbound?: { policy: "ask" | "allow"; dailyCap: number };
   fallback?: Array<{ instanceId: string; model: string }>;
   browser?: boolean;
   recordBrowserSteps?: boolean;
   memoryUpkeep?: boolean;
   cacheKeepWarm?: boolean | null;
   helperModel?: boolean;
-  mcpServers?: string[] | null;
   browserProfile?: string | null;
   visibility?: BotVisibility;
   installedPackage?: InstalledPackageMetadata;
@@ -436,7 +416,7 @@ export type { BrowserEngineSummary, BrowserProfile, ConfigStatus, ManagedPolicyS
 // A section left out here is wiped from state.config whenever a config frame lands.
 export type ConfigStatusFrame = Pick<
   ConfigStatus,
-  "xai" | "mistral" | "cerebras" | "groq" | "meta" | "anthropic" | "openai" | "openrouter" | "openaiCompat" | "fleet" | "composio" | "rooms" | "mcp" | "threads" | "automaticRecovery" | "cacheKeepWarm" | "opencodeGo" | "tts" | "decider" | "imageGen" | "live" | "profile" | "language" | "features" | "onboarding" | "browserEngine" | "browserProfiles" | "edition" | "budgets" | "billing" | "managedPolicy" | "cloudHome"
+  "xai" | "mistral" | "cerebras" | "groq" | "meta" | "anthropic" | "openai" | "openrouter" | "openaiCompat" | "fleet" | "rooms" | "mcp" | "threads" | "automaticRecovery" | "cacheKeepWarm" | "opencodeGo" | "tts" | "decider" | "imageGen" | "live" | "profile" | "language" | "features" | "onboarding" | "browserEngine" | "browserProfiles" | "edition" | "budgets" | "billing" | "managedPolicy" | "cloudHome"
 >;
 
 export function configStatusFromFrame(frame: ConfigStatusFrame): ConfigStatus {
@@ -451,7 +431,6 @@ export function configStatusFromFrame(frame: ConfigStatusFrame): ConfigStatus {
     openrouter: frame.openrouter,
     openaiCompat: frame.openaiCompat,
     fleet: frame.fleet,
-    composio: frame.composio,
     rooms: frame.rooms,
     mcp: frame.mcp,
     threads: frame.threads,
@@ -519,9 +498,6 @@ export interface InstanceInfo {
   capabilities?: {
     computerMcp?: boolean;
     agentsMcp?: boolean;
-    composioMcp?: boolean;
-    /** the engine can mount the native HighLevel tools (a connected app without Composio) */
-    highlevelMcp?: boolean;
     browserMcp?: boolean;
     images?: boolean;
     effortLevels?: readonly EffortLevel[];
@@ -608,8 +584,6 @@ export interface AppState {
   webhookAttempts: WebhookAttempt[];
   webhookIngress: WebhookIngressStatus | null;
   settingsOpen: boolean;
-  pluginsOpen: boolean;
-  pluginsSurface: "apps" | "mcp";
   newBotOpen: boolean;
   botCreationPending: boolean;
   computerOpen: boolean;
@@ -867,7 +841,6 @@ export type Action =
   | { type: "notice"; notice: AppState["notice"] }
   | { type: "revealThread"; threadId: string }
   | { type: "toggleSettings"; open?: boolean; section?: BotSettingsSection; botId?: string }
-  | { type: "togglePlugins"; open?: boolean; surface?: "apps" | "mcp" }
   | { type: "toggleNewBot"; open?: boolean }
   | { type: "toggleComputer"; open?: boolean }
   | { type: "openDataResult"; botId: string; cardId: string }
@@ -1082,7 +1055,6 @@ export function reducer(state: AppState, action: Action): AppState {
         activityOpen: false,
         notificationsOpen: false,
         appSettingsOpen: false,
-        pluginsOpen: false,
       };
     case "showChat":
       return state.activeView === "chat" ? state : { ...state, activeView: "chat" };
@@ -1092,7 +1064,7 @@ export function reducer(state: AppState, action: Action): AppState {
         ...state,
         activeView: action.type === "showFiles" ? "files" : "team-map",
         filesSuggest: action.type === "showFiles" && action.suggest?.length ? action.suggest : null,
-        settingsOpen: false, computerOpen: false, inspectorOpen: false, activityOpen: false, appSettingsOpen: false, pluginsOpen: false,
+        settingsOpen: false, computerOpen: false, inspectorOpen: false, activityOpen: false, appSettingsOpen: false,
       };
     case "routinesHydrated":
       return { ...state, routines: action.routines, routineRuns: trimRoutineRuns(action.runs), routinesLoadState: "ready" };
@@ -1519,22 +1491,13 @@ export function reducer(state: AppState, action: Action): AppState {
         appSettingsOpen: open ? false : state.appSettingsOpen,
       };
     }
-    case "togglePlugins": {
-      const open = action.open ?? !state.pluginsOpen;
-      return {
-        ...state,
-        pluginsOpen: open,
-        pluginsSurface: action.surface ?? state.pluginsSurface,
-        ...(open ? { settingsOpen: false, appSettingsOpen: false, newBotOpen: false, shortcutsOpen: false } : {}),
-      };
-    }
     case "botCreationPending":
       return { ...state, botCreationPending: action.on };
     case "toggleNewBot": {
       const open = action.open ?? !state.newBotOpen;
       return {
         ...state, newBotOpen: open,
-        ...(open ? { settingsOpen: false, appSettingsOpen: false, pluginsOpen: false, shortcutsOpen: false } : {}),
+        ...(open ? { settingsOpen: false, appSettingsOpen: false, shortcutsOpen: false } : {}),
       };
     }
     case "notice":
@@ -1641,7 +1604,6 @@ export function reducer(state: AppState, action: Action): AppState {
         settingsOpen: open ? false : state.settingsOpen,
         computerOpen: open ? false : state.computerOpen,
         inspectorOpen: open ? false : state.inspectorOpen,
-        pluginsOpen: open ? false : state.pluginsOpen,
         notificationsOpen: open && !state.notificationsPinned ? false : state.notificationsOpen,
       };
     }
@@ -1694,15 +1656,9 @@ export function reducer(state: AppState, action: Action): AppState {
         acknowledgeLocalAuto: _localAck,
         applyToAllThreads: _allThreads,
         keepThreadModels: _keepThreadModels, threadId: _threadId,
-        connectorTools,
-        connectorScopes,
         ...rest
       } = action.patch;
       const botPatch: Partial<Bot> = { ...rest };
-      if (connectorTools === null) botPatch.connectorTools = undefined;
-      else if (connectorTools !== undefined) botPatch.connectorTools = connectorTools;
-      if (connectorScopes === null) botPatch.connectorScopes = undefined;
-      else if (connectorScopes !== undefined) botPatch.connectorScopes = connectorScopes;
       return updateBot(next, action.botId, (b) => ({ ...b, ...botPatch }));
     }
     case "threadActive": {
@@ -2012,8 +1968,6 @@ export const initialState: AppState = {
   webhookAttempts: [],
   webhookIngress: null,
   settingsOpen: false,
-  pluginsOpen: false,
-  pluginsSurface: "apps",
   newBotOpen: false,
   botCreationPending: false,
   computerOpen: false,

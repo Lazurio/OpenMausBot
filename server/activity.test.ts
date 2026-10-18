@@ -22,12 +22,10 @@ describe("describeTool", () => {
     expect(describeTool("mcp__claude_ai_Google_Calendar__list_events")).toEqual({ app: "Google Calendar", label: "List events" });
   });
 
-  it("reads Composio's upper-case toolkit names", () => {
+  it("reads upper-case TOOLKIT_ACTION tool names", () => {
     expect(describeTool("GMAIL_SEND_EMAIL")).toEqual({ app: "Gmail", label: "Send email" });
-    expect(describeTool("mcp__composio__GITHUB_CREATE_AN_ISSUE")).toEqual({ app: "GitHub", label: "Create an issue" });
+    expect(describeTool("GITHUB_CREATE_AN_ISSUE")).toEqual({ app: "GitHub", label: "Create an issue" });
     expect(describeTool("GOOGLESHEETS_BATCH_UPDATE")).toEqual({ app: "Google Sheets", label: "Batch update" });
-    expect(describeTool("mcp__highlevel__HIGHLEVEL_ADD_NOTE")).toEqual({ app: "HighLevel", label: "Add note" });
-    expect(describeTool("HIGHLEVEL_UPDATE_CONTACT")).toEqual({ app: "HighLevel", label: "Update contact" });
   });
 
   it("treats the bot's computer and its teammates as apps too", () => {

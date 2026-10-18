@@ -41,7 +41,6 @@ export function ShareTeamContents({ preview, includeMemory, localSkips }: {
     [t("teamShare.part.routines"), String(counts.routines)],
     [t("teamShare.part.brief"), pkg.team?.brief ? t("teamShare.yes") : t("teamShare.none")],
     [t("teamShare.part.leader"), leader ?? t("teamShare.none")],
-    [t("teamShare.part.connections"), String(counts.connections)],
     [t("teamShare.part.pictures"), String(pictures)],
     [t("teamShare.part.notes"), includeMemory ? String(notes) : t("teamShare.none")],
     ...(counts.presets ? [[t("teamShare.part.presets"), `${counts.presets} · ${preview.summary.presetNames.join(", ")}`] as [string, string]] : []),
@@ -58,17 +57,6 @@ export function ShareTeamContents({ preview, includeMemory, localSkips }: {
           </div>
         ))}
       </dl>
-      {pkg.connections?.length ? (
-        // Security: the whole address shows before Save, since hosted server URLs often carry a key.
-        <div className="mt-3 text-[12.5px] text-ink-secondary">
-          <div className="font-medium text-ink">{t("teamShare.addresses")}</div>
-          <ul className="mt-1 space-y-0.5">
-            {pkg.connections.map((connection) => (
-              <li key={connection.key} className="break-all"><span className="text-ink">{connection.label}</span> · {connection.mcp.url}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
       <p className="mt-3 flex items-start gap-2 text-[12.5px] leading-relaxed text-ink-secondary">
         <ShieldCheck size={15} className="mt-0.5 shrink-0 text-success" />
         <span>{t("teamShare.never")}</span>

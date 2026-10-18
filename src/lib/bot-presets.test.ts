@@ -34,13 +34,13 @@ describe("presets in New bot", () => {
     ]);
   });
 
-  it("fills only the name, words and look: never a model, computer, approval or connected apps", () => {
+  it("fills only the name, words and look: never a model, computer or approval", () => {
     const patch = presetDraftPatch(preset());
     expect(patch).toEqual({ name: "Sky", title: "Support", description: "", soul: "Be kind.\n", color: "blue", mascotExpression: "happy" });
     expect(presetDraftPatch(preset({ bot: {} })).name).toBe("Support agent");
-    const draft = new BotCreationDraft({ ...EMPTY_BOT_DEFAULTS, profile: { approvalMode: "auto", composio: true, modelSelection: { instanceId: "claude", model: "opus" } } }, vi.fn());
+    const draft = new BotCreationDraft({ ...EMPTY_BOT_DEFAULTS, profile: { approvalMode: "auto", modelSelection: { instanceId: "claude", model: "opus" } } }, vi.fn());
     draft.patch(patch);
-    expect(draft.template.profile).toMatchObject({ approvalMode: "auto", composio: true, modelSelection: { instanceId: "claude", model: "opus" } });
+    expect(draft.template.profile).toMatchObject({ approvalMode: "auto", modelSelection: { instanceId: "claude", model: "opus" } });
   });
 
   it("turns the preset's picture into a file the draft uploads like any picture", async () => {

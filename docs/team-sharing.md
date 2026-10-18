@@ -25,36 +25,19 @@ the team name), or from **Templates → Share**.
   team's **shared instructions**.
 - **Routines**, including group chat goals. They always arrive paused.
 - **The Chief of Staff.**
-- **Connections.** For each remote MCP server a bot uses: its address and the
-  names of the values it needs (for example `Authorization`). The values
-  themselves never travel. Hosted servers often keep their key in the address
-  itself, so an address loses any sign-in part and `#fragment`, and keeps its
-  query and `;matrix` parameter names with the values emptied (`?key=`,
-  `;key=`, and `key=` inside a path segment). Any path segment, parameter
-  name or subdomain label (anything left of the last two host labels) that
-  looks like a key is replaced with `redacted`. A part looks like a key when,
-  after `%XX` escapes are decoded, it holds a run of 16 or more letters,
-  digits, `-` or `_` that mixes letters and digits, or 24 or more letters or
-  digits in a row, such as a token, a hex key or a server id. Words joined by
-  hyphens with a short number, such as `github-mcp-server-2024`, stay as
-  they are. The rule is deliberately broad, so the dialog lists each
-  connection's full address before you save and names any address it
-  changed.
 - **Starter notes.** Each bot's `MEMORY.md` and topic notes. **Include
   starter notes** is ticked, because a team is shared whole; untick it if the
   notes hold private details about you. Daily logs never go in.
-- **Connector requirements** (which connected apps the team expects), as
-  labels only.
 - **Your New bot defaults as a preset**, only when you tick **Include my New
   bot defaults as a preset**: their name, look, standing instructions, skills
-  and (with starter notes) notes, never their model, folder, computer,
-  approval level or connected apps. See [presets.md](presets.md).
+  and (with starter notes) notes, never their model, folder, computer or
+  approval level. See [presets.md](presets.md).
 
 ## What never goes in the file
 
 Chat history, keys and passwords, model choices, computers, and who can see
-each bot. The file format has no field for any of them. Local MCP servers
-that run a command on this computer are left out, as are routine attachments.
+each bot. The file format has no field for any of them. Routine attachments
+are left out.
 
 Text can still contain a secret someone typed into it. Before the file is
 written, every text part is checked with the same detectors the app uses for
@@ -83,16 +66,9 @@ the name is taken). Nothing in the file can change a bot, group chat or team
 you already have.
 
 - Bots start at the default approval level, **Full access** (Ask on a hosted
-  company workspace), with no connected-app access and the installation's
-  default model. A suggested approval level in the file is recorded, never
+  company workspace), with the installation's default model. A suggested approval level in the file is recorded, never
   applied.
 - Skills arrive **switched off**; routines arrive **paused**.
-- Each connection becomes a new MCP server that is **switched off** with
-  empty values, named after the connection (`crm`, or `crm-2` when `crm` is
-  already taken, so it can never pick up credentials you already have). Your
-  organization's MCP policy still applies; a refused connection is listed and
-  the rest of the team is added. Finish connections in **Plugins → MCP
-  servers**.
 - Starter notes are written once, through the normal memory writer.
 - Preset bots in a file appear in **New bot** under **Imported presets**; a
   bot made from one gets the preset's skills switched off

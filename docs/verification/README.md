@@ -106,18 +106,6 @@ creating, switching between and recovering named local environments by hand on
 a packaged desktop install; the control surface cannot drive it, so it is not
 in the map above.
 
-The [MCP sign-in fixture](mcp-sign-in.md) checks remote sign-in, callback URL
-paste-back, MCP tools and logout cancellation through the real settings panel
-and a synthetic OAuth provider in a disposable workspace.
-
-The [Whop fixture](whop.md) checks its one-click setup, cancellation, denied
-consent, discovery failures, reconnect and disconnect using that same registry
-and a synthetic provider, without accessing a real Whop account.
-
-The [Connected Apps OAuth fixture](connected-apps-oauth.md) checks blocked-popup
-recovery, safe authorization links and abandoned-account retries through real
-renderer components and isolated HTTP routes.
-
 The [desktop server connection smoke](desktop-server-connection.md) mounts the
 real Settings connection component in disposable Electron windows.
 

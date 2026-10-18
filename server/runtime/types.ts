@@ -154,7 +154,7 @@ export interface TurnEvidence {
   /** The tool error texts of this execution, oldest first, at most 3, each clipped to 200 chars. */
   errors?: string[];
   /** Outward actions this execution completed — sends, posts, publishes, commits, pushes, payments —
-   * as short labels ("GMAIL_SEND_EMAIL", "git push", "COMPOSIO_PROXY_EXECUTE"). */
+   * as short labels ("GMAIL_SEND_EMAIL", "git push"). */
   outward?: string[];
 }
 

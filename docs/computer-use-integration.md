@@ -20,9 +20,9 @@ Electron main process
       └── computer-proxy.ts (existing) ──▶ remote/cloud Boat computer
 ```
 
-- **Plugins = MCP servers over stdio.** The Plugins panel toggles which MCP
-  servers get injected into each bot's `--mcp-config`. Same pattern as Claude
-  Desktop / Cherry Studio / LibreChat.
+- **Computer tools = an MCP server over stdio.** The harness injects it into
+  each bot's `--mcp-config`. Same pattern as Claude Desktop / Cherry Studio /
+  LibreChat.
 - **Local desktop use = `cua-driver`**. macOS packages the Rust Mach-O in app
   Resources; Ubuntu x64 packages the certified 0.19.3 ELF plus its cursor-theme
   sidecar outside ASAR. Both remain paired with the application release. This

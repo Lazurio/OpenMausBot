@@ -12,7 +12,7 @@ describe("named links into a bot's settings", () => {
   it("opens settings exactly as toggleSettings did, with or without a bot", () => {
     const dispatch = vi.fn();
     openBotSettings(dispatch, "usage");
-    openBotSettings(dispatch, "access", { botId: "atlas", page: "apps" });
+    openBotSettings(dispatch, "access", { botId: "atlas", page: "tools" });
     expect(dispatch.mock.calls).toEqual([
       [{ type: "toggleSettings", open: true, section: "usage" }],
       [{ type: "toggleSettings", open: true, section: "access", botId: "atlas" }],
@@ -21,8 +21,6 @@ describe("named links into a bot's settings", () => {
   });
 
   it("lands the access callers on the page that holds what they are about", () => {
-    expect(linkTarget("access", link({ section: "access", page: "apps" }))).toEqual({ tab: "details", page: "apps" });
-    expect(linkTarget("access", link({ section: "access", page: "mcp" }))).toEqual({ tab: "settings", page: "mcp" });
     expect(linkTarget("access", link({ section: "access", page: "tools" }))).toEqual({ tab: "settings", page: "tools" });
     expect(linkTarget("access", link({ section: "access", page: "folder" }))).toEqual({ tab: "computer", page: "folder" });
     // A plain Access link (the team map's computer button) still opens the Computer tab, where Works on lives.
@@ -32,7 +30,7 @@ describe("named links into a bot's settings", () => {
   it("never applies a link's page to another section, and falls back to the section's own place", () => {
     for (const { id } of BOT_SECTIONS) {
       expect(linkTarget(id, null)).toEqual(sectionTarget(id));
-      if (id !== "access") expect(linkTarget(id, link({ section: "access", page: "apps" }))).toEqual(sectionTarget(id));
+      if (id !== "access") expect(linkTarget(id, link({ section: "access", page: "tools" }))).toEqual(sectionTarget(id));
     }
   });
 

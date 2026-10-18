@@ -7,24 +7,12 @@ import type { useBotSettingsDerived } from "./useBotSettingsDerived";
 
 const fixture = vi.hoisted(() => ({
   dispatch: vi.fn(),
-  mcpError: false,
-  servers: null as null | Array<{ name: string; enabled: boolean }>,
   config: null as unknown,
-  apps: { phase: "loading", apps: [], connectedSlugs: [] } as import("./useBotApps").BotApps,
 }));
 vi.mock("@/state/store", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/state/store")>();
   return { ...original, useStore: () => ({ state: { ...original.initialState, config: fixture.config ?? original.initialState.config }, dispatch: fixture.dispatch }) };
 });
-// The connected-apps list (Composio accounts plus the native HighLevel connection) is seeded per test.
-vi.mock("./useBotApps", async (importOriginal) => ({
-  ...await importOriginal<typeof import("./useBotApps")>(),
-  useBotApps: () => fixture.apps,
-}));
-vi.mock("@/lib/mcp-servers", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@/lib/mcp-servers")>(),
-  useMcpServers: () => ({ servers: fixture.servers, error: fixture.mcpError, refresh: vi.fn() }),
-}));
 
 // DesktopCapabilities reads window.ogb at module scope, and this suite runs in the node environment.
 vi.mock("../DesktopCapabilities", () => ({
@@ -37,10 +25,7 @@ const { AccessSection } = await import("./AccessSection");
 beforeEach(() => {
   vi.stubGlobal("window", {});
   fixture.dispatch.mockReset();
-  fixture.mcpError = false;
-  fixture.servers = null;
   fixture.config = null;
-  fixture.apps = { phase: "loading", apps: [], connectedSlugs: [] };
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -65,9 +50,6 @@ function makeDerived(overrides: Partial<ReturnType<typeof useBotSettingsDerived>
     patch: vi.fn(),
     engine: undefined,
     canCoordinate: false,
-    canUseConnectedApps: true,
-    connectedAppsConfigured: true,
-    connectedAppsEnabled: true,
     canUseBrowser: false,
     desktopBrowser: false,
     browserBlockedOnWindows: false,
@@ -125,48 +107,6 @@ describe("owner tool selection status", () => {
 });
 
 describe("AccessSection always-allowed list", () => {
-  it("keeps per-bot MCP changes disabled while any task is active", () => {
-    fixture.servers = [{ name: "notes", enabled: true }, { name: "offline", enabled: false }];
-    const markup = render(makeBot({ busy: true, mcpServers: ["notes"] }));
-    expect(markup).toContain('disabled="" aria-label="Let this bot use notes"');
-    expect(markup).toContain('disabled="" aria-label="Let this bot use offline"');
-    expect(markup).toMatch(/<button type="button" disabled=""[^>]*>Use every enabled server<\/button>/);
-    expect(markup).toContain("finishes all active tasks");
-    expect(markup).toContain("Individual tool approvals depend on the model provider and approval mode.");
-    const idle = render(makeBot({ mcpServers: ["notes"] }));
-    expect(idle).not.toContain('disabled="" aria-label="Let this bot use notes"');
-    expect(idle).toContain('disabled="" aria-label="Let this bot use offline"');
-    expect(idle).not.toContain("finishes all active tasks");
-  });
-
-  it("opens the established app connection flow without authorizing a second way", () => {
-    let tree!: ReturnType<typeof AccessSection>;
-    function Capture() { tree = AccessSection({ bot: makeBot(), derived: makeDerived() }); return tree; }
-    renderToStaticMarkup(createElement(StoreProvider, null, createElement(Capture)));
-    type Node = ReactElement<{ children?: ReactNode; onClick?: () => void }>;
-    const nodes = (value: ReactNode): Node[] => {
-      if (!isValidElement(value)) return [];
-      const node = value as Node;
-      return [node, ...Children.toArray(node.props.children).flatMap(nodes)];
-    };
-    const connect = nodes(tree).find((node) => node.type === "button" && renderToStaticMarkup(node).includes("Connect an app"))!;
-    connect.props.onClick!();
-    expect(fixture.dispatch.mock.calls).toEqual([
-      [{ type: "toggleSettings", open: false }],
-      [{ type: "togglePlugins", open: true, surface: "apps" }],
-    ]);
-  });
-
-  it("offers a retry instead of a permanent MCP loading state after a read failure", () => {
-    fixture.mcpError = true;
-    fixture.servers = [{ name: "notes", enabled: true }];
-    const markup = render(makeBot());
-    expect(markup).toContain("Could not refresh MCP servers.");
-    expect(markup).toContain("Retry");
-    expect(markup).toContain('role="alert"');
-    expect(markup).toContain('disabled="" aria-label="Let this bot use notes"');
-  });
-
   it("shows a placeholder when nothing is standing yet", () => {
     const markup = render(makeBot());
     expect(markup).toContain("Nothing standing yet.");
@@ -226,44 +166,16 @@ describe("AccessSection Record browser steps", () => {
   });
 });
 
-describe("AccessSection per-app scopes", () => {
-  const app = (slug: string, label: string) => ({ slug, label, blurb: "", card: { logo: null, domain: null, label }, scope: "write" as const });
-
-  it("lists HighLevel by name next to the Composio apps once the server reports it connected", () => {
-    fixture.apps = { phase: "ready", connectedSlugs: ["gmail", "highlevel"], apps: [app("gmail", "Gmail"), app("highlevel", "HighLevel")] };
-    const html = render(makeBot({ connectorScopes: { apps: { gmail: "write" } } }));
-    expect(html).toContain('aria-label="highlevel access"');
-    expect(html).toMatch(/<span class="min-w-0 text-\[13px\] text-ink">HighLevel</);
-    expect(html).not.toContain("not connected");
-    // Tool-by-tool grants are Composio's list; HighLevel is scoped by read/write only.
-    expect([...html.matchAll(/truncate font-mono text-\[12\.5px\] text-ink">([^<]*)</g)].map((match) => match[1])).toEqual(["gmail"]);
-  });
-
-  it("leaves HighLevel out while it is not connected", () => {
-    fixture.apps = { phase: "ready", connectedSlugs: ["gmail"], apps: [app("gmail", "Gmail")] };
-    const html = render(makeBot({ connectorScopes: { apps: { gmail: "write" } } }));
-    expect(html).not.toContain("HighLevel");
-    expect(html).not.toContain("highlevel");
-  });
-
-  it("shows no scope rows until the account list is known", () => {
-    const html = render(makeBot({ connectorScopes: { apps: { gmail: "write" } } }));
-    expect(html).not.toContain("Limit this bot to specific apps");
-  });
-});
-
 describe("AccessSection parts", () => {
   it("renders only the cards a page asks for, and every card without parts", () => {
-    fixture.servers = [{ name: "notes", enabled: true }];
     const full = render(makeBot());
-    for (const text of ["Working folder", "Connected apps", "Let this bot use notes", "Browser", "Webhooks", "Always allowed"]) {
+    for (const text of ["Working folder", "Browser", "Webhooks", "Always allowed"]) {
       expect(full).toContain(text);
     }
-    const mcp = renderToStaticMarkup(createElement(StoreProvider, null, createElement(AccessSection, { bot: makeBot(), derived: makeDerived(), parts: ["mcp"] })));
-    expect(mcp).toContain("Let this bot use notes");
-    for (const text of ["Working folder", "Connected apps", "Webhooks", "Always allowed"]) expect(mcp).not.toContain(text);
+    expect(full).not.toContain("Connected apps");
+    expect(full).not.toContain("MCP servers");
     const folder = renderToStaticMarkup(createElement(StoreProvider, null, createElement(AccessSection, { bot: makeBot(), derived: makeDerived(), parts: ["folder"] })));
     expect(folder).toContain("Working folder");
-    expect(folder).not.toContain("Let this bot use notes");
+    for (const text of ["Webhooks", "Always allowed"]) expect(folder).not.toContain(text);
   });
 });

@@ -31,8 +31,10 @@ describe("new-bot templates", () => {
   });
 
   it("accepts bounded settings and rejects coercion and invalid model combinations", () => {
-    expect(parseConfigPatch({ newBotDefaults: { profile: { notifications: false, mcpServers: [] } } })
-      .newBotDefaults?.profile).toEqual({ notifications: false, mcpServers: [] });
+    expect(parseConfigPatch({ newBotDefaults: { profile: { notifications: false } } })
+      .newBotDefaults?.profile).toEqual({ notifications: false });
+    // Lazurio overlay (DEV-6673 M3): a write naming a removed setting is refused as a whole.
+    expect(() => parseConfigPatch({ newBotDefaults: { profile: { notifications: false, mcpServers: [] } } })).toThrow(/removed/);
     for (const profile of [
       { notifications: "false" }, { name: "one\ntwo" },
       { modelSelection: { instanceId: "codex", model: "model", effort: "low", variant: "fast" } },
@@ -43,7 +45,9 @@ describe("new-bot templates", () => {
   it("still loads saved defaults with the removed computer settings, and drops them", () => {
     const profile = { notifications: false, computer: "cloud", cloudBackend: "vps", autoStartVps: true };
     expect(newBotDefaultsSchema.parse({ profile }).profile).toEqual({ notifications: false });
-    expect(parseConfigPatch({ newBotDefaults: { profile: { computer: "off", cloudBackend: "made-up" } } }).newBotDefaults?.profile).toEqual({});
+    // Lazurio overlay (DEV-6673 M3): only a write that names one is refused, alone or beside valid settings.
+    expect(() => parseConfigPatch({ newBotDefaults: { profile: { computer: "off", cloudBackend: "made-up" } } })).toThrow(/removed/);
+    expect(() => parseConfigPatch({ box: { token: "box_fixture" }, features: { browser: false } })).toThrow(/^box /);
   });
 
   it("never permits memory paths to escape the new bot's memory folder", () => {

@@ -221,17 +221,6 @@ export interface InstalledPackageMetadata {
   sha256?: string;
 }
 
-/** One service's connector tool grant: `"*"` widens to every tool on the
- * service, an explicit list names exact tools. */
-export interface ConnectorToolGrant {
-  tools: "*" | string[];
-}
-
-/** Lowercased Composio service slug, e.g. `gmail`. */
-export const CONNECTOR_SLUG_PATTERN = /^[a-z0-9][a-z0-9_-]{0,80}$/;
-/** Composio tool names are upper-snake, e.g. `GMAIL_SEND_EMAIL`. */
-export const CONNECTOR_TOOL_NAME_PATTERN = /^[A-Z][A-Z0-9_]{0,127}$/;
-
 /** Fails closed: only an absent switch or a strict true allows the helper model; a hand-edited "false" or 0 reads as never. */
 export const helperModelAllowed = (bot: { helperModel?: unknown }): boolean => bot.helperModel === undefined || bot.helperModel === true;
 
@@ -314,14 +303,6 @@ export interface WireBot {
   approvePeerComms?: boolean;
   /** Bot ids this bot is allowed to contact. */
   peers?: string[];
-  /** Whether this bot may use the workspace's connected apps. */
-  composio?: boolean;
-  /** Which connected-app tools this bot may call, by service slug. Absent
-   * defers to `composio` (unset/true = every tool, false = none); `{}` grants
-   * none. Grants never travel in shareable exports. */
-  connectorTools?: Record<string, ConnectorToolGrant>;
-  connectorScopes?: { apps: Record<string, "read" | "write"> };
-  outbound?: { policy: "ask" | "allow"; dailyCap: number };
   /** Ordered backups used only by opt-in, pre-prompt startup recovery. */
   fallback?: Array<{ instanceId: string; model: string }>;
   /** Whether this bot gets the app's built-in browser. */
@@ -338,8 +319,6 @@ export interface WireBot {
   cacheKeepWarm?: boolean;
   /** false: the workspace's helper model never writes this bot's background texts. Absent or true: allowed. */
   helperModel?: boolean;
-  /** Which of the app-wide MCP servers this bot mounts, by name. */
-  mcpServers?: string[];
   /** Owner-selected original tool identities. An empty allowlist permits none. */
   toolScope?: ToolScope;
   /** Id of a named browser profile; absent = the bot's own private session. */
@@ -389,7 +368,7 @@ export interface WireMessage {
   roomRequest?: { id: string; phase: "request" | "result" };
   id: string;
   role: "bot" | "user";
-  kind: "text" | "options" | "activity" | "screen" | "connector" | "secret" | "signin" | "routine.run" | "goal.run" | "digest" | "compaction" | "call" | "widget";
+  kind: "text" | "options" | "activity" | "screen" | "secret" | "signin" | "routine.run" | "goal.run" | "digest" | "compaction" | "call" | "widget";
   text?: string;
   digest?: TurnDigest;
   compaction?: {
@@ -410,7 +389,6 @@ export interface WireMessage {
   /** widget rows (kind "widget"): a bot-authored UI tree. `text` is its
    * readable fallback for clients that do not know the kind. */
   widget?: WidgetPayload;
-  connector?: ConnectorCardData;
   secret?: SecretRequestCardData;
   /** signin rows: the bot asked the person to sign in to a site themselves. */
   signIn?: SignInRequestCardData;
@@ -518,8 +496,6 @@ export const movesThreadToTop = (message: Pick<WireMessage, "role" | "kind" | "p
   message.role === "user" ? !message.peerAsk : message.kind === "text" && (message.turnTerminal === true || !message.turnId);
 
 export interface OptionCardData {
-  /** calls: one per outbound call the card covers, in subtitle order. */
-  outboundRequest?: { tool: string; app: string | null; calls?: Array<{ app: string | null; label: string }> };
   /** `revision`: the entry as it applied without a person, so Undo can tell it changed since. */
   teamMemoryRequest?: { section: string; entryId: string; kind: string; revision?: string };
   title: string;
@@ -636,24 +612,6 @@ export interface LiveSettings {
   voice: string;
   readTypedReplies: boolean;
   idleMinutes: number;
-}
-
-export interface ConnectorCardData {
-  /** Composio toolkit slug. It is validated server-side before every action. */
-  slug: string;
-  label: string;
-  description: string;
-  status: "required" | "authorizing" | "connected" | "failed";
-  /** Cards created by one agent request resume together after all connect. */
-  resumeKey: string;
-  /** Account alias supplied by the agent when adding a second account. */
-  alias?: string;
-  error?: string;
-  dismissed?: boolean;
-  resumed?: boolean;
-  /** Stop ended the turn this card paused: it offers no action, and a
-   * connection made afterwards is kept but continues nothing. */
-  stopped?: boolean;
 }
 
 export interface SecretRequestCardData {

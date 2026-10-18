@@ -6,8 +6,6 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { allowsTool, canUseMcpServer, parseToolScope, type ToolIdentity } from "../../shared/tool-scope.ts";
 import { ASK_USER_TOOL, formatQuestionAnswers, MAX_OPTIONS, MAX_QUESTIONS, parseAskQuestions } from "../../shared/ask-question.ts";
-import { CALL_TOOL, directoryCallTarget, isDirectoryTool } from "../mcp-directory.ts";
-import { REMOTE_MCP_STARTUP_MS } from "../mcp-http.ts";
 
 interface McpServerDef {
   command: string;
@@ -15,7 +13,6 @@ interface McpServerDef {
   env?: Record<string, string>;
   /** "local-computer" marks the user's real desktop: every tool on it is gated behind a permission card. */
   scope?: string;
-  directory?: boolean;
 }
 
 interface McpConfig {
@@ -93,11 +90,8 @@ export class StdioMcp {
   private nextId = 1;
   private disposed = false;
   private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
-  private readonly remote: boolean;
-  private listDeadline: number | undefined;
 
   constructor(def: McpServerDef) {
-    this.remote = def.directory === true;
     this.child = spawn(def.command, def.args ?? [], {
       stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env, ...def.env },
@@ -219,8 +213,7 @@ export class StdioMcp {
   }
 
   async init(): Promise<void> {
-    const budget = this.remote ? REMOTE_MCP_STARTUP_MS : MCP_STARTUP_TIMEOUT_MS;
-    this.listDeadline = this.remote ? Date.now() + budget : undefined;
+    const budget = MCP_STARTUP_TIMEOUT_MS;
     await this.call(
       "initialize",
       {
@@ -236,7 +229,7 @@ export class StdioMcp {
   async listTools(): Promise<McpTool[]> {
     const tools: McpTool[] = [];
     const seenCursors = new Set<string>();
-    const deadline = this.listDeadline ?? Date.now() + MCP_STARTUP_TIMEOUT_MS;
+    const deadline = Date.now() + MCP_STARTUP_TIMEOUT_MS;
     let cursor: string | undefined;
     for (let page = 0; page < MCP_MAX_LIST_PAGES; page += 1) {
       const remainingMs = Math.max(1, deadline - Date.now());
@@ -588,15 +581,12 @@ export default async function (pi: PiExtensionApi): Promise<void> {
 
   const used = new Set<string>();
   const identities = new Map<string, ToolIdentity>();
-  const directoryTools = new Map<string, string>();
   let enforcementFailed = false;
   const clients: StdioMcp[] = [];
   const serverEntries = Object.entries(config.mcpServers ?? {}).filter(([name]) => scope === undefined || canUseMcpServer(scope, name));
 
   if (scope !== undefined) {
-    const allowed = (name: string) => directoryTools.has(name)
-      ? canUseMcpServer(scope, directoryTools.get(name)!)
-      : allowsTool(scope, identities.get(name) ?? { kind: "native", name });
+    const allowed = (name: string) => allowsTool(scope, identities.get(name) ?? { kind: "native", name });
     const intersect = () => {
       if (enforcementFailed) throw new Error("Pi tool selection enforcement is unavailable");
       try {
@@ -672,7 +662,7 @@ export default async function (pi: PiExtensionApi): Promise<void> {
   for (const mount of mounts) {
     if (!mount.client || !mount.def || !mount.tools) continue;
     const { serverName, def, client, tools } = mount;
-    const gated = def.scope === "local-computer" || (def.scope === "custom" && config.approvalMode !== "full");
+    const gated = def.scope === "local-computer";
     let registered = 0;
 
     for (const tool of tools) {
@@ -682,8 +672,7 @@ export default async function (pi: PiExtensionApi): Promise<void> {
       }
       const toolName = tool.name;
       const identity: ToolIdentity = { kind: "mcp", server: serverName, name: toolName };
-      const directoryTool = def.directory === true && isDirectoryTool(toolName);
-      if (scope !== undefined && !directoryTool && !allowsTool(scope, identity)) continue;
+      if (scope !== undefined && !allowsTool(scope, identity)) continue;
       const name = allocateToolName(serverName, toolName, used);
       try {
         const parameters = toTypebox(tool.inputSchema);
@@ -693,15 +682,13 @@ export default async function (pi: PiExtensionApi): Promise<void> {
           description: typeof tool.description === "string" ? tool.description : `${toolName} (MCP tool from ${serverName})`,
           parameters,
           async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-            const target = directoryTool ? directoryCallTarget(toolName, params) : toolName;
-            if (scope !== undefined && (enforcementFailed
-              || (target !== undefined && !allowsTool(scope, { kind: "mcp", server: serverName, name: target })))) {
+            if (scope !== undefined && (enforcementFailed || !allowsTool(scope, identity))) {
               throw new Error("Tool selection excludes this tool");
             }
             // Host tools ask first through pi's native card (ctx.ui.confirm → extension_ui_request).
-            if (gated && target !== undefined) {
-              const shown = target;
-              const detail = summarizeParams(directoryTool && toolName === CALL_TOOL ? (params as { arguments?: unknown } | undefined)?.arguments : params);
+            if (gated) {
+              const shown = toolName;
+              const detail = summarizeParams(params);
               const allowed = await ctx.ui.confirm(
                 def.scope === "local-computer" ? `Allow ${shown} on your computer?` : `Allow ${serverName}:${shown}?`,
                 detail || `Run ${serverName}:${shown}`,
@@ -724,7 +711,6 @@ export default async function (pi: PiExtensionApi): Promise<void> {
         });
         used.add(name);
         identities.set(name, identity);
-        if (directoryTool) directoryTools.set(name, serverName);
         registered += 1;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

@@ -1,8 +1,6 @@
 import { z } from "zod";
 
 import { approvalModeFor, isApprovalMode, type ApprovalMode } from "../../shared/approval-mode.ts";
-import { normalizeConnectorScopes } from "../../shared/connector-scopes.ts";
-import { normalizeOutboundPolicy } from "../../shared/outbound.ts";
 import { parseToolScope, toolScopeWidens } from "../../shared/tool-scope.ts";
 import { isMausColor, MAUS_COLOR_NAMES, type WireBot, type WireGroup } from "../../shared/wire.ts";
 import { validateBotCwd } from "../bot-cwd.ts";
@@ -11,19 +9,16 @@ import { parseVisibility } from "../bot-visibility.ts";
 import type { BrowserLive } from "../browser-live.ts";
 import type { BrowserRuntime } from "../browser-runtime.ts";
 import type { CacheKeepWarm } from "../cache-keepwarm.ts";
-import * as composio from "../composio.ts";
 import type { AppConfig } from "../config.ts";
 import type { ModelSelection } from "../contracts.ts";
 import type { createApprovalModeSupport } from "../harness-capabilities.ts";
 import type { ProviderRegistry } from "../harness/registry.ts";
 import type { hostedModelPolicy } from "../hosted-models.ts";
-import { MAX_MCP_SERVERS, mcpServerNameError } from "../mcp-registry.ts";
 import type { MemoryUpkeep } from "../memory-upkeep.ts";
 import { profileSnapshot } from "../profile-revision.ts";
 import { recordProfileChange } from "../profile-versions.ts";
 import { clientBotPatchViolation, requestSource } from "../request-auth.ts";
 import type { SessionRegistry } from "../sessions.ts";
-import { parseConnectorTools } from "../connector-tools.ts";
 import { sectionKey, type BotRecord, type GroupRecord, type Store } from "../store.ts";
 import { pinnedClientThreadGuard } from "./pinned-client-thread.ts";
 import type { ModelSelectionCheck } from "./bots-create.ts";
@@ -190,24 +185,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
         }
         patch.fallback = chain;
       }
-      // null clears back to every connected app.
-      if (body.connectorScopes !== undefined) {
-        if (body.connectorScopes === null) patch.connectorScopes = undefined;
-        else {
-          const scopes = normalizeConnectorScopes(body.connectorScopes);
-          if (!scopes) return json(res, 400, { error: "connectorScopes must be { apps: { <toolkit>: read | write } } or null" });
-          patch.connectorScopes = scopes;
-        }
-      }
-      if (body.outbound !== undefined) {
-        const policy = normalizeOutboundPolicy(body.outbound);
-        if (!policy) return json(res, 400, { error: "outbound must be { policy: ask | allow, dailyCap: 1..1000 }" });
-        patch.outbound = policy;
-      }
-      if (body.composio !== undefined) {
-        if (typeof body.composio !== "boolean") return json(res, 400, { error: "composio must be true or false" });
-        patch.composio = body.composio;
-      }
       // An admin decision, so not on the client-writable profile surface.
       if (body.voiceNotes !== undefined) {
         if (typeof body.voiceNotes !== "boolean") return json(res, 400, { error: "voiceNotes must be true or false" });
@@ -221,45 +198,14 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
         }
         patch.memoryEnabled = body.memoryEnabled;
       }
-      // null drops the per-tool grants; {} means no tools.
-      if (body.connectorTools !== undefined) {
-        if (body.connectorTools === null) {
-          patch.connectorTools = undefined;
-        } else {
-          const parsed = parseConnectorTools(body.connectorTools);
-          if (!parsed.ok) return json(res, 400, { error: parsed.error });
-          // An unreachable backend never blocks the patch: the call-time check stays the authority.
-          const semantic = await composio.validateConnectorGrants(cfg, parsed.grants);
-          if (semantic) return json(res, 400, { error: semantic });
-          patch.connectorTools = parsed.grants;
-        }
-      }
       if (body.parkDirectMessages !== undefined) {
         if (typeof body.parkDirectMessages !== "boolean") return json(res, 400, { error: "parkDirectMessages must be true or false" });
         patch.parkDirectMessages = body.parkDirectMessages;
       }
-      // Omitted keeps the selection; null restores all enabled servers; [] mounts none.
-      let requestedMcpServers = existingBot?.mcpServers;
       if (Object.hasOwn(body, "toolScope")) {
         const parsed = parseToolScope(body.toolScope === null ? undefined : body.toolScope);
         if (!parsed.ok) return json(res, 400, { error: parsed.error });
         patch.toolScope = parsed.scope;
-      }
-      if (body.mcpServers !== undefined) {
-        if (auth.kind === "session" && !sessions.isLive(auth.session.id)) {
-          return json(res, 401, { error: "unauthorized: this session has expired or was revoked" });
-        }
-        if (body.mcpServers === null) {
-          requestedMcpServers = undefined;
-        } else if (!Array.isArray(body.mcpServers) || body.mcpServers.some((t: unknown) => typeof t !== "string" || mcpServerNameError(t) !== null)) {
-          return json(res, 400, { error: "mcpServers must be a list of server names, or null" });
-        } else {
-          requestedMcpServers = [...new Set(body.mcpServers as string[])];
-          if (requestedMcpServers.length > MAX_MCP_SERVERS) {
-            return json(res, 400, { error: `Select at most ${MAX_MCP_SERVERS} MCP servers.` });
-          }
-        }
-        patch.mcpServers = requestedMcpServers;
       }
       if (body.memoryUpkeep !== undefined) {
         if (typeof body.memoryUpkeep !== "boolean") return json(res, 400, { error: "memoryUpkeep must be true or false" });
@@ -473,12 +419,7 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
       // Known gap: outside the packaged desktop, loopback is the owner, so these loosenings are one curl from
       // the bot they constrain. An originless, session-less loopback caller may loosen only while every bot is idle.
       const loosened: string[] = [];
-      const trustPatch = patch as Pick<Partial<BotRecord>, "outbound" | "connectorScopes" | "fallback">;
-      if (body.outbound !== undefined && trustPatch.outbound?.policy === "allow" &&
-          (existingBot?.outbound?.policy !== "allow" || trustPatch.outbound.dailyCap > existingBot.outbound.dailyCap)) loosened.push("outbound");
-      if (body.connectorScopes !== undefined && existingBot?.connectorScopes &&
-          (!trustPatch.connectorScopes || Object.entries(trustPatch.connectorScopes.apps).some(([slug, scope]) =>
-            !existingBot.connectorScopes!.apps[slug] || (scope === "write" && existingBot.connectorScopes!.apps[slug] === "read")))) loosened.push("connectorScopes");
+      const trustPatch = patch as Pick<Partial<BotRecord>, "fallback">;
       if (body.fallback !== undefined && trustPatch.fallback?.some(candidate =>
           !existingBot?.fallback?.some(previous => previous.instanceId === candidate.instanceId && previous.model === candidate.model))) loosened.push("fallback");
       if (Array.isArray(patch.managedSections) && patch.managedSections.some(section => !(existingBot?.managedSections ?? []).includes(section))) {
@@ -498,10 +439,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
       if (section !== undefined && sectionKey(existingBot?.section) !== sectionKey(section)) loosened.push("section");
       if (Array.isArray(patch.alwaysAllow) && patch.alwaysAllow.some((key) => !(existingBot?.alwaysAllow ?? []).includes(key))) {
         loosened.push("alwaysAllow");
-      }
-      if (body.mcpServers !== undefined && Array.isArray(existingBot?.mcpServers) &&
-          (requestedMcpServers === undefined || requestedMcpServers.some((name) => !existingBot.mcpServers!.includes(name)))) {
-        loosened.push("mcpServers");
       }
       if (Object.hasOwn(body, "toolScope") && toolScopeWidens(existingBot?.toolScope, patch.toolScope)) loosened.push("toolScope");
       const browserOrigin = typeof req.headers.origin === "string" && req.headers.origin.trim() !== "";
@@ -536,22 +473,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
         if (freshBrowserBot && JSON.stringify(freshBrowserBot.toolScope) !== JSON.stringify(patch.toolScope)
           && (freshBrowserBot.busy || activeGroupTurnForBot(freshBrowserBot.id))) {
           return json(res, 409, { error: "Stop this bot's turns before changing its tool selection." });
-        }
-      }
-      // A running turn cannot unmount custom servers; rechecked after the awaits above.
-      if (body.mcpServers !== undefined) {
-        if (auth.kind === "session" && !sessions.isLive(auth.session.id)) {
-          return json(res, 401, { error: "unauthorized: this session has expired or was revoked" });
-        }
-        if (Array.isArray(freshBrowserBot?.mcpServers) &&
-            (requestedMcpServers === undefined || requestedMcpServers.some((name) => !freshBrowserBot.mcpServers!.includes(name))) &&
-            auth.kind === "loopback" && !DESKTOP_MANAGED && !browserOrigin && store.bots.some((candidate) => candidate.busy)) {
-          return json(res, 409, { error: "A bot is working right now, so this change has to come from the desktop app or a paired device. Try again once every bot is idle." });
-        }
-        if (freshBrowserBot &&
-            JSON.stringify(requestedMcpServers?.toSorted()) !== JSON.stringify(freshBrowserBot.mcpServers?.toSorted()) &&
-            (freshBrowserBot.busy || activeGroupTurnForBot(freshBrowserBot.id))) {
-          return json(res, 409, { error: "Stop this bot's turns before changing its MCP servers." });
         }
       }
       if (normalizedSelection && movedTask) {

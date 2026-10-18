@@ -16,7 +16,6 @@ describe("the bot panel's page registry", () => {
   it("sends each setup idea to the page that sets it up", () => {
     expect(setupTarget("soul")).toEqual({ tab: "details", page: "instructions" });
     expect(setupTarget("folder")).toEqual({ tab: "computer", page: "folder" });
-    expect(setupTarget("apps")).toEqual({ tab: "details", page: "apps" });
     expect(setupTarget("schedule")).toEqual({ tab: "details", page: "routines" });
     expect(setupTarget("identity")).toEqual({ tab: "details" });
   });

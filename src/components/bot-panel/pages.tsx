@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { AppWindow, Calendar, Check, FileText, Folder, FolderOpen, History, KeyRound, Sparkles, User } from "lucide-react";
+import { Calendar, Check, FileText, Folder, FolderOpen, History, KeyRound, Sparkles, User } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
@@ -47,7 +47,6 @@ const SETUP_ICON: Record<SetupStep["id"], typeof Sparkles> = {
   identity: User,
   soul: FileText,
   folder: Folder,
-  apps: AppWindow,
   schedule: Calendar,
 };
 
@@ -228,7 +227,7 @@ export function PageBody({ page, ...context }: PageContext & { page: PageId }): 
     case "approvals":
       return (
         <>
-          <PermissionsSection bot={bot} derived={derived} parts={["approval", "outbound"]} />
+          <PermissionsSection bot={bot} derived={derived} parts={["approval"]} />
           <Card>
             <NavRow
               data-panel-page="always"
@@ -245,8 +244,6 @@ export function PageBody({ page, ...context }: PageContext & { page: PageId }): 
       return <AccessSection bot={bot} derived={derived} parts={["always"]} />;
     case "routines":
       return <RoutinesSection bot={bot} routines={derived.botRoutines} runs={state.routineRuns} />;
-    case "apps":
-      return <AccessSection bot={bot} derived={derived} parts={["apps"]} />;
     case "memory":
       return null;
     case "skills":
@@ -273,8 +270,6 @@ export function PageBody({ page, ...context }: PageContext & { page: PageId }): 
       return <TeamPage bot={bot} />;
     case "chiefteams":
       return <ChiefTeamsPage bot={bot} derived={derived} />;
-    case "mcp":
-      return <AccessSection bot={bot} derived={derived} parts={["mcp"]} />;
     case "tools":
       return <AccessSection bot={bot} derived={derived} parts={["tools"]} />;
     case "webhooks":

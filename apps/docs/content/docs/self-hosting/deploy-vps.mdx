@@ -40,7 +40,7 @@ providers, and capacity limits were outside this run.
 
 ## What runs on a server, and what does not
 
-Runs fully on the server: every engine CLI (Claude Code, Codex, Grok, custom ACP engines), chats, rooms, bot-to-bot coordination, routines, connected apps and custom MCP servers, webhooks, Company Brain, computer use on cloud or container computers, text-to-speech, and the web UI (the server serves it itself).
+Runs fully on the server: every engine CLI (Claude Code, Codex, Grok, custom ACP engines), chats, rooms, bot-to-bot coordination, routines, webhooks, Company Brain, computer use on cloud or container computers, text-to-speech, and the web UI (the server serves it itself).
 
 Needs the desktop app instead: dictation and controlling the server's own desktop. Bots browse on a server too, once the browser engine is installed (below).
 
@@ -200,7 +200,7 @@ open or scan:  https://c-7f3a9c.openmausbot.com/pair#code=RR8Y-BLR6-H939
 
 - **A browser:** open the link. The code is filled in; press **Connect**. That browser is paired for 30 days, renewed on use as above.
 - **The desktop app:** copy the link, then in the app's **Server** menu choose **Add Server from Copied Pairing Link…**. The menu switches between your own machine and every server you added.
-- **The phone:** scan the QR code from the iOS app's pairing screen, or paste the whole link into its address field. The phone can chat, approve, and read; creating bots, changing models, and connecting apps stay with you in the server's UI.
+- **The phone:** scan the QR code from the iOS app's pairing screen, or paste the whole link into its address field. The phone can chat, approve, and read; creating bots and changing models stay with you in the server's UI.
 
 Worth knowing: a code works **once** and expires after **five minutes**; the link only works on that address (typing the code by hand: open `…/pair` and enter it); ten wrong codes in a minute from one address pause pairing for that address for a minute; `--client` mints a code for a device that may chat and approve but not change settings or pair others.
 

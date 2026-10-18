@@ -36,7 +36,7 @@ import { PASS, type RouteHandler } from "./table.ts";
 
 export interface TeamRouteDeps {
   store: Store;
-  cfg: Pick<AppConfig, "profile" | "mcpServers">;
+  cfg: Pick<AppConfig, "profile">;
   routines(): RoutineManager | null;
   orgLibrary(): Pick<OrgLibrary, "list" | "preview" | "add" | "offeredSkills" | "addOfferedSkill"> | null;
   broadcast(payload: Record<string, unknown>): void;
@@ -126,7 +126,6 @@ export function createTeamRoutes(deps: TeamRouteDeps): RouteHandler {
             skillSelection: skills.all ? "all" : "chosen",
             memoryByBot: body.includeMemory === true ? new Map(teamBots.map((bot) => [bot.id, starterNotes(bot.id)])) : undefined,
             avatars,
-            mcpServers: cfg.mcpServers ?? {},
             skipped: [...skills.skipped, ...(defaults?.skipped ?? [])],
             preset: defaults?.preset ?? null,
           });

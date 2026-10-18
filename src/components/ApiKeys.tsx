@@ -9,7 +9,7 @@ import type { LocaleKey } from "@/locales";
 import { SECTION_PROVIDER, type KeyResult, type KeyVia } from "@/lib/analytics-allowlist";
 import { keyRemoved, keySaved, keySaveFailure, keyTestResult, savedKeyResult } from "@/lib/product-events";
 
-export type ConfigSection = "composio" | "opencodeGo" | "anthropic" | "openai" | "openrouter" | "openaiCompat" | "xai" | "mistral" | "cerebras" | "groq" | "meta";
+export type ConfigSection = "opencodeGo" | "anthropic" | "openai" | "openrouter" | "openaiCompat" | "xai" | "mistral" | "cerebras" | "groq" | "meta";
 export type TestableProvider = "anthropic" | "openai" | "openrouter" | "openaiCompat" | "xai" | "mistral" | "cerebras" | "groq" | "meta";
 
 const SECTIONS: Record<
@@ -17,14 +17,8 @@ const SECTIONS: Record<
   {
     body: (value: string, firstKey: boolean) => unknown;
     flag: (config: ConfigStatus) => boolean;
-    ownKey?: (config: ConfigStatus) => boolean;
   }
 > = {
-  composio: {
-    body: (v) => ({ composio: { apiKey: v } }),
-    flag: (c) => c.composio.configured,
-    ownKey: (c) => c.composio.mode === "self-hosted",
-  },
   opencodeGo: { body: (v) => ({ opencodeGo: { apiKey: v } }), flag: (c) => c.opencodeGo?.configured ?? false },
   anthropic: {
     body: (v, firstKey) => ({ anthropic: { key: v, ...(firstKey && v ? { everyClaudeBot: false } : {}) } }),
@@ -41,8 +35,7 @@ const SECTIONS: Record<
 };
 
 // Provider keys have no desktop-shell slot yet; they go to the server's own 0600 config.
-const ELECTRON_CREDENTIAL: Partial<Record<ConfigSection, "composioApiKey" | "opencodeGoApiKey">> = {
-  composio: "composioApiKey",
+const ELECTRON_CREDENTIAL: Partial<Record<ConfigSection, "opencodeGoApiKey">> = {
   opencodeGo: "opencodeGoApiKey",
 };
 
@@ -60,14 +53,6 @@ const CREDENTIALS: Record<
     noteKey?: LocaleKey;
   }
 > = {
-  composio: {
-    labelKey: "keys.composio.label",
-    placeholder: "ak_…",
-    descriptionKey: "keys.composio.desc",
-    href: "https://dashboard.composio.dev",
-    linkLabelKey: "keys.composio.link",
-    optional: true,
-  },
   opencodeGo: {
     labelKey: "keys.opencode.label",
     placeholderKey: "keys.opencode.placeholder",
@@ -257,7 +242,6 @@ export function ApiKeyRow({
   const saveAfterPaste = useRef(false);
 
   const configured = state.config ? SECTIONS[section].flag(state.config) : false;
-  const ownKey = state.config ? (SECTIONS[section].ownKey ?? SECTIONS[section].flag)(state.config) : false;
   const clearing = !value.trim() && configured;
   const credential = credentialCopy(section);
 
@@ -312,7 +296,7 @@ export function ApiKeyRow({
         onSaved?.(nowConfigured);
         const provider = SECTION_PROVIDER[section];
         if (!next) {
-          if (ownKey) keyRemoved(provider, via);
+          if (configured) keyRemoved(provider, via);
         } else if (testProvider && nowConfigured) void test().then((result) => keySaved(provider, via, result));
         else keySaved(provider, via, savedKeyResult(provider));
       })

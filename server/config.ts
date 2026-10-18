@@ -11,17 +11,17 @@ import { withoutComputerEngine } from "./computer-engine-removal.ts";
 import { newBotDefaultsSchema, type NewBotDefaults } from "./new-bot-defaults.ts";
 import { replaySettings } from "./replay-settings.ts";
 import { EFFORT_LEVELS, type EffortLevel, type LiveSettings } from "../shared/wire.ts";
-import { isModelVariant, type InstanceConfigMap, type McpServerSpec, type ModelSelection } from "./contracts.ts";
+import { isModelVariant, type InstanceConfigMap, type ModelSelection } from "./contracts.ts";
 import { DEFAULT_WINDOW_MINUTES, MAX_WINDOW_MINUTES } from "./cache-keepwarm.ts";
 import { PROVIDER_ICON_PRESETS, providerIconError } from "../shared/provider-icon.ts";
 import { helperStoredShape, type HelperConfig } from "./side-jobs.ts";
 import { loopGuardConfigSchema, type LoopGuardConfig } from "./host/loop-guard.ts";
 import { migrateLegacyFeatureFlags } from "./legacy-feature-flags.ts";
-import { isRemoteMcpServer, parseStoredMcpServer } from "./mcp-registry.ts";
 import { parseJson, schemaIssue, type JsonObject, type JsonValue } from "./schema.ts";
 import { deciderConfigSchema, type DeciderConfig } from "./decider/config.ts";
 import { browserEngineConfigSchema, isValidCdpTarget, type BrowserEngineConfig } from "./browser/config.ts";
 import { roomContextSettings } from "./room-context-settings.ts";
+import { removedConfigKey } from "./lazurio-removed-config.ts";
 
 const optionalText = z.string().optional();
 const LEGACY_BROWSER_PROFILE_ID = /^[A-Za-z0-9_-]{1,40}$/;
@@ -326,8 +326,6 @@ const appConfigSchema = z.object({
   openaiCompat: z
     .object({ key: optionalText, url: optionalText, model: optionalText, provider: optionalText })
     .optional(),
-  /** Composio project key; `userId`/`sessionId` reuse one Composio Session. */
-  composio: z.object({ apiKey: optionalText, userId: optionalText, sessionId: optionalText }).optional(),
   /** OpenCode key, plus `providerKeys` for its other providers by the env name OpenCode reads; both write-only and only for its child. */
   opencodeGo: z.object({ apiKey: optionalText, providerKeys: z.record(z.string(), z.string()).optional() }).optional(),
   /** `provider`: "elevenlabs" (default, `key`), "fish" (`fishKey`, `fishModel`), "system", "xai" (`xai.key`) or "chatterbox" (local; `baseUrl`, `model`). */
@@ -397,12 +395,10 @@ const appConfigSchema = z.object({
   browserEngine: browserEngineConfigSchema.optional(),
   browserProfiles: browserProfilesSchema.optional(),
   instances: instanceConfigMapSchema.optional(),
-  /** Loose on purpose: one bad server entry is skipped later, never fails the whole file. */
-  mcpServers: z.record(z.string(), z.unknown()).optional(),
 });
 const storedAppConfigSchema = appConfigSchema.extend(helperStoredShape).extend({
   browserProfiles: storedBrowserProfilesSchema.optional(),
-  /** Loose like mcpServers: a bad provider key is dropped later, never the whole file. */
+  /** Loose: a bad provider key is dropped later, never the whole file. */
   opencodeGo: z.object({
     apiKey: optionalText,
     providerKeys: z.record(z.string(), z.unknown()).catch({})
@@ -410,7 +406,7 @@ const storedAppConfigSchema = appConfigSchema.extend(helperStoredShape).extend({
       .optional(),
   }).optional(),
 });
-const appConfigPatchSchema = appConfigSchema.omit({ instances: true, mcpServers: true, cliStartup: true, customDomain: true })
+const appConfigPatchSchema = appConfigSchema.omit({ instances: true, cliStartup: true, customDomain: true })
   .extend({ threads: threadsPatchSchema.optional(), newBots: newBotsPatchSchema.optional() });
 const jsonObjectSchema = z.record(z.string(), z.json());
 
@@ -430,7 +426,6 @@ export interface AppConfig extends HelperConfig {
     publicUrl?: string;
     phone?: "ios" | "android";
   };
-  mcpServers?: Record<string, unknown>;
   language?: string;
   xai?: { key?: string; url?: string };
   mistral?: { key?: string };
@@ -447,7 +442,6 @@ export interface AppConfig extends HelperConfig {
   safetyFloor?: { enabled?: boolean };
   billing?: { currency?: string; prices?: Record<string, { inputPerMillion: number; outputPerMillion: number; cachedInputPerMillion?: number }> };
   openaiCompat?: { key?: string; url?: string; model?: string; provider?: string };
-  composio?: { apiKey?: string; userId?: string; sessionId?: string };
   opencodeGo?: { apiKey?: string; providerKeys?: Record<string, string> };
   tts?: { key?: string; fishKey?: string; voice?: string; provider?: "elevenlabs" | "fish" | "system" | "chatterbox" | "xai"; baseUrl?: string; model?: string; fishModel?: FishTtsModel };
   decider?: DeciderConfig;
@@ -551,6 +545,9 @@ export function loadBrowserProfileIdAliases(): ReadonlyMap<string, string> {
 }
 
 export function parseConfigPatch(value: JsonValue): ConfigPatch {
+  // Lazurio overlay (DEV-6673 M3): a write naming a removed setting is refused as a whole.
+  const removed = removedConfigKey(value);
+  if (removed) throw Object.assign(new Error(`${removed} is not available in this distribution (it was removed)`), { status: 400 });
   const parsed = appConfigPatchSchema.safeParse(value);
   if (!parsed.success) {
     throw Object.assign(new Error(schemaIssue(parsed.error, "Invalid configuration")), { status: 400 });
@@ -744,8 +741,6 @@ export function loadConfig(): AppConfig {
   if (process.env.OPENAI_COMPAT_URL !== undefined) cfg.openaiCompat.url = process.env.OPENAI_COMPAT_URL;
   if (process.env.OPENAI_COMPAT_MODEL !== undefined) cfg.openaiCompat.model = process.env.OPENAI_COMPAT_MODEL;
   if (process.env.OPENAI_COMPAT_PROVIDER !== undefined) cfg.openaiCompat.provider = process.env.OPENAI_COMPAT_PROVIDER;
-  cfg.composio = { ...cfg.composio };
-  if (process.env.COMPOSIO_API_KEY !== undefined) cfg.composio.apiKey = process.env.COMPOSIO_API_KEY;
   cfg.opencodeGo = { ...cfg.opencodeGo };
   if (process.env.OPENCODE_API_KEY !== undefined) cfg.opencodeGo.apiKey = process.env.OPENCODE_API_KEY;
   cfg.tts = { ...cfg.tts };
@@ -799,7 +794,6 @@ export function syncCredentialEnv(patch: Partial<Omit<AppConfig, "threads" | "ne
     [patch.openaiCompat?.key, "OPENAI_COMPAT_API_KEY"],
     [patch.openai?.key, "OMB_OPENAI_API_KEY"],
     [patch.openrouter?.key, "OMB_OPENROUTER_API_KEY"],
-    [patch.composio?.apiKey, "COMPOSIO_API_KEY"],
     [patch.opencodeGo?.apiKey, "OPENCODE_API_KEY"],
     [patch.tts?.key, "OMB_TTS_KEY"],
     [patch.tts?.fishKey, "OMB_FISH_AUDIO_API_KEY"],
@@ -850,13 +844,10 @@ export const WORKSPACE_CREDENTIAL_ENV = [
   "OMB_OPENAI_IMAGE_KEY",
   "OMB_CUSTOM_IMAGE_KEY",
   "OMB_OPENAI_LIVE_KEY",
-  "COMPOSIO_API_KEY",
-  "OMB_COMPOSIO_BROKER_TOKEN",
   "OMB_CLOUD_BOAT_TOKEN",
   "OMB_CLOUD_VOICE_TOKEN",
   "OMB_CLOUD_DECIDER_TOKEN",
   "OMB_CLOUD_AI_TOKEN",
-  "OMB_CLOUD_CONNECTED_APPS_GRANT",
   // Not credentials, but they point a shell-capable agent at app-owned state.
   "OMB_BROWSER_CONNECTION", "OMB_USER_DATA",
 ] as const;
@@ -985,7 +976,7 @@ export function saveConfig(
   const before = configSaveListeners.size ? structuredClone(disk) : disk;
   const storedProfiles = storedBrowserProfilesSchema.safeParse(disk.browserProfiles);
   if (storedProfiles.success) disk.browserProfiles = storedProfiles.data;
-  for (const key of ["xai", "anthropic", "mistral", "cerebras", "groq", "meta", "openai", "openrouter", "openaiCompat", "composio", "opencodeGo", "tts", "decider", "imageGen", "live", "profile", "rooms", "mcp", "threads", "context", "memory", "features", "budgets", "billing", "decisions", "loopGuard", "onboarding", "browserEngine", "newBots", "safetyFloor"] as const) {
+  for (const key of ["xai", "anthropic", "mistral", "cerebras", "groq", "meta", "openai", "openrouter", "openaiCompat", "opencodeGo", "tts", "decider", "imageGen", "live", "profile", "rooms", "mcp", "threads", "context", "memory", "features", "budgets", "billing", "decisions", "loopGuard", "onboarding", "browserEngine", "newBots", "safetyFloor"] as const) {
     const section = checkedPatch[key];
     if (!section) continue;
     const current = jsonObjectSchema.safeParse(disk[key]);
@@ -1022,9 +1013,6 @@ export function saveConfig(
     }
   }
   if (checkedPatch.cliStartup !== undefined) disk.cliStartup = checkedPatch.cliStartup;
-  if (checkedPatch.mcpServers !== undefined) {
-    disk.mcpServers = jsonObjectSchema.parse(checkedPatch.mcpServers);
-  }
   if (checkedPatch.browserProfiles !== undefined) {
     const existingProfiles = new Map(
       (storedProfiles.success ? storedProfiles.data : []).map((profile) => [profile.id, profile]),
@@ -1342,34 +1330,4 @@ export function instanceConfigs(cfg: AppConfig): InstanceConfigMap {
     }
   }
   return map;
-}
-
-// config.json: { "mcpServers": { "notes": { "command": "npx", "args": ["-y", "@x/notes-mcp"], "env": { "NOTES_TOKEN": "…" } },
-//                                "docs": { "type": "http", "url": "https://…/mcp", "headers": { "Authorization": "Bearer …" } } } }
-
-export type CustomMcpServer = McpServerSpec;
-
-const reportedMcpSkips = new Set<string>();
-function skipMcpEntry(name: string, why: string): void {
-  const key = `${name}: ${why}`;
-  if (reportedMcpSkips.has(key)) return;
-  reportedMcpSkips.add(key);
-  console.error(`mcpServers.${JSON.stringify(name)} skipped — ${why}`);
-}
-
-export function customMcpServers(cfg: AppConfig, only?: string[]): Record<string, CustomMcpServer> {
-  const out: Record<string, CustomMcpServer> = {};
-  for (const [name, raw] of Object.entries(cfg.mcpServers ?? {})) {
-    if (only && !only.includes(name)) continue;
-    const parsed = parseStoredMcpServer(name, raw);
-    if (!parsed.ok) {
-      skipMcpEntry(name, `${parsed.error} Expected { "command": "npx", "args": [...], "env": { ... } } or { "type": "http", "url": "https://…", "headers": { ... } }`);
-      continue;
-    }
-    if (!parsed.server.enabled) continue;
-    out[name] = isRemoteMcpServer(parsed.server)
-      ? { type: parsed.server.type, url: parsed.server.url, headers: parsed.server.headers }
-      : { command: parsed.server.command, args: parsed.server.args, env: parsed.server.env };
-  }
-  return out;
 }

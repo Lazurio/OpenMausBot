@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
-import { ArrowUp, CalendarClock, Check, Folder, Plug } from "lucide-react";
+import { ArrowUp, CalendarClock, Check, Folder } from "lucide-react";
 import { MausAvatar } from "@/components/Avatar";
-import { ServiceIcon, type ToolkitCard } from "@/components/PluginsPanel";
 import { cn } from "@/lib/cn";
 import { reducedMotion } from "@/lib/onboarding";
-import { api } from "@/state/store";
 import type { SceneProps } from "./types";
 
 const SETUP_MS = 6600;
@@ -19,20 +17,8 @@ const SEND_AT = TYPE_AT + TYPED.length * MS_PER_CHAR + 350;
 const REPLY_AT = SEND_AT + 650;
 const STEP_AT = REPLY_AT + 350;
 const STEP_GAP = 420;
-const APPS = [
-  { slug: "discord", label: "Discord", domain: "discord.com" },
-  { slug: "linear", label: "Linear", domain: "linear.app" },
-];
 
 type Phase = "compose" | "sent" | "reply" | "configured";
-
-let catalog: Promise<Map<string, ToolkitCard>> | null = null;
-function loadCatalog(): Promise<Map<string, ToolkitCard>> {
-  catalog ??= api("/api/connectors/catalog")
-    .then((d: { cards?: ToolkitCard[] }) => new Map((d.cards ?? []).map((card) => [card.slug, card])))
-    .catch(() => new Map<string, ToolkitCard>());
-  return catalog;
-}
 
 function Typed({ text, caret, sent = false }: { text: string; caret: boolean; sent?: boolean }) {
   const command = text.slice(0, COMMAND.length);
@@ -102,17 +88,8 @@ export function Setup({ playing, onCue, onEnded, label }: SceneProps) {
   const still = reducedMotion() || !playing;
   const [typed, setTyped] = useState(still ? TYPED.length : 0);
   const [phase, setPhase] = useState<Phase>(still ? "configured" : "compose");
-  const [steps, setSteps] = useState(still ? 4 : 0);
+  const [steps, setSteps] = useState(still ? 3 : 0);
   const [pressed, setPressed] = useState(false);
-  const [logos, setLogos] = useState<Map<string, ToolkitCard>>(new Map());
-
-  useEffect(() => {
-    let alive = true;
-    void loadCatalog().then((cards) => alive && setLogos(cards));
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   useEffect(() => {
     if (still) return;
@@ -129,11 +106,11 @@ export function Setup({ playing, onCue, onEnded, label }: SceneProps) {
         onCue?.("working");
       }, SEND_AT),
       setTimeout(() => setPhase("reply"), REPLY_AT),
-      ...[0, 1, 2, 3].map((i) => setTimeout(() => setSteps(i + 1), STEP_AT + i * STEP_GAP)),
+      ...[0, 1, 2].map((i) => setTimeout(() => setSteps(i + 1), STEP_AT + i * STEP_GAP)),
       setTimeout(() => {
         setPhase("configured");
         onCue?.("proud");
-      }, STEP_AT + 3 * STEP_GAP + 300),
+      }, STEP_AT + 2 * STEP_GAP + 300),
       setTimeout(() => onEnded?.(), SETUP_MS),
     ];
     return () => timers.forEach(clearTimeout);
@@ -143,10 +120,6 @@ export function Setup({ playing, onCue, onEnded, label }: SceneProps) {
   const sent = phase !== "compose";
   const replied = phase === "reply" || phase === "configured";
   const configured = phase === "configured";
-  const card = (app: (typeof APPS)[number]) => {
-    const known = logos.get(app.slug);
-    return { label: app.label, logo: known?.logo ?? null, domain: known?.domain ?? app.domain };
-  };
 
   return (
     <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-inset px-6" role="img" aria-label={label}>
@@ -228,17 +201,7 @@ export function Setup({ playing, onCue, onEnded, label }: SceneProps) {
           <Row icon={CalendarClock} label="When" done={steps >= 2}>
             Every 15 min
           </Row>
-          <Row icon={Plug} label="Apps" done={steps >= 3} bar="w-14">
-            <span className="inline-flex items-center gap-3">
-              {APPS.map((app) => (
-                <span key={app.slug} className="inline-flex items-center gap-1">
-                  <ServiceIcon card={card(app)} className="size-3.5 rounded" />
-                  {app.label}
-                </span>
-              ))}
-            </span>
-          </Row>
-          <Row icon={Folder} label="Folder" done={steps >= 4} bar="w-16">
+          <Row icon={Folder} label="Folder" done={steps >= 3} bar="w-16">
             <code className="font-mono text-[11.5px]">~/bug-triage</code>
           </Row>
         </div>

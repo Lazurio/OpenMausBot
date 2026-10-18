@@ -27,7 +27,7 @@ Runs fully on a server:
   log them in **on the server**)
 - chats, rooms, bot-to-bot coordination, routines (they keep running with
   every laptop on the planet closed — this is the point)
-- connected apps / custom MCP servers, webhooks, Company Brain
+- webhooks, Company Brain
 - computer use on **cloud or container computers** (the bot's computer runs
   server-side anyway)
 - text-to-speech (with a key), the web UI (the server serves it itself)
@@ -538,8 +538,8 @@ Run `OMB_DEV_TRUST_LOCAL_BROWSER=0 pnpm dev:server` to try the sign-in.
 Every bot's shell runs on the server as the same user, so every bot is a
 loopback caller too. On a server one person uses that is fine: the bots are
 theirs. On a workspace several people share it is not: a user could ask a
-bot to `curl` the local API and change settings, keys, MCP servers or
-webhooks as the owner. The server therefore decides at start-up how far a
+bot to `curl` the local API and change settings, keys or webhooks as the
+owner. The server therefore decides at start-up how far a
 loopback request **without a session** is trusted, and logs it:
 
 ```
@@ -553,7 +553,7 @@ local requests: service trust (hosted workspace); without a session, loopback ma
 | `service` | a hosted workspace: any of `OMB_ADMIN_URL`, `OMB_ADMIN_WORKSPACE` or `OMB_ADMIN_MEMBERSHIP` set (shared-workspace Full access only works there, so it is covered too) | read health, who-am-I, the bot list, a thread's messages and a bot's picture; open a thread; send through the guarded route; watch and stop its exact request; withdraw a queued line; **decline** a card; use the bots' own capability routes (`/api/internal/*`, which check their own per-turn token) |
 
 Under `service`, everything else from loopback needs a real session and
-answers 403: settings and keys (`/api/config`), instances, MCP servers,
+answers 403: settings and keys (`/api/config`), instances,
 webhooks, sessions and pairing, people and sign-in lists, usage, budgets,
 the decision log, fleet, workspace backups, creating or loosening bots, and
 approving or answering any card. The Slack worker (the only session-less
@@ -966,7 +966,7 @@ same window (`decisions.retentionDays` / `OMB_DECISION_RETENTION_DAYS`; a
 quiet server prunes on a timer, and pending rows are written out at
 shutdown): settings
 (which keys changed), sign-in lists and people, pairing codes and revoked
-sessions, webhooks, MCP servers, engines and keys, bots created, deleted or
+sessions, webhooks, engines and keys, bots created, deleted or
 given different permissions, spend limits and prices, and who can see a bot.
 Each row names who acted — the session's email or device label, `This
 computer` for the owner, `Command line` for `openmausbot` commands such as

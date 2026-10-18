@@ -1,12 +1,11 @@
-export type SpotlightId = "spot.composer" | "spot.model" | "spot.approval" | "spot.connector";
+export type SpotlightId = "spot.composer" | "spot.model" | "spot.approval";
 
-export const SPOTLIGHTS: SpotlightId[] = ["spot.composer", "spot.model", "spot.approval", "spot.connector"];
+export const SPOTLIGHTS: SpotlightId[] = ["spot.composer", "spot.model", "spot.approval"];
 
 export interface ChatObservation {
   replyStarted: boolean;
   replyFinished: boolean;
   approvalVisible: boolean;
-  connectorVisible: boolean;
 }
 
 export function nextSpotlight(
@@ -17,7 +16,6 @@ export function nextSpotlight(
   if (active) return active;
   const unseen = (id: SpotlightId) => !seen.includes(id);
   if (observation.approvalVisible && unseen("spot.approval")) return "spot.approval";
-  if (observation.connectorVisible && unseen("spot.connector")) return "spot.connector";
   if ((observation.replyStarted || observation.replyFinished) && unseen("spot.composer")) return "spot.composer";
   if (observation.replyFinished && !unseen("spot.composer") && unseen("spot.model")) return "spot.model";
   return null;
@@ -25,7 +23,6 @@ export function nextSpotlight(
 
 export function cardAnswered(active: SpotlightId, observation: ChatObservation): boolean {
   if (active === "spot.approval") return !observation.approvalVisible;
-  if (active === "spot.connector") return !observation.connectorVisible;
   return false;
 }
 
@@ -37,8 +34,6 @@ export function anchorFor(id: SpotlightId): string {
       return "model";
     case "spot.approval":
       return "approval";
-    case "spot.connector":
-      return "connector";
   }
 }
 

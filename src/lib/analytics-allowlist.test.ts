@@ -3,11 +3,10 @@ import { describe, expect, it } from "vitest";
 import type { ConfigSection } from "@/components/ApiKeys";
 import { BOT_ROLES } from "@/lib/bot-roles";
 import { BUILT_IN_INSTANCE_DRIVERS } from "@/lib/built-in-instances";
-import { CURATED_CONNECTOR_SLUGS } from "../../shared/connector-curated";
 import { CREDENTIAL_TARGETS } from "../../shared/credential-request";
 import { TOOL_SCOPE_SUPPORT } from "../../shared/tool-scope-support";
 import {
-  allow, APP, BOT_TEMPLATE, credentialProvider, ENGINE, engineForDriver, engineSlug, KEY_PROVIDER, SECTION_PROVIDER,
+  allow, BOT_TEMPLATE, credentialProvider, ENGINE, engineForDriver, engineSlug, KEY_PROVIDER, SECTION_PROVIDER,
 } from "./analytics-allowlist";
 
 const HOSTILE = [
@@ -18,8 +17,7 @@ const HOSTILE = [
 
 describe("allow", () => {
   it("passes a value only when its list has it", () => {
-    expect(allow("composio", KEY_PROVIDER)).toBe("composio");
-    expect(allow("gmail", APP)).toBe("gmail");
+    expect(allow("anthropic", KEY_PROVIDER)).toBe("anthropic");
     for (const value of HOSTILE) expect(allow(value, KEY_PROVIDER), JSON.stringify(value) ?? "undefined").toBe("other");
   });
 });
@@ -65,16 +63,15 @@ describe("engine slugs", () => {
   });
 });
 
-describe("app, role and key lists", () => {
-  it("knows the curated Composio apps and the built-in roles", () => {
-    expect(APP).toEqual([...CURATED_CONNECTOR_SLUGS]);
+describe("role and key lists", () => {
+  it("knows the built-in roles", () => {
     expect(BOT_TEMPLATE).toEqual(BOT_ROLES.map((role) => role.id));
     expect(BOT_TEMPLATE).toEqual(["assistant", "inbox", "research", "coder", "community", "ops"]);
   });
 
   it("names a provider for every Settings key row", () => {
     const rows = {
-      composio: "composio", opencodeGo: "opencode_go", anthropic: "anthropic", openai: "openai",
+      opencodeGo: "opencode_go", anthropic: "anthropic", openai: "openai",
       openrouter: "openrouter", openaiCompat: "openai_compat", xai: "xai", mistral: "mistral", cerebras: "cerebras",
       groq: "groq", meta: "meta",
     } satisfies Record<ConfigSection, string>;

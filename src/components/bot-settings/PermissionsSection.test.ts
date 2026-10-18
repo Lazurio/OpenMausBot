@@ -93,10 +93,10 @@ describe("PermissionsSection parts", () => {
     flushSync(() => root.render(createElement(BotEditorStore, {
       value: { state: { ...initialState, bots: [base] }, dispatch,
         flushBotPatches: async () => null, refreshInstances: async () => {}, refreshModels: async () => {} },
-      children: createElement(PermissionsSection, { bot: base, derived, parts: ["approval", "outbound"] }),
+      children: createElement(PermissionsSection, { bot: base, derived, parts: ["approval"] }),
     })));
     expect(host.textContent).toContain("Approval level");
-    expect(host.textContent).toContain("Sending on your behalf");
+    expect(host.textContent).not.toContain("Sending on your behalf");
     expect(host.textContent).not.toContain("Chief of Staff");
     expect(host.textContent).not.toContain("Ask me before contacting other bots");
     render(base);

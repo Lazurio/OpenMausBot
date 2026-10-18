@@ -44,19 +44,18 @@ describe("Share team", () => {
     const preview: ShareResponse = {
       document, filename: "sales-desk-1.3.0.openmaus.json", summary: packageSummary(document), choices: { skills: [] },
       redacted: ["agents[scout].soul"],
-      skipped: [{ part: "connections[local-tool]", reason: "stdio_server" }, { part: "routines[daily-digest].attachments", reason: "files_not_shared" }],
+      skipped: [{ part: "routines[daily-digest].attachments", reason: "files_not_shared" }],
     };
     const words = text(renderToStaticMarkup(createElement(ShareTeamContents, { preview, includeMemory: true, localSkips: ["Quill · picture — picture is larger than 64 KB"] })));
     for (const line of [
       "Bots 3 · Morgan, Scout, Quill", "Skills · arrive switched off 3", "Playbooks 1", "Group chats 1", "Routines · arrive paused 2",
-      "Shared instructions Included", "Chief of Staff Morgan", "Connections · addresses only 1", "Pictures 1", "Starter notes 2",
+      "Shared instructions Included", "Chief of Staff Morgan", "Pictures 1", "Starter notes 2",
       "Never included: chat history, keys and passwords, model choices, computers, and who can see each bot.",
       "Removed what looked like a key or password from: Scout · standing instructions",
       "Quill · picture — picture is larger than 64 KB",
-      "local-tool · connection — runs a command on this computer, so it is not shared",
       "Daily digest · attachments — attached files are not shared",
-      "Connection addresses in the file CRM · https://mcp.example.com/crm",
     ]) expect(words).toContain(line);
+    expect(words).not.toContain("Connection");
     expect(text(renderToStaticMarkup(createElement(ShareTeamContents, { preview, includeMemory: false, localSkips: [] })))).toContain("Starter notes None");
   });
 
@@ -98,11 +97,11 @@ describe("importing a shared team", () => {
     const words = text(renderToStaticMarkup(createElement(TeamImportDetails, { pending, importedNames: ["Morgan", "Scout", "Quill"] })));
     for (const line of [
       "Shared instructions", "49 per seat", "Morgan leads", "1 group chat", "1 playbooks", "Routines: 2 · paused",
-      "Connections to finish: 1 · keys and passwords are never included", "CRM · https://mcp.example.com/crm",
       "Starter notes: 2", "Preset bots: 1 · appear in New bot",
       "Included skills — added switched off", "pricing-policy, research-brief", "Offered skills — not added to any bot", "objection-handling",
-      "Skills arrive switched off and routines paused.",
+      "Skills arrive switched off and routines paused.", "MCP server connections in a package are not added.",
     ]) expect(words).toContain(line);
+    expect(words).not.toContain("https://mcp.example.com/crm");
     expect(renderToStaticMarkup(createElement(TeamImportDetails, { pending, importedNames: ["Morgan", "Scout", "Quill"] })))
       .toContain('src="data:image/png;base64,iVBOR');
   });

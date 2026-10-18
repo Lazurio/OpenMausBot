@@ -97,14 +97,14 @@ afterEach(() => {
 
 describe("named links into the bot panel", () => {
   it("opens on the page a link names, and moves there when a link arrives while it is open", async () => {
-    openBotSettings(fixture.dispatch, "access", { page: "apps" });
+    openBotSettings(fixture.dispatch, "access", { page: "tools" });
     render("access");
     await settle();
-    expect(page()).toBe("apps");
+    expect(page()).toBe("tools");
 
-    flushSync(() => openBotSettings(fixture.dispatch, "access", { page: "mcp" }));
+    flushSync(() => openBotSettings(fixture.dispatch, "access", { page: "webhooks" }));
     await settle();
-    expect(page()).toBe("mcp");
+    expect(page()).toBe("webhooks");
 
     flushSync(() => openBotSettings(fixture.dispatch, "access"));
     await settle();

@@ -791,57 +791,21 @@ describe("Store", () => {
     expect(store.activePath(bot.threadId).at(-1)?.id).toBe(orphan.id);
   });
 
-  it("persists the per-bot composio gate", () => {
+  it("drops the removed connected-app, MCP server and outbound fields of an old bots.json on load", () => {
     const store = new Store(selection);
-    const bot = store.createBot();
-    store.patchBot(bot.id, { composio: false });
-    const reloaded = new Store(selection);
-    expect(reloaded.bot(bot.id)?.composio).toBe(false);
-  });
-
-  it("persists per-bot connector tool grants without touching legacy records", () => {
-    const store = new Store(selection);
-    const bot = store.createBot();
-    const legacy = store.createBot();
-    store.patchBot(bot.id, {
-      connectorTools: {
-        gmail: { tools: ["GMAIL_SEND_EMAIL", "GMAIL_GET_MESSAGE", "GMAIL_SEND_EMAIL"] },
-        github: { tools: "*" },
-      },
-    });
-    expect(store.bot(bot.id)?.connectorTools).toEqual({
-      gmail: { tools: ["GMAIL_SEND_EMAIL", "GMAIL_GET_MESSAGE"] },
-      github: { tools: "*" },
-    });
-    const reloaded = new Store(selection);
-    expect(reloaded.bot(bot.id)?.connectorTools).toEqual(store.bot(bot.id)?.connectorTools);
-    expect(reloaded.bot(legacy.id)?.connectorTools).toBeUndefined();
-    expect(reloaded.bot(legacy.id)?.composio).toBeUndefined();
-  });
-
-  it("rejects malformed connector tool grants at the store boundary", () => {
-    const store = new Store(selection);
-    const bot = store.createBot();
-    const malformed: unknown[] = [
-      "nope",
-      ["gmail"],
-      { Gmail: { tools: "*" } },
-      { "bad slug!": { tools: "*" } },
-      { gmail: { tools: [] } },
-      { gmail: { tools: ["gmail_send_email"] } },
-      { gmail: { tools: ["GMAIL_SEND_EMAIL", 7] } },
-      { gmail: { tools: "*", accountId: "private" } },
-      { gmail: { tools: "GMAIL_SEND_EMAIL" } },
-      { gmail: "*" },
-    ];
-    for (const value of malformed) {
-      expect(() => store.patchBot(bot.id, { connectorTools: value as never })).toThrow(/connectorTools/);
+    const bot = store.createBot({ name: "Legacy fields fixture" });
+    const bots = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8"));
+    Object.assign(bots[0], { composio: true, connectorTools: { gmail: { tools: "*" } }, connectorScopes: { gmail: ["read"] },
+      mcpServers: ["crm"], outbound: { perDay: 5 } });
+    writeFileSync(join(DATA_DIR, "bots.json"), JSON.stringify(bots));
+    const restored = new Store(selection).bot(bot.id)!;
+    expect(restored.name).toBe("Legacy fields fixture");
+    for (const field of ["composio", "connectorTools", "connectorScopes", "mcpServers", "outbound"]) {
+      expect(restored).not.toHaveProperty(field);
     }
-    expect(store.bot(bot.id)?.connectorTools).toBeUndefined();
-    store.patchBot(bot.id, { connectorTools: {} });
-    expect(store.bot(bot.id)?.connectorTools).toEqual({});
-    store.patchBot(bot.id, { connectorTools: undefined });
-    expect(store.bot(bot.id)?.connectorTools).toBeUndefined();
+    const saved = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8"));
+    expect(saved[0]).not.toHaveProperty("composio");
+    expect(saved[0]).not.toHaveProperty("mcpServers");
   });
 
   it("rotates colors across created bots", () => {
@@ -1581,14 +1545,6 @@ describe("Store", () => {
     const store = new Store(selection);
     const bot = store.createBot({ name: "Imported" }, { seedMessages: false });
     expect(store.messagesFor(bot.threadId)).toHaveLength(0);
-  });
-
-  it("persists the per-bot composio gate", () => {
-    const store = new Store(selection);
-    const bot = store.createBot();
-    store.patchBot(bot.id, { composio: false });
-    const reloaded = new Store(selection);
-    expect(reloaded.bot(bot.id)?.composio).toBe(false);
   });
 
   it("deleteBot removes the bot and its durable transcript", () => {
@@ -2367,7 +2323,7 @@ describe("soul", () => {
       ] };
     store.applyTeamSetup(request);
     expect(new Store(selection).bot("created-by-chief")?.visibility).toEqual({ people: ["hr@example.test"] });
-    expect(new Store(selection).bot("created-by-chief")).toMatchObject({ composio: false, connectorTools: {}, approvePeerComms: false });
+    expect(new Store(selection).bot("created-by-chief")).toMatchObject({ approvePeerComms: false });
     const open = new Store(selection);
     const everyoneChief = open.createBot({ name: "Ops", section: "Ops" });
     open.patchBot(everyoneChief.id, { chiefOfStaff: true });

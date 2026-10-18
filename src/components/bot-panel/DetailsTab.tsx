@@ -19,9 +19,7 @@ import { ModelPicker } from "../ModelPicker";
 import { RoutineEditor } from "../RoutinesPage";
 import { SoulField } from "../SoulField";
 import { ThreadModelsLine } from "../ThreadModelsLine";
-import { useBotApps } from "../bot-settings/useBotApps";
 import type { BotPatch, useBotSettingsDerived } from "../bot-settings/useBotSettingsDerived";
-import { AppsCard } from "./apps-and-logins";
 import type { PageId } from "./page-registry";
 import { BotSwitch, buttonCls, Card, ColRow, LabelAction, LinkRow, NavRow, NoteRow, rowCls, Segmented, SegmentedRow } from "./rows";
 
@@ -37,7 +35,6 @@ export function DetailsTab({ bot, derived, overview, onOpen }: {
   const [editingSoul, setEditingSoul] = useState(false);
   const [localAutoWarning, setLocalAutoWarning] = useState<{ botId: string; patch: BotPatch } | null>(null);
   const [editingRoutine, setEditingRoutine] = useState<Routine | "new" | null>(null);
-  const apps = useBotApps(bot);
   const { patch, approvalMode, engine, trustedModesAvailable } = derived;
 
   // Antigravity's old Auto still executes as Ask: show that without changing the saved mode or granting Full.
@@ -233,8 +230,6 @@ export function DetailsTab({ bot, derived, overview, onOpen }: {
           {t("computer.routines.openTitle")}
         </LinkRow>
       </Card>
-
-      <AppsCard bot={bot} derived={derived} apps={apps} onOpenAccess={() => onOpen("apps")} />
 
       {editingRoutine && (
         <RoutineEditor

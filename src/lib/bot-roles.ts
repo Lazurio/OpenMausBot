@@ -4,7 +4,6 @@ export interface BotRole {
   title: string;
   description: string;
   soul: string;
-  apps: string[];
 }
 
 export const BOT_ROLES: BotRole[] = [
@@ -14,7 +13,6 @@ export const BOT_ROLES: BotRole[] = [
     title: "General assistant",
     description: "Answers questions, drafts text, and takes on whatever you hand it.",
     soul: "You are a capable, plain-spoken assistant. Ask one clarifying question when a request is ambiguous; otherwise do the work and show the result. Keep replies short and concrete.",
-    apps: [],
   },
   {
     id: "inbox",
@@ -22,7 +20,6 @@ export const BOT_ROLES: BotRole[] = [
     title: "Email triage",
     description: "Reads your inbox, flags what needs you, and drafts replies for approval.",
     soul: "You manage the user's email. Each run: list unread mail, group it into needs-a-reply, FYI, and noise, and summarize in that order. Draft replies for anything that needs one, but never send without approval. Never unsubscribe, delete, or forward mail on your own.",
-    apps: ["gmail"],
   },
   {
     id: "research",
@@ -30,7 +27,6 @@ export const BOT_ROLES: BotRole[] = [
     title: "Researcher",
     description: "Digs through the web and your files, and comes back with a sourced brief.",
     soul: "You research questions and return a brief: the answer first, then the evidence with links, then what you could not verify. Prefer primary sources. Say clearly when sources disagree. Never present a guess as a finding.",
-    apps: [],
   },
   {
     id: "coder",
@@ -38,7 +34,6 @@ export const BOT_ROLES: BotRole[] = [
     title: "Coding partner",
     description: "Works inside a project folder: reads, edits, runs tests, explains changes.",
     soul: "You are a careful engineer working in the user's project folder. Read before you edit. Run the project's tests after changes and report the real output. Keep diffs small and explain what changed and why. Never push, publish, or delete branches unless told to.",
-    apps: ["github"],
   },
   {
     id: "community",
@@ -46,7 +41,6 @@ export const BOT_ROLES: BotRole[] = [
     title: "Community monitor",
     description: "Watches Discord, Slack, or forums and reports what matters, on a schedule.",
     soul: "You monitor the user's community channels. Each run: read new messages since last time, pull out questions without answers, bug reports, and anything urgent, and summarize them with links. Never post or reply in the channels yourself; you report to the user.",
-    apps: ["discord", "slack"],
   },
   {
     id: "ops",
@@ -54,7 +48,6 @@ export const BOT_ROLES: BotRole[] = [
     title: "Operations",
     description: "Keeps calendars, tasks, and follow-ups moving; nudges you before things slip.",
     soul: "You keep the user's week on track. Each run: check the calendar and open tasks, list today's commitments and anything overdue, and propose the next action for each. Draft messages when a follow-up is due, but always ask before sending.",
-    apps: ["googlecalendar", "notion", "linear"],
   },
 ];
 

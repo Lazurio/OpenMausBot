@@ -55,21 +55,18 @@ describe("what a row records", () => {
     expect(auditValues(rows[1]!.before!)).toEqual({ "decisions.retentionDays": null, "features.browser": true });
   });
 
-  it("files people, budgets and MCP servers under their own heading, headers and env hidden", () => {
+  it("files people and budgets under their own heading, and hides environment values and tokens", () => {
     const rows = configChangeRows(
       { signIn: { admins: ["boss@example.test"], members: [] }, budgets: { monthlyUsd: 100 } },
       {
         signIn: { admins: ["boss@example.test"], members: ["ada@example.test"] },
         budgets: { monthlyUsd: 250 },
-        mcpServers: { github: { url: "https://mcp.example.test", headers: { Authorization: "Bearer ghp_abcdefghijklmnopqrstuvwxyz0123456789" }, env: { TEAM: "ops" } } },
       },
     );
-    expect(rows.map((row) => row.category).sort()).toEqual(["budget", "mcp", "people"]);
+    expect(rows.map((row) => row.category).sort()).toEqual(["budget", "people"]);
     const people = rows.find((row) => row.category === "people")!;
     expect(people.changed).toEqual(["signIn.members"]);
     expect(auditValues(people.after!)).toEqual({ "signIn.members": ["ada@example.test"] });
-    const mcp = auditValues(rows.find((row) => row.category === "mcp")!.after!);
-    expect(mcp).toEqual({ "mcpServers.github.env": { TEAM: "[hidden]" }, "mcpServers.github.headers": { Authorization: "[hidden]" }, "mcpServers.github.url": "https://mcp.example.test" });
     expect(auditValues({ "instances.grok.environment": { KEY: "x" }, "box.token": "t", "rooms.maxTokens": 9 }))
       .toEqual({ "instances.grok.environment": { KEY: "[hidden]" }, "box.token": "[hidden]", "rooms.maxTokens": 9 });
   });
@@ -119,10 +116,10 @@ describe("what a row records", () => {
   });
 
   it("compares only the fields a request named", () => {
-    const before = botAuditSnapshot({ approvalMode: "ask", composio: true });
-    const after = botAuditSnapshot({ approvalMode: "auto", composio: false });
-    expect(botChangeRows({ id: "b" }, before, after, ["composio"]).map((row) => row.changed)).toEqual([["composio"]]);
-    expect(botChangeRows({ id: "b" }, before, after).map((row) => row.changed)).toEqual([["approvalMode", "composio"]]);
+    const before = botAuditSnapshot({ approvalMode: "ask", browser: true });
+    const after = botAuditSnapshot({ approvalMode: "auto", browser: false });
+    expect(botChangeRows({ id: "b" }, before, after, ["browser"]).map((row) => row.changed)).toEqual([["browser"]]);
+    expect(botChangeRows({ id: "b" }, before, after).map((row) => row.changed)).toEqual([["approvalMode", "browser"]]);
   });
 
   it("follows a bot's helper-model switch: putting a bot back on the helper decides where its text may go", () => {

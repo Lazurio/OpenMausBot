@@ -10,18 +10,10 @@ export interface BotOverview {
   reaches: string[];
   wont: string[];
   recent: Array<{ at: number; summary: string }>;
-  grants?: BotOverviewGrant[];
   setup: SetupStep[];
 }
 
-export interface BotOverviewGrant {
-  slug: string;
-  level: "all" | "partial" | "none";
-  /** Granted tool count; 0 unless level is "partial". */
-  toolCount: number;
-}
-
-export type SetupStepId = "identity" | "soul" | "folder" | "apps" | "schedule";
+export type SetupStepId = "identity" | "soul" | "folder" | "schedule";
 export type SetupStepSection = "identity" | "soul" | "access" | "routines";
 
 export interface SetupStep {
@@ -43,8 +35,6 @@ export interface OverviewFacts {
     | "approvalMode"
     | "approvePeerComms"
     | "peers"
-    | "composio"
-    | "connectorTools"
     | "browser"
     | "chiefOfStaff"
     | "managedSections"
@@ -59,10 +49,9 @@ export interface OverviewFacts {
   runs: Array<{ routineId: string; status: string; finishedAt?: number; startedAt?: number; scheduledFor: number }>;
   webhooks: Array<{ name: string; enabled: boolean }>;
   skills: Array<{ name: string; description: string; enabled: boolean }>;
-  engine: { agentsMcp?: boolean; composioMcp?: boolean; browserMcp?: boolean; computerMcp?: boolean } | null;
+  engine: { agentsMcp?: boolean; browserMcp?: boolean; computerMcp?: boolean } | null;
   browserEnabled?: boolean;
   cloudHome?: boolean;
-  connectedApps: { configured: boolean; authoritative: boolean; services: string[] };
   sectionPeers: number;
   timeZone: string;
   recent: Array<{ at: number; summary: string }>;
@@ -153,50 +142,9 @@ function doesLines(facts: OverviewFacts): string[] {
   return lines;
 }
 
-export async function connectedAppsFacts(
-  configured: boolean,
-  availability: "configured" | "unconfigured" | "unreadable",
-  read: () => Promise<Record<string, { connected: boolean }>>,
-): Promise<OverviewFacts["connectedApps"]> {
-  let authoritative = availability !== "unreadable";
-  let services: string[] = [];
-  if (configured && authoritative) {
-    try {
-      services = Object.entries(await read())
-        .filter(([, state]) => state.connected)
-        .map(([slug]) => slug);
-    } catch {
-      authoritative = false;
-    }
-  }
-  return { configured, authoritative, services };
-}
-
-function couldUseApps(facts: OverviewFacts): boolean {
-  return facts.bot.composio !== false && facts.connectedApps.configured && Boolean(facts.engine?.composioMcp);
-}
-
-export function grantsSummary(connectorTools: BotRecord["connectorTools"]): BotOverviewGrant[] | undefined {
-  if (connectorTools === undefined) return undefined;
-  return Object.entries(connectorTools)
-    .map(([slug, grant]): BotOverviewGrant => {
-      if (grant.tools === "*") return { slug, level: "all", toolCount: 0 };
-      if (grant.tools.length > 0) return { slug, level: "partial", toolCount: grant.tools.length };
-      return { slug, level: "none", toolCount: 0 };
-    })
-    .sort((a, b) => (a.slug < b.slug ? -1 : 1));
-}
-
 function reachesLines(facts: OverviewFacts): string[] {
   const lines: string[] = [];
   lines.push(facts.bot.cwd ? `Works in ${facts.bot.cwd}.` : "Works in its private workspace.");
-  const apps = facts.connectedApps;
-  if (couldUseApps(facts) && apps.authoritative && apps.services.length > 0) {
-    const count = apps.services.length;
-    lines.push(`Can use ${count} connected app${count === 1 ? "" : "s"}: ${apps.services.join(", ")}.`);
-  } else if (couldUseApps(facts) && !apps.authoritative) {
-    lines.push("Connected apps could not be checked.");
-  }
   if (facts.browserEnabled && facts.engine?.browserMcp && facts.bot.browser !== false) lines.push("Has the built-in browser.");
   if (facts.engine?.agentsMcp && facts.sectionPeers > 0 && facts.bot.peers?.length !== 0) {
     const scope = facts.bot.chiefOfStaff && facts.bot.managedSections?.length ? "its allowed teams" : "its section";
@@ -216,9 +164,6 @@ function wontLines(facts: OverviewFacts): string[] {
   if (mode === "custom") lines.push("Command approvals follow the provider's custom configuration.");
   if (facts.bot.peers?.length === 0) lines.push("Cannot initiate contact with other bots.");
   else if (mode !== "full" && facts.bot.approvePeerComms) lines.push("Asks before contacting other bots.");
-  if (!couldUseApps(facts) || (facts.connectedApps.authoritative && facts.connectedApps.services.length === 0)) {
-    lines.push("Has no connected apps.");
-  }
   if (!facts.routines.some((routine) => routine.enabled)) lines.push("Won't act on a schedule.");
   if (mode !== "full") lines.push("Profile proposal cards require your approval.");
   return lines;
@@ -236,7 +181,6 @@ export function buildBotOverview(facts: OverviewFacts): BotOverview {
     reaches: reachesLines(facts),
     wont: wontLines(facts),
     recent: facts.recent,
-    grants: grantsSummary(facts.bot.connectorTools),
     setup: setupSteps(facts),
   };
 }
@@ -246,7 +190,6 @@ const DEFAULT_BOT_NAMES = /^(new bot|bot|untitled)(\s*\d+)?$/i;
 export function setupSteps(facts: OverviewFacts): SetupStep[] {
   const named = facts.bot.name.trim() !== "" && !DEFAULT_BOT_NAMES.test(facts.bot.name.trim());
   const described = facts.bot.title.trim() !== "" || facts.bot.description.trim() !== "";
-  const apps = facts.connectedApps;
   const routines = facts.routines.some((routine) => routine.enabled);
   const webhooks = facts.webhooks.some((webhook) => webhook.enabled);
   const steps: SetupStep[] = [
@@ -254,14 +197,6 @@ export function setupSteps(facts: OverviewFacts): SetupStep[] {
     { id: "soul", label: "Write its standing instructions", done: (facts.bot.soul ?? "").trim() !== "", section: "soul" },
     { id: "folder", label: "Choose a working folder", done: Boolean(facts.bot.cwd), section: "access" },
   ];
-  if (couldUseApps(facts)) {
-    steps.push({
-      id: "apps",
-      label: "Connect the apps it needs",
-      done: apps.authoritative && apps.services.length > 0,
-      section: "access",
-    });
-  }
   steps.push({ id: "schedule", label: "Add a schedule or a trigger", done: routines || webhooks, section: "routines" });
   return steps;
 }

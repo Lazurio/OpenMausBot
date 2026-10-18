@@ -127,13 +127,11 @@ describe("remembering exact command approvals", () => {
     expect(html.slice(details)).toContain("Cancel turn");
   });
 
-  it("never offers always allow on code or a real send", () => {
-    for (const tool of ["COMPOSIO_PROXY_EXECUTE", "SLACK_SEND_MESSAGE"]) {
-      const result = view({ tool, commandAllowlist: undefined, allowSession: undefined, allowKey: undefined,
-        heldCode: "approval.held.outbound", outboundRequest: { tool, app: "Slack", calls: [{ app: "Slack", label: "Send" }] } });
-      expect(result.html).toContain("Allow once");
-      expect(result.html).not.toContain("Always allow");
-    }
+  it("never offers always allow on a real send", () => {
+    const result = view({ tool: "SLACK_SEND_MESSAGE", commandAllowlist: undefined, allowSession: undefined, allowKey: undefined,
+      heldCode: "approval.held.outbound" });
+    expect(result.html).toContain("Allow once");
+    expect(result.html).not.toContain("Always allow");
   });
 
   it("keeps the answers flat, with a ring only for keyboard focus", () => {

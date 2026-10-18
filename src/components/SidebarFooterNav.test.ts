@@ -15,7 +15,7 @@ vi.mock("@/lib/sidebar-preferences", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/lib/sidebar-preferences")>(),
   useSidebarToolsLayout: () => fixture.toolsLayout,
 }));
-import { SidebarAppsButton, SidebarFooterNav } from "./SidebarFooterNav";
+import { SidebarFooterNav } from "./SidebarFooterNav";
 
 type Props = { children?: ReactNode; [key: string]: unknown };
 function nodes(value: ReactNode): ReactElement<Props>[] {
@@ -36,14 +36,14 @@ function render(density: SidebarDensity, { toolsLayout = "rows", ...extra }: { c
 beforeEach(() => {
   fixture.advanced = false;
   fixture.dispatch.mockReset();
-  fixture.state = { activeView: "chat", routineRuns: [], pluginsOpen: false };
+  fixture.state = { activeView: "chat", routineRuns: [] };
   fixture.toolsLayout = "rows";
   vi.stubGlobal("window", {});
 });
 afterEach(() => vi.unstubAllGlobals());
 
 describe("sidebar footer places", () => {
-  it.each(["comfortable", "compact"] as const)("leads Advanced mode's places with Automations, then Team map, with Apps beside the profile instead (%s)", (density) => {
+  it.each(["comfortable", "compact"] as const)("leads Advanced mode's places with Automations, then Team map, and no Apps place (%s)", (density) => {
     fixture.advanced = true;
     const { html } = render(density);
     const order = ["automations", "team-map"].map((id) => html.indexOf(`data-sidebar-nav="${id}"`));
@@ -63,11 +63,11 @@ describe("sidebar footer places", () => {
     expect(html).not.toContain(">Tools<");
   });
 
-  it.each([false, true])("puts Automations on the avatars-only rail ahead of Apps (advanced: %s)", (advanced) => {
+  it.each([false, true])("puts Automations on the avatars-only rail, with no Apps place (advanced: %s)", (advanced) => {
     fixture.advanced = advanced;
     for (const html of [render("icons").html, renderToStaticMarkup(createElement(() => SidebarFooterNav({ density: "icons", rail: true })))]) {
       expect(html).toContain('aria-label="Automations" title="Automations"');
-      expect(html.indexOf('data-sidebar-nav="automations"')).toBeLessThan(html.indexOf('data-sidebar-nav="apps"'));
+      expect(html).not.toContain('data-sidebar-nav="apps"');
     }
   });
 
@@ -170,19 +170,6 @@ describe("Tools header", () => {
     fixture.advanced = true;
     expect(render("comfortable").html).toContain('data-tour="tools"');
     expect(render("comfortable", { collapsed: true }).html).toContain('data-tour="tools"');
-  });
-});
-
-describe("Apps beside the profile", () => {
-  it.each([false, true])("is one icon button that opens Apps and carries the tour's Apps anchor (advanced: %s)", (advanced) => {
-    fixture.advanced = advanced;
-    let tree!: ReturnType<typeof SidebarAppsButton>;
-    function Capture() { tree = SidebarAppsButton(); return tree; }
-    const html = renderToStaticMarkup(createElement(Capture));
-    expect(html).toMatch(/data-tour="nav-apps" data-sidebar-nav="apps"/);
-    expect(html).toContain('aria-label="Apps"');
-    (tree.props.onClick as () => void)();
-    expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "togglePlugins", open: true });
   });
 });
 

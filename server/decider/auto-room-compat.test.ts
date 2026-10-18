@@ -84,7 +84,7 @@ describe("packages", () => {
     });
     const exported = (defaultResponder: GroupRecord["defaultResponder"]) => createTeamPackageExport({
       team: "Desk", authorName: "Mira", bots: [bot("a", "Ada"), bot("b", "Bea")], groups: [room(defaultResponder)], routines: [],
-      published: null, skillsByBot: new Map(), mcpServers: {}, avatars: {},
+      published: null, skillsByBot: new Map(), avatars: {},
     }).document.package.rooms?.[0]?.defaultResponder;
     expect(exported({ kind: "auto", fallbackBotId: "b" })).toEqual({ kind: "agent", agent: "bea" });
     expect(exported({ kind: "auto" })).toEqual({ kind: "agent", agent: "ada" });

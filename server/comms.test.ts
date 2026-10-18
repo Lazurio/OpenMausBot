@@ -533,7 +533,6 @@ describe("routine comms e2e on the job runtime (fake ACP fleet)", () => {
         title: "Product designer",
         description: "Design and review the user experience.",
         section: "Launch",
-        composio: false,
         autoApprove: false,
         approvePeerComms: false,
         approvalMode: "full",

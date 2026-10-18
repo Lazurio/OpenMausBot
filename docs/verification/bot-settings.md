@@ -59,7 +59,7 @@ Check these user paths:
     for another section. The requested section must open and clear the search.
 
 The full-app automated regression covers those repeated external opens, plus
-role creation, optional setup, connected-app settings and failure recovery:
+role creation, optional setup and failure recovery:
 
 ```sh
 pnpm exec vitest run scripts/testing/bot-tools-ui.e2e.test.ts src/state/store.test.ts
@@ -183,15 +183,10 @@ Check these user paths:
    `Run … on its schedule` switch on Details. `GET /api/routines` reports
    `enabled: false`, the row reads Paused, and a second click resumes it. The
    Routines tab and the Routines page list carry the same switch.
-5. `ui click --name "Open: Vault"`. With no apps connected it offers
-   `Let Pepper use apps`, Add app and Add login, and says no app is connected.
-   With apps connected, switching one off writes the bot's `connectorScopes`
-   with every other connected app still on.
 
-Not proven by this run: real connected apps and real signed-in sites need a
-Composio account and a signed-in browser, which the fixture does not have.
-Their rows are covered by `src/components/BotSettingsDialog.simple.test.ts` and
-`src/lib/bot-app-access.test.ts`.
+Not proven by this run: real signed-in sites need a signed-in browser, which
+the fixture does not have. Their rows are covered by
+`src/components/BotSettingsDialog.simple.test.ts`.
 
 ## Earlier settings verification
 

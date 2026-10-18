@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import {
-  Archive, AudioWaveform, Check, CheckCheck, Copy, FileCode2, FileText, History, LayoutGrid, Lock, Phone, Puzzle, Search,
+  Archive, AudioWaveform, Check, CheckCheck, Copy, FileCode2, FileText, History, LayoutGrid, Lock, Phone, Search,
   SlidersHorizontal, Slack, Smartphone, Trash2, Users, Zap, ClipboardCopy, Loader2,
 } from "lucide-react";
 
@@ -133,7 +133,6 @@ export function SettingsTab({ bot, derived, slackUrl, query, onQuery, onOpen, on
       )),
     ] },
     { label: t("botPanel.card.tools"), anchor: "tools", rows: [
-      page("mcp", Puzzle, t("botPanel.mcpHint"), bot.mcpServers == null ? t("botPanel.all") : bot.mcpServers.length),
       page("tools", SlidersHorizontal, t("botPanel.toolsHint")),
       page("webhooks", Zap, t("botPanel.webhooksHint"), webhooks || none),
       page("always", Check, t("botPanel.alwaysHint"), alwaysAllowed || none),

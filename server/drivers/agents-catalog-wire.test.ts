@@ -61,18 +61,18 @@ const FULL = "skills+voice+escalations";
 
 /** Bytes when the budget was last set; a profile may move at most 2% either way (lower it to lock in a win). */
 const BUDGET_BASELINE: Record<string, number> = {
-  "default": 51310,
-  "voice": 52051,
-  "skills": 54129,
-  "skills+voice": 54870,
-  "non-chief": 41637,
-  "voice+non-chief": 42378,
-  "skills+non-chief": 44456,
-  "skills+voice+non-chief": 45197,
-  "skills+voice+cloud-home": 54870,
-  "skills+voice+non-chief+cloud-home": 45197,
-  "default+legacy-switches": 51310,
-  "skills+voice+escalations": 55730,
+  "default": 47912,
+  "voice": 48653,
+  "skills": 50731,
+  "skills+voice": 51472,
+  "non-chief": 38273,
+  "voice+non-chief": 39014,
+  "skills+non-chief": 41092,
+  "skills+voice+non-chief": 41833,
+  "skills+voice+cloud-home": 51472,
+  "skills+voice+non-chief+cloud-home": 41833,
+  "default+legacy-switches": 47912,
+  "skills+voice+escalations": 52332,
 };
 
 const RPC_PREFIX = '{"jsonrpc":"2.0","id":1,"result":';

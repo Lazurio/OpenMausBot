@@ -9,7 +9,7 @@ import { SECTIONS, SIMPLE_HIDDEN_SECTIONS, SIMPLE_PAGES, SettingsModal, revealSe
 const fixture = vi.hoisted(() => ({
   section: "general" as AppSettingsSection,
   advancedMode: false,
-  config: { features: { browser: false }, browserEngine: { kind: "bundled", installable: true }, composio: { mode: "self" } } as Record<string, unknown>,
+  config: { features: { browser: false }, browserEngine: { kind: "bundled", installable: true } } as Record<string, unknown>,
   api: vi.fn(),
   dispatch: vi.fn(),
   switches: [] as ComponentProps<typeof Switch>[],
@@ -71,7 +71,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   fixture.section = "general";
   fixture.advancedMode = false;
-  fixture.config = { features: { browser: false }, browserEngine: { kind: "bundled", installable: true }, composio: { mode: "self" } };
+  fixture.config = { features: { browser: false }, browserEngine: { kind: "bundled", installable: true } };
   fixture.switches = [];
   fixture.ownerOrAdmin = null;
   fixture.api.mockResolvedValue({});
@@ -117,6 +117,12 @@ describe("Settings in Simple mode", () => {
     expect(html.indexOf('aria-label="Advanced mode"')).toBeGreaterThan(0);
     expect(html.indexOf('aria-label="Advanced mode"')).toBeLessThan(html.indexOf("Language"));
     expect(blocks(html)).toEqual(["general"]);
+  });
+
+  it("keeps the Claude Code switches under MCP calls, now that MausBot has no MCP servers page", () => {
+    const html = render();
+    expect(html.indexOf('aria-label="Use my Claude Code MCP servers"')).toBeGreaterThan(html.indexOf("MCP calls"));
+    expect(html).toContain("Also use my Claude Code skills");
   });
 
   it("stacks Model providers, API keys and Decision model on AI, each under its heading", () => {

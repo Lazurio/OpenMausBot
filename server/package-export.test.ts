@@ -43,8 +43,6 @@ describe("package export", () => {
           modelSelection: { instanceId: "private-engine", model: "secret-model", effort: "medium" },
           resumeCursors: { provider: "secret-session" },
           chiefOfStaff: true,
-          composio: true,
-          connectorTools: { gmail: { tools: "*" } },
           cwd: "/private/path",
           approvalMode: "full",
           autoApprove: true,
@@ -259,8 +257,8 @@ describe("whole-team export (package v2)", () => {
   const fixture = () => {
     const bots = [
       bot("lead", "Morgan", { chiefOfStaff: true, soul: "Coordinate the desk.\n", avatarUrl: "/api/attachments/a.png", avatarCrop: "rounded",
-        mcpServers: ["crm", "local-tool", "plain-http"], playbooks: [{ key: "qualify", name: "Qualify", summary: "Check fit", triggers: ["qualify"], instructions: "Ask four questions." }] }),
-      bot("scout", "Scout", { mcpServers: ["crm"] }),
+        playbooks: [{ key: "qualify", name: "Qualify", summary: "Check fit", triggers: ["qualify"], instructions: "Ask four questions." }] }),
+      bot("scout", "Scout"),
       bot("hidden", "Archived", { hidden: true }),
       bot("other", "Elsewhere", { section: "Support" }),
     ];
@@ -279,11 +277,6 @@ describe("whole-team export (package v2)", () => {
       team: "Sales desk", authorName: "Mira", bots, groups, routines, published: null,
       brief: "Quote list prices only.",
       skillsByBot: new Map([["lead", [skill("pricing")]], ["scout", [skill("pricing"), skill("research")]]]),
-      mcpServers: {
-        crm: { type: "http", url: "https://mcp.example.com/crm", headers: { Authorization: "Bearer real-value-never-shared" }, enabled: true },
-        "local-tool": { command: "npx", args: ["tool"], env: { TOKEN: "x" }, enabled: true },
-        "plain-http": { type: "http", url: "http://mcp.example.com", enabled: true },
-      },
       avatars: { lead: `data:image/png;base64,${PNG}` },
     };
   };
@@ -295,7 +288,7 @@ describe("whole-team export (package v2)", () => {
     expect(pkg.agents.map((agent) => agent.key)).toEqual(["morgan", "scout"]);
     expect(pkg.team).toEqual({ name: "Sales desk", brief: "Quote list prices only.", leader: "morgan" });
     expect(pkg.agents[0]).toMatchObject({
-      name: "Morgan", soul: "Coordinate the desk.\n", playbooks: ["qualify"], skills: ["pricing"], connections: ["crm"],
+      name: "Morgan", soul: "Coordinate the desk.\n", playbooks: ["qualify"], skills: ["pricing"],
       appearance: { color: "green", avatar: { mime: "image/png", data: PNG, crop: "rounded" } },
     });
     expect(pkg.rooms).toEqual([{ key: "deal-desk", name: "Deal desk", members: ["morgan", "scout"], bulletin: "Cite sources.",
@@ -304,14 +297,11 @@ describe("whole-team export (package v2)", () => {
       expect.objectContaining({ key: "daily-digest", agent: "scout", continuity: true, runOnStartup: true, enabledAfterInstall: true }),
       expect.objectContaining({ key: "weekly-review", agent: "morgan", room: "deal-desk", runOn: "maus", enabledAfterInstall: false }),
     ]);
-    expect(pkg.connections).toEqual([{ key: "crm", label: "crm", reason: "Used by Morgan, Scout",
-      mcp: { transport: "http", url: "https://mcp.example.com/crm", valueNames: ["Authorization"] } }]);
+    expect(pkg.connections).toBeUndefined();
     expect(pkg.skills?.entries.map((entry) => entry.name)).toEqual(["pricing", "research"]);
     const text = JSON.stringify(result.document);
     expect(text).not.toMatch(/Archived|Elsewhere|Support|Only outsiders|"DM"|real-value-never-shared|secret-model|secret-session|thread-|private\/x\.txt|"seed"/);
     expect(result.skipped).toEqual([
-      { part: "connections[local-tool]", reason: "stdio_server" },
-      { part: "connections[plain-http]", reason: "insecure_address" },
       { part: "routines[daily-digest].attachments", reason: "files_not_shared" },
     ]);
     expect(result.filename).toBe("sales-desk-1.0.0.openmaus.json");
@@ -532,15 +522,6 @@ describe("whole-team export (package v2)", () => {
       "http://localhost:8080/mcp",
     ])("keeps a plain address exactly: %s", (plain) => {
       expect(shareableAddress(plain)).toEqual({ url: plain, changed: false });
-    });
-
-    it("reports a changed address as redacted and exports it without the key", () => {
-      const input = fixture();
-      input.mcpServers.crm = { ...input.mcpServers.crm, url: "https://mcp.zapier.com/api/mcp/s/ZTJmNDk1YjMtNjQ0Yi00ZjU2/mcp?token=abcdef" };
-      const result = createTeamPackageExport(input);
-      expect(result.document.package.connections?.[0]?.mcp.url).toBe("https://mcp.zapier.com/api/mcp/s/redacted/mcp?token=");
-      expect(result.redacted).toEqual(["connections[crm].mcp.url"]);
-      expect(JSON.stringify(result.document)).not.toMatch(/ZTJmNDk1YjMtNjQ0Yi00ZjU2|abcdef/);
     });
   });
 });

@@ -11,9 +11,6 @@ import {
   userProfileSystemPrompt,
   computerPrompt,
   mentionPrompt,
-  COMPOSIO_PROMPT,
-  composioSystemPrompt,
-  customMcpPrompt,
   CREDENTIAL_PROMPT,
   LEARN_PROMPT,
   PROFILE_PROMPT,
@@ -153,19 +150,10 @@ describe("computerPrompt", () => {
 
 describe("shared sentences", () => {
   it("each begins with one space so they concatenate onto the persona line", () => {
-    for (const sentence of [COMPOSIO_PROMPT, CREDENTIAL_PROMPT, TRIGGER_PROMPT, ROUTINE_EXECUTION_PROMPT, LEARN_PROMPT, WEBHOOK_PROMPT, PROFILE_PROMPT, SIGN_IN_PROMPT]) {
+    for (const sentence of [CREDENTIAL_PROMPT, TRIGGER_PROMPT, ROUTINE_EXECUTION_PROMPT, LEARN_PROMPT, WEBHOOK_PROMPT, PROFILE_PROMPT, SIGN_IN_PROMPT]) {
       expect(sentence.startsWith(" ")).toBe(true);
       expect(sentence.startsWith("  ")).toBe(false);
     }
-  });
-
-  it("customMcpPrompt names the mounted servers and is empty for none", () => {
-    expect(customMcpPrompt([])).toBe("");
-    const one = customMcpPrompt(["notes"]);
-    expect(one.startsWith(" The user also added an MCP server for you: \"notes\".")).toBe(true);
-    expect(one).toContain("engine's normal approval rules");
-    expect(one).not.toContain("each call asks");
-    expect(customMcpPrompt(["notes", "linear"])).toContain('MCP servers for you: "notes", "linear".');
   });
 
   it("mentionPrompt names every tagged bot with its id, and is empty for none", () => {
@@ -198,39 +186,6 @@ describe("shared sentences", () => {
     expect(CREDENTIAL_PROMPT).toContain("secure credential request");
     expect(CREDENTIAL_PROMPT).not.toContain("applied immediately");
     expect(CREDENTIAL_PROMPT).not.toMatch(/select_computer|VPS|Boat/);
-  });
-});
-
-describe("composioSystemPrompt", () => {
-  it("keeps the generic all-tools sentence for legacy bots", () => {
-    expect(composioSystemPrompt(undefined)).toBe(COMPOSIO_PROMPT);
-  });
-
-  it("offers only a connection card when no tools are granted", () => {
-    const prompt = composioSystemPrompt({});
-    expect(prompt).toContain("No connected apps are assigned to this bot");
-    expect(prompt).toContain("COMPOSIO_MANAGE_CONNECTIONS");
-    expect(prompt).not.toContain("COMPOSIO_MULTI_EXECUTE_TOOL");
-    expect(prompt.startsWith(" ")).toBe(true);
-  });
-
-  it("names exactly the granted services for a partial grant", () => {
-    const prompt = composioSystemPrompt({
-      gmail: { tools: ["GMAIL_SEND_EMAIL"] },
-      google_calendar: { tools: "*" },
-    });
-    expect(prompt).toContain("(Gmail, Google Calendar)");
-    expect(prompt).toContain("COMPOSIO_SEARCH_TOOLS");
-    expect(prompt).toContain("COMPOSIO_MULTI_EXECUTE_TOOL");
-    expect(prompt).toContain("Only the tools this bot was granted will run");
-    expect(prompt).not.toContain("Slack");
-    expect(prompt).not.toContain("Notion");
-  });
-
-  it("starts with exactly one space like every shared sentence", () => {
-    const prompt = composioSystemPrompt({ gmail: { tools: "*" } });
-    expect(prompt.startsWith(" ")).toBe(true);
-    expect(prompt.startsWith("  ")).toBe(false);
   });
 });
 

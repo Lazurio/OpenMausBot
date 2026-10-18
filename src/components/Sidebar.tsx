@@ -114,7 +114,7 @@ import {
 import { sidebarSectionAttention } from "@/lib/sidebar-attention";
 import { botListItemPointerIntent } from "@/lib/sidebar-selection";
 import { phoneSettingsAction, SidebarPhoneButton } from "./SidebarPhoneButton";
-import { SidebarAppsButton, SidebarFooterNav } from "./SidebarFooterNav";
+import { SidebarFooterNav } from "./SidebarFooterNav";
 import { GlassBar, GlassScrollFrame, GlassScroller } from "./GlassScrollFrame";
 import { DesktopWorkspaceSwitcher } from "./DesktopWorkspaceSwitcher";
 import { useCloudOwner } from "./CloudOwner";
@@ -2139,7 +2139,6 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
               <SidebarProfileMenu />
             </div>
             <UpdateIndicator />
-            <SidebarAppsButton />
           </div>
         )}
       </div>}
@@ -2299,8 +2298,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
                   ? t("sidebar.presetsImported", { count: result.presets })
                   : result.members === 1
                   ? t("sidebar.teamImportedOne")
-                  : t("sidebar.teamImportedMany", { count: result.members })) +
-                (result.connections ? ` · ${t("sidebar.connectionsToFinish", { count: result.connections })}` : ""),
+                  : t("sidebar.teamImportedMany", { count: result.members })),
             });
           }}
         />

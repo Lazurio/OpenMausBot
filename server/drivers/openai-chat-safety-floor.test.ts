@@ -63,7 +63,7 @@ function sse(response: ServerResponse, delta: unknown, finishReason: string) {
   response.end("data: [DONE]\n\n");
 }
 
-/** A chat-completions provider that asks for one `shell_exec` call per
+/** A chat-completions provider that asks for one `data_exec` call per
  * command, in order, then answers; and the fixture MCP server it calls. */
 async function fixture(commands: string[]) {
   const directory = mkdtempSync(join(tmpdir(), "omb-chat-floor-"));
@@ -81,7 +81,7 @@ async function fixture(commands: string[]) {
     if (command === undefined) return sse(response, { content: "Done." }, "stop");
     sse(response, { content: null, tool_calls: [{
       index: 0, id: `call_${requests.length}`, type: "function",
-      function: { name: "shell_exec", arguments: JSON.stringify({ command }) },
+      function: { name: "data_exec", arguments: JSON.stringify({ command }) },
     }] }, "tool_calls");
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -96,7 +96,8 @@ async function fixture(commands: string[]) {
   });
   const recorder = recordEvents(instance.adapter);
   const threadId = randomUUID();
-  const integrations: SendTurnInput["integrations"] = { custom: { shell: { command: process.execPath, args: [helper, directory], env: {} } } };
+  // The fixture stands in for the Data harness server: the chat runtime mounts no other MCP servers.
+  const integrations: SendTurnInput["integrations"] = { data: { command: process.execPath, args: [helper, directory], env: {} } };
   cleanups.push(async () => {
     recorder.stop();
     await instance.dispose();
@@ -166,9 +167,9 @@ describe("the safety floor in the chat runtime", () => {
     expect(f.toolResult("call_1")).toEqual([expect.stringContaining("Recorded, not run.")]);
     expect(f.toolResult("call_3")).toEqual([expect.stringContaining("Recorded, not run.")]);
     expect(f.recorder.events).toContainEqual(expect.objectContaining({ type: "item.completed", itemType: "tool", itemId: "call_2", ok: false }));
-    expect(done).toMatchObject({ ok: false, denials: ["shell_exec"] });
+    expect(done).toMatchObject({ ok: false, denials: ["data_exec"] });
     expect(await f.decisions()).toEqual([
-      expect.objectContaining({ botId: "bot-floor", tool: "shell_exec", decision: "auto-denied", source: "safety-floor", rule: "delete-root" }),
+      expect.objectContaining({ botId: "bot-floor", tool: "data_exec", decision: "auto-denied", source: "safety-floor", rule: "delete-root" }),
     ]);
   });
 
@@ -178,7 +179,7 @@ describe("the safety floor in the chat runtime", () => {
       bindSafetyFloor(() => ({ safetyFloor: { enabled: true } }), () => ({ read: false }), HOST);
       const f = await fixture(["npm test"]);
       await f.start({ approvalMode: "full" });
-      expect(await f.completed()).toMatchObject({ ok: false, denials: ["shell_exec"] });
+      expect(await f.completed()).toMatchObject({ ok: false, denials: ["data_exec"] });
       expect(f.handed()).toEqual([]);
       expect(f.notices()).toEqual(["Blocked by the safety floor: a command it could not read"]);
       expect(f.toolResult("call_1")).toEqual([expect.stringContaining("could not read")]);
@@ -193,7 +194,7 @@ describe("the safety floor in the chat runtime", () => {
     const f = await fixture([WIPE]);
     await f.start({ approvalMode: "ask" });
     const card = await f.recorder.until((event) => event.type === "request.opened");
-    expect(card).toMatchObject({ requestType: "permission", tool: "shell_exec" });
+    expect(card).toMatchObject({ requestType: "permission", tool: "data_exec" });
     expect(f.handed()).toEqual([]);
     expect(await f.instance.adapter.respondToRequest(f.threadId, card.requestId!, { behavior: "allow" })).toBe("allowed-once");
     expect(await f.completed()).toMatchObject({ ok: true });
@@ -207,7 +208,7 @@ describe("the safety floor in the chat runtime", () => {
     const f = await fixture(["ls", WIPE, "pwd"]);
     await f.start({ approvalMode: "ask" });
     const card = await f.recorder.until((event) => event.type === "request.opened");
-    expect(card).toMatchObject({ tool: "shell_exec", allowSession: true });
+    expect(card).toMatchObject({ tool: "data_exec", allowSession: true });
     await f.instance.adapter.respondToRequest(f.threadId, card.requestId!, { behavior: "allow", always: true });
     await f.completed();
     // one card for the whole turn: the grant covered the rest, except the wipe
