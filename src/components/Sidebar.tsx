@@ -1556,7 +1556,6 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
   };
 
   const macInset = capabilities.windowChrome === "mac-inset";
-  const browser = capabilities.host.label === "Browser";
   const draggableChrome = macInset || capabilities.windowChrome === "win-caption";
   // SAFETY: Electron's -webkit-app-region is not in React's CSSProperties type; the renderer accepts it as an inline
   // style.
@@ -1809,13 +1808,7 @@ export function Sidebar({ open, onClose, collapseToIcons = false }: {
         {macInset ? (
           // The macOS 26 traffic lights span 16-76px; nothing clickable starts before 88px.
           <div aria-hidden="true" data-traffic-light-space className={density === "icons" ? "h-5 w-full" : "w-[72px] shrink-0"} />
-        ) : browser ? (
-          <div className={cn("flex shrink-0 items-center gap-2", density !== "icons" && "mr-3")}>
-            <span className="size-3 rounded-full bg-[#ff5f57]" />
-            <span className="size-3 rounded-full bg-[#febc2e]" />
-            <span className="size-3 rounded-full bg-[#28c840]" />
-          </div>
-        ) : null}
+        ) : null /* Lazurio overlay (DEV-6673 M3): no decorative window dots in the browser build; the Lazurio column head sits above this row. */}
         {density !== "icons" && (
           <div data-sidebar-top-slot className={cn("@container/sidebar-top flex min-w-0 flex-1 items-center", simple && "justify-end")}>
             {!simple && <div data-sidebar-top-spacer className="min-w-0 flex-1 @min-[96px]/sidebar-top:min-w-6" />}
