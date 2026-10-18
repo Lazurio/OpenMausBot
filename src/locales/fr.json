@@ -1045,7 +1045,6 @@
   "settings.profiles.busyMany": "{names} sont encore en cours. Arrêtez ces bots avant de supprimer ce profil de navigateur.",
   "settings.profiles.temporaryHint": "Les sessions temporaires gardent les identifiants seulement tant que l'app tourne. Elles ne sont pas enregistrées sur le disque.",
   "settings.profiles.myChromeUnavailable": "Mon Chrome est destiné à l’app de bureau, où les bots tournent sur votre propre ordinateur. Partout ailleurs, comme dans le Cloud, il n’y a pas de Chrome à vous à utiliser, donc chaque profil utilise le navigateur intégré.",
-  "settings.logins.cloudOwn": "Ce sont les identifiants propres au Cloud. Ceux de votre ordinateur arrivent ici tout seuls quand OpenMausBot sur cet ordinateur y déplace vos bots.",
   "settings.connections.title": "Clés API",
   "settings.connections.subtitle": "Clés des fournisseurs d'IA et des services facultatifs. Collez une clé : elle s'enregistre et se vérifie toute seule.",
   "settings.connections.ready": "Le service d'applications connectées est prêt",

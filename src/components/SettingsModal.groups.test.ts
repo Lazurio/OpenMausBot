@@ -120,7 +120,6 @@ describe("Settings rail groups", () => {
     expect(rail(html)).toEqual({
       you: ["general", "appearance", "companion"],
       ai: ["engines", "connections", "decisionModel"],
-      computers: ["desktopWorkspaces", "computer", "logins"],
       account: ["cloudAccount", "organization", "usage", "backups", "import", "experimental"],
     });
     expect(html).toContain('<optgroup label="AI">');

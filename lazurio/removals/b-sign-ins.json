@@ -1,8 +1,12 @@
+{
+  "area": "Own sign-ins",
+  "files": [
     "docs/verification/claude-account.md",
     "docs/verification/codex-account.md",
     "scripts/smoke-login-handoff.cjs",
     "scripts/verify-claude-account.ts",
     "scripts/verify-codex-account.ts",
+    "server/bot-logins.test.ts",
     "server/bot-logins.ts",
     "server/cloud-onepassword.e2e.test.ts",
     "server/cursor-session.test.ts",
@@ -41,8 +45,59 @@
     "src/components/onboarding/SignInPill.tsx",
     "src/lib/logins.ts",
     "third_party/onepassword-sdk/LICENSE"
+  ],
+  "forbidden": [
+    "fill_login",
+    "/api/logins",
+    "/api/internal/fill-login",
+    "save-login",
+    "logins.json.enc",
+    "LoginStore",
+    "BotLogins",
+    "OnePasswordLogins",
+    "@1password/sdk",
+    "onepassword-sdk",
+    "Connect 1Password",
+    "Settings → Logins",
+    "Save a login",
+    "LoginsSettings",
+    "settings.logins.",
+    "settings.section.logins",
+    "signIn.saveLogin",
+    "signIn.save.",
+    "signIn.settled.saved",
+    "savedLoginsPrompt",
     "/auth/status",
     "CURSOR_CLI_CLIENT_ID",
+  ],
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/logins"
+    },
+    {
+      "method": "POST",
+      "path": "/api/logins",
+      "body": {
+        "site": "example.com",
+        "username": "a",
+        "password": "b"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/logins/1password",
+      "body": {
+        "token": "ops_test"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/logins/1password/refresh"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/logins/1password"
     },
     {
       "method": "GET",
@@ -51,6 +106,7 @@
     {
       "method": "POST",
       "path": "/api/team-library/cursor/sign-in"
+    }
     "src/components/ModelPickerFull.tsx",
     "src/components/SecretRequestCard.tsx",
     "src/components/SettingsModal.search.test.ts",
@@ -60,3 +116,5 @@
     "src/locales/it.json",
     "src/locales/pl.json",
     "src/locales/ru.json",
+  ]
+}

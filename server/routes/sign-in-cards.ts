@@ -1,6 +1,4 @@
-// POST /api/bots/<bot>/sign-in-cards/<message>/(done|cancel|save-login) with {threadId}, and GET .../save-login?threadId=
-// for where a login saved from the card would fill. A saved password goes into the encrypted store and no route ever
-// returns it.
+// POST /api/bots/<bot>/sign-in-cards/<message>/(done|cancel) with {threadId}.
 import type { RequestAuth } from "../request-auth.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
@@ -10,18 +8,17 @@ type Answer = { status: number; body: Record<string, unknown> };
 
 export interface SignInCardRouteDeps {
   settle(botId: string, threadId: string, messageId: string, outcome: SignInOutcome): Answer;
-  saveLogin(botId: string, threadId: string, messageId: string, body: Record<string, unknown>, auth: RequestAuth): Promise<Answer>;
-  saveTarget(botId: string, threadId: string, messageId: string): Promise<Answer>;
   /** A member reaches a card only in a thread shown to them, which in a room can be narrower than the bot. */
   threadVisible(auth: RequestAuth, threadId: string): boolean;
 }
 
 const HIDDEN: Answer = { status: 404, body: { error: "no such sign-in request" } };
 
-const CARD = /^\/api\/bots\/([\w-]+)\/sign-in-cards\/([\w-]+)\/(done|cancel|save-login)$/u;
+// Lazurio overlay (DEV-6673 M3): no saving a login from the card; the person signs in on the page.
+const CARD = /^\/api\/bots\/([\w-]+)\/sign-in-cards\/([\w-]+)\/(done|cancel)$/u;
 
 export function createSignInCardRoutes(deps: SignInCardRouteDeps): RouteHandler {
-  return async ({ req, res, url, path, method, auth, json, readBody }) => {
+  return async ({ req, res, path, method, auth, json, readBody }) => {
     const m = CARD.exec(path);
     if (!m) return PASS;
     if (m[3] === "save-login" && method === "GET") {

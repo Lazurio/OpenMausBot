@@ -23,7 +23,6 @@ import {
   clearBrowserSessionState,
   closeBrowserSession,
   browserEngineStatus,
-  inRunningBrowser,
   browserSessionId, isTemporaryBrowserSession, browserProfileDirectory,
   noteBrowserEngineUnavailable,
   setBrowserViewport,
@@ -45,7 +44,6 @@ import type { ChromeRoute } from "../device-links.ts";
 import type { EngineBrowsers } from "../engine-memory.ts";
 import { augmentedPath } from "../env-path.ts";
 import { harnessMcpTokenEnv } from "../harness-mcp-token.ts";
-import type { FillLoginDeps } from "../login-fill.ts";
 import { AGENTS_NODE_FLAG, SPAWNED_PROXIES } from "../proxy-paths.ts";
 import type { Store } from "../store.ts";
 import type { TurnOwner, TurnResources } from "../turn-resources.ts";
@@ -377,14 +375,6 @@ export function createBrowserHost(deps: BrowserHostDeps) {
     const cdpUrl = lentChromeSession(profileId) ? await lentChromeDoor(session) : undefined;
     return { session, spec: browserSessionSpec(engine.binaryPath, session, profileId, usesMyChrome(profileId) ? undefined : await browserEgress.open(session), cdpUrl) };
   }
-  /** fill_login's reads and typing, on whichever engine runs the session. */
-  function loginInput(session: string, spec: Spec, env: NodeJS.ProcessEnv): Pick<FillLoginDeps, "engine" | "insertText" | "press" | "click"> {
-    if (chromeTarget(session, spec)) {
-      const deps = chromeEngine.loginDeps(session);
-      if (deps) return deps;
-    }
-    return { engine: (args) => inRunningBrowser(spec.command, env, args), ...relayInput(spec, session) };
-  }
   function browserSystemPrompt(profile: string | undefined): string {
     return onChrome(profile) ? CHROME_BROWSER_SYSTEM_PROMPT : BUILT_IN_BROWSER_SYSTEM_PROMPT;
   }
@@ -534,7 +524,6 @@ export function createBrowserHost(deps: BrowserHostDeps) {
   return {
     browserRuntime, browserLive, usedBrowserSessions, browserSweep, temporaryBrowserSessions, browserIdleMs: idleMs,
     currentBrowserSession, forgetTemporaryBrowser, myChromeAvailable, lentChromeSummary, usesMyChrome, browserSessionSpec, browserIntegration,
-    browserReady, currentBrowserSpec, loginInput, browserSystemPrompt, signedInSitesRefusal, closeBrowser, browserEngineSwitched,
     eraseDeletedBrowser, engineSummary, engineBrowsers, browserAudience, browserSessionsOf, signedInSitesTarget, uploadPaths,
     eraseAudienceBrowsers,
   };

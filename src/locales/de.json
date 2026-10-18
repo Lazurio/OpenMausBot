@@ -1052,7 +1052,6 @@
   "settings.profiles.busyMany": "{names} laufen noch. Stoppe diese Bots, bevor du dieses Browser-Profil löschst.",
   "settings.profiles.temporaryHint": "Temporäre Sitzungen behalten Logins nur, solange die App läuft. Sie werden nicht auf der Festplatte gespeichert.",
   "settings.profiles.myChromeUnavailable": "Mein Chrome ist für die Desktop-App gedacht, in der Bots auf deinem eigenen Computer laufen. Überall sonst, etwa in der Cloud, gibt es kein Chrome von dir, das sie nutzen könnten, daher nutzt jedes Profil den eingebauten Browser.",
-  "settings.logins.cloudOwn": "Das sind die eigenen Logins der Cloud. Die Logins deines Computers kommen von selbst hierher, wenn OpenMausBot auf diesem Computer deine Bots hierher umzieht.",
   "settings.connections.title": "API-Schlüssel",
   "settings.connections.subtitle": "Schlüssel für KI-Anbieter und optionale Dienste. Füge einen Schlüssel ein – er wird automatisch gespeichert und geprüft.",
   "settings.connections.ready": "Der Dienst für verbundene Apps ist bereit",

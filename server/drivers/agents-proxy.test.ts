@@ -55,8 +55,6 @@ let lastCreateRoomBody: unknown = null;
 let lastManageRoomBody: unknown = null;
 let lastCredentialBody: any = null;
 let lastSignInBody: any = null;
-let lastFillBody: any = null;
-let fillAnswer: { ok: boolean; text: string } = { ok: true, text: "Filled the username and the password for alice on example.com." };
 let lastRoutineQuery = "";
 let routinesResponse: unknown = {
   now: "2026-08-28T10:30:00.000Z",
@@ -326,16 +324,6 @@ beforeAll(async () => {
         lastSignInBody = JSON.parse(data);
         res.writeHead(201, { "content-type": "application/json" });
         res.end(JSON.stringify({ messageId: "msg-sign-in", site: "example.com", place: "browser" }));
-      });
-      return;
-    }
-    if (req.method === "POST" && req.url === "/api/internal/fill-login") {
-      let data = "";
-      req.on("data", (c) => (data += c));
-      req.on("end", () => {
-        lastFillBody = JSON.parse(data);
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify(fillAnswer));
       });
       return;
     }
@@ -648,7 +636,6 @@ describe("agents-proxy MCP surface", () => {
       "manage_room",
       "request_credential",
       "request_sign_in",
-      "fill_login",
       "decide",
       "extract",
       "report_bug",
@@ -1129,23 +1116,6 @@ describe("agents-proxy MCP surface", () => {
     lastSignInBody = null;
     expect((await callTool("request_sign_in", { site: "  " })).result.isError).toBe(true);
     expect(lastSignInBody).toBeNull();
-  });
-
-  it("fills a saved login with at most a username and a submit choice, and hands the harness's status through, a refusal as an error", async () => {
-    const filled = await callTool("fill_login", {});
-    expect(filled.result.isError).toBeFalsy();
-    expect(filled.result.content[0].text).toBe("Filled the username and the password for alice on example.com.");
-    expect(lastFillBody).toEqual({ fromBotId: "bot-asker", fromThreadId: "thread-asker-routine" });
-    fillAnswer = { ok: false, text: "No saved login for accounts.example.com." };
-    const refused = await callTool("fill_login", { username: " bob " });
-    expect(refused.result.isError).toBe(true);
-    expect(refused.result.content[0].text).toBe("No saved login for accounts.example.com.");
-    expect(lastFillBody).toEqual({ fromBotId: "bot-asker", fromThreadId: "thread-asker-routine", username: "bob" });
-    fillAnswer = { ok: true, text: "Filled the username and the password for alice on example.com." };
-    await callTool("fill_login", { submit: false });
-    expect(lastFillBody).toEqual({ fromBotId: "bot-asker", fromThreadId: "thread-asker-routine", submit: false });
-    await callTool("fill_login", { submit: true });
-    expect(lastFillBody).toEqual({ fromBotId: "bot-asker", fromThreadId: "thread-asker-routine" });
   });
 
   it("rejects credential ids outside the fixed allowlist locally", async () => {

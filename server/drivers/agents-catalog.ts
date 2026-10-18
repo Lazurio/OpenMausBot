@@ -497,19 +497,6 @@ const TOOL_DEFINITIONS = [
     },
   },
   {
-    name: "fill_login",
-    description:
-      "Sign in with a login the person saved in OpenMausBot or in their connected 1Password. Call it on the login page open in your browser: OpenMausBot types the username, password and any one-time code itself, submits each step, and says where the page went; you never see the password. A login fills on its own site, such as any page of example.com. With no saved login for the site, sign in another way the person allowed (a code sent to their own email, which you read and type in, is one), or call request_sign_in.",
-    inputSchema: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        username: { type: "string", maxLength: 512, description: "Which saved login to use when the site has more than one." },
-        submit: { type: "boolean", description: "false: fill only, you submit." },
-      },
-    },
-  },
-  {
     name: "send_voice_note",
     description:
       "Send the user a voice note: a short spoken message synthesized with your configured voice, stored as audio, and attached to your reply when the turn ends. Write the note as speakable words, exactly as it should be said — no lists, links or markdown meant for screens. The words are kept as the note's transcript, which the person can open to read instead of listening; they are not repeated in your reply, so do not write them out again. Use it for warmth, tone or emphasis a written line cannot carry; use ordinary text otherwise.",

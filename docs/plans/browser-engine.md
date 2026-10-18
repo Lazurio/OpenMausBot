@@ -207,8 +207,6 @@ included), and for any bot whose work depends on a page that silently fails.
   has died: a crash leaves the file, and its port to whichever daemon takes it
   next), and relays every harness read and capture:
   page health, step evidence, preview frames (`relayFrame`, which replaced
-  `agentBrowserFrame`'s CLI spawn), the Browser tab's input and fill_login's
-  typing. About 1 ms a round trip against 5-6 ms for a CLI spawn. A relayed
   command outside the engine's launch-free list relaunches a dead Chrome, so
   every pass starts with `stream_status` and reads only while Chrome is
   connected: no read, frame or probe ever starts a browser (the old frame CLI
@@ -223,7 +221,6 @@ included), and for any bot whose work depends on a page that silently fails.
   reads, action and reads stay together, so another call's "empty the console"
   never lands inside them. A call waits at most 30 s behind a stuck one, then
   hears "Your previous browser call is still running". Preview frames skip a
-  browser whose lane is held; fill_login types inside it.
 - **Page health, every bot** (`server/browser-page-health.ts`): before an
   action, what the page reported since the previous call, then the console and
   request lists are emptied (the engine keeps every request, POST bodies with
@@ -247,7 +244,6 @@ included), and for any bot whose work depends on a page that silently fails.
 - **Record browser steps, an admin setting per bot** (`recordBrowserSteps`,
   Access → Browser; a team file may set it, with no card). Each action (open,
   click, fill, type, press, check, select, scroll, back, forward, reload, tabs,
-  eval; close, restart and fill_login without a picture) waits for its own page
   load or POST (at most 1.5 s), one animation frame, and writes a step
   (`server/browser-steps.ts`): a plain label (typed text, and a single key
   pressed, masked for any field that looks secret before or after the call),
@@ -263,8 +259,6 @@ included), and for any bot whose work depends on a page that silently fails.
   card, and that is not masked; in the page, its open shadow roots and its
   same-origin frames), on a page where the bot typed into a secret-looking
   field inside a frame (a payment provider's card field, whose value no page
-  script can see) until the page moves on, for a minute after fill_login
-  typed a one-time code unless the page moves on, or while a dialog blocks
   the page. Typing into a cross-origin frame records where it landed as
   unknown.
   Every text a step keeps is scrubbed of held secrets and key-shaped strings.
@@ -289,8 +283,6 @@ included), and for any bot whose work depends on a page that silently fails.
   when its pages died. agent-browser saves the viewport but never re-applies
   it.
 - **With process hygiene (step 6).** A call waiting in the lane, its page
-  reads and its recorded step, and fill_login's typing and sign-in step are
-  use: an idle close never starts while the lane is held, and a call that
   arrives while one runs waits for it, then opens the browser again; that
   call, not one that gave up in the lane behind it, tells the bot its pages
   are gone. A preview frame holds off an idle close while it is taken but is

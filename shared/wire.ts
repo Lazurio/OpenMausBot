@@ -766,8 +766,7 @@ export interface SecretRequestCardData {
 }
 
 /** A bot asked the person to sign in to a website themselves: they type the
- * password into the page, or save a login the server fills for the bot. The
- * bot never sees the password either way. */
+ * password into the page, and the bot never sees it. */
 export interface SignInRequestCardData {
   /** The page to open, an http(s) address. */
   url: string;
@@ -782,10 +781,6 @@ export interface SignInRequestCardData {
   /** A newer request for the same site in this conversation replaced this
    * card; it no longer offers Done or Cancel. */
   superseded?: boolean;
-  /** Answered by saving a login: the site it was saved for (and a sign-in
-   * host on another site the person confirmed), which the bot then fills
-   * with fill_login. */
-  savedLogin?: string;
   resumed?: boolean;
   error?: string;
   /** Stop ended the turn this card paused: it offers no Done or Cancel,

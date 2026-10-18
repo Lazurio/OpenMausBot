@@ -1446,7 +1446,6 @@
   "settings.profiles.removed": "此配置已移除。请选择其他浏览器配置。",
   "settings.profiles.deleteUsers": "这些机器人将改用自己的浏览器：{names}。",
   "settings.profiles.myChromeUnavailable": "“我的 Chrome”适用于桌面应用，机器人会在你自己的电脑上运行。在其他任何地方（例如 Cloud）都没有你自己的 Chrome 可用，因此所有配置文件都会使用内置浏览器。",
-  "settings.logins.cloudOwn": "这些是 Cloud 自己的登录信息。当那台电脑上的 OpenMausBot 把你的机器人移到这里时，你电脑上的登录信息也会自动传过来。",
   "settings.connections.title": "API 密钥",
   "settings.connections.subtitle": "AI 提供商和可选服务的密钥。粘贴密钥后会自动保存并检查。",
   "settings.connections.ready": "已连接应用服务已就绪",

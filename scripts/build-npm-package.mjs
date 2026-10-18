@@ -51,11 +51,8 @@ writeFileSync(
       bin: { openmausbot: "cli.js" },
       // Never bundled, so npm installs them beside the server: DuckDB and
       // resvg are native addons that npm picks per platform from their
-      // optional packages, and the 1Password SDK reads its WebAssembly core
-      // from beside itself.
       // optional packages.
       dependencies: {
-        "@1password/sdk": app.dependencies["@1password/sdk"],
         "@duckdb/node-api": app.dependencies["@duckdb/node-api"],
         "@resvg/resvg-js": app.dependencies["@resvg/resvg-js"],
       },

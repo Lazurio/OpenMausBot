@@ -70,7 +70,4 @@ requests, a ref's box and a screenshot after an MCP open.
    a password in plain text on a page and act:
    no image (`secret-on-screen`); the same on a checkout page after the bot
    types a card number into the payment provider's card frame, until the page
-   moves on. After fill_login fills a one-time code, the steps on that page
-   have no image (`code-recently-typed`) until the page moves on or a minute
-   passes.
 5. Delete the conversation: `DATA_DIR/evidence/<thread>` is gone.

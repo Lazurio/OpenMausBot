@@ -110,7 +110,7 @@ import { createDataRoutes } from "./data/routes.ts";
 import { DataSheetRegistry } from "./data/sheet.ts";
 import { DataFailure } from "./data/types.ts";
 import { TeamComputers, teamComputerOwner, type TeamComputerRecord } from "./team-computers.ts";
-import { isEffortLevel, type CardAnswerer, type ResolvedSender, type SignInRequestCardData, type SteerQueueReason, type WireBot, type WireGroup, type WireTask } from "../shared/wire.ts";
+import { isEffortLevel, type CardAnswerer, type ResolvedSender, type SteerQueueReason, type WireBot, type WireGroup, type WireTask } from "../shared/wire.ts";
 import { isPersistentQuestionCard, shouldSettleRequestCard } from "../shared/ask-question.ts";
 import { parseToolScope } from "../shared/tool-scope.ts";
 import type { TeamComputersPayload } from "../shared/team-computer.ts";
@@ -413,7 +413,6 @@ import {
   ROUTINE_EXECUTION_PROMPT,
   WEBHOOK_PROMPT, AUTOMATION_REPLY_PROMPT,
   resolveComputerPromptKind,
-  savedLoginsPrompt,
   teamAvailabilityPart,
 } from "./system-prompt.ts";
 import { shellTimeoutHookResult } from "./shell-timeout-hint.ts";
@@ -430,23 +429,16 @@ import { LocalVmLease, LocalVmLeasePool } from "./local-vm-lease.ts";
 import { LocalVmSeatPool, type LocalVmSeatHolder } from "./local-vm-seat-pool.ts";
 import { createLoopGuard, loopGuardSettings } from "./host/loop-guard.ts";
 import { claudeUserSkillsEnabled, settingsTurnFields } from "./turn-settings.ts";
-import { addHeldSecretScrubber, redactSecretsInText } from "./redact.ts";
 import * as vps from "./vps-computer.ts";
 import { vpsConfigForBot, vpsSshAliasForBot } from "./vps-hosts.ts";
+import { redactSecretsInText } from "./redact.ts";
 import { ROUTINE_RESTARTED, RoutineManager, type RoutineRun, type RoutineRunOn, type RoutineRunTrigger } from "./routines.ts";
 import { CalendarCallManager, type CalendarCall } from "./calendar-calls.ts";
 import { BROWSER_UPLOAD_TOOL, browserRuntimeEnv } from "./browser-runtime.ts";
 import { uploadableFiles } from "./browser-upload.ts";
 import { listSignedInSites, signOutOfSites } from "./browser-sites.ts";
-import { HeldSecrets, LoginStore } from "./login-store.ts";
-import { OnePasswordLogins, onePasswordUnavailable, sdkOnePasswordClient, type OnePasswordSdk } from "./onepassword.ts";
-import { nativeRequire } from "./data/engine.ts";
-import { createFillLoginTurn } from "./host/fill-login-turn.ts";
-import { BotLogins, cardLoginPlace, cardSignInElsewhere, observeSignInPage, type ObservedPage } from "./bot-logins.ts";
 import { relayFrame } from "./browser-relay.ts";
 import { browserEvidence, stepContext } from "./browser-steps.ts";
-import { parseLoginFields, parseTotpField, createLoginRoutes } from "./routes/logins.ts";
-import { loginSite, savedLoginResumePrompt } from "../shared/logins.ts";
 import { browserRestartRefusal } from "./browser-live.ts";
 import { browserEngineStatus } from "./browser-engine.ts";
 import { chromeLauncher } from "./browser/chrome/launcher.ts";
@@ -732,23 +724,8 @@ if (CLOUD_HOME && Object.keys(CLOUD_SECRETS).length === 0) {
 }
 const threadStarters = new ThreadStarters(join(DATA_DIR, "thread-starters.json"));
 const commandAllowlist = new CommandAllowlistStore(join(DATA_DIR, "command-allowlist.json"));
-// Every saved login value is scrubbed from whatever a bot or a transcript can read.
-const logins = new LoginStore({ dataDir: DATA_DIR });
 const highlevel = createHighLevelService({ dataDir: DATA_DIR });
-const heldSecrets = new HeldSecrets(logins);
-addHeldSecretScrubber((text) => heldSecrets.scrub(text));
-const onePassword = new OnePasswordLogins({
-  token: () => logins.onePasswordToken(),
-  grants: () => logins.onePasswordGrants(),
-  connect: async (token) => {
-    let sdk: OnePasswordSdk;
-    try { sdk = nativeRequire()("@1password/sdk") as OnePasswordSdk; }
-    catch (error) { throw onePasswordUnavailable(error); }
-    return sdkOnePasswordClient(sdk, token, serverVersion());
-  },
-});
-if (logins.onePasswordToken()) void onePassword.refresh();
-const botLogins = new BotLogins(logins, onePassword);
+// Lazurio overlay (DEV-6673 M3): no saved logins or 1Password here; bots use the Environment's own sign-ins.
 const SESSION_COOKIE = sessionCookieName(PORT, ENVIRONMENT_ID);
 const HOSTED_WORKSPACE = hostedWorkspaceConfigured();
 let workspaceAccess: WorkspaceAccess | null = null;
@@ -3078,7 +3055,6 @@ function previewSystemPrompt(bot: BotRecord) {
     { id: "highlevel", label: "HighLevel", text: caps?.highlevelMcp === true && highlevelHost.mounts(bot) ? highlevelHost.prompt(bot) : "" },
     ...phones.previewParts(bot, caps?.deviceMcp === true),
     { id: "mcp", label: "MCP servers", text: caps?.customMcp ? customMcpPrompt(Object.keys(engineMcpServers(bot))) : "" }, { id: "to-connect", label: "Connections to make", text: cloudConnections.prompt(bot) },
-    { id: "browser", label: "Browser", text: previewPlan.browser ? browserPromptFor(bot, agentsMounted) : "" },
     { id: "coordination", label: "Team", text: agentsMounted && coordination ? ` ${coordination}` : "" },
     { id: "credential", label: "Credentials", text: agentsMounted ? CREDENTIAL_PROMPT : "" },
     { id: "routine", label: "Triggers", text: agentsMounted ? TRIGGER_PROMPT : "" },
@@ -8586,7 +8562,6 @@ async function startTurn(
         { id: "cloud-home", label: "My Cloud", text: CLOUD_HOME ? cloudHomePrompt(Boolean(integrations.agents) && lendingEnabled(), syncedFolders(DATA_DIR), sharedComputers.known(CLOUD_HOME_LENDER)) + firstHourHooks.prompt(bot.id, threadId) : "" },
         { id: "composio", label: "Connected apps", text: integrations.composio ? composioSystemPrompt(liveBot?.connectorTools ?? bot.connectorTools) + describeConnectorScopes((liveBot ?? bot).connectorScopes) : "" },
         { id: "mcp", label: "MCP servers", text: customMcpPrompt(Object.keys(integrations.custom ?? {})) }, { id: "to-connect", label: "Connections to make", text: cloudConnections.prompt(liveBot ?? bot) + teamConnections.prompt(threadId, integrations) },
-        { id: "browser", label: "Browser", text: integrations.browser ? browserPromptFor(bot, Boolean(integrations.agents)) : "" },
         { id: "data", label: "Data", text: integrations.data ? BUILT_IN_DATA_SYSTEM_PROMPT : "" },
         { id: "highlevel", label: "HighLevel", text: integrations.highlevel ? highlevelHost.prompt(liveBot ?? bot) : "" },
         ...phones.promptParts(liveBot ?? bot, {
@@ -10427,7 +10402,6 @@ async function runClaimedGroupMemberTurn(
     { id: "team-computer", label: "Team computer", text: teamComputerPrompt(roomTeamComputer) },
     { id: "plan", label: "Surface", text: surfacePrompt({ computer: roomTeamComputer ? "cloud" : roomVmTarget ? "vm" : surfaceOfComputerKind(roomComputerKind), browser: Boolean(integrations.browser) }, { note: roomPlan.note, cloudHome: Boolean(CLOUD_HOME) }) },
     { id: "cloud-home", label: "My Cloud", text: CLOUD_HOME ? cloudHomePrompt(Boolean(integrations.agents) && lendingEnabled(), syncedFolders(DATA_DIR), sharedComputers.known(CLOUD_HOME_LENDER)) : "" },
-    { id: "browser", label: "Browser", text: integrations.browser ? browserPromptFor(bot, Boolean(integrations.agents)) : "" },
     { id: "data", label: "Data", text: integrations.data ? BUILT_IN_DATA_SYSTEM_PROMPT : "" },
     { id: "highlevel", label: "HighLevel", text: integrations.highlevel ? highlevelHost.prompt(readyBot) : "" },
     ...phones.promptParts(readyBot, {
@@ -11959,7 +11933,7 @@ function signInMessage(botId: string, threadId: string, messageId: string): Mess
   return message?.kind === "signin" && message.signIn ? message : null;
 }
 
-function settleSignIn(botId: string, threadId: string, messageId: string, outcome: "done" | "cancelled", saved?: { site: string }):
+function settleSignIn(botId: string, threadId: string, messageId: string, outcome: "done" | "cancelled"):
   { status: number; body: Record<string, unknown> } {
   const bot = store.bot(botId);
   const message = signInMessage(botId, threadId, messageId);
@@ -11976,10 +11950,7 @@ function settleSignIn(botId: string, threadId: string, messageId: string, outcom
     if (card.place === "browser") browserLive.handBack(currentBrowserSession(bot.id, bot.browserProfile, teamHost.browserAudience(threadId)));
     else for (const key of pleaded.length ? pleaded : [botComputerControlKey(bot)]) computerControl.release(key);
   }
-  const savedLogin = saved?.site ?? card.savedLogin;
-  const resumed = answerCardNode(threadId, message.id, savedLogin ? savedLoginResumePrompt(savedLogin) : signInResumePrompt(card.site, outcome));
   store.patchMessage(threadId, message.id, {
-    signIn: { ...card, ...(outcome === "done" ? { done: true } : { cancelled: true }), ...(savedLogin ? { savedLogin } : {}), ...(resumed ? { resumed: true, error: undefined } : {}) },
   });
   return { status: 200, body: { [outcome]: true, resumed, ...(savedLogin ? { saved: true, site: savedLogin } : {}) } };
 }
@@ -12115,6 +12086,8 @@ async function perBotLocalVmCountForModeChange(): Promise<number | null> {
     return targets.some((target) => existsSync(target.workspaceDir)) ? null : 0;
   }
   return existingPerBotLocalVmCount(runtime.runtime);
+  const resumed = answerCardNode(threadId, message.id, signInResumePrompt(card.site, outcome));
+    signIn: { ...card, ...(outcome === "done" ? { done: true } : { cancelled: true }), ...(resumed ? { resumed: true, error: undefined } : {}) },
 }
 
 function configStatus() {
@@ -12720,7 +12693,6 @@ ROUTES.push(createBrowserSiteRoutes({
   signOut: (target, site) => signOutOfSites(target, site),
 }));
 ROUTES.push(createBrowserEvidenceRoutes({ evidence: browserEvidence.attach({ onChange: (listener) => store.onChange(listener), threadExists: (id) => Boolean(threadOwner(id)) }), threadExists: (id) => Boolean(threadOwner(id)) }));
-ROUTES.push(createLoginRoutes(botLogins.routes((id) => Boolean(store.bot(id)))));
 ROUTES.push(createUsageRoutes({
   dataDir: DATA_DIR, prices: operatorPrices,
   budget: () => spendState(cfg, DATA_DIR),
@@ -14822,13 +14794,6 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         readBody: readInternalBody,
         request: (site, reason) => requestSignIn(internalSender, internalCapability.threadId, site, reason),
       })], { req, res, url, path, method, auth, json, readBody })) return;
-      if (method === "POST" && path === "/api/internal/fill-login") {
-        const body = await readInternalBody();
-        const outcome = await fillLoginForTurn(internalSender, internalCapability, body.username, body.submit);
-        // A turn stopped while the page was filled receives no answer.
-        requireActiveInternalCapability();
-        return json(res, 200, outcome);
-      }
       if (method === "POST" && path === "/api/internal/voice-note") {
         const body = await readInternalBody();
         const text = typeof body.text === "string" ? body.text.trim() : "";

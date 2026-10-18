@@ -215,16 +215,13 @@ describe("Settings in Simple mode", () => {
     expect(html).toMatch(/aria-expanded="false"[^>]*>[\s\S]*?API keys and connections/);
   });
 
-  it("orders Computer as your bots' computers, your devices, the browser, logins, then Connect from elsewhere", () => {
     fixture.section = "companion";
     const html = render();
     expect(currentPage(html)).toBe("computer");
-    expect(blocks(html)).toEqual(["computer", "companion", "browser", "logins", "elsewhere", "remote", "desktopWorkspaces"]);
     expect(groupLabels(html)).toEqual(["Your bots’ computers", "Your devices", "Built-in browser"].map((label) => label.replace("’", "&#x27;")));
     expect(html).toContain('aria-label="Enable the built-in browser"');
   });
 
-  it("leads Usage & billing with one usage block, folds the limits, then shows the plan", () => {
     fixture.section = "cloudAccount";
     const html = render();
     expect(currentPage(html)).toBe("billing");

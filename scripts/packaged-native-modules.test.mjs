@@ -22,8 +22,8 @@ function nativelyRequired() {
 }
 
 describe("packaged native modules", () => {
-  it("finds the Data engine, chart rendering and 1Password loads in the server", () => {
-    expect(nativelyRequired()).toEqual(["@1password/sdk", "@duckdb/node-api", "@resvg/resvg-js"]);
+  it("finds the Data engine and chart rendering loads in the server", () => {
+    expect(nativelyRequired()).toEqual(["@duckdb/node-api", "@resvg/resvg-js"]);
   });
 
   it("declares every natively required package in the npm manifest at the app's exact pin", () => {
