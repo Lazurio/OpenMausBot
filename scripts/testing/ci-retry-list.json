@@ -44,13 +44,6 @@
       "since": "2026-10-08"
     },
     {
-      "file": "server/cloud-move.e2e.test.ts",
-      "test": "backs up a Cloud that has work before replacing it; swapping back keeps what it replaces, so it can be swapped again",
-      "owner": "milind-soni",
-      "reason": "Failed 11 runs (9 branches, 3 main runs) since Sep 24: Windows 8, Ubuntu 3; same commit later green.",
-      "since": "2026-10-08"
-    },
-    {
       "file": "server/lending-memory.test.ts",
       "test": "a bot's memory and a lent Mac (server/lending-memory.ts) > fingerprints the instruction files an engine reads in each working folder and the folders above it",
       "owner": "milind-soni",

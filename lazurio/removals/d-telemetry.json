@@ -27,5 +27,32 @@
     "onboarding.reel.terminal.",
     "Settings → General → Usage analytics"
   ],
-  "routes": []
+  "routes": [],
+  "changes": [
+    "apps/docs/content/docs/security/index.mdx",
+    "apps/docs/content/docs/security/meta.json",
+    "package.json",
+    "pnpm-lock.yaml",
+    "src/App.tsx",
+    "src/components/SettingsModal.tsx",
+    "src/components/Sidebar.header.test.ts",
+    "src/components/onboarding/beats/HelloBeat.test.ts",
+    "src/components/onboarding/beats/HelloBeat.tsx",
+    "src/components/onboarding/reel/scenes/index.ts",
+    "src/lib/analytics.ts",
+    "src/lib/product-events.test.ts",
+    "src/locales/de.json",
+    "src/locales/en.json",
+    "src/locales/es.json",
+    "src/locales/fr.json",
+    "src/locales/hi.json",
+    "src/locales/ja.json",
+    "src/locales/pt-br.json",
+    "src/locales/source-hashes.json",
+    "src/locales/tr.json",
+    "src/locales/uk.json",
+    "src/locales/vi.json",
+    "src/locales/zh-tw.json",
+    "src/locales/zh.json"
+  ]
 }
