@@ -18,7 +18,7 @@ function section(start, end) {
   return mainSource.slice(from, to);
 }
 const functions = section("function ensureManagedDesktop()", "function syncDesktopMutationToken(");
-const registrations = section("const workspaceOnly =", "const savedWorkspace =");
+const registrations = section("const workspaceOnly =", "// The buying sheet (cloud-buy.mjs)");
 const ORIGIN = "http://127.0.0.1:48799";
 const STAGE = "11111111-1111-4111-8111-111111111111";
 const DEVICE = "22222222-2222-4222-8222-222222222222";

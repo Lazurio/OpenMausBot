@@ -108,7 +108,7 @@ preferences stay on the computer.
 
 The destination keeps its own: every connection section of its config (engine
 and API keys, relays, sign-in allow-lists), its sessions and pairing, its engine
-sign-ins, its computer-sharing switch, and its environment. As with any restore,
+sign-ins, and its environment. As with any restore,
 routines, webhooks and scheduled calls arrive paused and nothing queued runs. A
 bot that used an engine or key the destination does not have asks for one
 there; a bot pointed at a project folder outside the workspace keeps that path.

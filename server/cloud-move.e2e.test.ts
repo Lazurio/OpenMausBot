@@ -86,7 +86,7 @@ await import(${JSON.stringify(pathToFileURL(join(SERVER_DIR, "testing", "fake-cl
     claude: { driver: "claudeAgent", displayName: "Claude", config: { cli }, ...(name === "desktop" ? { environment: { FIXTURE_TOKEN: SOURCE_SECRETS.env } } : {}) },
   };
   writeFileSync(join(dataDir, "config.json"), JSON.stringify(name === "desktop"
-    ? { instances, anthropic: { key: SOURCE_SECRETS.anthropic }, tts: { key: SOURCE_SECRETS.tts }, box: { token: SOURCE_SECRETS.box }, features: { sharedComputers: true } }
+    ? { instances, anthropic: { key: SOURCE_SECRETS.anthropic }, tts: { key: SOURCE_SECRETS.tts }, box: { token: SOURCE_SECRETS.box } }
     : { instances, anthropic: { key: name === "cloud" ? CLOUD_KEY : SERVER_KEY } }));
   if (name === "desktop") {
     writeFileSync(join(dataDir, "workspace-credentials.json"), JSON.stringify({ fixture: SOURCE_SECRETS.credential }), { mode: 0o600 });
@@ -296,7 +296,6 @@ it("moves this computer's bots, chats and rooms to an empty Cloud, which keeps i
 
   const config = JSON.parse(readFileSync(join(cloud.dataDir, "config.json"), "utf8"));
   expect(config.anthropic).toEqual({ key: CLOUD_KEY });
-  expect(config.features?.sharedComputers).toBeUndefined();
   for (const file of filesUnder(cloud.home)) {
     const text = readFileSync(file).toString("latin1");
     for (const value of Object.values(SOURCE_SECRETS)) expect(text.includes(value), `${value} in ${file}`).toBe(false);

@@ -22,9 +22,6 @@ declare global {
 /** The package.json version, inlined by Vite's define at build time. */
 const __APP_VERSION__: string;
 
-  type DesktopSharedFolder = import("../../electron/computer-sharing.mjs").SharedFolder;
-  type DesktopComputerSharing = import("../../electron/computer-sharing.mjs").SharingState;
-  type DesktopLendingActivity = import("../../electron/computer-sharing.mjs").LendingActivityEntry;
 
   type DesktopCapabilities = {
     host: {
@@ -120,9 +117,6 @@ const __APP_VERSION__: string;
        * "cloud"); a server's own page is answered about itself only, and its
        * Copy opens this computer's Settings on that copy (the verified Cloud's starts it). */
       cloudMove?: import("../../electron/cloud-move.mjs").CloudMoveBridge;
-      /** The Cloud's setup checklist: shows the lending switch in this app's
-       * own Settings → OMB Cloud (leaving the Cloud's page). */
-      cloudLending?: { open(): Promise<void> };
       /** Settings on the person's own Cloud: the plan, read only. */
       cloudPlan?: import("../../electron/cloud-account.mjs").CloudPlanBridge;
       desktopNotices?: import("../../electron/desktop-prefs.mjs").DesktopNoticesBridge;
@@ -176,15 +170,6 @@ const __APP_VERSION__: string;
         forget: (id: string, purge?: boolean) => Promise<{ ok: boolean; error?: string } | void>;
         /** `panel` "copy": that server's Copy this computer here panel; otherwise its Computer access. */
         onOpenSettings?: (callback: (computerId?: string | null, panel?: "copy") => void) => () => void;
-      };
-      /** Local main-window only. Hosted renderers cannot grant themselves access. */
-      computerSharing?: {
-        state(id: string): Promise<DesktopComputerSharing>;
-        chooseFolder(): Promise<DesktopSharedFolder | null>;
-        save(id: string, grant: Pick<DesktopComputerSharing, "folders" | "terminal" | "computer">): Promise<DesktopComputerSharing | null>;
-        revoke(id: string): Promise<DesktopComputerSharing>;
-        /** This computer's own record of what that server's bots did here, newest first. */
-        activity(id: string): Promise<DesktopLendingActivity[]>;
       };
       confirm(message: string): Promise<boolean>;
       getCapabilities(): Promise<DesktopCapabilities>;

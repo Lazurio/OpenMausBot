@@ -17,7 +17,7 @@
 //     | stall-after-text | stall-after-tool (then silent forever) | slow-tool (silent for FAKE_ACP_TOOL_MS)
 //     | quiet-then-answer (silent for FAKE_ACP_QUIET_MS; with QWEN_HOME, append FAKE_ACP_QWEN_LOG lines to
 //       Qwen's debug log every FAKE_ACP_LOG_EVERY_MS) | mcp-tools (list each mcpServers entry's tools with
-//       grok 1.0.25's initialize, or FAKE_ACP_MCP_HANDSHAKE) | lend-question (list_shared_computers around a question)
+//       grok 1.0.25's initialize, or FAKE_ACP_MCP_HANDSHAKE)
 //     | list-peers (list_bots through the agents MCP; keeps the first agents server it is offered, like Hermes)
 //   FAKE_ACP_MCP_TRANSPORTS  remote MCP transports advertised in initialize, e.g. "http,sse"
 //   FAKE_ACP_PERMISSION_OPTIONS  JSON options override in permission mode
@@ -1128,25 +1128,6 @@ function handle(msg: any) {
             ],
           },
         });
-        return;
-      }
-      if (mode === "lend-question" && agentsMcp) {
-        const entry = agentsMcp;
-        const list = () => driveMcp(entry, [{ name: "list_shared_computers", args: () => ({}) }]).catch((e) => `error ${(e as Error).message}`);
-        void (async () => {
-          const before = await list();
-          pendingPermissionId = 9003;
-          onPermissionAnswered = () => {
-            void list().then((after) => {
-              out({ jsonrpc: "2.0", method: "session/update", params: { update: { sessionUpdate: "agent_message_chunk", content: { text: `before: ${before} | after: ${after}` } } } });
-              complete();
-            });
-          };
-          out({ jsonrpc: "2.0", id: pendingPermissionId, method: "session/request_permission", params: {
-            toolCall: { toolCallId: "interaction_folder", kind: "other", title: "Which folder should I read?" },
-            options: [{ optionId: "docs-id", kind: "allow_once", name: "Docs" }, { optionId: "other-id", kind: "allow_once", name: "Other" }],
-          } });
-        })();
         return;
       }
       if (mode === "question") {

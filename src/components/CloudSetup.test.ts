@@ -61,11 +61,11 @@ const local = { bots: 4, rooms: 1, chats: 37, bytes: 1.5 * 1024 ** 3, files: 900
 const emptyCloud = { contents: { bots: 1, rooms: 0, chats: 0 }, empty: true, freeBytes: 9 * 1024 ** 3, previous: null, heldBytes: 0 };
 const CLOUD = { id: "cloud", name: "My Cloud", origin: "https://omb-u-1a2b3c4d5e6f.fly.dev", kind: "cloud" as const };
 const overview = (extra: Partial<CloudMoveOverview> = {}): CloudMoveOverview => ({ phase: "idle", local, cloud: emptyCloud, suggest: true, destination: CLOUD, blocked: null, ...extra });
-let bridge: CloudMoveBridge, push: (state: CloudMoveState) => void, lent: unknown[], open: ReturnType<typeof vi.fn>;
+let bridge: CloudMoveBridge, push: (state: CloudMoveState) => void;
 let dispatched: unknown[];
 
 beforeEach(() => {
-  vi.clearAllMocks(); f.values = []; f.index = 0; f.effects = []; f.showThreads = true; viewer = owner; lent = []; dispatched = []; push = () => {};
+  vi.clearAllMocks(); f.values = []; f.index = 0; f.effects = []; f.showThreads = true; viewer = owner; dispatched = []; push = () => {};
   welcomeShown = false; resetCloudWelcome();
   f.dispatch = action => { dispatched.push(action); };
   f.state = {
@@ -78,11 +78,9 @@ beforeEach(() => {
     restorePrevious: vi.fn().mockResolvedValue({ phase: "done" }), bring: vi.fn(), dismiss: vi.fn().mockResolvedValue(overview({ suggest: false })),
     onState: vi.fn(callback => { push = callback; return () => {}; }),
   };
-  open = vi.fn().mockResolvedValue(undefined);
-  vi.stubGlobal("window", { ogb: { platform: "darwin", cloudMove: bridge, cloudLending: { open } }, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  vi.stubGlobal("window", { ogb: { platform: "darwin", cloudMove: bridge }, addEventListener: vi.fn(), removeEventListener: vi.fn() });
   vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {} });
   vi.mocked(api).mockImplementation(async (path: string, init?: RequestInit) => {
-    if (path === "/api/shared-computers") return { computers: lent };
     if (path === "/api/config" && init?.method === "PUT") {
       const patch = JSON.parse(String(init.body));
       return { ...f.state.config, onboarding: { ...f.state.config.onboarding, ...patch.onboarding } };

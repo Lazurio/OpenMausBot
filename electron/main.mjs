@@ -32,7 +32,6 @@ import { windowChromeOptions } from "./window-chrome.mjs";
 import { createAllWindowsClosedQuit } from "./window-all-closed.mjs";
 import { createStartupScreen } from "./startup-screen.mjs";
 import { createSystemTray } from "./system-tray.mjs";
-import { createLendingIndicator } from "./lending-indicator.mjs";
 let startupScreen = null;
 let desktopTray = null;
 import { collisionFreeDownloadPath, defaultSaveName, revealDownloadWhenDone, revealInFolder, withSavableFile } from "./save-file.mjs";
@@ -81,7 +80,6 @@ import capabilitiesModule from "./capabilities.cjs";
 import environmentsModule from "./environments.cjs";
 import localOriginModule from "./local-origin.cjs";
 import { buildApplicationMenu } from "./menu.mjs";
-import { createComputerSharing, validateSharedFolders } from "./computer-sharing.mjs";
 import { acquireDataDirLease } from "./data-dir-lease.mjs";
 import { switchLocalEnvironment } from "./environment-switch.mjs";
 import { createManagedDesktopClient, createManagedDesktopRelay, createManagedDesktopStore } from "./managed-desktop.mjs";
@@ -870,7 +868,6 @@ function ensureCloudAccount() {
       rememberCloudHome(state);
       rememberedHome = rememberedCloudHome(rememberedHome, state);
       sendUpdaterState();
-      computerSharing?.cloudChanged();
       syncProPlan(state);
       refreshCloudMenus();
       announceCloudReady(state);
@@ -1518,73 +1515,6 @@ ipcMain.on("desktop:unread-count", (event, value) => {
 
 const { LOCAL_ID, activeEnvironment, activeRemote, allowedOrigins, bootEnvironmentDir, parseEnvironments, parseHostedWorkspaceLink, serializeEnvironments, startupEnvironmentDir, withActive, withEnvironment, withEnvironmentLook, withLocalEnvironment, withMicrophone, withoutEnvironment, workspaceMenuTemplate, workspaceNavigationAllowed, workspaceSenderAllowed, workspaceSummary, workspaceWindowTitle } = environmentsModule;
 let environmentsState = { environments: [], activeId: LOCAL_ID };
-let computerSharing;
-const sharingPrompts = new Set();
-
-let sharedComputersAllowed = false;
-
-async function refreshSharedComputersAllowed() {
-  sharedComputersAllowed = await fetch(`http://127.0.0.1:${SERVER_PORT}/api/config`, { signal: AbortSignal.timeout(3_000) })
-    .then((res) => (res.ok ? res.json() : null))
-    .then((status) => status?.features?.sharedComputers === true)
-    .catch(() => false);
-  return sharedComputersAllowed;
-}
-
-async function requireSharedComputers() {
-  if (await refreshSharedComputersAllowed()) return;
-  throw new Error("Computer sharing is turned off on this server.");
-}
-
-function sharingController() {
-  computerSharing ??= createComputerSharing({
-    file: path.join(app.getPath("userData"), "computer-sharing.json"),
-    // Holds provider API keys and sessions.json: a broad share must never reach it.
-    protectedPaths: [desktopDataDir()],
-    fetch: (...args) => session.defaultSession.fetch(...args),
-    environments: () => environmentsState.environments,
-    enabled: refreshSharedComputersAllowed,
-    cloud: cloudLendingSnapshot,
-    onChange: summary => lendingIndicator().update({ lending: summary.lending.length > 0, busy: Boolean(summary.busy && summary.lending.includes(summary.busy.env)) }),
-    cuaConnection: () => cuaReady,
-    hostControl: async (id, signal) => {
-      const lease = async action => {
-        const response = await fetch(`http://127.0.0.1:${SERVER_PORT}/api/desktop/shared-computer-control`, {
-          method: "POST",
-          headers: desktopServerHeaders({ "content-type": "application/json" }, { packaged: app.isPackaged, token: desktopMutationToken }),
-          body: JSON.stringify({ id, action }),
-          signal: action === "release" ? AbortSignal.timeout(3000) : AbortSignal.any([signal, AbortSignal.timeout(3000)]),
-        });
-        if (!response.ok) throw new Error("This computer is in use locally or held by a person. Wait, then observe it again before acting.");
-      };
-      await lease("acquire");
-      return { renew: () => lease("acquire"), release: () => lease("release") };
-    },
-  });
-  return computerSharing;
-}
-
-let lastCloudHome = null;
-function cloudLendingSnapshot() {
-  if (!cloudAccount) return null;
-  const state = cloudAccount.state();
-  const accountId = state.account?.id ?? null;
-  const origin = state.status === "connected" ? (state.machine?.origin ?? null) : null;
-  if (origin && accountId) lastCloudHome = { accountId, origin };
-  else if (!accountId || lastCloudHome?.accountId !== accountId) lastCloudHome = null;
-  return { status: state.status, accountId, origin };
-}
-
-function cloudLendingEnvironment() {
-  const snapshot = cloudLendingSnapshot();
-  const origin = snapshot?.origin ?? (lastCloudHome?.accountId === snapshot?.accountId ? lastCloudHome?.origin : null);
-  return origin ? environmentsState.environments.find(entry => entry.origin === origin) ?? null : null;
-}
-
-function stopLending() {
-  for (const env of environmentsState.environments) if (computerSharing?.cloudState(env).enabled) computerSharing.revoke(env);
-}
-
 async function openLendingSettings() {
   if (!app.isPackaged || desktopRemoteAccess || !serverReady) return;
   if (activeRemote(environmentsState)) persistEnvironments(withActive(environmentsState, LOCAL_ID));
@@ -1592,36 +1522,6 @@ async function openLendingSettings() {
   if (!desktopTray?.show()) activateExistingWindow(BrowserWindow.getAllWindows());
   if (!win.webContents.isLoadingMainFrame() && senderIsLocal({ sender: win.webContents })) win.webContents.send("app:open-settings", "cloud-settings");
   else await win.loadURL(`${rendererOrigin()}/?desktop-settings=cloud-settings`);
-}
-
-let lendingTray = null;
-function lendingIndicator() {
-  lendingTray ??= createLendingIndicator({
-    Tray, Menu, nativeImage, iconPath: APP_ICON,
-    onStop: stopLending,
-    onOpen: () => void openLendingSettings().catch(error => slog(`lending settings: ${error?.message ?? error}`)),
-  });
-  return lendingTray;
-}
-
-async function offerComputerSharing(win) {
-  const env = activeEnvironment(environmentsState);
-  if (!env || sharingPrompts.has(env.id) || win.isDestroyed()) return;
-  if (env.origin === cloudAccount?.homeTarget()?.origin) return;
-  if (!(await refreshSharedComputersAllowed()) || win.isDestroyed()) return;
-  sharingPrompts.add(env.id);
-  try {
-    const info = await sharingController().observe(env);
-    if (!info || win.isDestroyed() || activeEnvironment(environmentsState)?.id !== env.id || new URL(win.webContents.getURL()).origin !== env.origin) return;
-    const choice = await dialog.showMessageBox(win, {
-      type: "question", message: `Share this computer with ${env.name}?`,
-      detail: "Let this server’s bots use folders and capabilities you choose while this desktop app is running. Nothing is shared unless you enable it. You can change this later in Settings → Servers.",
-      buttons: ["Choose access", "Not now"], defaultId: 1, cancelId: 1,
-    });
-    sharingController().decline(env, info);
-    if (choice.response === 0) openWorkspaceSettings(env.id);
-  } catch {}
-  finally { sharingPrompts.delete(env.id); }
 }
 
 function environmentsFile() {
@@ -2040,7 +1940,6 @@ async function forgetEnvironment(id, purge = false) {
     });
     if (response !== 0) return;
   }
-  sharingController().forget(env);
   remoteMicrophoneRefused.delete(env.origin);
   const wasActive = environmentsState.activeId === id;
   if (purge === true && env.kind === "local") {
@@ -2073,7 +1972,7 @@ async function forgetEnvironment(id, purge = false) {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
   } catch (error) {
     slog(`forget server: logout skipped (${error?.message ?? error})`);
-    await dialog.showMessageBox({ type: "warning", message: "Connection forgotten; server sign-out could not be confirmed", detail: "Computer sharing is stopped. Revoke this desktop’s session on that server when it is reachable again." });
+    await dialog.showMessageBox({ type: "warning", message: "Connection forgotten; server sign-out could not be confirmed", detail: "Revoke this desktop’s session on that server when it is reachable again." });
   }
   try {
     // Not cookies: Chromium's cookie storage is host-wide, not port-scoped, so other saved servers would sign out.
@@ -2227,7 +2126,6 @@ function createWindow({ deferNavigation = false } = {}) {
     deliverPackageInstall(win);
     deliverChatLink(win);
   });
-  win.webContents.on("did-finish-load", () => void offerComputerSharing(win));
 
   // Electron has no default context menu.
   win.webContents.on("context-menu", (_event, params) => {
@@ -2887,7 +2785,6 @@ const updaterPageOffered = event => {
 ipcMain.on("update:offered", event => {
   try { event.returnValue = updaterPageOffered(event) === true; } catch { event.returnValue = false; }
 });
-ipcMain.handle("cloud-lending:open", cloudPageSender("cloud-lending:open", () => openLendingSettings()));
 ipcMain.handle("cloud-plan:state", cloudPageSender("cloud-plan:state", () => {
   const state = cloudAccount?.state();
   return cloudPlanSnapshot(state, { notice: cloudTrialNotices().due(state) });
@@ -2897,83 +2794,10 @@ ipcMain.handle("cloud-plan:manage", cloudPageSender("cloud-plan:manage", async (
 ipcMain.handle("cloud-plan:local", cloudPageSender("cloud-plan:local", () => workspaceMenuAction(() => switchEnvironment(LOCAL_ID))));
 // ── end Copy this computer here ──
 
-const savedWorkspace = id => {
-  const env = environmentsState.environments.find(entry => entry.id === id);
-  if (!env) throw new Error("This server is no longer connected");
-  return env;
-};
 // The buying sheet (cloud-buy.mjs): its channels, and the Cloud's name and colour (Servers entry once listed).
 const cloudLook = createCloudLook({ store: lookFile(() => path.join(app.getPath("userData"), cloudTarget(process.env).look), fs), accountId: () => cloudAccount?.state().account?.id ?? null,
   homeEntry: cloudHomeEntry, saveEntry: (origin, look) => persistEnvironments(withEnvironmentLook(environmentsState, origin, look)) });
 const cloudBuy = installCloudBuy({ ipcMain, guard: localWorkspaceOnly, client: ensureCloudAccount, offersReady: cloudOffersReady, clipboard, look: cloudLook });
-ipcMain.handle("sharing:state", localWorkspaceOnly("sharing:state", async (_event, id) => {
-  await requireSharedComputers();
-  return sharingController().state(savedWorkspace(id).id);
-}));
-ipcMain.handle("sharing:folder", localWorkspaceOnly("sharing:folder", async () => {
-  await requireSharedComputers();
-  const picked = await dialog.showOpenDialog(mainWindow, { title: "Choose a folder to share", properties: ["openDirectory"] });
-  if (picked.canceled || !picked.filePaths[0]) return null;
-  return (await validateSharedFolders([{ id: randomUUID(), path: picked.filePaths[0], write: false }]))[0];
-}));
-ipcMain.handle("sharing:revoke", localWorkspaceOnly("sharing:revoke", async (_event, id) => {
-  await requireSharedComputers();
-  return sharingController().revoke(savedWorkspace(id));
-}));
-// What that server's bots did here: the local log, never a server's claim.
-ipcMain.handle("sharing:activity", localWorkspaceOnly("sharing:activity", async (_event, id) => {
-  await requireSharedComputers();
-  return sharingController().activity(savedWorkspace(id).id, 50);
-}));
-ipcMain.handle("sharing:save", localWorkspaceOnly("sharing:save", async (_event, id, input) => {
-  await requireSharedComputers();
-  const env = savedWorkspace(id);
-  const info = await sharingController().identity(env);
-  const folders = await validateSharedFolders(input?.folders);
-  const detail = [
-    `Server: ${env.origin}`,
-    ...folders.map(folder => `${folder.write ? "Read and write" : "Read only"}: ${folder.path}`),
-    input?.terminal === true ? "Terminal: UNRESTRICTED commands as your user. Can access files outside the folders above, including credentials." : "Terminal: off",
-    input?.computer === true ? "Computer control: can view your screen and operate logged-in apps. Can access information outside the folders above." : "Computer control: off",
-    "Shared content is sent to this server and may reach its model provider. Bots on this server can use these permissions until you revoke them. Closing the desktop stops access.",
-  ].join("\n\n");
-  const confirmation = await dialog.showMessageBox(mainWindow, { type: "warning", message: `Allow computer access for ${env.name}?`, detail, buttons: ["Allow access", "Cancel"], defaultId: 1, cancelId: 1 });
-  if (confirmation.response !== 0) return null;
-  savedWorkspace(id);
-  return sharingController().save(env, { folders, terminal: input?.terminal === true, computer: input?.computer === true }, info);
-}));
-
-// Decided from the verified Cloud sign-in alone: the renderer names no server, account or origin.
-async function lendingSnapshot() {
-  const env = cloudLendingEnvironment();
-  const connection = await cuaReady.catch(() => null);
-  return {
-    available: Boolean(env),
-    screenAvailable: Boolean(connection?.mcpCommand),
-    ...(env ? { state: sharingController().cloudState(env), activity: sharingController().activity(env.id, 30) } : {}),
-  };
-}
-const lendingEnv = () => {
-  const env = cloudLendingEnvironment();
-  if (!env) throw new Error("Open My Cloud first.");
-  return env;
-};
-ipcMain.handle("lending:state", localWorkspaceOnly("lending:state", () => lendingSnapshot()));
-ipcMain.handle("lending:folder", localWorkspaceOnly("lending:folder", async () => {
-  lendingEnv();
-  const picked = await dialog.showOpenDialog(mainWindow, { title: "Choose a folder My Cloud can use", properties: ["openDirectory"] });
-  if (picked.canceled || !picked.filePaths[0]) return null;
-  return (await validateSharedFolders([{ id: randomUUID(), path: picked.filePaths[0], write: false }]))[0];
-}));
-ipcMain.handle("lending:save", localWorkspaceOnly("lending:save", async (_event, input) => {
-  await sharingController().saveCloud(lendingEnv(), { folders: input?.folders, screen: input?.screen === true });
-  return lendingSnapshot();
-}));
-ipcMain.handle("lending:stop", localWorkspaceOnly("lending:stop", async () => {
-  sharingController();
-  stopLending();
-  return lendingSnapshot();
-}));
 const cloudSync = installCloudFiles({
   app, ipcMain, dialog, shell, powerMonitor, localWorkspaceOnly, localDataDir: desktopDataDir(),
   fetch: (...args) => session.defaultSession.fetch(...args),
@@ -3351,12 +3175,7 @@ app.whenReady().then(async () => {
   });
   session.defaultSession.setPermissionRequestHandler(appPermissions.request);
   session.defaultSession.setPermissionCheckHandler(appPermissions.check);
-  // Maintainer grants never start while computer sharing is off; Cloud lending waits for a verified sign-in.
-  void refreshSharedComputersAllowed().then((allowed) => {
-    sharingController().start({ maintainer: allowed });
-    cloudSync.start();
-    void cloudAccountStarted.then(() => computerSharing?.cloudChanged());
-  });
+  cloudSync.start();
   let restoredOrganizationEntry = false;
   await workspaceMenuAction(async () => { restoredOrganizationEntry = await organizationEntry.restore(); });
   organizationEntryReady = true;
@@ -3421,9 +3240,7 @@ app.on("before-quit", (e) => {
   cloudAccount?.close();
   void cloudMove?.close();
   companyBackupController?.abort();
-  computerSharing?.close();
   cloudSync.close();
-  lendingTray?.destroy();
   if (cuaCleanedUp) return;
   e.preventDefault();
   // Cancel a scheduled recovery before yielding.

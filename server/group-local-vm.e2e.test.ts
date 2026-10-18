@@ -560,7 +560,7 @@ describe("Group Local VM ownership on the real isolated server", () => {
       expect(available.canSelect).toBe(true);
       expect(available.options.map((option: any) => option.surface)).toEqual(["cloud", "vm", "local", "browser"]);
       expect(before.mcpConfig.mcpServers.agents.env.OMB_CLOUD_HOME).toBe("0");
-      expect(before.systemPrompt).not.toContain(cloudHomePrompt(true));
+      expect(before.systemPrompt).not.toContain(cloudHomePrompt());
       expect(before.systemPrompt).not.toContain("You run on the user's OMB Cloud");
       expect(available.options).toContainEqual(expect.objectContaining({ surface: "vm", available: true }));
       expect(available.options).toContainEqual(expect.objectContaining({ surface: "cloud", ready: false, canCreate: true }));
