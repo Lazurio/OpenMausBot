@@ -9,8 +9,6 @@ function baseFacts(overrides: Partial<OverviewFacts> = {}): OverviewFacts {
       title: "Tracker",
       description: "Files bugs.",
       soul: "",
-      computer: "off",
-      cloudBackend: undefined,
       cwd: undefined,
       autoApprove: false,
       approvePeerComms: false,
@@ -36,7 +34,6 @@ const WONT_ORDER = [
   "Command approvals use Ask mode; saved permissions and provider rules still apply.",
   "Cannot initiate contact with other bots.",
   "Has no connected apps.",
-  "Can't use a computer.",
   "Won't act on a schedule.",
   "Profile proposal cards require your approval.",
 ];
@@ -49,7 +46,7 @@ describe("buildBotOverview", () => {
     facts.bot.chiefOfStaff = false;
     expect(buildBotOverview(facts).reaches.join(" ")).not.toContain("Engineering");
   });
-  it("yields all six wont lines in order and no does lines for a bot on Ask", () => {
+  it("yields all five wont lines in order and no does lines for a bot on Ask", () => {
     const overview = buildBotOverview(baseFacts({ bot: { ...baseFacts().bot, approvalMode: "ask" } }));
     expect(overview.wont).toEqual(WONT_ORDER);
     expect(overview.does).toEqual([]);
@@ -86,7 +83,7 @@ describe("buildBotOverview", () => {
   });
 
   it("does not advertise a browser disabled globally or unsupported by the engine", () => {
-    const facts = baseFacts({ bot: { ...baseFacts().bot, computer: "browser" }, browserEnabled: true, engine: { browserMcp: false } });
+    const facts = baseFacts({ bot: { ...baseFacts().bot }, browserEnabled: true, engine: { browserMcp: false } });
     expect(buildBotOverview(facts).reaches).not.toContain("Has the built-in browser.");
     facts.engine = { browserMcp: true };
     facts.browserEnabled = false;
@@ -157,7 +154,7 @@ describe("buildBotOverview", () => {
 
   it("shows two connected services in reaches", () => {
     const facts = baseFacts({
-      bot: { ...baseFacts().bot, composio: true, computer: "local" },
+      bot: { ...baseFacts().bot, composio: true },
       engine: { composioMcp: true },
       connectedApps: { configured: true, authoritative: true, services: ["gmail", "linear"] },
     });
@@ -168,7 +165,7 @@ describe("buildBotOverview", () => {
 
   it("reports connected apps could not be checked when unauthoritative, without also claiming none connected", () => {
     const facts = baseFacts({
-      bot: { ...baseFacts().bot, composio: true, computer: "local" },
+      bot: { ...baseFacts().bot, composio: true },
       engine: { composioMcp: true },
       connectedApps: { configured: true, authoritative: false, services: [] },
     });
@@ -182,7 +179,7 @@ describe("buildBotOverview", () => {
     // Apps off is a definite negative that needs no inventory — saying
     // "could not be checked" here would imply the bot might have apps.
     const facts = baseFacts({
-      bot: { ...baseFacts().bot, composio: false, computer: "local" },
+      bot: { ...baseFacts().bot, composio: false },
       engine: { composioMcp: true },
       connectedApps: { configured: true, authoritative: false, services: [] },
     });
@@ -193,7 +190,7 @@ describe("buildBotOverview", () => {
 
   it("stays silent about apps in reaches when the engine cannot mount them", () => {
     const facts = baseFacts({
-      bot: { ...baseFacts().bot, composio: true, computer: "local" },
+      bot: { ...baseFacts().bot, composio: true },
       engine: { composioMcp: false },
       connectedApps: { configured: true, authoritative: false, services: ["gmail"] },
     });
@@ -204,7 +201,7 @@ describe("buildBotOverview", () => {
 
   it("uses the singular for one connected app", () => {
     const facts = baseFacts({
-      bot: { ...baseFacts().bot, composio: true, computer: "local" },
+      bot: { ...baseFacts().bot, composio: true },
       engine: { composioMcp: true },
       connectedApps: { configured: true, authoritative: true, services: ["gmail"] },
     });
@@ -230,28 +227,13 @@ describe("buildBotOverview", () => {
     ]);
   });
 
-  it("picks a computer automatically and stays reachable by default when computer/peers are unset", () => {
+  it("stays reachable by default when peers are unset, and names no computer preference", () => {
     const facts = baseFacts({
-      bot: { ...baseFacts().bot, computer: undefined, peers: undefined, approvePeerComms: false },
+      bot: { ...baseFacts().bot, peers: undefined, approvePeerComms: false },
     });
     const overview = buildBotOverview(facts);
-    expect(overview.reaches).toContain("Computer preference: Auto; availability is checked when a task starts.");
-    expect(overview.wont).not.toContain("Can't use a computer.");
+    expect(overview.reaches.some((line) => line.startsWith("Computer preference"))).toBe(false);
     expect(overview.wont).not.toContain("Won't contact other bots without asking.");
-  });
-
-  it("says a Cloud home cannot use this computer or a Local VM, and changes nothing elsewhere", () => {
-    const reach = (computer: OverviewFacts["bot"]["computer"], cloudHome?: boolean) =>
-      buildBotOverview(baseFacts({ bot: { ...baseFacts().bot, computer }, ...(cloudHome === undefined ? {} : { cloudHome }) })).reaches[0];
-    expect(reach("local", true)).toBe("Computer preference: this computer, which isn't available on My Cloud.");
-    expect(reach("vm", true)).toBe("Computer preference: Local VM, which isn't available on My Cloud.");
-    expect(reach("cloud", true)).toBe("Computer preference: cloud computer.");
-    expect(reach("browser", true)).toBe("Computer preference: browser only.");
-    expect(reach(undefined, true)).toBe("Computer preference: Auto; availability is checked when a task starts.");
-    for (const cloudHome of [undefined, false]) {
-      expect(reach("local", cloudHome)).toBe("Computer preference: this computer.");
-      expect(reach("vm", cloudHome)).toBe("Computer preference: Local VM.");
-    }
   });
 });
 

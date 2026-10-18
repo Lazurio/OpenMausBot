@@ -419,7 +419,6 @@ export async function launchUi(
   args: string[],
   parentEnv: NodeJS.ProcessEnv = process.env,
   io: { stdout: NodeJS.WritableStream; stderr: NodeJS.WritableStream } = process,
-  fixtureOptions: { boatFixtureApi?: string } = {},
 ): Promise<void> {
   const values = parse("ui launch", args, { entry: { type: "string" }, "tool-calls": { type: "string" }, mode: { type: "string" } });
   const entryName = typeof values.entry === "string" ? values.entry : "threads";
@@ -458,7 +457,7 @@ export async function launchUi(
     const { binary, chrome } = await ensureUiBrowser(parentEnv, note);
     checkpoint();
     fixture = await launchVerificationServer({ ...parentEnv, ...fakeEnv }, startup.signal, undefined,
-      { binaryPath: binary, executablePath: chrome ?? "" }, undefined, undefined, [], fixtureOptions.boatFixtureApi);
+      { binaryPath: binary, executablePath: chrome ?? "" });
     checkpoint();
     const api = fixtureApi(fixture.info.url);
     await api("PATCH", "/api/config", { language: "en" });

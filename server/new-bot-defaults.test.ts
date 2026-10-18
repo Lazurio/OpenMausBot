@@ -31,13 +31,19 @@ describe("new-bot templates", () => {
   });
 
   it("accepts bounded settings and rejects coercion and invalid model combinations", () => {
-    expect(parseConfigPatch({ newBotDefaults: { profile: { notifications: false, computer: "off", mcpServers: [] } } })
-      .newBotDefaults?.profile).toEqual({ notifications: false, computer: "off", mcpServers: [] });
+    expect(parseConfigPatch({ newBotDefaults: { profile: { notifications: false, mcpServers: [] } } })
+      .newBotDefaults?.profile).toEqual({ notifications: false, mcpServers: [] });
     for (const profile of [
-      { notifications: "false" }, { name: "one\ntwo" }, { cloudBackend: "made-up" },
+      { notifications: "false" }, { name: "one\ntwo" },
       { modelSelection: { instanceId: "codex", model: "model", effort: "low", variant: "fast" } },
       { soul: "\u00e9".repeat(12_001) }, { avatarUrl: "https://external.test/avatar.png" },
     ]) expect(newBotDefaultsSchema.safeParse({ profile }).success).toBe(false);
+  });
+
+  it("still loads saved defaults with the removed computer settings, and drops them", () => {
+    const profile = { notifications: false, computer: "cloud", cloudBackend: "vps", autoStartVps: true };
+    expect(newBotDefaultsSchema.parse({ profile }).profile).toEqual({ notifications: false });
+    expect(parseConfigPatch({ newBotDefaults: { profile: { computer: "off", cloudBackend: "made-up" } } }).newBotDefaults?.profile).toEqual({});
   });
 
   it("never permits memory paths to escape the new bot's memory folder", () => {

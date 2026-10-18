@@ -940,7 +940,7 @@ describe("explicit browser control and signing in", () => {
 
   it("still hands back after idle seconds once nothing holds it on purpose", async () => {
     vi.useFakeTimers();
-    fixture.computerControl = { pepper: { ...plea, help: { ...plea.help, place: "vm" } } };
+    fixture.computerControl = { pepper: { ...plea, help: { ...plea.help, place: "local" } } };
     const { cleanup, input } = connect();
     input(press); input(lift); await settleAll();
     vi.advanceTimersByTime(8_000); await settleAll();

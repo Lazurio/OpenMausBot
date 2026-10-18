@@ -5,6 +5,8 @@ import { PASS, type RouteHandler } from "./table.ts";
 
 export interface BotLifecycleRouteDeps {
   store: Pick<Store, "bots">;
+  /** Bots whose running turn holds this host's screen. */
+  onHostComputer(botId: string): boolean;
   routines(): RoutineManager | null;
   interruptAllDirectThreads(botId: string): Promise<void>;
   cancelDirectTurnDispatch(botId: string, expectedThreadId?: string): unknown;
@@ -18,7 +20,7 @@ export interface BotLifecycleRouteDeps {
 
 export function createBotLifecycleRoutes(deps: BotLifecycleRouteDeps): RouteHandler {
   const {
-    store, interruptAllDirectThreads, cancelDirectTurnDispatch, revokeInternalCapabilitiesForThread, activeGroupTurnForBot,
+    store, onHostComputer, interruptAllDirectThreads, cancelDirectTurnDispatch, revokeInternalCapabilitiesForThread, activeGroupTurnForBot,
     cancelGroupTurnOperations, runningTurnInstance, closeOpenApprovals, deleteBotWithLifecycle,
   } = deps;
   return async ({ req, res, path, method, json }) => {
@@ -30,7 +32,7 @@ export function createBotLifecycleRoutes(deps: BotLifecycleRouteDeps): RouteHand
       }
       await Promise.allSettled(
         store.bots
-          .filter((bot) => bot.computer === "local")
+          .filter((bot) => onHostComputer(bot.id))
           .map(async (bot) => {
             await interruptAllDirectThreads(bot.id);
             const routineRun = routines!.activeBotRunForBot(bot.id);

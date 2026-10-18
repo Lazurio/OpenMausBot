@@ -200,17 +200,13 @@ function routineAction(value: unknown): RoutineAction | null {
 
 function routineFields(args: Json): { fields: Json; error?: string } {
   const fields: Json = {};
-  const destination = (value: unknown) => value === "box" ? "cloud" : value;
-  if (args.run_on != null && args.runOn != null && destination(args.run_on) !== destination(args.runOn)) {
-    return { fields, error: "Choose one run_on destination; run_on and runOn disagree." };
-  }
   if (args.timeout_minutes != null && args.timeoutMinutes != null && args.timeout_minutes !== args.timeoutMinutes) {
     return { fields, error: "Choose one timeout_minutes limit; timeout_minutes and timeoutMinutes disagree." };
   }
-  const runOn = destination(args.run_on ?? args.runOn);
   const timeoutMinutes = args.timeout_minutes ?? args.timeoutMinutes;
-  if (runOn != null && runOn !== "maus" && runOn !== "cloud") {
-    return { fields, error: 'Use run_on="maus" for the bot’s current model and configured computer (including VPS), or run_on="box" only for the bot’s cloud computer. Legacy "cloud" also means box.' };
+  // Lazurio overlay (DEV-6673 M3): a routine runs on this host; there is no cloud computer to choose.
+  if ([args.run_on, args.runOn].some((value) => value != null && value !== "maus")) {
+    return { fields, error: "Routines run on this computer; omit run_on." };
   }
   if (timeoutMinutes != null && (
     typeof timeoutMinutes !== "number" || !Number.isInteger(timeoutMinutes) || timeoutMinutes < 5 || timeoutMinutes > 240
@@ -243,7 +239,6 @@ function routineFields(args: Json): { fields: Json; error?: string } {
     if (normalized.error) return { fields, error: normalized.error };
     fields.schedule = normalized.schedule;
   }
-  if (runOn != null) fields.runOn = runOn;
   if (args.clear_timeout === true) fields.timeoutMinutes = null;
   else if (timeoutMinutes != null) fields.timeoutMinutes = timeoutMinutes;
   if (typeof args.continuity === "boolean") fields.continuity = args.continuity;

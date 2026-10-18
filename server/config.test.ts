@@ -11,12 +11,8 @@ import { cacheUntilConfigChanges,
   DATA_DIR,
   ensureDirs,
   instanceConfigs,
-  isValidSshAlias,
   loadBrowserProfileIdAliases,
   loadConfig,
-  localVmIdleTimeoutMinutes,
-  localVmMaxInstances,
-  localVmMode,
   parseConfigPatch,
   parseStoredConfig,
   persistableInstanceConfigs,
@@ -37,7 +33,6 @@ import { cacheUntilConfigChanges,
   stripControlPlaneEnv,
   stripWorkspaceCredentialEnv,
   syncCredentialEnv,
-  vpsSshAlias,
   browserEngineAttachCdpUrl,
   withInstanceCli,
   WORKSPACE_CREDENTIAL_ENV,
@@ -455,17 +450,6 @@ describe("configuration boundaries", () => {
     expect(parseStoredConfig(JSON.parse(JSON.stringify(once)))).toEqual(once);
   });
 
-  it("accepts only a simple VPS SSH config alias and exposes no credentials", () => {
-    expect(isValidSshAlias("production-vps")).toBe(true);
-    expect(isValidSshAlias("prod; reboot")).toBe(false);
-    expect(() => parseConfigPatch({ vps: { sshAlias: "prod; reboot" } })).toThrow("vps.sshAlias");
-    expect(parseConfigPatch({ vps: { sshAlias: "production-vps" } })).toEqual({
-      vps: { sshAlias: "production-vps" },
-    });
-    expect(vpsSshAlias({ vps: { sshAlias: "production-vps" } })).toBe("production-vps");
-    expect(vpsSshAlias({ vps: { sshAlias: "-bad" } })).toBeNull();
-  });
-
   it("validates browserEngine.attachCdpUrl as a bare CDP port or an http(s)/ws(s) URL, and forwards it only when configured", () => {
     expect(parseStoredConfig({})).toEqual({});
     expect(browserEngineAttachCdpUrl({})).toBeNull();
@@ -539,30 +523,6 @@ describe("configuration boundaries", () => {
     expect(() => parseConfigPatch({ mcp: { callTimeoutMinutes: 10, surprise: 1 } })).toThrow("mcp");
   });
 
-  it("preserves shared Local VM behavior by default and accepts bounded per-bot mode", () => {
-    expect(localVmMode({})).toBe("shared");
-    expect(localVmMaxInstances({})).toBe(2);
-    expect(parseConfigPatch({ localVm: { mode: "per-bot", maxInstances: 4 } })).toEqual({
-      localVm: { mode: "per-bot", maxInstances: 4 },
-    });
-    expect(parseConfigPatch({ localVm: { maxInstances: 5 } })).toEqual({
-      localVm: { maxInstances: 5 },
-    });
-    expect(parseConfigPatch({ localVm: { mode: "per-bot", maxInstances: 8 } })).toEqual({
-      localVm: { mode: "per-bot", maxInstances: 8 },
-    });
-    expect(localVmMode({ localVm: { mode: "per-bot" } })).toBe("per-bot");
-    expect(localVmMaxInstances({ localVm: { maxInstances: 3 } })).toBe(3);
-  });
-
-  it("accepts pool mode with the same bounded seat count", () => {
-    expect(parseConfigPatch({ localVm: { mode: "pool", maxInstances: 4 } })).toEqual({
-      localVm: { mode: "pool", maxInstances: 4 },
-    });
-    expect(localVmMode({ localVm: { mode: "pool" } })).toBe("pool");
-    expect(localVmMode({})).toBe("shared");
-  });
-
   it("keeps skill authoring on by default with an explicit opt-out, and the browser off by default", () => {
     expect(skillAuthoringEnabled({})).toBe(true);
     expect(skillAuthoringEnabled({ features: {} })).toBe(true);
@@ -607,6 +567,16 @@ describe("configuration boundaries", () => {
     expect(parseStoredConfig({ features: { sharedComputers: true, skillAuthoring: true } })).toEqual({ features: { skillAuthoring: true } });
   });
 
+  it("still loads a config.json with the removed Local VM, Boat and VPS settings, and drops them", () => {
+    const stored = parseStoredConfig({
+      localVm: { mode: "per-bot", maxInstances: 3, idleTimeoutMinutes: 30 },
+      box: { token: "box_fixture" },
+      vps: { sshAlias: "production-vps" },
+      features: { skillAuthoring: true },
+    });
+    expect(stored).toEqual({ features: { skillAuthoring: true } });
+  });
+
   it("keeps routine runs in a hidden thread unless the conversation option is on", () => {
     expect(routinesInConversationEnabled({})).toBe(false);
     expect(parseConfigPatch({ features: { routinesInConversation: true } })).toEqual({
@@ -623,31 +593,6 @@ describe("configuration boundaries", () => {
     expect(showToolCallsEnabled({ features: { showToolCalls: true } })).toBe(true);
   });
 
-  it.each([0, 1.5, 9, "2", null])("rejects an invalid per-bot VM limit: %j", (maxInstances) => {
-    expect(() => parseConfigPatch({ localVm: { maxInstances } })).toThrow("localVm.maxInstances");
-  });
-
-  it("keeps the 8-hour Local VM idle timeout by default and accepts a bounded override", () => {
-    expect(localVmIdleTimeoutMinutes({})).toBe(480);
-    expect(localVmIdleTimeoutMinutes({ localVm: { mode: "per-bot" } })).toBe(480);
-    expect(parseStoredConfig({ localVm: { mode: "per-bot", maxInstances: 3 } })).toMatchObject({
-      localVm: { mode: "per-bot", maxInstances: 3 },
-    });
-    for (const idleTimeoutMinutes of [5, 30, 1_440]) {
-      expect(parseConfigPatch({ localVm: { idleTimeoutMinutes } })).toEqual({ localVm: { idleTimeoutMinutes } });
-      expect(localVmIdleTimeoutMinutes({ localVm: { idleTimeoutMinutes } })).toBe(idleTimeoutMinutes);
-    }
-    expect(parseStoredConfig({ localVm: { idleTimeoutMinutes: 30 } })).toMatchObject({ localVm: { idleTimeoutMinutes: 30 } });
-  });
-
-  it.each([0, 4, 1.5, 1_441, "30", null])("rejects an invalid Local VM idle timeout: %j", (idleTimeoutMinutes) => {
-    expect(() => parseConfigPatch({ localVm: { idleTimeoutMinutes } })).toThrow("localVm.idleTimeoutMinutes");
-    expect(() => parseStoredConfig({ localVm: { idleTimeoutMinutes } })).toThrow("localVm.idleTimeoutMinutes");
-  });
-
-  it.each(["one-per-bot", "windows", 1, null])("rejects an invalid Local VM mode: %j", (mode) => {
-    expect(() => parseConfigPatch({ localVm: { mode } })).toThrow("localVm.mode");
-  });
 });
 
 describe("a config.json saved with a byte order mark", () => {
@@ -1054,7 +999,6 @@ describe("Instance CLI override", () => {
   it("never persists the credential env instanceConfigs injects", () => {
     const cfg: AppConfig = {
       xai: { key: "SECRET-XAI" },
-      box: { token: "SECRET-BOAT" },
       opencodeGo: { apiKey: "SECRET-OCG" },
       instances: {
         claude: { driver: "claudeAgent" },
@@ -1151,7 +1095,7 @@ describe("OpenCode Go configuration", () => {
       profile: { name: "Ada" },
       opencodeGo: { providerKeys: {
         VENICE_API_KEY: "venice-secret", venice_api_key: "lower", OPENCODE_API_KEY: "shadow", OMB_CLOUD_BOAT_TOKEN: "relay",
-        BOX_TOKEN: "boat", NODE_OPTIONS: "--require x", GROQ_API_KEY: "has space",
+        NODE_OPTIONS: "--require x", GROQ_API_KEY: "has space",
         DEEPSEEK_API_KEY: 42, TOGETHER_API_KEY: null, FIREWORKS_API_KEY: { key: "nested" },
       } },
     });
@@ -1197,7 +1141,7 @@ describe("saving OpenCode provider keys", () => {
       expect(refused(name)).toContain("such as VENICE_API_KEY");
     }
     expect(refused("OPENCODE_API_KEY")).toContain("OpenCode API key box");
-    for (const name of ["OPENCODE_SERVER_KEY", "OMB_CLOUD_BOAT_TOKEN", "OMB_LICENSE_KEY", "BOX_TOKEN", "COMPOSIO_API_KEY",
+    for (const name of ["OPENCODE_SERVER_KEY", "OMB_CLOUD_BOAT_TOKEN", "OMB_LICENSE_KEY", "COMPOSIO_API_KEY",
       "OPENAI_COMPAT_API_KEY", "XAI_API_KEY", "MISTRAL_API_KEY", "CURSOR_API_KEY", "FACTORY_API_KEY"]) {
       expect(refused(name)).toBe(`OpenMaus keeps ${name} for itself, so OpenCode can't be given it here. Put this key in opencode.json instead.`);
     }
@@ -1229,7 +1173,6 @@ describe("credential env narrowing", () => {
   it("injects each credential only into the driver that consumes it", () => {
     const cfg: AppConfig = {
       xai: { key: "SECRET-XAI" },
-      box: { token: "SECRET-BOAT" },
       opencodeGo: { apiKey: "SECRET-OCG" },
       instances: {
         grokApi: { driver: "grok" },
@@ -1241,13 +1184,12 @@ describe("credential env narrowing", () => {
     const instances = instanceConfigs(cfg);
     expect(instances.grokApi.environment).toEqual({ XAI_API_KEY: "SECRET-XAI" });
     expect(instances.opencode.environment).toEqual({ OPENCODE_API_KEY: "SECRET-OCG" });
-    for (const entry of Object.values(instances)) expect(Object.values(entry.environment ?? {})).not.toContain("SECRET-BOAT");
     expect(instances.claude.environment).toEqual({});
     expect(instances.codex.environment).toEqual({});
   });
 
-  it("hands no credential to any default-fleet CLI engine, and the Boat key to none at all", () => {
-    const cfg: AppConfig = { xai: { key: "SECRET-XAI" }, box: { token: "SECRET-BOAT" } };
+  it("hands no credential to any default-fleet CLI engine", () => {
+    const cfg: AppConfig = { xai: { key: "SECRET-XAI" } };
     const instances = instanceConfigs(cfg);
     for (const [id, entry] of Object.entries(instances)) {
       if (id === "xaiApi") expect(entry.environment).toEqual({ XAI_API_KEY: "SECRET-XAI" });
@@ -1373,7 +1315,6 @@ describe("credential env preference", () => {
     "OPENAI_COMPAT_URL",
     "OPENAI_COMPAT_MODEL",
     "OPENAI_COMPAT_PROVIDER",
-    "BOX_TOKEN",
     "OPENCODE_API_KEY",
     "OMB_TTS_KEY",
     "OMB_FISH_AUDIO_API_KEY",
@@ -1402,21 +1343,18 @@ describe("credential env preference", () => {
       join(DATA_DIR, "config.json"),
       JSON.stringify({
         xai: { key: "file-xai", url: "https://api.example.test/v1" },
-        box: { token: "file-box" },
         opencodeGo: { apiKey: "file-ocg" },
         tts: { key: "file-tts", fishKey: "file-fish", voice: "narrator" },
         imageGen: { key: "file-image" },
       }),
     );
     process.env.XAI_API_KEY = "env-xai";
-    process.env.BOX_TOKEN = "env-box";
     process.env.OPENCODE_API_KEY = "env-ocg";
     process.env.OMB_TTS_KEY = "env-tts";
     process.env.OMB_FISH_AUDIO_API_KEY = "env-fish";
     process.env.OMB_OPENAI_IMAGE_KEY = "env-image";
     const cfg = loadConfig();
     expect(cfg.xai).toEqual({ key: "env-xai", url: "https://api.example.test/v1" });
-    expect(cfg.box).toEqual({ token: "env-box" });
     expect(cfg.opencodeGo).toEqual({ apiKey: "env-ocg" });
     expect(cfg.tts).toEqual({ key: "env-tts", fishKey: "env-fish", voice: "narrator" });
     expect(cfg.imageGen).toEqual({ key: "env-image" });
@@ -1445,23 +1383,20 @@ describe("credential env preference", () => {
     for (const [name, value] of Object.entries(included)) vi.stubEnv(name, value);
     try {
       const cfg = loadConfig();
-      expect(cfg.box?.token).toBeUndefined();
       expect(cfg.tts?.key).toBeUndefined();
       expect(cfg.decider?.key).toBeUndefined();
       for (const entry of Object.values(instanceConfigs(cfg))) {
         for (const value of Object.values(entry.environment ?? {})) expect(Object.values(included)).not.toContain(value);
       }
-      saveConfig({ tts: { voice: "chosen" }, box: { token: "" }, decider: { enabled: true, jobs: { roomRouting: true } } });
+      saveConfig({ tts: { voice: "chosen" }, decider: { enabled: true, jobs: { roomRouting: true } } });
       const disk = readFileSync(join(DATA_DIR, "config.json"), "utf8");
       const runtime = JSON.stringify([loadConfig(), instanceConfigs(loadConfig()), persistableInstanceConfigs(loadConfig())]);
       for (const token of [included.OMB_CLOUD_BOAT_TOKEN, included.OMB_CLOUD_VOICE_TOKEN, included.OMB_CLOUD_DECIDER_TOKEN]) {
         expect(disk).not.toContain(token);
         expect(runtime).not.toContain(token);
       }
-      process.env.BOX_TOKEN = "box_own";
       process.env.OMB_TTS_KEY = "sk-own";
-      expect(loadConfig()).toMatchObject({ box: { token: "box_own" }, tts: { key: "sk-own" } });
-      expect(JSON.stringify(instanceConfigs(loadConfig()))).not.toContain("box_own");
+      expect(loadConfig()).toMatchObject({ tts: { key: "sk-own" } });
     } finally {
       vi.unstubAllEnvs();
     }
@@ -1710,17 +1645,14 @@ describe("credential env preference", () => {
 
   it("syncCredentialEnv keeps process.env in step with a credential save", () => {
     process.env.XAI_API_KEY = "boot-injected";
-    process.env.BOX_TOKEN = "boot-injected";
     process.env.COMPOSIO_API_KEY = "boot-injected";
     syncCredentialEnv({
       xai: { key: "just-saved" },
       composio: { apiKey: "ak_just_saved" },
-      box: { token: "" },
       profile: { name: "Ada" },
     });
     expect(process.env.XAI_API_KEY).toBe("just-saved");
     expect(process.env.COMPOSIO_API_KEY).toBe("ak_just_saved");
-    expect(process.env.BOX_TOKEN).toBeUndefined();
     expect(process.env.OMB_TTS_KEY).toBeUndefined();
     expect(process.env.OMB_FISH_AUDIO_API_KEY).toBeUndefined();
   });
@@ -1815,7 +1747,8 @@ describe("workspace credential env strip", () => {
   });
 
   it("covers in-process secrets and private app-state paths", () => {
-    expect(WORKSPACE_CREDENTIAL_ENV).toContain("BOX_TOKEN");
+    expect(WORKSPACE_CREDENTIAL_ENV).not.toContain("BOX_TOKEN");
+    expect(WORKSPACE_CREDENTIAL_ENV).not.toContain("OMB_BOAT_API");
     expect(WORKSPACE_CREDENTIAL_ENV).toContain("OMB_TTS_KEY");
     expect(WORKSPACE_CREDENTIAL_ENV).toContain("OMB_CLOUD_BOAT_TOKEN");
     expect(WORKSPACE_CREDENTIAL_ENV).toContain("OMB_CLOUD_VOICE_TOKEN");
@@ -1919,7 +1852,7 @@ describe("changedInstanceIds", () => {
   it("replaces nothing for sections no driver reads", () => {
     expect(reloaded({ onboarding: { hintsSeen: ["tour.composer"] } })).toEqual([]);
     expect(reloaded({ profile: {}, language: "de", tts: {}, features: {} })).toEqual([]);
-    expect(reloaded({ box: { token: "boat" }, composio: { apiKey: "c" }, budgets: { monthlyUsd: 5 } })).toEqual([]);
+    expect(reloaded({ composio: { apiKey: "c" }, budgets: { monthlyUsd: 5 } })).toEqual([]);
   });
   it("replaces an engine whose driver reads a saved key from the env", () => {
     const own = instanceConfigs({ instances: { own: { driver: "mistral", config: { url: "http://127.0.0.1:9/v1" } } }, mistral: { key: "m1" } });
@@ -1930,7 +1863,7 @@ describe("changedInstanceIds", () => {
     const compat = (env: Record<string, string>) => changedInstanceIds(engineLaunches(fleet, {}), engineLaunches(fleet, env));
     expect(compat({ OPENAI_COMPAT_URL: "https://compat.example/v1" })).toEqual(["openaiCompat"]);
     expect(compat({ OMB_OPENAI_API_KEY: "o" })).toEqual(["openai"]);
-    expect(compat({ BOX_TOKEN: "boat", COMPOSIO_API_KEY: "c" })).toEqual([]);
+    expect(compat({ COMPOSIO_API_KEY: "c" })).toEqual([]);
   });
   it("names an engine that was added or removed", () => {
     expect(changedInstanceIds({ a: { driver: "fake" } }, { b: { driver: "fake" } })).toEqual(["a", "b"]);

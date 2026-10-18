@@ -72,7 +72,6 @@ describe("what a bridged turn is listed", () => {
       "coordinate_bots",
       "list_bots",
       "list_rooms",
-      "select_computer",
       "attach_file",
       "post_to_room",
       "request_credential",
@@ -89,7 +88,6 @@ describe("what a bridged turn is listed", () => {
       "coordinate_bots",
       "list_bots",
       "list_rooms",
-      "select_computer",
       "attach_file",
       "post_to_room",
       "request_credential",
@@ -104,12 +102,12 @@ describe("what a bridged turn is listed", () => {
   it("names every hot tool the catalog really has, so a renamed tool cannot fall out of the list unnoticed", () => {
     const everyName = new Set(everyProfile().flatMap(({ profile: turn }) => names(availableTools(turn))));
     for (const hot of BRIDGE_HOT_TOOL_NAMES) expect(everyName.has(hot), hot).toBe(true);
-    // 10 to 14 of them on any one turn, always fewer than the turn has
+    // 9 to 12 of them on any one turn, always fewer than the turn has
     for (const { name, profile: turn } of everyProfile()) {
       const tools = availableTools(turn);
       const hot = createToolBridge(tools as BridgeTool[]).listed.length - 2;
-      expect(hot, name).toBeGreaterThanOrEqual(10);
-      expect(hot, name).toBeLessThanOrEqual(14);
+      expect(hot, name).toBeGreaterThanOrEqual(9);
+      expect(hot, name).toBeLessThanOrEqual(12);
       expect(hot, name).toBeLessThan(tools.length / 2);
     }
   });
@@ -242,7 +240,6 @@ describe("find_tool", () => {
     ["change my name and title", "propose_profile"],
     ["switch this bot to a different model", "propose_model"],
     ["search my earlier conversations", "session_search"],
-    ["run a shell command in the VM", "vm_exec"],
     ["add an MCP server", "add_mcp_server"],
     ["see how the threads I opened are going", "list_threads"],
     ["write a line to today's log", "memory_log"],
@@ -319,18 +316,15 @@ describe("find_tool", () => {
   it("never returns a tool outside this turn's profile", async () => {
     const plain = bridgeFor();
     const allowed = new Set(names(plain.hidden));
-    for (const query of ["create a new specialist bot", "delete a teammate", "set up the team", "retry a failed thread", "share a computer", "save a skill", "send a voice note", ...CHIEF_ONLY, "skill_manage", "send_voice_note", "vm_exec"]) {
+    for (const query of ["create a new specialist bot", "delete a teammate", "set up the team", "retry a failed thread", "share a computer", "save a skill", "send a voice note", ...CHIEF_ONLY, "skill_manage", "send_voice_note"]) {
       const answer = await plain.find({ query });
       const matches = answer.isError ? [] : (JSON.parse(answer.text) as FindPayload).matches;
       for (const match of matches) expect(allowed.has(match.name), `${query} → ${match.name}`).toBe(true);
     }
-    // and a Cloud home, which has no Local VM, cannot find its shell
-    expect(names((await found(bridgeFor({ cloudHome: true }), "run a shell command in the VM")).matches)).not.toContain("vm_exec");
-    expect(names((await found(bridgeFor(), "run a shell command in the VM")).matches)).toContain("vm_exec");
   });
 
   it("points at the tool list for a tool that is already in it", async () => {
-    for (const listed of ["post_to_room", "list_bots", "select_computer"]) {
+    for (const listed of ["post_to_room", "list_bots", "attach_file"]) {
       const answer = await bridgeFor().find({ query: listed });
       expect(answer.isError).toBeFalsy();
       expect(answer.text).toBe(`${listed} is in your tool list: call it directly.`);
@@ -428,15 +422,15 @@ describe("use_tool", () => {
 
 describe("seeing through a bridged call", () => {
   it("tells a gate which tool a use_tool call names", () => {
-    expect(bridgedCallTarget(USE_TOOL, { name: "vm_exec", arguments: { command: "true" } })).toBe("vm_exec");
+    expect(bridgedCallTarget(USE_TOOL, { name: "create_trigger", arguments: { command: "true" } })).toBe("create_trigger");
     // nothing to judge: another call, or a use_tool that names no tool
     for (const [name, args] of [
-      ["vm_exec", { command: "true" }], [FIND_TOOL, { query: "vm_exec" }], ["list_bots", { name: "vm_exec" }],
-      [USE_TOOL, {}], [USE_TOOL, { name: "" }], [USE_TOOL, { name: 7 }], [USE_TOOL, undefined], [USE_TOOL, "vm_exec"],
+      ["create_trigger", { command: "true" }], [FIND_TOOL, { query: "create_trigger" }], ["list_bots", { name: "create_trigger" }],
+      [USE_TOOL, {}], [USE_TOOL, { name: "" }], [USE_TOOL, { name: 7 }], [USE_TOOL, undefined], [USE_TOOL, "create_trigger"],
     ] as const) expect(bridgedCallTarget(name, args), `${name} ${JSON.stringify(args)}`).toBeUndefined();
   });
 
-  const isTool = (name: string) => ["list_triggers", "vm_exec", "post_to_room"].includes(name);
+  const isTool = (name: string) => ["list_triggers", "create_trigger", "post_to_room"].includes(name);
 
   it("names a bridged call after the tool it ran, in the engine's own spelling", () => {
     const args = { name: "list_triggers", arguments: {} };
@@ -450,18 +444,18 @@ describe("seeing through a bridged call", () => {
 
   it("still names it when the preview was cut short after the name, and leaves it alone when the name itself was cut off", () => {
     const long = "x".repeat(8_000);
-    const nameFirst = toolDetailPreview({ name: "vm_exec", arguments: { command: long } })!;
+    const nameFirst = toolDetailPreview({ name: "create_trigger", arguments: { command: long } })!;
     expect(nameFirst).toContain("[… preview shortened]");
     expect(() => JSON.parse(nameFirst)).toThrow();
-    expect(bridgedCallTitle("mcp__agents__use_tool", nameFirst, isTool)).toBe("mcp__agents__vm_exec");
+    expect(bridgedCallTitle("mcp__agents__use_tool", nameFirst, isTool)).toBe("mcp__agents__create_trigger");
     // Arguments first, in a call this large, and the preview ends before the
     // tool's name: the call keeps the name it came with. A name inside the
     // arguments is not the tool's, and is not taken for it.
-    const nested = toolDetailPreview({ arguments: { name: "post_to_room", command: long }, name: "vm_exec" })!;
-    expect(nested).not.toContain('"vm_exec"');
+    const nested = toolDetailPreview({ arguments: { name: "post_to_room", command: long }, name: "create_trigger" })!;
+    expect(nested).not.toContain('"create_trigger"');
     expect(bridgedCallTitle("mcp__agents__use_tool", nested, isTool)).toBe("mcp__agents__use_tool");
     // the same call small enough to be kept whole is named, whichever key came first
-    expect(bridgedCallTitle("mcp__agents__use_tool", toolDetailPreview({ arguments: { name: "post_to_room", command: "true" }, name: "vm_exec" }), isTool)).toBe("mcp__agents__vm_exec");
+    expect(bridgedCallTitle("mcp__agents__use_tool", toolDetailPreview({ arguments: { name: "post_to_room", command: "true" }, name: "create_trigger" }), isTool)).toBe("mcp__agents__create_trigger");
   });
 
   it("leaves a title that names no server alone when asked to: a plain use_tool could be any server's", () => {

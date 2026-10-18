@@ -62,8 +62,8 @@ describe("refresh permissions from the sidebar", () => {
     expect(dialogs()).toBe(0);
   });
 
-  it("still shows the warning before copying Auto on this computer", () => {
-    render(bot({ approvalMode: "auto", computer: "local" }));
+  it("still shows the warning before copying Auto, since every bot works on this computer", () => {
+    render(bot({ approvalMode: "auto" }));
     refresh("older");
     expect(dispatch).not.toHaveBeenCalled();
     expect(dialogs()).toBe(1);

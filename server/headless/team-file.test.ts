@@ -39,7 +39,6 @@ defaults:
   team: Launch Room
   model: claude/claude-haiku-5-5
   approval: full
-  computer: browser
   browser: { enabled: true, profile: guest }
   cwd: /work/visitors/
   tools: { deny: ["native:Bash"] }
@@ -51,7 +50,6 @@ bots:
     manages: [Support]
     model: claude/claude-sonnet-5-5
     effort: medium
-    computer: local
     browser: false
     tools: { deny: [] }
     soul: { file: souls/lead.md }
@@ -63,7 +61,7 @@ rooms:
 `));
     expect(team.bots[0]).toEqual({
       name: "Room Lead", team: "Launch Room", chief: true, manages: ["Support"], soul: "Lead the rehearsal.\n",
-      model: { instanceId: "claude", model: "claude-sonnet-5-5" }, effort: "medium", approval: "full", computer: "local",
+      model: { instanceId: "claude", model: "claude-sonnet-5-5" }, effort: "medium", approval: "full",
       cwd: "/work/visitors", browser: { enabled: false }, tools: null,
       skills: [{ name: "launch-report", description: "Write the report.", text: expect.stringContaining("Body."), enabled: true, file: "skills/launch-report/SKILL.md" }],
     });
@@ -104,10 +102,16 @@ rooms:
     expect(team.teams[0]!.brief).toBe("Line one.\nLine two.\n");
   });
 
-  it("reads JSON too, and warns about a bot left on an automatic computer", () => {
+  it("reads JSON too, with nothing to warn about for a bot without a computer", () => {
     const team = loadTeamFile(file(JSON.stringify({ version: 1, bots: [{ name: "Solo" }] }), "team.json"));
     expect(team.bots).toEqual([{ name: "Solo", manages: [], skills: [] }]);
-    expect(team.warnings).toEqual([expect.stringContaining('bot "Solo" has no computer set')]);
+    expect(team.warnings).toEqual([]);
+  });
+
+  it("still reads an older file that sets a computer, ignores it and says so", () => {
+    const team = loadTeamFile(file(JSON.stringify({ version: 1, bots: [{ name: "Solo", computer: "cloud" }] }), "older.json"));
+    expect(team.bots).toEqual([{ name: "Solo", manages: [], skills: [] }]);
+    expect(team.warnings).toEqual([expect.stringMatching(/Solo.*computer is ignored; bots work on this computer/)]);
   });
 
   it.each([

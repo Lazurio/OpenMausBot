@@ -43,7 +43,7 @@ export function PermissionsSection({
       applyFullEverywhere();
       return;
     }
-    if (mode === "auto" && bot.computer === "local") {
+    if (mode === "auto") {
       setLocalAutoWarning(bot.id);
       return;
     }

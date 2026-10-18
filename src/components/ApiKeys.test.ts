@@ -66,27 +66,6 @@ describe("provider key rows", () => {
     expect(openai).toContain("Codex doesn&#x27;t use this key");
   });
 
-  it("shows Cloud Pro's included computers as included, not as a saved key the person could clear", () => {
-    const withBox = (box: store.ConfigStatus["box"]) => vi.spyOn(store, "useStore").mockReturnValue({
-      state: { ...store.initialState, config: { ...store.initialState.config, box } as store.ConfigStatus },
-      dispatch: vi.fn(),
-      flushBotPatches: vi.fn(),
-      refreshInstances: vi.fn(),
-      refreshModels: vi.fn(),
-    });
-    withBox({ configured: true, included: true });
-    const included = render(createElement(ApiKeyRow, { section: "box" }));
-    expect(included).toContain("Included with your Cloud plan");
-    expect(included).not.toContain("Configured");
-    expect(included).toContain('placeholder="Paste your Boat API key"');
-    expect(included).not.toContain("Remove the saved key");
-
-    withBox({ configured: true });
-    const own = render(createElement(ApiKeyRow, { section: "box" }));
-    expect(own).toContain("Configured");
-    expect(own).not.toContain("Included with your Cloud plan");
-  });
-
   it("warns about per-token billing only while the Anthropic key runs every Claude bot", () => {
     const withAnthropic = (everyClaudeBot: boolean) => vi.spyOn(store, "useStore").mockReturnValue({
       state: { ...store.initialState, config: { ...store.initialState.config, anthropic: { configured: true, everyClaudeBot } } as store.ConfigStatus },

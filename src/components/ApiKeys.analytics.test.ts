@@ -60,7 +60,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   fixture.values = [];
   fixture.refs = [];
-  fixture.config = { anthropic: { configured: false }, box: { configured: false } };
+  fixture.config = { anthropic: { configured: false }, composio: { configured: false } };
   vi.stubGlobal("window", {});
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -95,21 +95,21 @@ describe("a key saved in Settings → API keys", () => {
     expectNoKeyIn(fixture.track.mock.calls);
   });
 
-  it("reports a Boat key boat.dev refused over the desktop bridge as rejected, from the Computer panel", async () => {
-    const setCredential = vi.fn().mockRejectedValue(new Error(`Error invoking remote method 'credential:set': KeyRejected: That doesn't look like a Boat API key: ${KEY.slice(0, 12)}`));
+  it("reports a Composio key refused over the desktop bridge as rejected", async () => {
+    const setCredential = vi.fn().mockRejectedValue(new Error(`Error invoking remote method 'credential:set': KeyRejected: That doesn't look like a Composio API key: ${KEY.slice(0, 12)}`));
     vi.stubGlobal("window", { ogb: { setCredential } });
-    await paste({ section: "box", via: "computer_panel" });
-    expect(setCredential).toHaveBeenCalledWith("boxToken", KEY);
+    await paste({ section: "composio" });
+    expect(setCredential).toHaveBeenCalledWith("composioApiKey", KEY);
     expect(fixture.api).not.toHaveBeenCalled();
-    expect(fixture.track.mock.calls).toEqual([["api_key_saved", { provider: "boat", via: "computer_panel", result: "rejected" }]]);
+    expect(fixture.track.mock.calls).toEqual([["api_key_saved", { provider: "composio", via: "settings", result: "rejected" }]]);
     expectNoKeyIn(fixture.track.mock.calls);
   });
 
-  it("reports a Boat key the server checked as ok, without testing it again", async () => {
-    fixture.api.mockResolvedValueOnce({ box: { configured: true } });
-    await paste({ section: "box" });
+  it("reports a Composio key the server checked as ok, without testing it again", async () => {
+    fixture.api.mockResolvedValueOnce({ composio: { configured: true } });
+    await paste({ section: "composio" });
     expect(fixture.api).toHaveBeenCalledOnce();
-    expect(fixture.track.mock.calls).toEqual([["api_key_saved", { provider: "boat", via: "settings", result: "ok" }]]);
+    expect(fixture.track.mock.calls).toEqual([["api_key_saved", { provider: "composio", via: "settings", result: "ok" }]]);
   });
 
   it("reports a cleared key as removed, once, and a failed clear not at all", async () => {

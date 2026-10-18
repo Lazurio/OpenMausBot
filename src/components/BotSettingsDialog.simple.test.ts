@@ -33,7 +33,6 @@ const fixture = vi.hoisted(() => {
     },
     derived: {} as Record<string, unknown>,
     apps: { phase: "ready", apps: [], connectedSlugs: [] } as BotApps,
-    places: {} as Record<string, [boolean, boolean, string]>,
   };
 });
 vi.mock("react", async (original) => ({
@@ -67,11 +66,6 @@ vi.mock("./Avatar", async (importOriginal) => ({
 vi.mock("./bot-settings/SkillsSection", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./bot-settings/SkillsSection")>()),
   useManagedSkills: () => ({ ...fixture.skills, setReviewing: () => {}, enableReviewed: () => Promise.resolve() }),
-}));
-vi.mock("./PlaceChip", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./PlaceChip")>()),
-  usePlaceViews: () => Object.fromEntries(Object.entries(fixture.places).map(([place, [policy, reachable, short]]) =>
-    [place, { policy, reachable, view: { state: reachable ? "ready" : "blocked", params: {}, short, line: `${short}.`, action: null } }])),
 }));
 vi.mock("./bot-settings/useBotApps", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./bot-settings/useBotApps")>()),
@@ -228,9 +222,6 @@ beforeEach(() => {
     canUseConnectedApps: true, connectedAppsConfigured: true, connectedAppsEnabled: true, browserEnabled: true,
   };
   fixture.apps = { phase: "ready", apps: [], connectedSlugs: [] };
-  fixture.places = {
-    cloud: [true, true, "Cloud computer"], vm: [true, true, "Private desktop"], local: [true, true, "Your screen"], browser: [true, true, "Web pages only"],
-  };
 });
 
 describe("the bot panel in Simple mode", () => {
@@ -568,7 +559,7 @@ describe("the Details tab", () => {
     acts.onChange("ask");
     expect(patch).not.toHaveBeenCalled();
     acts.onChange("auto");
-    expect(patch).toHaveBeenLastCalledWith({ approvalMode: "auto" });
+    expect(patch).not.toHaveBeenCalled();
     acts.onChange("full");
     expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "updateBot", botId: "scout", patch: { approvalMode: "full", applyToAllThreads: true } });
     click(find(rendered, "data-panel-link", "approvals"));
@@ -592,8 +583,8 @@ describe("the Details tab", () => {
     expect(patch).not.toHaveBeenCalled();
   });
 
-  it("warns before Decide for me on this computer", () => {
-    const bot = makeBot({ computer: "local" });
+  it("warns before Decide for me, since every bot works on this computer", () => {
+    const bot = makeBot();
     segment(details(bot), "data-approval-choice").onChange("auto");
     expect(patch).not.toHaveBeenCalled();
     const warning = ofType(details(bot), LocalComputerAutoWarning)!;
@@ -738,58 +729,10 @@ describe("the browser logins", () => {
 });
 
 describe("the Computer tab", () => {
-  const places = (rendered: { nodes: Node[] }) => rendered.nodes.filter((node) => node.props["data-place-choice"] !== undefined);
-  const placeOf = (rendered: { nodes: Node[] }, value: string) => find(rendered, "data-place-choice", value);
-
-  it("offers Auto, this computer and a Cloud computer, with the rarer places under More places", () => {
+  it("offers no choice of where the bot works", () => {
     const rendered = computer(makeBot());
-    expect(rendered.html).toContain("Where Scout works");
-    expect(rendered.html).toContain("More places");
-    expect(rendered.html).toMatch(/data-place-choice="auto" aria-pressed="true"[^>]*>Auto</);
-    expect(rendered.html).toMatch(/data-place-choice="cloud" aria-pressed="false"[^>]*>Cloud computer</);
-    expect(places(rendered).map((node) => [node.props["data-place-choice"], node.props.children])).toEqual([
-      ["vm", "Local VM"], ["browser", "Browser only"], ["off", "Off"],
-    ]);
-    expect(rendered.html).toContain("Picks the right place for each task");
-  });
-
-  it("saves each place through the bot patch, and sends nothing for the place already chosen", () => {
-    const rendered = computer(makeBot());
-    segment(rendered, "data-place-choice").onChange("cloud");
-    expect(patch).toHaveBeenLastCalledWith({ computer: "cloud" });
-    click(placeOf(rendered, "vm"));
-    expect(patch).toHaveBeenLastCalledWith({ computer: "vm" });
-    click(placeOf(rendered, "browser"));
-    expect(patch).toHaveBeenLastCalledWith({ computer: "browser", browser: true });
-    click(placeOf(rendered, "off"));
-    expect(patch).toHaveBeenLastCalledWith({ computer: "off" });
-    segment(computer(makeBot({ computer: "cloud" })), "data-place-choice").onChange("auto");
-    expect(patch).toHaveBeenLastCalledWith({ computer: null });
-    patch.mockReset();
-    click(placeOf(computer(makeBot({ computer: "off" })), "off"));
-    expect(patch).not.toHaveBeenCalled();
-  });
-
-  it("holds a place the bot cannot use with the reason on it, and leaves out one never offered", () => {
-    fixture.places.vm = [true, false, "Not ready"];
-    const blocked = computer(makeBot());
-    expect(placeOf(blocked, "vm").props).toMatchObject({ disabled: true, title: "Not ready." });
-    fixture.places.vm = [false, false, "Not offered"];
-    fixture.places.local = [false, false, "Not offered"];
-    const rendered = computer(makeBot());
-    expect(places(rendered).map((node) => node.props["data-place-choice"])).toEqual(["browser", "off"]);
-    expect(rendered.html).not.toContain('data-place-choice="local"');
-  });
-
-  it("warns before this computer for a bot that decides alone", () => {
-    fixture.derived.approvalMode = "auto";
-    const bot = makeBot();
-    segment(computer(bot), "data-place-choice").onChange("local");
-    expect(patch).not.toHaveBeenCalled();
-    const warning = ofType(computer(bot), LocalComputerAutoWarning)!;
-    expect(warning.props.open).toBe(true);
-    (warning.props.onConfirm as () => void)();
-    expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "updateBot", botId: "scout", patch: { computer: "local", acknowledgeLocalAuto: true } });
+    expect(rendered.html).not.toContain("Where Scout works");
+    expect(rendered.html).not.toContain("data-place-choice");
   });
 
   it("leads to the browser and folder pages, and opens the full view on a tab", () => {

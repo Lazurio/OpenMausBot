@@ -319,8 +319,7 @@ export interface RoutineRequestServiceOptions {
   timeZone?: () => string;
   /** Server-owned, never request input. */
   autoApply?: DirectApplyCheck;
-  cloudReady?: (botId: string) => Promise<{ ready: boolean; reason?: string }>;
-  /** Revalidates ownership and capacity synchronously right before the card append, closing races across the cloud probe. */
+  /** Revalidates ownership and capacity synchronously right before the card append. */
   canPersist?: (
     botId: string,
     threadId: string,
@@ -855,7 +854,7 @@ function cardCopy(
   const nextRunAt = nextForOperation(operation, manager, now);
   const scheduleTimeZone = definition.schedule.type === "cron" ? definition.schedule.timeZone : timeZone;
   const when = operation.action === "run_now" ? "Now" : scheduleText(definition.schedule, timeZone);
-  const destination = definition.runOn === "cloud" ? "Bot’s current model on its cloud computer" : "Bot’s current model and configured computer";
+  const destination = "Bot’s current model and configured computer";
   const current = operation.action === "create"
     ? null
     : manager.listRoutines().find((routine) => routine.id === operation.routineId) ?? null;
@@ -1141,7 +1140,6 @@ export class RoutineRequestService {
   private readonly routines: RoutineManager;
   private readonly now: () => number;
   private readonly timeZone: () => string;
-  private readonly cloudReady?: (botId: string) => Promise<{ ready: boolean; reason?: string }>;
   private readonly canPersist?: RoutineRequestServiceOptions["canPersist"];
   private readonly validateTarget?: RoutineRequestServiceOptions["validateTarget"];
   private readonly autoApply?: RoutineRequestServiceOptions["autoApply"];
@@ -1151,7 +1149,6 @@ export class RoutineRequestService {
     this.routines = options.routines;
     this.now = options.now ?? Date.now;
     this.timeZone = options.timeZone ?? (() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
-    this.cloudReady = options.cloudReady;
     this.canPersist = options.canPersist;
     this.validateTarget = options.validateTarget;
     this.autoApply = options.autoApply;
@@ -1184,8 +1181,6 @@ export class RoutineRequestService {
       const refusal = this.validateTarget(botId, operation.forBot);
       if (refusal) throw new RoutineRequestError(refusal, 403);
     }
-    await this.requireCloudReadiness(operation, botId);
-    // The probe is async: re-check the captured revision before persisting the snapshot.
     const cardAt = this.now();
     revalidateOperation(operation, this.routines, botId, cardAt);
     const requestId = newId();
@@ -1382,27 +1377,6 @@ export class RoutineRequestService {
       ...(restoredId ? { restoredId } : {}),
       ...(undo?.ownersBefore !== undefined ? { ownersBefore: undo.ownersBefore } : {}),
     };
-  }
-
-  private async requireCloudReadiness(operation: RoutineRequestOperation, proposerBotId: string): Promise<void> {
-    if (!this.cloudReady || operation.action === "pause" || operation.action === "delete") return;
-    const definition = effectiveDefinition(operation, this.routines);
-    if (definition?.runOn !== "cloud") return;
-    let readiness: { ready: boolean; reason?: string };
-    try {
-      const targetBotId = operation.action === "create"
-        ? operation.forBot?.botId ?? proposerBotId
-        : this.routines.listRoutines().find(routine => routine.id === operation.routineId)?.botId ?? proposerBotId;
-      readiness = await this.cloudReady(targetBotId);
-    } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
-      throw new RoutineRequestError(`Could not verify cloud readiness: ${detail}`, 503);
-    }
-    if (readiness.ready) return;
-    throw new RoutineRequestError(
-      readiness.reason?.trim() || "Cloud execution is not configured yet. Set up a cloud computer first.",
-      409,
-    );
   }
 
   /** Claims a card even after it settled: a duplicate click must never fall through to a provider that did not create the request id. */

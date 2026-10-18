@@ -13,9 +13,7 @@ import {
   type Message,
 } from "@/state/store";
 import { BotAvatar } from "./Avatar";
-import { PlaceIcon } from "./PlaceIcon";
 import { ScreenFrame } from "./ScreenFrame";
-import { effectivePlace, placeLabelKey } from "@/lib/place";
 import { ThreadChip } from "./ThreadChip";
 import { ToolActivity } from "./ToolActivity";
 import { ThreadRefText } from "./ThreadRefs";
@@ -100,7 +98,7 @@ export function RoomToolChip({ message, roomId }: { message: Message; roomId?: s
   if (!tool) return null;
   if (message.threadRef) return <ThreadChip message={message} />;
   if (failedTurnCause(tool.name) !== null) {
-    return <FailedTurnRow tool={tool} engine={botEngine(state.bots.find((b) => b.id === message.from?.botId), state.instances)} botId={message.from?.botId} />;
+    return <FailedTurnRow tool={tool} engine={botEngine(state.bots.find((b) => b.id === message.from?.botId), state.instances)} />;
   }
   const comm = message.comm;
   if (comm && comm.groupId !== roomId) {
@@ -1257,9 +1255,6 @@ export function GroupView({ group }: { group: Group }) {
     const contextWarning = contextWarnings.find((warning) => warning.bot.id === b.id);
     const busyElsewhere = !busy && speakersElsewhere.has(b.id);
     const held = !group.dm && Boolean(group.holds?.[b.id]);
-    const task = b.tasks?.find((candidate) => candidate.threadId === group.threadId);
-    const effective = busy ? effectivePlace(b, task) : "off";
-    const showPlace = busy && effective !== "off" && effective !== "auto";
     return (
       <span
         key={b.id}
@@ -1291,19 +1286,7 @@ export function GroupView({ group }: { group: Group }) {
           </span>
         )}
         {contextWarning && <RoomContextBadge percent={contextWarning.percent} />}
-        {busy && (
-          showPlace ? (
-            <span
-              className="absolute -right-1 -top-1 flex size-3.5 items-center justify-center rounded-full border border-app bg-accent text-white"
-              role="img"
-              aria-label={t("place.chipAria", { place: t(placeLabelKey(effective)) })}
-            >
-              <PlaceIcon place={effective} size={9} strokeWidth={2.5} aria-hidden="true" />
-            </span>
-          ) : (
-            <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full border border-app bg-accent" />
-          )
-        )}
+        {busy && <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full border border-app bg-accent" />}
       </span>
     );
   });

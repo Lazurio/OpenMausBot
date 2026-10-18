@@ -17,7 +17,7 @@ vi.mock("@/lib/interface-mode", () => ({ useAdvancedMode: () => true, setAdvance
 vi.mock("@/state/store", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/state/store")>(),
   useStore: () => ({
-    state: { config: { box: { configured: false }, ...fixture.config }, instances: [], computerControl: {}, routines: [], routineRuns: [] },
+    state: { config: { ...fixture.config }, instances: [], computerControl: {}, routines: [], routineRuns: [] },
     dispatch: vi.fn(),
     flushBotPatches: vi.fn(),
   }),
@@ -74,23 +74,16 @@ describe("Computer panel on a narrow screen", () => {
   });
 });
 
-describe("Computer panel Works on", () => {
-  const places = (markup: string) => [...markup.matchAll(/<span>(Auto|Cloud computer|Local VM|This computer|Browser|Off)<\/span>/g)].map((match) => match[1]);
+describe("Computer panel screen", () => {
   const computerTab = (config: FeatureFlagConfig & { cloudHome?: boolean }) => {
     fixture.view.current = "computer";
     try { return render(config); } finally { fixture.view.current = "browser"; }
   };
 
-  it("lists this computer and a Local VM on a desktop or self-hosted server", () => {
+  it("shows this computer's screen and offers no other computer to work on", () => {
     const markup = computerTab({});
-    expect(places(markup)).toEqual(["Auto", "Cloud computer", "Local VM", "This computer", "Browser", "Off"]);
-    expect(markup).toContain("Choose where this bot can use a computer.</p>");
-  });
-
-  it("lists neither on My Cloud, and says why", () => {
-    const markup = computerTab({ cloudHome: true });
-    expect(places(markup)).toEqual(["Auto", "Cloud computer", "Browser", "Off"]);
-    expect(markup).toContain("Choose where this bot works. To let it use your computer, turn on Let My Cloud use this computer");
+    expect(markup).toContain(escapeHtml(t("computer.screenOf", { name: "Browser fixture" })));
+    for (const removed of ["Works on", "Cloud computer", "Local VM", "Auto"]) expect(markup).not.toContain(`<span>${removed}</span>`);
   });
 });
 
@@ -99,3 +92,7 @@ describe("Computer panel header", () => {
     expect(render({})).toContain(`aria-label="${t("computer.close")}"`);
   });
 });
+
+function escapeHtml(value: string): string {
+  return value.replace(/'/g, "&#x27;").replace(/"/g, "&quot;");
+}

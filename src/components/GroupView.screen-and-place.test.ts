@@ -70,23 +70,13 @@ describe("GroupView: computer/browser session visibility", () => {
     expect(markup).not.toContain("/messages/shot/image");
   });
 
-  it("marks a busy member working a concrete place (e.g. browser) with that place's icon", () => {
-    const markup = render([bot({ busy: true, computer: "browser" })], group({ busyBotId: "aleta" }));
-    expect(markup).toMatch(/width="9"[^>]*height="9"/);
-  });
-
-  it("gives the place badge an accessible label naming the place", () => {
-    const markup = render([bot({ busy: true, computer: "browser" })], group({ busyBotId: "aleta" }));
-    expect(markup).toContain('aria-label="Where this conversation works: Browser"');
-  });
-
-  it("falls back to the plain working dot when the busy member's place is Auto", () => {
+  it("marks a busy member with the plain working dot, never a place badge", () => {
     const markup = render([bot({ busy: true })], group({ busyBotId: "aleta" }));
     expect(markup).not.toMatch(/width="9"[^>]*height="9"/);
   });
 
   it("shows no place badge at all for an idle member", () => {
-    const markup = render([bot({ computer: "browser" })], group({ busyBotId: null }));
+    const markup = render([bot()], group({ busyBotId: null }));
     expect(markup).not.toMatch(/width="9"[^>]*height="9"/);
   });
 });

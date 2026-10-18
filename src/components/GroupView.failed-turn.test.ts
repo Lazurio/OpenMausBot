@@ -60,7 +60,7 @@ describe("a member's failed turn in a room", () => {
   });
 
   it("shows a plan-limit refusal whole, next action included", () => {
-    const limit = "Your Pro plan includes 2 cloud computers at once. Delete one to start another.";
+    const limit = "Your Pro plan includes 2 live calls at once. End one to start another.";
     const markup = room(failed(`error: ${limit}`));
     expect(markup).toContain(`>${limit}</span>`);
     expect(markup).not.toContain("truncate");

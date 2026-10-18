@@ -962,7 +962,7 @@ export function BotThreadList({ bot, selected, density, query, pendingQueued, re
       const current = latest.current;
       const mode = approvalModeFor(current);
       const threadMode = approvalModeFor(currentTaskBot(current, task.threadId));
-      if (mode === "auto" && current.computer === "local" && threadMode !== "auto") {
+      if (mode === "auto" && threadMode !== "auto") {
         setPermissionRefresh({ threadId: task.threadId, kind: "local-auto" });
         return;
       }

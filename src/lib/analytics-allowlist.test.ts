@@ -11,14 +11,14 @@ import {
 } from "./analytics-allowlist";
 
 const HOSTILE = [
-  "Boat", "BOAT", " boat", "boat ", "", "__proto__", "constructor", "toString", "hasOwnProperty", "prototype",
-  "https://evil.example.com/boat", "evil.example.com", "ada@example.com", "sk-ant-api03-ZZtestSECRET0123456789", "boat_abc123",
-  42, 0, true, null, undefined, {}, ["boat"], Object.create(null),
+  "Composio", "COMPOSIO", " composio", "composio ", "", "__proto__", "constructor", "toString", "hasOwnProperty", "prototype",
+  "https://evil.example.com/composio", "evil.example.com", "ada@example.com", "sk-ant-api03-ZZtestSECRET0123456789", "composio_abc123",
+  42, 0, true, null, undefined, {}, ["composio"], Object.create(null),
 ];
 
 describe("allow", () => {
   it("passes a value only when its list has it", () => {
-    expect(allow("boat", KEY_PROVIDER)).toBe("boat");
+    expect(allow("composio", KEY_PROVIDER)).toBe("composio");
     expect(allow("gmail", APP)).toBe("gmail");
     for (const value of HOSTILE) expect(allow(value, KEY_PROVIDER), JSON.stringify(value) ?? "undefined").toBe("other");
   });
@@ -74,7 +74,7 @@ describe("app, role and key lists", () => {
 
   it("names a provider for every Settings key row", () => {
     const rows = {
-      composio: "composio", box: "boat", opencodeGo: "opencode_go", anthropic: "anthropic", openai: "openai",
+      composio: "composio", opencodeGo: "opencode_go", anthropic: "anthropic", openai: "openai",
       openrouter: "openrouter", openaiCompat: "openai_compat", xai: "xai", mistral: "mistral", cerebras: "cerebras",
       groq: "groq", meta: "meta",
     } satisfies Record<ConfigSection, string>;
@@ -86,7 +86,7 @@ describe("app, role and key lists", () => {
 
   it("names a provider for every credential a bot can ask for in chat, and nothing else", () => {
     const expected = {
-      boxToken: "boat", xaiApiKey: "xai", opencodeGoApiKey: "opencode_go", ttsKey: "elevenlabs", fishAudioKey: "fish_audio",
+      xaiApiKey: "xai", opencodeGoApiKey: "opencode_go", ttsKey: "elevenlabs", fishAudioKey: "fish_audio",
       openaiImageApiKey: "openai_image",
     };
     expect(Object.keys(expected).sort()).toEqual(Object.keys(CREDENTIAL_TARGETS).sort());

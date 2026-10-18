@@ -50,7 +50,7 @@ export function DetailsTab({ bot, derived, overview, onOpen }: {
       dispatch({ type: "updateBot", botId: bot.id, patch: { approvalMode: "full", applyToAllThreads: true } });
       return;
     }
-    if (mode === "auto" && bot.computer === "local") {
+    if (mode === "auto") {
       setLocalAutoWarning({ botId: bot.id, patch: { approvalMode: "auto", acknowledgeLocalAuto: true } });
       return;
     }

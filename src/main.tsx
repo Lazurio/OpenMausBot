@@ -31,10 +31,6 @@ async function chooseRoot(): Promise<React.ReactNode> {
   const session = await readSessionState();
   if (session.kind === "unauthenticated") return <PairPage initialCode={null} reason={session.error} />;
   if (session.kind === "loopback" && session.trust === "service") return <PairPage initialCode={null} reason={SERVICE_TRUST_REASON} />;
-  if (location.pathname === "/desktop-viewer") {
-    const { DesktopViewer } = await import("./components/DesktopViewer");
-    return <DesktopViewer />;
-  }
   return <App />;
 }
 

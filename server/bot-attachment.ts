@@ -1,6 +1,6 @@
 // The source opens through the message-file route's hardened resolver (realpath containment, O_NOFOLLOW, size cap) and is
 // copied into the private store, so the chat never reaches into a bot's workspace or VM home afterwards.
-import { basename, join, posix } from "node:path";
+import { basename, posix } from "node:path";
 import {
   extensionForFileMime,
   extensionForMime,
@@ -22,23 +22,6 @@ function statusError(status: number, message: string): Error & { status: number 
   return Object.assign(new Error(message), { status });
 }
 
-/** Maps a guest workspace path onto its bind-mounted host directory; anything outside it, `..` escapes included, is null. */
-export function guestWorkspaceToHost(input: string, guestRoot: string, hostRoot: string): string | null {
-  let value = input.trim();
-  if (/^file:\/\//i.test(value)) {
-    try {
-      value = decodeURIComponent(new URL(value).pathname);
-    } catch {
-      return null;
-    }
-  }
-  if (!value.startsWith("/")) return null;
-  const normalized = posix.normalize(value);
-  const relative = posix.relative(guestRoot, normalized);
-  if (!relative || relative === ".." || relative.startsWith("../") || posix.isAbsolute(relative)) return null;
-  return join(hostRoot, ...relative.split("/"));
-}
-
 /** Directory parts are dropped, never trusted. */
 function displayNameFor(requested: string | undefined, fallback: string): string {
   const cleaned = requested?.trim().replace(/\\/g, "/");
@@ -51,7 +34,6 @@ export interface SaveBotAttachmentInput {
   name?: string;
   /** Host directories the bot may read from (its working folder, workspace). */
   roots: readonly string[];
-  guest?: { root: string; host: string };
   /** A file this turn saved outside the roots, at a place the person named: one copied file, never a folder or a link grant. */
   savedThisTurn?: { since: number; refuse: readonly string[] };
 }
@@ -74,11 +56,7 @@ export interface SavedBotAttachment {
 export async function saveBotAttachment(input: SaveBotAttachmentInput): Promise<SavedBotAttachment> {
   const requested = input.path.trim();
   if (!requested) throw statusError(400, "path is required");
-  const guestHost = input.guest ? guestWorkspaceToHost(requested, input.guest.root, input.guest.host) : null;
-  // A bot with a VM works in it: a relative path means its VM workspace first.
-  const roots = input.guest ? [input.guest.host, ...input.roots] : input.roots;
-  // A VM turn's tools never wrote to the host, so it gets roots only.
-  const file = await openSource(guestHost ?? requested, roots, input.guest ? undefined : input.savedThisTurn);
+  const file = await openSource(requested, input.roots, input.savedThisTurn);
   try {
     const mime = mimeFor(file.name);
     const name = displayNameFor(input.name, file.name);

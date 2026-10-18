@@ -40,8 +40,6 @@ export function toolCallContextFromEnv(env: NodeJS.ProcessEnv): ToolCallContext 
 const SIGN_IN_PLACES: Record<string, string> = {
   browser: "your built-in browser",
   local: "this computer",
-  vm: "the Local VM",
-  cloud: "the cloud computer",
 };
 
 const STATUS_WORDS: Record<string, string> = {
@@ -149,21 +147,6 @@ function recallWhen(at: unknown, dateOnly: boolean): string {
 export async function callTool(name: string, args: Json, context: ToolCallContext): Promise<ToolCallResult> {
   const { botId: BOT_ID, threadId: THREAD_ID, depth: DEPTH } = context;
   const { api, apiResponse } = context.client;
-  if (name === "vm_exec") {
-    const { ok, body } = await apiResponse("/api/internal/vm-exec", {
-      method: "POST",
-      body: JSON.stringify({ command: args.command, ...(typeof args.timeout_seconds === "number" ? { timeout_seconds: args.timeout_seconds } : {}) }),
-    });
-    if (!ok) return { text: String(body.error ?? "Could not run that command."), isError: true };
-    const exitCode = Number(body.exitCode ?? 0);
-    const stdout = String(body.stdout ?? "");
-    const stderr = String(body.stderr ?? "");
-    const lines = [body.timedOut ? "The command was stopped: it ran past its time limit." : `exit code ${exitCode}`];
-    if (stdout) lines.push("--- stdout ---", stdout.replace(/\s+$/, ""));
-    if (stderr) lines.push("--- stderr ---", stderr.replace(/\s+$/, ""));
-    if (!stdout && !stderr && !body.timedOut) lines.push("(no output)");
-    return { text: lines.join("\n"), ...(exitCode !== 0 || body.timedOut ? { isError: true } : {}) };
-  }
   if (name === "attach_file") {
     const { ok, body } = await apiResponse("/api/internal/attach-file", {
       method: "POST",
@@ -299,15 +282,6 @@ export async function callTool(name: string, args: Json, context: ToolCallContex
     return {
       text: `Posted in ${r.roomName ?? "the room"}${r.attachedVoiceNote ? " with the voice note attached" : ""}. Nobody's turn was started, so expect no reply — tell the user it is posted.`,
     };
-  }
-  if (name === "select_computer") {
-    if (args.surface !== undefined && (typeof args.surface !== "string" || !["auto", "cloud", "vm", "local", "browser"].includes(args.surface))) {
-      return { text: "Choose auto, cloud, vm, local or browser; omit surface to inspect connected choices.", isError: true };
-    }
-    const result = await api("/api/internal/computer/select", args.surface === undefined ? undefined : {
-      method: "POST", body: JSON.stringify({ surface: args.surface }),
-    });
-    return { text: JSON.stringify(result) };
   }
   if (name === "list_threads") {
     const query = new URLSearchParams({ fromBotId: BOT_ID, fromThreadId: THREAD_ID });

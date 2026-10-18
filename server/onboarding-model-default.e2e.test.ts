@@ -193,7 +193,7 @@ it.each(["permissions", "branch"] as const)("rechecks guarded %s after held firs
     try {
       await expect.poll(probe.started, { timeout: 10_000 }).toBe(true);
       if (change === "permissions") {
-        await fixture.api("PATCH", `/api/bots/${starter.id}/tasks/${starter.threadId}`, { approvalMode: "auto" });
+        await fixture.api("PATCH", `/api/bots/${starter.id}/tasks/${starter.threadId}`, { approvalMode: "auto", acknowledgeLocalAuto: true });
       } else {
         await fixture.api("POST", `/api/bots/${starter.id}/active-branch`, { threadId: starter.threadId, messageId: otherLeaf });
       }

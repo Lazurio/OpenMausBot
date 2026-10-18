@@ -5,7 +5,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 
 import { launchVerificationServer, runControlOmb, verificationServerArgs, verificationServerEnvironment } from "../scripts/control-omb.ts";
@@ -114,9 +114,16 @@ async function composioStub() {
   };
 }
 
-async function scenario(test: (f: any) => Promise<void>, options: { env?: Record<string, string>; fake?: Record<string, string>; scripted?: boolean } = {}) {
+/** A browser stand-in: a turn mounts the built-in browser, the place a person signs in on, only when one is there. */
+const BROWSER_STAND_IN = `#!/bin/sh\nif [ "$1" = session ] && [ "$2" = list ]; then printf '{"success":true,"data":{"sessions":[]}}'; fi\nexit 0\n`;
+
+async function scenario(test: (f: any) => Promise<void>, options: { env?: Record<string, string>; fake?: Record<string, string>; scripted?: boolean; browser?: boolean } = {}) {
   const parentEnv: NodeJS.ProcessEnv = { ...process.env, ...options.fake };
-  const session = await launchVerificationServer(parentEnv, undefined, undefined, undefined, undefined, { scripted: options.scripted !== false });
+  const browserTools = options.browser ? mkdtempSync(join(tmpdir(), "omb-runtime-roots-browser-")) : undefined;
+  if (browserTools) writeFileSync(join(browserTools, "agent-browser"), BROWSER_STAND_IN, { mode: 0o755 });
+  const session = await launchVerificationServer(parentEnv, undefined, undefined,
+    browserTools ? { binaryPath: join(browserTools, "agent-browser"), executablePath: join(browserTools, "chrome") } : undefined,
+    undefined, { scripted: options.scripted !== false });
   const url = session.info.url;
   const dataDir = session.info.dataDir;
   let server: ChildProcess = session.child;
@@ -209,6 +216,7 @@ async function scenario(test: (f: any) => Promise<void>, options: { env?: Record
   } finally {
     if (restarted) await waitForExit(server, { signal: "SIGTERM" });
     await session.close();
+    if (browserTools) await removeTempDir(browserTools);
   }
 }
 
@@ -442,7 +450,6 @@ itHost("T7 queues a root on the computer seat at the wait ceiling and continues 
   const home = mkdtempSync(join(tmpdir(), "omb-runtime-roots-seat-"));
   const data = join(home, "data");
   const ui = join(home, "static");
-  const stateFile = join(home, "vm.json");
   const dumpFile = join(home, "dump.json");
   const finishFile = join(home, "finish");
   let output = "";
@@ -477,7 +484,6 @@ itHost("T7 queues a root on the computer seat at the wait ceiling and continues 
   const roots = () => readRuntimeDb(data).assignments.filter((row) => !row.parentId);
   const eventsOf = (id: string) => readRuntimeDb(data).events.filter((event) => event.assignmentId === id).map((event) => event.kind);
   try {
-    writeFileSync(stateFile, JSON.stringify({ noContainers: true }));
     mkdirSync(data);
     mkdirSync(join(ui, "assets"), { recursive: true });
     writeFileSync(join(ui, "index.html"), "<title>Runtime roots</title>");
@@ -490,11 +496,11 @@ itHost("T7 queues a root on the computer seat at the wait ceiling and continues 
       driver: "claudeAgent", config: { cli: join(ROOT, "server/testing/fake-claude-cli.ts") },
       environment: { FAKE_CLAUDE_MODE: "slow", FAKE_CLAUDE_DUMP: dumpFile, FAKE_CLAUDE_SLOW_FINISH_GATE: finishFile },
     } } }));
-    const proc = spawn(process.execPath, ["--import", pathToFileURL(join(ROOT, "server/testing/group-local-vm-hooks.mjs")).href, join(ROOT, "server/index.ts")], {
+    const proc = spawn(process.execPath, [join(ROOT, "server/index.ts")], {
       cwd: ROOT, env: {
         PATH: dirname(process.execPath), ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
         HOME: home, USERPROFILE: home, OMB_DATA_DIR: data, APPDATA: join(home, "appdata"), LOCALAPPDATA: join(home, "localappdata"),
-        TEMP: home, TMP: home, TMPDIR: home, OMB_PORT: String(port), OMB_WEBHOOK_PORT: String(port + 1), OMB_STATIC_DIR: ui, OMB_TEST_VM_STATE: stateFile,
+        TEMP: home, TMP: home, TMPDIR: home, OMB_PORT: String(port), OMB_WEBHOOK_PORT: String(port + 1), OMB_STATIC_DIR: ui,
         OMB_USER_DATA: join(home, "user-data"), OMB_COMPUTER_CALL_WAIT_MS: "4000", OMB_COMPUTER_CALL_ACT_WITHIN_MS: "1000",
         OMB_COMPUTER_WAIT_MAX_MS: String(CEILING_MS),
       }, stdio: ["ignore", "pipe", "pipe"],
@@ -549,8 +555,8 @@ itHost("T7 queues a root on the computer seat at the wait ceiling and continues 
       && events.slice(0, index).some((prior) => prior.assignmentId === id && prior.kind === "started"));
     expect(secondStart(root.id)).toBeGreaterThan(-1);
     expect(secondStart(root.id)).toBeLessThan(secondStart(root2.id));
-    const resumed = await dumpFor(second.id);
-    expect(JSON.stringify(resumed.prompt)).toContain(SEAT_FREE);
+    // The fake's dump keeps only the latest launch and the two continuations launch in parallel: read the server's turn log.
+    expect(output).toContain(`[omb-turn] bot=${second.id} text="OpenMausBot computer update: ${SEAT_FREE.slice(0, 40)}`);
     const after = (await api("GET", `/api/threads/${wait.threadId}/messages?limit=100`)).body.messages as any[];
     expect(after.filter((message) => chipText(message).includes("Parked — it continues automatically")).length).toBe(1);
     await until(() => taskOf(waiter.id, wait.threadId), (task) => task?.busy === false && task.activity === "idle");
@@ -570,7 +576,6 @@ const failedLines = async (f: any, threadId: string) => (await f.messages(thread
 
 const browserPlace = async (f: any) => {
   expect((await f.api("PATCH", "/api/config", { features: { browser: true } })).status).toBe(200);
-  expect((await f.api("PATCH", `/api/bots/${f.clive.id}`, { computer: "browser" })).status).toBe(200);
 };
 
 it("T8 Stop while parked on a credential card cancels the root and stops the card; a key provided afterwards is saved but starts nothing", () => scenario(async (f) => {
@@ -665,7 +670,7 @@ it("T8 Stop while parked on a sign-in card cancels the root and stops the card; 
   expect(f.roots()[0]).toMatchObject({ status: "cancelled", outcome: "stopped", executions: 1 });
   expect(f.turns(f.clive.id).map((record: any) => record.planKey)).toEqual(["C0"]);
   expect(await failedLines(f, job)).toEqual([]);
-}), hostTimeout(60_000));
+}, { browser: true }), hostTimeout(60_000));
 
 it("T9 parks the root on a sign-in card and runs it again with the signed-in line on Done", () => scenario(async (f) => {
   await browserPlace(f);
@@ -696,7 +701,7 @@ it("T9 parks the root on a sign-in card and runs it again with the signed-in lin
   expect((await f.api("POST", `/api/bots/${f.clive.id}/sign-in-cards/${card.id}/done`, { threadId: job })).body).toEqual({ done: true, resumed: true });
   await f.settle(500);
   expect(f.turns(f.clive.id).map((record: any) => record.planKey)).toEqual(["C0", "C1"]);
-}), hostTimeout(60_000));
+}, { browser: true }), hostTimeout(60_000));
 
 it("T10 parks a teammate's turn on its credential card, tells the Chief at once, and the key answers the teammate", () => scenario(async (f) => {
   const mira = (await f.cli("new-bot", "--name", "Mira", "--section", "Engineering")).bot;

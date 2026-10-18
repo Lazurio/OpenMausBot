@@ -57,7 +57,6 @@ afterEach(() => {
 
 function harness(
   start = Date.parse("2026-08-28T10:00:00Z"),
-  cloudReady?: (botId: string) => Promise<{ ready: boolean; reason?: string }>,
   canPersist?: (
     botId: string,
     threadId: string,
@@ -82,7 +81,6 @@ function harness(
     routines,
     now: () => clock.now,
     timeZone: () => "Asia/Kolkata",
-    cloudReady,
     canPersist,
     autoApply,
   });
@@ -193,7 +191,7 @@ describe("RoutineRequestService", () => {
     });
 
     it("does not create repeated Full Access schedules", async () => {
-      const { service, routines } = harness(undefined, undefined, undefined, () => "full-access");
+      const { service, routines } = harness(undefined, undefined, () => "full-access");
       const args = { botId: "bot-a", threadId: "thread-a", proposal: createProposal() };
       expect(await service.submit(args)).toMatchObject({ state: "applied" });
       await expect(service.submit(args)).rejects.toMatchObject({ status: 409 });
@@ -203,7 +201,7 @@ describe("RoutineRequestService", () => {
 
   it("applies Full Access routine actions using only the source thread grant and settles replay receipts", async () => {
     const autoApply = vi.fn((_botId: string, threadId: string, _target: string) => (threadId === "full-thread" ? "full-access" as const : null));
-    const { service, routines, store } = harness(undefined, undefined, undefined, autoApply);
+    const { service, routines, store } = harness(undefined, undefined, autoApply);
     const appended: RoutineRequestOptionCard[] = [];
     const append = store.appendMessage.bind(store);
     vi.spyOn(store, "appendMessage").mockImplementation((threadId, message) => {
@@ -241,18 +239,13 @@ describe("RoutineRequestService", () => {
     expect(autoApply).toHaveBeenLastCalledWith("bot-a", "full-thread", "bot-a");
   });
 
-  it("reads the grant after cloud readiness for the log, applies either way, and preserves scope validation", async () => {
-    let full = true;
-    const { service, routines, store } = harness(undefined, async () => {
-      full = false;
-      return { ready: true };
-    }, undefined, () => (full ? "full-access" : null));
-    const changed = await service.submit({ botId: "bot-a", threadId: "thread-a", proposal: createProposal({ runOn: "cloud", instructions: "On the cloud computer." }) });
+  it("applies a Full Access routine at once and preserves scope validation", async () => {
+    const { service, routines, store } = harness(undefined, undefined, () => "full-access");
+    const changed = await service.submit({ botId: "bot-a", threadId: "thread-a", proposal: createProposal({ instructions: "On this computer." }) });
     expect(changed.state).toBe("applied");
-    expect(changed).not.toHaveProperty("appliedBy");
+    expect(changed).toHaveProperty("appliedBy", "full-access");
     expect(routines.listRoutines()).toHaveLength(1);
     expect(store.messagesFor("thread-a")[0]?.card?.dismissed).toBe(true);
-    full = true;
     const own = await service.submit({ botId: "bot-a", threadId: "thread-a", proposal: createProposal() });
     await expect(service.submit({ botId: "bot-b", threadId: "thread-b", proposal: { action: "delete", routineId: own.result!.resultId } }))
       .rejects.toThrow();
@@ -263,7 +256,7 @@ describe("RoutineRequestService", () => {
   });
 
   it("reports a committed Full Access routine even if receipt settlement fails and never runs it twice", async () => {
-    const { service, routines, store } = harness(undefined, undefined, undefined, () => "full-access");
+    const { service, routines, store } = harness(undefined, undefined, () => "full-access");
     const created = await service.submit({ botId: "bot-a", threadId: "thread-a", proposal: createProposal() });
     const settle = vi.spyOn(store, "patchMessage").mockImplementation(() => { throw new Error("receipt write failed"); });
     const run = await service.submit({ botId: "bot-a", threadId: "thread-a", proposal: { action: "run_now", routineId: created.result!.resultId } });
@@ -278,7 +271,7 @@ describe("RoutineRequestService", () => {
   });
 
   it("does not report Full Access success when the scheduler commit fails", async () => {
-    const { service, routines, store } = harness(undefined, undefined, undefined, () => "full-access");
+    const { service, routines, store } = harness(undefined, undefined, () => "full-access");
     vi.spyOn(routines, "create").mockImplementationOnce(() => { throw new Error("scheduler write failed"); });
     await expect(service.submit({ botId: "bot-a", threadId: "thread-a", proposal: createProposal() }))
       .rejects.toThrow("scheduler write failed");
@@ -911,130 +904,6 @@ describe("RoutineRequestService", () => {
       everyMinutes: 5,
       window: { start: "09:00", end: "09:10" },
     });
-  });
-
-  it("refuses a cloud routine before creating a card when cloud execution is not ready", async () => {
-    const { service, store } = harness(undefined, async () => ({
-      ready: false,
-      reason: "Connect or provision a cloud computer first.",
-    }));
-
-    await expect(service.propose({
-      botId: "bot-a",
-      threadId: "thread-a",
-      proposal: createProposal({ runOn: "cloud" }),
-    })).rejects.toThrow(/Connect or provision/);
-    expect(store.messagesFor("thread-a")).toHaveLength(0);
-  });
-
-  it("checks the executing bot for own, teammate and existing cloud routines", async () => {
-    const checked: string[] = [];
-    const { service, routines } = harness(undefined, async botId => {
-      checked.push(botId);
-      return { ready: botId === "bot-a", reason: "Target model unavailable" };
-    });
-    await service.propose({ botId: "bot-a", threadId: "thread-a", proposal: createProposal({ runOn: "cloud" }) });
-    const peerProposal = createProposal({ runOn: "cloud" });
-    if (peerProposal.action !== "create") throw new Error("Expected create");
-    await expect(service.propose({ botId: "bot-a", threadId: "thread-a", proposal: {
-      ...peerProposal, forBot: { botId: "bot-b", name: "Peer" },
-    } })).rejects.toThrow("Target model unavailable");
-    const routine = routines.create({ botId: "bot-a", name: "Owned cloud", prompt: "Work",
-      runOn: "cloud", enabled: false, schedule: { type: "daily", time: "10:00", weekdays: [1] } });
-    await service.propose({ botId: "bot-a", threadId: "thread-a", proposal: { action: "run_now", routineId: routine.id } });
-    expect(checked).toEqual(["bot-a", "bot-b", "bot-a"]);
-  });
-
-  it("checks effective cloud destinations while allowing safe moves away and non-running actions", async () => {
-    let checks = 0;
-    const { service, routines, store } = harness(undefined, async () => {
-      checks += 1;
-      return { ready: false, reason: "Cloud is offline" };
-    });
-    const routine = routines.create({
-      botId: "bot-a",
-      name: "Cloud routine",
-      prompt: "Use the cloud computer",
-      runOn: "cloud",
-      enabled: false,
-      schedule: { type: "daily", time: "10:00", weekdays: [1] },
-    });
-
-    await expect(service.propose({
-      botId: "bot-a",
-      threadId: "thread-a",
-      proposal: { action: "update", routineId: routine.id, changes: { name: "Still cloud" } },
-    })).rejects.toThrow(/Cloud is offline/);
-    expect(checks).toBe(1);
-
-    await service.propose({
-      botId: "bot-a",
-      threadId: "thread-a",
-      proposal: { action: "update", routineId: routine.id, changes: { runOn: "maus" } },
-    });
-    await service.propose({
-      botId: "bot-a",
-      threadId: "thread-a",
-      proposal: { action: "pause", routineId: routine.id },
-    });
-    await service.propose({
-      botId: "bot-a",
-      threadId: "thread-a",
-      proposal: { action: "delete", routineId: routine.id },
-    });
-    expect(checks).toBe(1);
-    expect(store.messagesFor("thread-a")).toHaveLength(3);
-  });
-
-  it("does not persist a stale card when a routine changes during cloud readiness", async () => {
-    let mutateDuringCheck = () => {};
-    const { service, routines, store } = harness(undefined, async () => {
-      mutateDuringCheck();
-      return { ready: true };
-    });
-    const routine = routines.create({
-      botId: "bot-a",
-      name: "Cloud routine",
-      prompt: "Original instructions",
-      runOn: "cloud",
-      schedule: { type: "daily", time: "10:00", weekdays: [1] },
-    });
-    mutateDuringCheck = () => {
-      routines.update(routine.id, { prompt: "Changed while checking Cloud" });
-    };
-
-    await expect(service.propose({
-      botId: "bot-a",
-      threadId: "thread-a",
-      proposal: { action: "run_now", routineId: routine.id },
-    })).rejects.toThrow(/changed after this confirmation card/);
-    expect(store.messagesFor("thread-a")).toHaveLength(0);
-  });
-
-  it("revalidates conversation ownership after an asynchronous cloud check", async () => {
-    let finishCloudCheck!: (value: { ready: boolean }) => void;
-    const cloudCheck = new Promise<{ ready: boolean }>((resolve) => {
-      finishCloudCheck = resolve;
-    });
-    let ownsConversation = true;
-    const { service, store } = harness(
-      undefined,
-      () => cloudCheck,
-      () => ownsConversation
-        ? { ok: true }
-        : { ok: false, status: 403, error: "source conversation does not belong to sender" },
-    );
-
-    const proposal = service.propose({
-      botId: "bot-a",
-      threadId: "thread-a",
-      proposal: createProposal({ runOn: "cloud" }),
-    });
-    ownsConversation = false;
-    finishCloudCheck({ ready: true });
-
-    await expect(proposal).rejects.toMatchObject({ status: 403 });
-    expect(store.messagesFor("thread-a")).toHaveLength(0);
   });
 
   it("denies without changing the scheduler and claims duplicate answers", async () => {
@@ -1901,7 +1770,7 @@ describe("a bot's own routine changes", () => {
   const rule: DirectApplyCheck = (botId, threadId, targetBotId) => directApply({
     fullAccess: threadId === "full-thread", botId, targetBotId, blocked: threadId === "guest-thread",
   });
-  const own = () => harness(undefined, undefined, undefined, rule);
+  const own = () => harness(undefined, undefined, rule);
   const openCards = (store: { messagesFor(threadId: string): RoutineRequestMessage[] }, threadId: string) =>
     store.messagesFor(threadId).filter((message) => message.card && !message.card.answered && !message.card.dismissed);
   const undo = (service: RoutineRequestService, requestId: string, threadId = "ask-thread") =>
@@ -1960,7 +1829,7 @@ describe("a bot's own routine changes", () => {
   it("never asks the open-card budget, since no change leaves a card open", async () => {
     const canPersist = vi.fn((_botId: string, _threadId: string, opensCard: boolean) =>
       opensCard ? { ok: false as const, status: 429, error: "confirm or cancel an existing proposal first" } : { ok: true as const });
-    const { service, routines } = harness(undefined, undefined, canPersist, rule);
+    const { service, routines } = harness(undefined, canPersist, rule);
     for (let index = 0; index < 20; index += 1) {
       routines.create({ botId: "bot-a", name: `Routine ${index}`, prompt: `Task ${index}.`, schedule: { type: "daily", time: "09:00", weekdays: [1] } });
     }

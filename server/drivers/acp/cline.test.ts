@@ -61,7 +61,7 @@ describe("Cline ACP driver", () => {
     const { instance, recorder } = await create();
     vi.stubEnv("CLINE_API_KEY", "cline-fixture-key");
     vi.stubEnv("OMB_LICENSE_KEY", "operator-fixture-secret");
-    vi.stubEnv("BOX_TOKEN", "workspace-fixture-secret");
+    vi.stubEnv("OMB_FISH_AUDIO_API_KEY", "workspace-fixture-secret");
     const { turnId } = await instance.adapter.sendTurn({
       threadId: "cline-chat", text: "hello", model: "cline-default", approvalMode: "ask",
       integrations: { agents: { command: "fixture-mcp", args: ["agents"], env: { TOKEN: "turn-fixture-token" } } },
@@ -76,7 +76,7 @@ describe("Cline ACP driver", () => {
     expect(launch.argv).not.toContain("--provider");
     expect(launch.env.CLINE_API_KEY).toBe("cline-fixture-key");
     expect(launch.env.OMB_LICENSE_KEY).toBeUndefined();
-    expect(launch.env.BOX_TOKEN).toBeUndefined();
+    expect(launch.env.OMB_FISH_AUDIO_API_KEY).toBeUndefined();
     const session = JSON.parse(readFileSync(join(scratch, "launch.json.session.json"), "utf8"));
     expect(session.mcpServers).toEqual(expect.arrayContaining([expect.objectContaining({ name: "agents" })]));
   });

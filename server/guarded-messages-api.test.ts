@@ -122,7 +122,7 @@ describe("guarded external messages through an isolated runtime", () => {
     const after = await page(bot.activeTaskId);
     expect(after.messages.filter(message => message.sendId === input.sendId)).toHaveLength(1);
     expect(after.messages.some(message => message.turnTerminal && message.role === "bot")).toBe(true);
-    expect((await api("PATCH", `/api/bots/${bot.id}/tasks/${bot.activeTaskId}`, { approvalMode: "auto" })).status).toBe(200);
+    expect((await api("PATCH", `/api/bots/${bot.id}/tasks/${bot.activeTaskId}`, { approvalMode: "auto", acknowledgeLocalAuto: true })).status).toBe(200);
     const settledRetry = await guarded(bot, input);
     expect(settledRetry.status).toBe(202); expect(settledRetry.body.message.id).toBe(retry.body.message.id);
     expect((await guarded(bot, { ...input, text: "DIFFERENT_BODY_SAME_ID" })).status).toBe(409);
@@ -138,7 +138,7 @@ describe("guarded external messages through an isolated runtime", () => {
     expect(baseline.activeLeafId).not.toBeNull();
     const stale = await guarded(bot, payload(bot, "STALE_BRANCH_MUST_NOT_RUN"));
     expect(stale.status).toBe(409); expect(stale.body.code).toBe("guarded_branch");
-    expect((await api("PATCH", `/api/bots/${bot.id}/tasks/${bot.activeTaskId}`, { approvalMode: "auto" })).status).toBe(200);
+    expect((await api("PATCH", `/api/bots/${bot.id}/tasks/${bot.activeTaskId}`, { approvalMode: "auto", acknowledgeLocalAuto: true })).status).toBe(200);
     const unsafe = await guarded(bot, payload(bot, "AUTO_MUST_NOT_RUN", baseline.activeLeafId));
     expect(unsafe.status).toBe(409); expect(unsafe.body.code).toBe("guarded_permissions");
     expect((await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "ask", alwaysAllow: ["Bash:fixture"] })).status).toBe(200);

@@ -7,7 +7,7 @@ import {
 
 type Instances = ReadonlyArray<{ instanceId: string; driverKind: string }>;
 
-const CHECKED_BEFORE_SAVE = new Set<string>(["boat", "composio", "elevenlabs", "fish_audio"]);
+const CHECKED_BEFORE_SAVE = new Set<string>(["composio", "elevenlabs", "fish_audio"]);
 
 /** The server saves these keys only after their provider accepted them; every other key is unverified until tested. */
 export function savedKeyResult(provider: KeyProvider | "other"): KeyResult {

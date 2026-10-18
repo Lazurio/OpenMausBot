@@ -19,10 +19,7 @@ export interface AutoVmClaimSlot {
   /** Dispatch mounted the computer tools without claiming, so the gate fires the claim on the first screen call. */
   lazy?: boolean;
   label?: string;
-  localVm?: boolean;
   pendingReason?: string;
-  boxId?: string;
-  startsComputer?: true;
   /** Called once after the slot is marked failed; the fail-closed refusal does not depend on it firing. */
   onRejected?: (failure: string, error?: unknown) => void;
 }

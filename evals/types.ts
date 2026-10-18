@@ -119,7 +119,7 @@ export const scenarioSchema = z.object({
   /** One sentence stating the behavior this scenario pins. */
   behavior: z.string(),
   issue: z.number().optional(),
-  world: z.enum(["coordination", "localVm"]),
+  world: z.enum(["coordination"]),
   /** Gate keys the scenario uses; the runner materializes each as a file. */
   gates: z.array(z.string()).default([]),
   /** Library skills the runner installs before any turn (approved, as a

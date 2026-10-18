@@ -1,15 +1,13 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 
 import { launchVerificationServer, runControlOmb, verificationServerArgs, verificationServerEnvironment } from "../scripts/control-omb.ts";
-import { createControlClient } from "./control-client.ts";
-import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
-import { freePortBlock } from "./testing/ports.ts";
+import { waitForExit } from "./testing/cleanup.ts";
 import { hostTimeout } from "./testing/host-timeout.ts";
 import { ownTurnText } from "./testing/room-handoff-agent.ts";
 
@@ -17,7 +15,6 @@ const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const RERUN_NOTE = "OpenMausBot restarted while your previous turn here was running";
 const RERUN_CHIP = "Resuming after a restart";
 const SECRET_PROVIDED = "OpenMausBot credential update: the user securely provided";
-const SEAT_FREE = "the computer this conversation waited for is free again";
 const INTERRUPTED_OUTWARD = "Interrupted by an OpenMausBot restart after it already";
 const SETTLED = "Your downstream room requests have settled.";
 const GOAL_RUN_ENDED = "The goal run this step belonged to ended with the restart.";
@@ -281,148 +278,6 @@ it("R4 Stop in the room cancels the parked root and stops the card; providing af
   expect((await f.roomView(room.id))).toMatchObject({ working: false, busyBotId: null });
   expect((await f.bots()).find((candidate: any) => candidate.id === f.clive.id).busy).toBe(false);
 }), hostTimeout(60_000));
-
-// The host desktop fallback exists on macOS and Windows only.
-const itHost = process.platform === "linux" ? it.skip : it;
-itHost("R5 queues a member's root on the computer seat at the wait ceiling, FIFO with a direct root, and continues it when the seat frees", async () => {
-  const CEILING_MS = 1_500;
-  const home = mkdtempSync(join(tmpdir(), "omb-room-roots-seat-"));
-  const data = join(home, "data");
-  const ui = join(home, "static");
-  const stateFile = join(home, "vm.json");
-  const dumpFile = join(home, "dump.json");
-  const finishFile = join(home, "finish");
-  let output = "";
-  let child: ChildProcess | null = null;
-  const port = await freePortBlock([0, 1]);
-  const base = `http://127.0.0.1:${port}`;
-  const api = async (method: string, path: string, body?: unknown) => {
-    const response = await fetch(base + path, { method, headers: { "content-type": "application/json", origin: base }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-    return { status: response.status, body: await response.json() as any };
-  };
-  const apiOk = async (method: string, path: string, body?: unknown) => {
-    const result = await api(method, path, body);
-    expect(result.status, `${method} ${path}: ${JSON.stringify(result.body)}`).toBeLessThan(400);
-    return result.body;
-  };
-  const until = async <T>(read: () => T | Promise<T>, accept: (value: T) => boolean, ms = 30_000): Promise<T> => {
-    const end = Date.now() + ms;
-    for (;;) {
-      const value = await read();
-      if (accept(value)) return value;
-      if (Date.now() >= end) throw new Error(`Fixture wait expired: ${JSON.stringify(value)}\n${output.slice(-12_000)}`);
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-  };
-  const dumpFor = (botId: string): Promise<any> => until((): any => {
-    if (!existsSync(dumpFile)) return null;
-    try { const sent = JSON.parse(readFileSync(dumpFile, "utf8")); return sent.mcpConfig?.mcpServers?.computer?.env?.OMB_CONTROL_URL?.includes(botId) ? sent : null; } catch { return null; }
-  }, Boolean);
-  const gate = (sent: any) => createControlClient({ url: sent.mcpConfig.mcpServers.computer.env.OMB_CONTROL_URL, token: sent.mcpConfig.mcpServers.computer.env.OMB_CONTROL_TOKEN }).state(true);
-  const taskOf = (botId: string, threadId: string) => api("GET", "/api/bots?messages=0").then(({ body }) =>
-    body.bots.find((bot: any) => bot.id === botId)?.tasks.find((task: any) => task.threadId === threadId));
-  const botOf = (botId: string) => api("GET", "/api/bots?messages=0").then(({ body }) => body.bots.find((bot: any) => bot.id === botId));
-  const roomOf = (groupId: string) => api("GET", "/api/bots?messages=0").then(({ body }) => body.groups.find((group: any) => group.id === groupId));
-  const rootIn = (threadId: string) => readRuntimeDb(data).assignments.find((row) => !row.parentId && row.assignee?.destination?.threadId === threadId);
-  const eventsOf = (id: string) => readRuntimeDb(data).events.filter((event) => event.assignmentId === id).map((event) => event.kind);
-  const chat = async (threadId: string) => (await api("GET", `/api/threads/${threadId}/messages?limit=100`)).body.messages as any[];
-  try {
-    writeFileSync(stateFile, JSON.stringify({ noContainers: true }));
-    mkdirSync(data);
-    mkdirSync(join(ui, "assets"), { recursive: true });
-    writeFileSync(join(ui, "index.html"), "<title>Room roots</title>");
-    writeFileSync(join(ui, "assets", "test.css"), "body{}");
-    mkdirSync(join(home, "user-data"), { recursive: true });
-    writeFileSync(join(home, "user-data", "cua-connection.json"), JSON.stringify({
-      mode: "embedded", status: "ready", socketPath: join(home, "cua.sock"), mcpCommand: "/fixture/cua-driver", mcpArgs: ["mcp"], mcpEnv: {},
-    }), { mode: 0o600 });
-    writeFileSync(join(data, "config.json"), JSON.stringify({ instances: { claude: {
-      driver: "claudeAgent", config: { cli: join(ROOT, "server/testing/fake-claude-cli.ts") },
-      environment: { FAKE_CLAUDE_MODE: "slow", FAKE_CLAUDE_DUMP: dumpFile, FAKE_CLAUDE_SLOW_FINISH_GATE: finishFile },
-    } } }));
-    const proc = spawn(process.execPath, ["--import", pathToFileURL(join(ROOT, "server/testing/group-local-vm-hooks.mjs")).href, join(ROOT, "server/index.ts")], {
-      cwd: ROOT, env: {
-        PATH: dirname(process.execPath), ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
-        HOME: home, USERPROFILE: home, OMB_DATA_DIR: data, APPDATA: join(home, "appdata"), LOCALAPPDATA: join(home, "localappdata"),
-        TEMP: home, TMP: home, TMPDIR: home, OMB_PORT: String(port), OMB_WEBHOOK_PORT: String(port + 1), OMB_STATIC_DIR: ui, OMB_TEST_VM_STATE: stateFile,
-        OMB_USER_DATA: join(home, "user-data"), OMB_COMPUTER_CALL_WAIT_MS: "4000", OMB_COMPUTER_CALL_ACT_WITHIN_MS: "1000",
-        OMB_COMPUTER_WAIT_MAX_MS: String(CEILING_MS),
-      }, stdio: ["ignore", "pipe", "pipe"],
-    });
-    child = proc;
-    proc.stdout!.on("data", (chunk) => { output += chunk; });
-    proc.stderr!.on("data", (chunk) => { output += chunk; });
-    await until(async () => {
-      if (proc.exitCode !== null) throw new Error(`server exited during boot:\n${output}`);
-      try { return (await fetch(base + "/api/health")).ok; } catch { return false; }
-    }, Boolean);
-
-    const { bot: holder } = await apiOk("POST", "/api/bots", { name: "Seat Holder" });
-    const { task: held } = await apiOk("POST", `/api/bots/${holder.id}/tasks`, {});
-    await apiOk("POST", `/api/bots/${holder.id}/messages`, { text: "Hold the screen slowly.", threadId: held.threadId });
-    await until(() => taskOf(holder.id, held.threadId), (task) => task?.busy === true);
-    expect(await gate(await dumpFor(holder.id))).toEqual({ held: false, helpOpen: false });
-    const { bot: waiter } = await apiOk("POST", "/api/bots", { name: "Seat Waiter" });
-    const { task: wait } = await apiOk("POST", `/api/bots/${waiter.id}/tasks`, {});
-    await apiOk("POST", `/api/bots/${waiter.id}/messages`, { text: "R5-DIRECT: use the screen too.", threadId: wait.threadId });
-    await until(() => taskOf(waiter.id, wait.threadId), (task) => task?.busy === true);
-    expect((await gate(await dumpFor(waiter.id))).held).toBe(true);
-    const direct = (await until(() => rootIn(wait.threadId), (row) => row?.status === "queued"))!;
-    expect(direct).toMatchObject({ status: "queued", continuation: { note: expect.stringContaining(SEAT_FREE), count: 1 } });
-    rmSync(dumpFile, { force: true });
-    const { bot: member } = await apiOk("POST", "/api/bots", { name: "Seat Member" });
-    // A room turn reaches a desktop only through the member's own setting (no Auto fallback in a room).
-    await apiOk("PATCH", `/api/bots/${member.id}`, { computer: "local" });
-    const { group: room } = await apiOk("POST", "/api/groups", { name: "Screen room", memberIds: [member.id], setup: { bulletin: "", defaultResponder: { kind: "member", botId: member.id } } });
-    await apiOk("POST", `/api/groups/${room.id}/messages`, { text: "R5-ROOM: use the screen in the room.", threadId: room.threadId });
-    await until(() => botOf(member.id), (bot) => bot?.busy === true);
-    const memberLaunch = await dumpFor(member.id).catch(async (error) => {
-      throw new Error(`${error instanceof Error ? error.message : String(error)}\nroom chat: ${JSON.stringify((await chat(room.threadId)).map((message) => [message.kind, message.from?.name, chipText(message)]))}`);
-    });
-    expect((await gate(memberLaunch)).held).toBe(true);
-    const root = (await until(() => rootIn(room.threadId), (row) => row?.status === "queued"))!;
-    expect(root).toMatchObject({ status: "queued", executions: 1, continuation: { note: expect.stringContaining(SEAT_FREE), count: 1 },
-      assignee: { botId: member.id, destination: { kind: "room_thread", groupId: room.id, threadId: room.threadId } } });
-    expect(eventsOf(root.id)).toContain("continued");
-    expect(root.createdAt).toBeGreaterThan(direct.createdAt);
-    await until(() => botOf(member.id), (bot) => bot?.busy === false);
-    const parkedChip = (await chat(room.threadId)).find((message) => chipText(message).includes("Parked — it continues automatically when the computer is free"));
-    expect(parkedChip, JSON.stringify((await chat(room.threadId)).map(chipText))).toBeDefined();
-    expect(chipText(parkedChip)).toContain("Seat Holder");
-    expect((await roomOf(room.id)).busyBotId).toBeNull();
-    await new Promise((resolve) => setTimeout(resolve, 1_500));
-    expect([rootIn(wait.threadId)!.status, rootIn(room.threadId)!.status]).toEqual(["queued", "queued"]);
-    for (const id of [direct.id, root.id]) expect(eventsOf(id).filter((kind) => ["settled", "cancelled", "budget", "refused"].includes(kind))).toEqual([]);
-    writeFileSync(finishFile, "finish");
-    await until(() => taskOf(holder.id, held.threadId), (task) => task?.busy === false);
-    const continuedDirect = await until(() => rootIn(wait.threadId), (row) => row?.status === "completed", 45_000);
-    expect(continuedDirect).toMatchObject({ status: "completed", outcome: "done", executions: 2 });
-    const continuedRoom = await until(() => rootIn(room.threadId), (row) => row?.status === "completed", 45_000);
-    expect(continuedRoom).toMatchObject({ id: root.id, status: "completed", outcome: "done", executions: 2 });
-    expect(eventsOf(root.id)).toEqual(expect.arrayContaining(["started", "continued", "started", "settled"]));
-    const events = readRuntimeDb(data).events;
-    const secondStart = (id: string) => events.findIndex((event, index) => event.assignmentId === id && event.kind === "started"
-      && events.slice(0, index).some((prior) => prior.assignmentId === id && prior.kind === "started"));
-    expect(secondStart(direct.id)).toBeGreaterThan(-1);
-    expect(secondStart(direct.id)).toBeLessThan(secondStart(root.id));
-    // Read from the transcript, not the fake's launch dump: the dump keeps only the latest launch, and the continuations launch in parallel.
-    const rows = await chat(room.threadId);
-    const replies = rows.filter((message) => message.role === "bot" && message.kind === "text" && message.from?.botId === member.id);
-    const shown = JSON.stringify(rows.map((message) => [message.kind, message.from?.name, message.turnId, chipText(message).slice(0, 80)]));
-    expect(new Set(replies.map((message) => message.turnId)).size, shown).toBe(2);
-    expect(replies.some((message) => String(message.text).includes(SEAT_FREE)), shown).toBe(true);
-    expect(rows.filter((message) => chipText(message).includes("Parked — it continues automatically")).length).toBe(1);
-    await until(() => roomOf(room.id), (group) => group?.working === false && group.busyBotId === null);
-    await until(() => botOf(member.id), (bot) => bot?.busy === false);
-  } finally {
-    if (child) {
-      writeFileSync(finishFile, "finish");
-      await waitForExit(child, { signal: "SIGTERM" });
-    }
-    rmSync(dumpFile, { force: true });
-    await removeTempDir(home);
-  }
-}, hostTimeout(120_000));
 
 it("R6 reruns a member's cut turn once after a restart, in place, with the restart note and the member's resuming chip", () => scenario(async (f) => {
   const room = await f.room("Engineering", [f.clive.id], { kind: "member", botId: f.clive.id });

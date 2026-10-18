@@ -76,8 +76,8 @@ describe("Full access in bot settings", () => {
     });
   });
 
-  it("still warns before Auto on this computer", () => {
-    render({ ...base, computer: "local" });
+  it("still warns before Auto, since every bot works on this computer", () => {
+    render(base);
     choose("Approve for me");
     expect(dispatch).not.toHaveBeenCalled();
     expect(dialogs()).toBe(1);

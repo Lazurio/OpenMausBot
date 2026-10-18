@@ -13,7 +13,6 @@ import {
 
 const MAPPINGS: Array<[CredentialTargetId, CredentialConfig]> = [
   ["xaiApiKey", { xai: { key: "secret" } }],
-  ["boxToken", { box: { token: "secret" } }],
   ["opencodeGoApiKey", { opencodeGo: { apiKey: "secret" } }],
   ["ttsKey", { tts: { key: "secret" } }],
   ["fishAudioKey", { tts: { fishKey: "secret" } }],
@@ -24,6 +23,7 @@ describe("credential request allowlist", () => {
   it("accepts only declared own ids", () => {
     expect(isCredentialTargetId("xaiApiKey")).toBe(true);
     expect(isCredentialTargetId("composioApiKey")).toBe(false);
+    expect(isCredentialTargetId("boxToken")).toBe(false);
     expect(isCredentialTargetId("__proto__")).toBe(false);
     expect(isCredentialTargetId({ toString: () => "xaiApiKey" })).toBe(false);
   });
@@ -42,7 +42,7 @@ describe("credential request allowlist", () => {
     expect(credentialIsConfigured({ tts: { key: "" } }, "ttsKey")).toBe(false);
     expect(credentialIsConfigured({ tts: { fishKey: "secret" } }, "fishAudioKey")).toBe(true);
     expect(credentialIsConfigured({ tts: { fishKey: "" } }, "fishAudioKey")).toBe(false);
-    expect(Object.keys(CREDENTIAL_TARGETS)).toHaveLength(6);
+    expect(Object.keys(CREDENTIAL_TARGETS)).toHaveLength(5);
   });
 
   // The key becomes OPENCODE_API_KEY, which only OpenCode Zen and Go read: the

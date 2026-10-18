@@ -182,37 +182,12 @@ describe("AccessSection always-allowed list", () => {
   });
 });
 
-describe("AccessSection Works on", () => {
-  type Node = ReactElement<{ children?: ReactNode; onClick?: () => void; [key: string]: unknown }>;
-  const nodes = (value: ReactNode): Node[] => {
-    if (!isValidElement(value)) return [];
-    const node = value as Node;
-    return [node, ...Children.toArray(node.props.children).flatMap(nodes)];
-  };
-
-  it("is one line and the way to the Computer panel, where the place is chosen", () => {
+describe("AccessSection without Works on", () => {
+  it("offers no choice of computer: every bot works on this one", () => {
     const markup = render(makeBot());
-    expect(markup).toContain("Where Scout works: Chooses for you");
-    expect(markup).toContain("Open Computer panel");
-    expect([...markup.matchAll(/>(Auto|Cloud|Local VM|This computer|Browser|Off)<\/button>/g)]).toEqual([]);
-    expect(render(makeBot({ computer: "off" }))).toContain("Where Scout works: No screen");
-
-    let tree!: ReturnType<typeof AccessSection>;
-    function Capture() { tree = AccessSection({ bot: makeBot(), derived: makeDerived() }); return tree; }
-    renderToStaticMarkup(createElement(StoreProvider, null, createElement(Capture)));
-    const open = nodes(tree).find((node) => node.type === "button" && renderToStaticMarkup(node).includes("Open Computer panel"))!;
-    open.props.onClick!();
-    expect(fixture.dispatch.mock.calls).toEqual([
-      [{ type: "toggleSettings", open: false }],
-      [{ type: "toggleComputer", open: true }],
-    ]);
-  });
-
-  it("hides the Boat or VPS choice on My Cloud, whose cloud computers are the plan's", () => {
-    expect(render(makeBot())).toContain("Cloud backend");
-    fixture.config = { cloudHome: true } as Partial<ConfigStatus>;
-    expect(render(makeBot())).not.toContain("Cloud backend");
-    expect(render(makeBot({ computer: "cloud" }))).not.toContain("Boat");
+    expect(markup).not.toContain("Where Scout works");
+    expect(markup).not.toContain("Cloud backend");
+    expect(markup).not.toContain("Open Computer panel");
   });
 });
 
@@ -281,12 +256,12 @@ describe("AccessSection parts", () => {
   it("renders only the cards a page asks for, and every card without parts", () => {
     fixture.servers = [{ name: "notes", enabled: true }];
     const full = render(makeBot());
-    for (const text of ["Where Scout works", "Working folder", "Connected apps", "Let this bot use notes", "Browser", "Webhooks", "Always allowed"]) {
+    for (const text of ["Working folder", "Connected apps", "Let this bot use notes", "Browser", "Webhooks", "Always allowed"]) {
       expect(full).toContain(text);
     }
     const mcp = renderToStaticMarkup(createElement(StoreProvider, null, createElement(AccessSection, { bot: makeBot(), derived: makeDerived(), parts: ["mcp"] })));
     expect(mcp).toContain("Let this bot use notes");
-    for (const text of ["Where Scout works", "Working folder", "Connected apps", "Webhooks", "Always allowed"]) expect(mcp).not.toContain(text);
+    for (const text of ["Working folder", "Connected apps", "Webhooks", "Always allowed"]) expect(mcp).not.toContain(text);
     const folder = renderToStaticMarkup(createElement(StoreProvider, null, createElement(AccessSection, { bot: makeBot(), derived: makeDerived(), parts: ["folder"] })));
     expect(folder).toContain("Working folder");
     expect(folder).not.toContain("Let this bot use notes");

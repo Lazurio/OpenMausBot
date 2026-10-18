@@ -61,18 +61,18 @@ const FULL = "skills+voice+escalations";
 
 /** Bytes when the budget was last set; a profile may move at most 2% either way (lower it to lock in a win). */
 const BUDGET_BASELINE: Record<string, number> = {
-  "default": 54535,
-  "voice": 55276,
-  "skills": 57738,
-  "skills+voice": 58479,
-  "non-chief": 44885,
-  "voice+non-chief": 45626,
-  "skills+non-chief": 48088,
-  "skills+voice+non-chief": 48829,
-  "skills+voice+cloud-home": 57074,
-  "skills+voice+non-chief+cloud-home": 47307,
-  "default+legacy-switches": 54535,
-  "skills+voice+escalations": 58879,
+  "default": 51310,
+  "voice": 52051,
+  "skills": 54129,
+  "skills+voice": 54870,
+  "non-chief": 41637,
+  "voice+non-chief": 42378,
+  "skills+non-chief": 44456,
+  "skills+voice+non-chief": 45197,
+  "skills+voice+cloud-home": 54870,
+  "skills+voice+non-chief+cloud-home": 45197,
+  "default+legacy-switches": 51310,
+  "skills+voice+escalations": 55730,
 };
 
 const RPC_PREFIX = '{"jsonrpc":"2.0","id":1,"result":';
@@ -203,20 +203,12 @@ describe("agents proxy tools/list golden", () => {
     expect(profile).not.toHaveProperty("ownThreadCreation");
   });
 
-  it("shows a Cloud home's bots no Local VM and no this computer, and every other server both", () => {
-    type SelectTool = Tool & { inputSchema: { properties: { surface: { enum: string[]; description: string } } } };
-    const select = (wire: string) => toolsOf(wire).find((tool) => tool.name === "select_computer") as SelectTool;
+  it("shows a Cloud home's bots the same tools as every other server", () => {
     const cloudHome = Object.keys(PROFILES).filter((name) => name.endsWith("+cloud-home"));
     expect(cloudHome).toHaveLength(2);
     for (const name of cloudHome) {
       const desktop = wires[name.slice(0, -"+cloud-home".length)]!;
-      const names = toolsOf(wires[name]!).map((tool) => tool.name);
-      expect(names).toEqual(toolsOf(desktop).map((tool) => tool.name).filter((tool) => tool !== "vm_exec"));
-      expect(select(desktop).inputSchema.properties.surface.enum).toEqual(["auto", "cloud", "vm", "local", "browser"]);
-      expect(toolsOf(desktop).map((tool) => tool.name)).toContain("vm_exec");
-      const surface = select(wires[name]!).inputSchema.properties.surface;
-      expect(surface.enum).toEqual(["auto", "cloud", "browser"]);
-      expect(surface.description).not.toMatch(/\b(?:vm|local) =/);
+      expect(toolsOf(wires[name]!).map((tool) => tool.name)).toEqual(toolsOf(desktop).map((tool) => tool.name));
     }
   });
 

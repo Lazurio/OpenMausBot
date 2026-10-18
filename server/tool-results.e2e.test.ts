@@ -56,7 +56,7 @@ it("bounds a real roster, retrieves its tail, isolates owners and expires stoppe
     // A large real roster, not a fake HTTP response; no turns run on these profiles, so no model capacity is used.
     for (let i = 0; i < 70; i++) {
       expect((await api("/api/bots", { name: `Roster-${String(i).padStart(2, "0")} ${"n".repeat(80)}`,
-        title: "t".repeat(190), description: "d".repeat(150), computer: "off" })).status).toBe(201);
+        title: "t".repeat(190), description: "d".repeat(150) })).status).toBe(201);
     }
     const first = await held(bot);
     const result = await first.tool("list_bots");

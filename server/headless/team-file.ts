@@ -44,7 +44,8 @@ const botFields = {
   model: z.string().regex(/^[\w.-]+\/\S.*$/, "must be INSTANCE/MODEL, such as claude/claude-sonnet-5-5").optional(),
   effort: z.enum(["none", "low", "medium", "high", "xhigh", "max"]).optional(),
   approval: z.enum(["ask", "edits", "auto", "full"], { error: "must be ask, edits, auto or full (custom is set in the desktop app)" }).optional(),
-  computer: z.enum(["auto", "off", "browser", "local", "vm", "cloud"]).optional(),
+  // Lazurio overlay (DEV-6673 M3): bots work on this host; an older file's computer is read and ignored with a warning.
+  computer: z.unknown().optional(),
   cwd: z.string().min(1).optional(),
   browser: z.union([z.boolean(), z.object({ enabled: z.boolean(), profile: z.string().trim().min(1).max(100).optional() }).strict()]).optional(),
   tools: z.object({ allow: z.array(z.string()).optional(), deny: z.array(z.string()).optional() }).strict().optional(),
@@ -226,7 +227,7 @@ export function checkTeamFile(input: TeamFileInput, file: string, dir: string): 
       return [{ name: parsed.name, description: parsed.description, text: body, enabled: skill.enabled !== false, file: skill.file }];
     });
     if (new Set(skills.map((skill) => skill.name)).size !== skills.length) throw usageError(`${where}: two skills share a name`);
-    if (bot.computer === undefined) warnings.push(`${where} has no computer set: on auto it may ask which computer to use, and nobody answers a headless run`);
+    if (bot.computer !== undefined) warnings.push(`${where}: computer is ignored; bots work on this computer`);
     const slash = bot.model?.indexOf("/") ?? -1;
     const browser = bot.browser === undefined ? undefined : typeof bot.browser === "boolean" ? { enabled: bot.browser } : bot.browser;
     return {
@@ -235,7 +236,7 @@ export function checkTeamFile(input: TeamFileInput, file: string, dir: string): 
       ...(bot.chief !== undefined ? { chief: bot.chief } : {}), manages: bot.manages ?? [], ...(soul !== undefined ? { soul } : {}),
       ...(bot.model ? { model: { instanceId: bot.model.slice(0, slash), model: bot.model.slice(slash + 1) } } : {}),
       ...(bot.effort ? { effort: bot.effort } : {}), ...(bot.approval ? { approval: bot.approval } : {}),
-      ...(bot.computer ? { computer: bot.computer } : {}), ...(cwd ? { cwd } : {}), ...(browser ? { browser } : {}),
+      ...(cwd ? { cwd } : {}), ...(browser ? { browser } : {}),
       ...(tools !== undefined ? { tools } : {}), skills,
     };
   });

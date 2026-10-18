@@ -398,14 +398,8 @@ built-in browser and cloud computers. It never offers **This computer** (that
 would be the server itself) or a **Local VM** (a Fly machine has no container
 runtime). The person's own computer cannot be reached from the Cloud.
 
-- Neither place is listed in the Computer panel, the composer's place chip, a
-  bot's Works on setting or Settings → Computers (the config answers
-  `"cloudHome": true`), nor in `select_computer`, which also drops `vm_exec`.
-  Auto never lands on either.
-- A bot still set to either (an older or imported setting) has each task
-  refused with a sentence saying so, suggesting Auto, Cloud or Browser.
 - Every turn's system prompt says the bot runs in the cloud. Asked about the
-  person's own computer, a bot says it cannot reach it. It offers the browser and cloud computers, never a
+  person's own computer, a bot says it cannot reach it. It offers the browser, never a
   place that cannot exist.
 - The built-in browser is on unless the person switches it off in Settings.
   The desktop turns it on in its first-run welcome, which a Cloud home skips.
@@ -731,9 +725,9 @@ computers belong to this machine on every request.
   that key's cloud computers are deleted: removing a Boat key that still has
   computers is refused). The choice is made on every request.
 - **Each credential goes to one place.** The relays know only the Admin's
-  accounts, so an own key goes only to the provider (`OMB_BOAT_API`,
-  `OMB_ELEVENLABS_API` or `decider.baseUrl` when set, for development and
-  tests, else Boat's, ElevenLabs' and Jev's own APIs) and an included token
+  accounts, so an own key goes only to the provider (`OMB_ELEVENLABS_API`
+  or `decider.baseUrl` when set, for development and tests, else ElevenLabs'
+  and Jev's own APIs) and an included token
   only to its relay, whatever those settings say.
 - **The decision relay takes two requests, and the app sends it nothing
   else.** Through the included token the app sends only room routing's

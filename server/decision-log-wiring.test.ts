@@ -147,7 +147,7 @@ posixOnly("authorization decisions are logged", () => {
   it(
     "an Auto bot's card is logged as the provider's own request",
     async () => {
-      const bot = await makePermissionBot({ name: "Granted", autoApprove: true });
+      const bot = await makePermissionBot({ name: "Granted", autoApprove: true, acknowledgeLocalAuto: true });
       expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "run it" })).status).toBe(202);
 
       const card = await waitForBotCard(bot.id);
@@ -250,7 +250,7 @@ posixOnly("authorization decisions are logged", () => {
   it(
     "a webhook turn's card is logged as unattended, in the bot's own mode",
     async () => {
-      const bot = await makePermissionBot({ name: "Nightshift", autoApprove: true });
+      const bot = await makePermissionBot({ name: "Nightshift", autoApprove: true, acknowledgeLocalAuto: true });
 
       const hook = await api("POST", "/api/webhooks", {
         name: "Nightly build",

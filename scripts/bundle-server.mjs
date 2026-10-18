@@ -39,8 +39,6 @@ const ENTRY_POINTS = [
   "local-computer-proxy.ts",
   // the hook helper Claude Code runs at PostToolUse/PreCompact/SessionStart/Stop
   "hooks/omb-hook.ts",
-  "container-mcp.ts",
-  "vps-container-mcp.ts",
   "permission-proxy.ts",
   "connector-proxy.ts",
   "mcp-gate.ts",
