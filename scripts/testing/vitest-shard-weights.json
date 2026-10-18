@@ -3,7 +3,6 @@
     "companion/test/mdns.test.ts": 5,
     "companion/test/proxy.test.ts": 6,
     "electron/cua-launch.test.mjs": 9,
-    "enterprise/server/workspace-access.test.ts": 5,
     "evals/evals.test.ts": 71,
     "evals/runners/run-skill-bench.test.ts": 18,
     "scripts/mascot-bodies/halloween.test.mjs": 7,
