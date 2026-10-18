@@ -129,8 +129,18 @@ jobs:
             echo "enterprise/ must not be in the Lazurio distribution" >&2
             exit 1
           fi
+          # Upstream features Lazurio removes from the code (issue #35): each
+          # file deleted as a whole is listed in a manifest in lazurio/removals/,
+          # existed upstream and is gone here; nothing else may be deleted.
+          removed_by_lazurio="$(jq -r '.files[]' lazurio/removals/*.json)"
+          for file in $removed_by_lazurio; do
+            if [ -e "$file" ] || [ -z "$(git ls-tree --name-only "$UPSTREAM_SHA" -- "$file")" ]; then
+              echo "lazurio/removals lists $file, which must exist upstream and be deleted here" >&2
+              exit 1
+            fi
+          done
           unexpected="$(git diff --name-only --diff-filter=MDRT "$UPSTREAM_SHA..HEAD" |
-            grep -vxF -f <(printf '%s\n' "${allowed_upstream_changes[@]}" $removed_upstream_enterprise) || true)"
+            grep -vxF -f <(printf '%s\n' "${allowed_upstream_changes[@]}" $removed_upstream_enterprise $removed_by_lazurio) || true)"
           if [ -n "$unexpected" ]; then
             echo "Fork overlay changed upstream files outside allowed_upstream_changes:" >&2
             echo "$unexpected" >&2
@@ -169,7 +179,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Validate the Lazurio release contract and test selection
-        run: node --test scripts/lazurio-release-contract.node-test.mjs scripts/lazurio-ci-scope.node-test.mjs
+        run: node --test scripts/lazurio-release-contract.node-test.mjs scripts/lazurio-ci-scope.node-test.mjs scripts/lazurio-removals.node-test.mjs
 
       - name: Typecheck
         run: pnpm typecheck
