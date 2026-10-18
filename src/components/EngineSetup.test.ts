@@ -183,27 +183,24 @@ describe("server device-code sign-in", () => {
     expect(markup).not.toContain("codex login");
   });
 
-  it("uses the supported browser sign-in flow instead of asking a remote user to run a command", () => {
+  it("points Codex to its own sign-in on this computer, with no in-app login", () => {
     vi.stubGlobal("window", { ogb: { platform: "linux" } });
     const engine: InstanceInfo = {
       ...instance({ state: "available", authenticated: false }),
       instanceId: "codex",
       driverKind: "codexAgent",
       displayName: "Codex",
-      authentication: { method: "device-code" },
       install: { signInCommand: "codex login" },
     };
     const markup = renderToStaticMarkup(createElement(StoreProvider, null, createElement(EngineSetup, { instance: engine })));
-    expect(markup).toContain("Connect ChatGPT");
-    expect(markup).toContain("no terminal or password sharing");
-    expect(markup).not.toContain("codex login");
+    expect(markup).toContain("codex login");
+    expect(markup).not.toContain("Connect ChatGPT");
   });
 
   it("does not ask to sign in when installing a CLI for local-model injection", () => {
     vi.stubGlobal("window", { ogb: { platform: "linux" } });
     const engine: InstanceInfo = {
       ...instance({ state: "available", authenticated: false }),
-      authentication: { method: "device-code" },
       install: { command: { linux: "npm install -g @openai/codex" }, signInCommand: "codex login" },
     };
     const markup = renderToStaticMarkup(createElement(StoreProvider, null, createElement(EngineSetup, { instance: engine, intent: "inject" })));

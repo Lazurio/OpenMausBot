@@ -14,7 +14,6 @@ import { brokerSocketPath, describeSpawnFailure, execCli, killCliTree, spawnCli 
 import { claudeAuthStatus } from "./claude-auth-status.ts";
 import { claudeModelExtras } from "./claude-model-extras.ts";
 import { classifyResumeFailure, mayReplay, rebuiltSessionNotice, recoveryPromptFor } from "../resume-recovery.ts";
-import { ClaudeLoginController } from "./claude-login-auth.ts";
 
 import type {
   DriverCreateInput,
@@ -1963,7 +1962,6 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
       return "steered";
     };
 
-    const login = new ClaudeLoginController({ cli: config.cli, environment, onAuthenticated: async () => { await refreshModels(); } });
     let lastAuth: Awaited<ReturnType<typeof claudeAuthStatus>> = {};
 
     const snapshot = async (): Promise<ProviderSnapshot> => {
@@ -2079,12 +2077,8 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
       },
       refreshModels,
       ...(startupModelRefresh ? { startupModelRefresh } : {}),
+      // Lazurio overlay (DEV-6673 M3): no in-app Claude login or sign-out; Claude reads the machine's own login.
       snapshot,
-      startAuthentication: () => login.start(),
-      getAuthentication: (flowId) => login.get(flowId),
-      completeAuthentication: (flowId, code) => login.complete(flowId, code),
-      cancelAuthentication: () => login.cancel(),
-      signOut: () => login.signOut(),
       adapter: {
         provider: DRIVER_KIND,
         capabilities: {
@@ -2155,13 +2149,9 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
       generateText: (prompt, options) => generateReview(prompt, options?.signal, options?.onUsage, options?.timeoutMs, options?.model),
       reviewPermission: generateReview,
       dispose: async () => {
-        try {
-          await login.dispose();
-        } finally {
-          for (const { stop } of active.values()) stop();
-          for (const threadId of Array.from(sessions.keys())) closeSession(threadId, "dispose");
-          listeners.clear();
-        }
+        for (const { stop } of active.values()) stop();
+        for (const threadId of Array.from(sessions.keys())) closeSession(threadId, "dispose");
+        listeners.clear();
       },
     };
   },

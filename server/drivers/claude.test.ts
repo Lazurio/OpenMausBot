@@ -243,8 +243,9 @@ describe("ClaudeDriver.decodeConfig", () => {
         },
       }),
     ).rejects.toThrow(/interactive approval broker/);
-    expect(bypass.startAuthentication).toBeTypeOf("function");
-    expect(bypass.signOut).toBeTypeOf("function");
+    // Lazurio overlay (DEV-6673 M3): Claude signs in on the machine itself, never from here.
+    expect(bypass.startAuthentication).toBeUndefined();
+    expect(bypass.signOut).toBeUndefined();
     await bypass.dispose();
   });
 
@@ -259,43 +260,6 @@ describe("ClaudeDriver.decodeConfig", () => {
     const childPath = permissionSocketPath(sharedThreadId, "bot-cliff");
     expect(parentPath).not.toBe(childPath);
   });
-
-  it("disposes its account controller while a logout is running", async () => {
-    const home = mkdtempSync(join(tmpdir(), "omb-claude-logout-dispose-"));
-    const cli = join(home, "fake-logout.mjs");
-    const pidPath = join(home, "logout-pid");
-    writeFileSync(cli, [
-      "#!/usr/bin/env node",
-      'import { writeFileSync } from "node:fs";',
-      'import { join } from "node:path";',
-      'if (process.argv.slice(2).join(" ") !== "auth logout") process.exit(2);',
-      'writeFileSync(join(process.env.HOME, "logout-pid"), String(process.pid));',
-      'setInterval(() => {}, 1000);',
-    ].join("\n"), { mode: 0o700 });
-    const instance = await ClaudeDriver.create({
-      instanceId: "claude-logout-dispose", displayName: "Fixture", enabled: true,
-      config: { cli, permissionMode: "acceptEdits" },
-      environment: { HOME: home, USERPROFILE: home, CLAUDE_CONFIG_DIR: join(home, ".claude") },
-    });
-    const pending = instance.signOut!().catch(() => {});
-    let pid: number | undefined;
-    const alive = (value: number) => { try { process.kill(value, 0); return true; } catch { return false; } };
-    try {
-      await expect.poll(() => existsSync(pidPath), { timeout: 2500 }).toBe(true);
-      pid = Number(readFileSync(pidPath, "utf8"));
-      await instance.dispose();
-      expect(alive(pid)).toBe(false);
-      await expect(instance.signOut!()).rejects.toThrow("provider was removed");
-    } finally {
-      if (pid !== undefined && alive(pid)) {
-        if (process.platform === "win32") process.kill(pid, "SIGKILL");
-        else process.kill(-pid, "SIGKILL");
-      }
-      await pending;
-      await instance.dispose();
-      await removeTempDir(home);
-    }
-  }, 60_000);
 
   it("keeps the deterministic path as the first broker candidate", () => {
     const candidates = brokerSocketCandidates("t-candidates");
