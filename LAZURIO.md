@@ -108,7 +108,7 @@ The slot is two upstream files, each its own line in
 - `index.html`: `<script type="module" src="/.lazurio/shell.js" vite-ignore>`
   (Vite leaves the tag as it is and bundles nothing), `<lazurio-rail>` before
   `#root` and `<lazurio-buddy>` after it, and
-  `#root { box-sizing: border-box; padding-left: var(--lazurio-rail-width, 0px); }`
+  `body > #root { box-sizing: border-box; padding-left: calc(var(--lazurio-rail-width, 0px) + env(safe-area-inset-left, 0px)); }`
   (padding, not margin, so the app never overflows past the right edge; the
   rail positions itself), and the shell's colour roles on `:root`
   ([below](#colours-of-the-shell)).

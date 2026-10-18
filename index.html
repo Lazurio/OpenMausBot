@@ -14,7 +14,8 @@
     <title>OpenMausBot</title>
     <!-- Lazurio shell (LAZURIO.md "The Lazurio shell"): served by the Environment's Launchpad; absent outside Lazurio. -->
     <script type="module" src="/.lazurio/shell.js" vite-ignore></script>
-    <style>#root { box-sizing: border-box; padding-left: var(--lazurio-rail-width, 0px); }</style>
+    <!-- body > #root outranks upstream's #root safe-area padding in src/styles.css, which loads later (#37). -->
+    <style>body > #root { box-sizing: border-box; padding-left: calc(var(--lazurio-rail-width, 0px) + env(safe-area-inset-left, 0px)); }</style>
     <!-- The shell's colour roles, from the active skin's tokens (html[data-skin]), so the rail and the column head take the skin's colours; the rail is the sidebar's panel. Unused outside Lazurio. -->
     <style>
       :root {
