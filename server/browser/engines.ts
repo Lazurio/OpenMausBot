@@ -7,7 +7,6 @@ import { join } from "node:path";
 import type { BrowserLive } from "../browser-live.ts";
 import type { BrowserRuntime, BrowserSpawnSpec } from "../browser-runtime.ts";
 import type { StepContext } from "../browser-steps.ts";
-import type { FillLoginDeps } from "../login-fill.ts";
 import { acceptLanguageFor, LocalBackend } from "./backends.ts";
 import { sandboxDisabled } from "./chrome/host-setup.ts";
 import type { HostKind } from "./chrome/flags.ts";
@@ -166,12 +165,6 @@ export class ChromeEngine {
     const plan = this.launcher.plan();
     if (plan.kind === "legacy") return { kind: "unavailable", reason: `Chrome is needed for the new browser: ${plan.reason}` };
     return { kind: "engine", version: "omb-cdp", chrome: this.launcher.describe() };
-  }
-
-  /** fill_login's reads and typing on the new engine. */
-  loginDeps(session: string): Pick<FillLoginDeps, "engine" | "insertText" | "press" | "click"> | null {
-    const target = this.target(session);
-    return target ? this.service.loginDeps(target) : null;
   }
 }
 

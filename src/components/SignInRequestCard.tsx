@@ -1,18 +1,13 @@
 import { useState } from "react";
-import { Check, Hand, KeyRound, Loader2, LockKeyhole, LogIn, RefreshCw, X } from "lucide-react";
+import { Check, Hand, Loader2, LockKeyhole, LogIn, RefreshCw, X } from "lucide-react";
 
 import type { ComputerHelpRef } from "../../shared/wire";
 import { signInOutcome } from "../../shared/sign-in-request";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
-import { cardSaveTarget, saveLoginFromCard } from "@/lib/logins";
 import { answerSignIn, signInHostIsHere } from "@/lib/sign-in";
 import { useStore, type Message } from "@/state/store";
 import { ASK_CHIP, ASK_CHIP_IDLE, ASK_PRIMARY_BUTTON, ASK_QUIET_BUTTON, AskCard, AskSettledLine, returnFocusToComposer } from "./AskCard";
-import { LoginForm } from "./LoginForm";
-
-// Security: a saved login is encrypted on the server and filled by fill_login; neither the bot nor any screen ever gets
-// it back.
 
 const WHERE = {
   browser: "signIn.where.browser",
@@ -37,22 +32,11 @@ export function SignInRequestCard({
   const card = message.signIn!;
   const [pending, setPending] = useState<"done" | "cancel" | null>(null);
   const [explained, setExplained] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [target, setTarget] = useState<{ site: string; signInHost?: string } | null>(null);
-  const [alsoThere, setAlsoThere] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const error = localError ?? card.error;
   const outcome = signInOutcome(card);
   const ref = { botId, threadId, messageId: message.id, place: card.place };
   const here = signInHostIsHere();
-
-  // A sign-in page on another site is added only when the person ticks it, seeing its host named.
-  const startSaving = () => {
-    setSaving(true);
-    setAlsoThere(false);
-    setTarget(null);
-    cardSaveTarget(ref).then(setTarget, () => setTarget(null));
-  };
 
   const answer = async (choice: "done" | "cancel") => {
     if (pending) return;
@@ -94,9 +78,7 @@ export function SignInRequestCard({
         action={retry}
         detail={error && <p role="alert" className="ms-[19px] mt-1 text-[12px] text-danger">{error}</p>}
       >
-        <span className="text-ink-secondary">{card.savedLogin
-          ? t("signIn.settled.saved", { site: card.savedLogin })
-          : t(outcome === "done" ? "signIn.settled.done" : "signIn.settled.cancelled", { site: card.site })}</span>
+        <span className="text-ink-secondary">{t(outcome === "done" ? "signIn.settled.done" : "signIn.settled.cancelled", { site: card.site })}</span>
         <span> · {card.resumed ? t("signIn.settled.resumed", { name: botName }) : stopped ? t("chat.turnStopped") : error ? t("signIn.settled.failed") : t("signIn.settled.waiting")}</span>
       </AskSettledLine>
     );
@@ -107,16 +89,12 @@ export function SignInRequestCard({
     if (card.place === "local") setExplained(true);
     else dispatch({ type: "openSignIn", botId, messageId: message.id, url: card.url, site: card.site, place: card.place });
   };
-  // fill_login reaches only the built-in browser (and My Chrome); a desktop paired to another host relays no passwords.
-  const canSave = card.place === "browser" && window.ogb?.remoteClient?.active !== true;
-  let pageHost = card.site;
-  try { pageHost = new URL(card.url).hostname; } catch {}
   return (
     <AskCard
       ariaLabel={t("signIn.cardLabel", { name: botName, site: card.site })}
       icon={<LogIn size={15} />}
       title={t("signIn.title")}
-      footer={saving ? undefined : <>
+      footer={<>
         <button type="button" onClick={() => void answer("cancel")} disabled={pending !== null} className={cn(ASK_CHIP, ASK_CHIP_IDLE)}>
           {pending === "cancel" ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
           {t("signIn.cancel")}
@@ -125,12 +103,6 @@ export function SignInRequestCard({
           <LogIn size={14} />
           {t("signIn.open")}
         </button>
-        {canSave && (
-          <button type="button" onClick={startSaving} disabled={pending !== null} className={cn(ASK_CHIP, ASK_CHIP_IDLE)}>
-            <KeyRound size={14} />
-            {t("signIn.saveLogin")}
-          </button>
-        )}
         <button type="button" onClick={() => void answer("done")} disabled={pending !== null} className={ASK_PRIMARY_BUTTON}>
           {pending === "done" ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
           {t("signIn.done")}
@@ -143,32 +115,13 @@ export function SignInRequestCard({
           <bdi dir="auto">“{card.reason}”</bdi> <span className="text-ink-tertiary">— {botName}</span>
         </blockquote>
       )}
-      {saving ? (
-        <div className="mt-2.5" data-testid="sign-in-save">
-          <p className="mb-2 text-[12.5px] leading-snug text-ink-secondary">{t("signIn.save.note", { name: botName, site: target?.site ?? pageHost })}</p>
-          <LoginForm submitLabel={t("signIn.save.submit")} autoFocus onCancel={() => setSaving(false)}
-            onSubmit={async (fields) => {
-              await saveLoginFromCard({ botId, threadId, messageId: message.id }, fields, alsoThere ? target?.signInHost : undefined);
-              setSaving(false);
-              returnFocusToComposer();
-            }}>
-            {target?.signInHost && (
-              <label className="flex items-start gap-2 text-[12.5px] leading-snug text-ink" data-testid="sign-in-save-elsewhere">
-                <input type="checkbox" name="signInHost" className="mt-[2px]" checked={alsoThere} onChange={(event) => setAlsoThere(event.target.checked)} />
-                <span dir="auto">{t("signIn.save.elsewhere", { host: target.signInHost })}</span>
-              </label>
-            )}
-          </LoginForm>
-        </div>
-      ) : <p className="mt-2 text-[12.5px] leading-snug text-ink-secondary">{t(where, { name: botName })}</p>}
+      <p className="mt-2 text-[12.5px] leading-snug text-ink-secondary">{t(where, { name: botName })}</p>
       {explained && (
         <p role="note" className="mt-1.5 text-[12.5px] leading-snug text-ink">{t(here ? "signIn.local.explain" : "signIn.local.explainHost", { name: botName })}</p>
       )}
-      {!saving && (
-        <p className="mt-2 flex items-center gap-1 text-[11.5px] text-ink-tertiary">
-          <LockKeyhole size={11} aria-hidden="true" /> {t("signIn.private")}
-        </p>
-      )}
+      <p className="mt-2 flex items-center gap-1 text-[11.5px] text-ink-tertiary">
+        <LockKeyhole size={11} aria-hidden="true" /> {t("signIn.private")}
+      </p>
       {error && <p role="alert" className="mt-2 text-[12px] text-danger">{error}</p>}
     </AskCard>
   );

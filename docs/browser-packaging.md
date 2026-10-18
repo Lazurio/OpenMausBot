@@ -171,8 +171,8 @@ same rules hold on the desktop, a server and Cloud:
 - **Unused browsers close.** A browser nothing has used for
   `browserEngine.idleTimeoutMinutes` in `config.json` (1 to 60; 10 when
   unset) is closed: no bot call (a tool listing counts, and so do a call
-  waiting behind another, its page-health reads and recorded step, and
-  fill_login's typing; a preview frame only holds off a close while it is
+  waiting behind another, its page-health reads and recorded step; a
+  preview frame only holds off a close while it is
   taken), no turn that has used it and is still running, no person holding
   it, no open Browser panel.
   Saved sign-ins stay, and the bot's next browser call opens it again and is
