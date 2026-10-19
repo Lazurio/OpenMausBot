@@ -89,7 +89,14 @@ release offers it.
    - `OMB_DEFAULT_BOT_CWD` set to the Lazurio Folder of the Machine
      operator, so new bots start there (see Overlay).
    - `PATH` including `~/.local/bin`, so the server finds the signed-in
-     `codex` and `claude` CLIs of the same user, as T3 does.
+     `codex` and `claude` CLIs of the same user, as T3 does, and its bots
+     find `lazurio` and `agent-browser`.
+   - the user unit's own `XDG_RUNTIME_DIR` and `HOME`, where the bots'
+     strips (`$XDG_RUNTIME_DIR/lazurio-browser/holders/bot-<id>.json`) and
+     the Platform's CLI (`~/.local/bin/lazurio`) are. Never
+     `AGENT_BROWSER_CONFIG`, `AGENT_BROWSER_SOCKET_DIR` or
+     `AGENT_BROWSER_NAMESPACE`: the bots' sessions must meet the Platform's
+     hub and idle limit (contract C7).
    - optionally `OMB_ENVIRONMENT_LABEL` (`<Organization> / <machine>`).
    - optionally the GitHub intake (`OMB_GITHUB_INTAKE=1`,
      `OMB_GITHUB_INTAKE_BOT` and its scope settings), with `gh` signed in
@@ -127,6 +134,7 @@ release offers it.
 | `lazurio: a signed-out engine sends the person to the Environment settings` and the `lazurio: remove …` sign-in commits after it (DEV-6673) | Engines sign in only through the Environment's own CLI logins, connected in the Launchpad's Environment settings, as for T3 Code (Organization Admin, 2026-10-19). A signed-out engine's card links to Getting started of the current Environment's Launchpad (from the shell's document) and checks the login again; the ChatGPT plan and Antigravity engines and added Claude accounts, MausBot's last own sign-ins, are removed. See [`LAZURIO.md`](../../LAZURIO.md#engine-sign-in). Outside Lazurio the card is upstream's. Lazurio-only; never proposed upstream. |
 | `lazurio: a hosted server runs every bot at Full like any other` and the three commits after it (DEV-6673) | Every bot runs at Full by default and nothing gates it, as T3 Code runs `full-access` (root decision 0172 with its addendum of 2026-10-19): no hosted Ask default or operator flag for Full, the levels are T3 Code's four (Custom and the desktop grant are removed), no warning before Auto, and no approval before a bot contacts another. Saved values load and drop; writes naming them are refused. Manifest `lazurio/removals/e-full-access.json`; see [`LAZURIO.md`](../../LAZURIO.md#access-levels). Lazurio-only; never proposed upstream. |
 | `lazurio: every bot gets the Environment's tools; per-bot tool selection is removed` and the two commits after it (DEV-6673) | Access is shared, never split per bot (issue #47; root decision 0172 with its addendum of 2026-10-19): `toolScope`, Settings → Tools and every engine path that narrowed the tools offered to one bot are removed, so every bot gets the native and MCP tools the Environment provides. A bot's peers stay. Saved selections load and drop, a team file's `tools` is ignored with a warning, and writes naming `toolScope` are refused. Manifest `lazurio/removals/e-tool-scope.json`; see [`LAZURIO.md`](../../LAZURIO.md#what-the-overlay-removes). Lazurio-only; never proposed upstream. |
+| `lazurio: vendor the Environment browser contract …`, `lazurio: each bot's strip holds its own tabs …`, `lazurio: bots work in the Environment browser; remove MausBot's own browser …` and the `lazurio: remove …` browser commits after them (DEV-6673 M4a) | A Lazurio Environment has one browser, and a bot works in it like a T3 Code thread (root decision 0191 points 34 and 41–43): its own session `bot-<id>`, its own window from `lazurio browser window`, Lazurio's `agent-browser` from its shell. The server keeps each bot's strip (`holders/bot-<id>.json`) with the Platform's vendored contract module (`lazurio/browser-contract/`, below) and lets the tabs go when a bot is archived or deleted. MausBot's own browser (agent-browser daemons with their own Chrome, the `chrome` engine, My Chrome, profiles, saved sign-ins, the live view, egress, browser tools, the browser CLI and UI) is removed; `lazurio/removals/e-browser*.json`. See [`LAZURIO.md`](../../LAZURIO.md#the-environment-browser). Lazurio-only; never proposed upstream. |
 
 Drop a commit as soon as upstream offers an equivalent. Upstream files the
 overlay changes are listed in `allowed_upstream_changes` in
@@ -138,9 +146,27 @@ never committed.
 New bots start on Full access, upstream's default (#2808); the overlay keeps
 it on every server and removes upstream's gates before it
 ([`LAZURIO.md`](../../LAZURIO.md#access-levels)).
-Deliberately not in this overlay yet (DEV-6673 M2 and M4): pairing without a
-code, and removing MausBot's own browsers and live view in favour of the
-Environment browser ([principle 4](../../LAZURIO.md#how-lazurio-shapes-mausbot)).
+Deliberately not in this overlay yet (DEV-6673 M2 and task 212): pairing
+without a code, and MausBot's right panel that shows a bot's tabs through the
+Platform's view ([principle 4](../../LAZURIO.md#how-lazurio-shapes-mausbot)).
+
+### The Environment browser contract
+
+`lazurio/browser-contract/` is the Environment browser's contract module of
+one LazurioPlatform release (decision F50 there), vendored by digest:
+`node scripts/lazurio-vendor-browser-contract.mjs <tag>` downloads that
+release's shell artifact and attestation bundle, verifies the attestation
+against the Platform's release workflow at that tag and the repository's and
+owner's immutable ids, checks `artifact.json` and every digest, and writes the
+contract's files with their MIT `LICENSE`, the release's `NOTICE` and
+`provenance.json`. A bump is a reviewed pull request made by that command;
+nothing there is edited by hand. `scripts/lazurio-browser-contract.node-test.mjs`
+checks the bytes against `provenance.json` and runs every vector of the
+release on each CI run. `BROWSER_CONTRACT_RELEASE` in
+`server/lazurio-environment-browser.ts` names the same release (a test
+checks it). Bump it when a new Platform release changes the contract, and
+release MausBot only after that Platform release runs on every Environment
+with a browser (F50 point 7).
 
 ## When to release
 

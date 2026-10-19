@@ -109,11 +109,14 @@ builds them.
   Environment's tools (3); engine sign-in through the Launchpad (3); every
   bot at Full on every server, with T3 Code's four levels and no gate before
   Full, before Auto or before contacting another bot (2,
-  [Access levels](#access-levels)); the Folder as every bot's start (6).
-- **Not yet:** bots run their own `agent-browser` daemons with their own
-  headless Chrome, and MausBot shows its own live view in the "Computer"
-  panel (4). There is no Computer Use on the Environment desktop (5) and no
-  report to Chat (7).
+  [Access levels](#access-levels)); bots work in their own tabs of the
+  Environment browser, with their own session `bot-<id>` and strip, and
+  MausBot's own browser is removed (4,
+  [The Environment browser](#the-environment-browser)); the Folder as every
+  bot's start (6).
+- **Not yet:** MausBot's right panel does not show a bot's tabs through the
+  Platform's view yet, and the "Computer" panel still stands (4). There is no
+  Computer Use on the Environment desktop (5) and no report to Chat (7).
 
 Until a gap is closed the sections below describe the code as it is; plan
 DEV-6673 tracks each gap.
@@ -195,6 +198,65 @@ their own gates (the Steward team's rules, GitHub rights and branch rules).
 Narrower rights mean a separate Environment. What upstream had beyond this
 is removed ([below](#what-the-overlay-removes)), and
 `server/lazurio-full-access.e2e.test.ts` checks it on a real server.
+
+## The Environment browser
+
+**Decided on 2026-10-19 (the Organization Admin; root decision 0191 points
+34 and 41–43).** A Lazurio Environment has one browser: one Chromium with one
+persistent profile, DevTools on `127.0.0.1:9222`, whose sign-ins belong to
+the Environment and are shared by every T3 Code thread, agent and bot. A bot
+is to MausBot what a thread is to T3 Code: it has no browser, profile or
+computer of its own, and it opens its own tabs in the Environment browser.
+
+- **Its own session.** A bot's agent-browser session is `bot-<id>` (the
+  prefix the Platform reserves for MausBot; an id outside `[A-Za-z0-9_-]` or
+  too long is rewritten with a digest, as T3 Code names a thread's). The
+  Browser part of a bot's instructions names it and the Platform's commands:
+  `lazurio browser window --session bot-<id>` opens the bot's window and
+  prints the link a person opens to work in the same tab, `agent-browser
+  --cdp 9222 --session bot-<id> <command>` works in it from the bot's shell
+  (the CLI, not an MCP server or a tool of MausBot's own), and `lazurio
+  browser done --session bot-<id>` lets it go. `request_sign_in`'s "browser"
+  place is the Environment browser.
+- **The bot's strip.** The server keeps
+  `$XDG_RUNTIME_DIR/lazurio-browser/holders/bot-<id>.json`, the holder file
+  the Platform's hub reads: a tab enters it when the bot's session binds it,
+  which `lazurio browser window` does. The file is written atomically and
+  owner-only and reconciled with the hub's list of live tabs, by the
+  Platform's own code (below).
+- **Archive and delete.** Archiving or deleting a bot removes its holder
+  file and ends its agent-browser session (`lazurio browser done`), so its
+  daemon holds nothing. The hub ends a tab that nothing else holds and nobody
+  watches; a tab another strip or the Launchpad also holds is only released.
+  At start, the strips and sessions of bots that are no longer live go too.
+- **Nothing browser-like of MausBot's own.** MausBot starts no browser,
+  daemon, viewer, profile manager or egress proxy and sets no
+  `AGENT_BROWSER_CONFIG`, `AGENT_BROWSER_SOCKET_DIR` or
+  `AGENT_BROWSER_NAMESPACE`, so the Platform's idle limit applies to the
+  bots' daemons.
+- **Without an Environment browser** (outside Lazurio, or where `lazurio
+  browser link --json` declares none) bots have no browser. Their
+  instructions say so plainly and forbid starting one; upstream's engine is
+  not kept as a fallback.
+- **People** see a bot's tab and work in it with the bot through the
+  Platform's view `browser.<…>/t/<id>`, from the link the bot sends. MausBot's
+  right panel that shows the bot's strip through that view is the next step
+  (DEV-6673 task 212).
+
+The file rules come from the Platform's contract module, vendored by digest
+from a release into `lazurio/browser-contract/` with its MIT licence, the
+Platform's `NOTICE` and `provenance.json`
+([runbook](docs/operations/lazurio-fork-release.md#the-environment-browser-contract)).
+`server/lazurio-environment-browser.ts` is the strip, the session name and
+the instructions; `server/index.ts` starts it after the Store and adds the
+Browser part to each turn. `scripts/lazurio-browser-contract.node-test.mjs`
+runs the release's vectors against the vendored copy;
+`server/lazurio-environment-browser.test.ts` covers two bots with separate
+tabs, archive and delete, session names and the declaration against the
+real file layout; `server/lazurio-environment-browser.e2e.test.ts` does the
+same through the running server with a stand-in Platform CLI
+(`OMB_TEST_ENVIRONMENT_BROWSER=1` in `scripts/control-omb.ts`) and checks
+that the server starts no browser or agent-browser process.
 
 ## What the overlay adds
 
@@ -290,20 +352,33 @@ signed-in accounts, and integrations come from the Environment.
   shape, not access. A saved selection, in `bots.json`, the new-bot defaults
   or a team backup, loads and drops; a team file's `tools` is ignored with a
   warning; a write that names `toolScope` is refused with 400.
+- **Own browser** (DEV-6673 M4a): the agent-browser daemons with their own
+  headless Chrome and egress proxy, the `chrome` engine, My Chrome, browser
+  profiles and saved site sign-ins, the live view and its relay, browser step
+  evidence and uploads, the `agent_browser_*` tools and `restart_browser`,
+  the browser MCP mount in every engine, `openmausbot browser install`, the
+  browser settings and their UI (the Browser tab, profiles, logins,
+  Record browser steps), the scripts that built and tested the browser bundle,
+  and their documents. Bots work in the Environment browser
+  ([above](#the-environment-browser)). Upstream's UI tests still drive the web
+  app with agent-browser, from the test-only `scripts/testing/ui-agent-browser.ts`.
 - **Telemetry to upstream**: upstream's PostHog analytics and the welcome
   tour's name and e-mail form. `src/lib/analytics.ts` keeps upstream's
   function names as no-ops, so nothing is collected, stored or sent.
 
 A write that names a removed setting (`PUT /api/config` with `box`, `vps`,
-`localVm`, `composio`, `mcpServers`, `features.sharedComputers` or a removed
-new-bot default, `approvePeerComms`, `toolScope` and the Custom level included) is refused
-with 400 as a whole, never half-applied; a saved `config.json` that still has
-one loads and drops it. So is every bot and thread write (`POST`, `PUT` or
-`PATCH` under `/api/bots`) whose body names `acknowledgeLocalAuto`,
-`approvePeerComms`, `approvalGrant`, `toolScope` or the Custom level, at its top or in its
-`settings`: the route table reads such a body through
-`refusingRemovedBotSettings` (`server/lazurio-removed-config.ts`), which
-answers 400 before any route changes anything.
+`localVm`, `composio`, `mcpServers`, `features.sharedComputers`,
+`browserEngine`, `browserProfiles`, `features.browser` or a removed new-bot
+default, `approvePeerComms`, `toolScope` and the Custom level included) is
+refused with 400 as a whole, never half-applied; a saved `config.json` that
+still has one loads and drops it, and so does a `bots.json` with a bot's
+`browser`, `browserProfile` or `recordBrowserSteps`. Every bot and thread
+write (`POST`, `PUT` or `PATCH` under `/api/bots`) whose body names
+`acknowledgeLocalAuto`, `approvePeerComms`, `approvalGrant`, `toolScope` or
+the Custom level, at its top or in its `settings`, is refused with 400 too:
+the route table reads such a body through `refusingRemovedBotSettings`
+(`server/lazurio-removed-config.ts`), which answers 400 before any route
+changes anything.
 
 Each area has a manifest in [`lazurio/removals/`](lazurio/removals): the
 upstream files it deletes and changes (CI allows exactly those), the strings
