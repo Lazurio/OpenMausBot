@@ -117,6 +117,7 @@ release offers it.
 | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lazurio: ship the open-source edition, without enterprise/` | `enterprise/` is under the OpenMausBot Enterprise License, which forbids redistribution and hosting for third parties (issue #35). Removes the folder; `lazurio/vitest.config.mjs` skips the three upstream tests that read its source. Lazurio-only. |
 | `release: Lazurio distribution on upstream v0.1.115` | This runbook, `LAZURIO.md`, `scripts/lazurio-release-archive.sh`, the contract and CI-scope tests and the workflows `lazurio-fork-ci.yml`, `lazurio-archive.yml` and `lazurio-release.yml`. |
+| `lazurio: agents read how Lazurio shapes MausBot first` | The principles in [`LAZURIO.md`](../../LAZURIO.md#how-lazurio-shapes-mausbot) (one Environment is one computer, Full access for every bot, shared sign-ins, bots in their own tabs of the Environment browser) are what every Lazurio change here serves. A pointer at the top of upstream's `AGENTS.md` and a Lazurio `CLAUDE.md` that loads it, so Codex and Claude Code agents read them before upstream's notes. Lazurio-only; never proposed upstream. |
 | `server: OMB_DEFAULT_BOT_CWD on every path that creates a bot` | Bots in a Lazurio Environment start in the Lazurio Folder, read its `AGENTS.md` and work in its worktrees (decision 0169). Applies to every creation path, through the Store's `createBot` and `applyTeamSetup`; a request that names a folder, or explicitly none, decides for itself; an unusable value stops the server at start. Unset keeps upstream behaviour. Upstream-friendly; propose it upstream. |
 | `server: GitHub intake, model-free pull request triggers for a bot` | Lazurio Environments hand GitHub review and publication work to a bot team without a model polling (decision 0169). Off unless `OMB_GITHUB_INTAKE=1`. Lazurio-only files, `WebhookManager.deliver()` and a route module that `server/index.ts` builds, pushes into `ROUTES`, starts and stops; see [`docs/lazurio-github-intake.md`](../lazurio-github-intake.md). Upstream-friendly apart from the Lazurio publish marker. |
 | `lazurio: Steward team for the GitHub intake` | The team Lazurio Organizations run behind the intake: leader Henry (Chief of Staff, delegating through `coordinate_bots`) and three workers with exact-head review and explicit-publication rules, as a portable team file (`lazurio/teams/steward.openmaus.json`) the archive ships. Lazurio-only; never proposed upstream. |
@@ -132,11 +133,12 @@ change to any other upstream file. New Lazurio files need no entry. Versions
 are stamped only at build time by `scripts/lazurio-release-archive.sh` and
 never committed.
 
-Approval levels are upstream's: new bots start on Full access (upstream
-#2808), which any client may set, so the overlay adds nothing for it.
-Deliberately not in this overlay yet (DEV-6673 M2 and M4): pairing without a
-code, and removing MausBot's own browsers in favour of the Environment
-Browser.
+Deliberately not in this overlay yet (DEV-6673): pairing without a code;
+Full access for every bot without a choice per bot (upstream starts new bots
+on Full, upstream #2808, but a hosted server makes Ask the default and keeps
+five approval levels; [principle 2](../../LAZURIO.md#how-lazurio-shapes-mausbot));
+and removing MausBot's own browsers and live view in favour of the
+Environment browser ([principle 4](../../LAZURIO.md#how-lazurio-shapes-mausbot)).
 
 ## When to release
 
