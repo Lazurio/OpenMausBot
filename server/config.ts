@@ -7,6 +7,7 @@ import { z } from "zod";
 import { normalizeImageGenerationUrl, type ImageGenerationConfig } from "../shared/image-generation.ts";
 
 import { writeFileAtomic } from "./atomic.ts";
+import { withoutClaudeAccounts } from "./claude-account-removal.ts";
 import { withoutComputerEngine } from "./computer-engine-removal.ts";
 import { newBotDefaultsSchema, type NewBotDefaults } from "./new-bot-defaults.ts";
 import { replaySettings } from "./replay-settings.ts";
@@ -1114,7 +1115,7 @@ export function persistableInstanceConfigs(cfg: AppConfig): InstanceConfigMap {
     if (config !== undefined) entry.config = structuredClone(config);
     else delete entry.config;
   }
-  return map;
+  return withoutClaudeAccounts(map);
 }
 
 interface InstanceCliUpdate {
@@ -1270,7 +1271,7 @@ export function instanceConfigs(cfg: AppConfig): InstanceConfigMap {
     ...CUSTOM_ONLY,
   } as const;
   const configured = cfg.instances && Object.keys(cfg.instances).length ? cfg.instances : null;
-  const map: InstanceConfigMap = withoutComputerEngine(configured ? { ...configured } : { ...DEFAULT_FLEET });
+  const map: InstanceConfigMap = withoutClaudeAccounts(withoutComputerEngine(configured ? { ...configured } : { ...DEFAULT_FLEET }));
   if (
     configured &&
     (Object.hasOwn(configured, "claude") || Object.hasOwn(configured, "grok") || Object.hasOwn(configured, "codex"))

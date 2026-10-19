@@ -67,6 +67,13 @@ describe("a Lazurio server", () => {
     expect((await call("GET", "/api/config")).body.features?.browser).toBe(before);
   });
 
+  it("refuses a Claude configuration directory of MausBot's own: bots use the computer's one Claude login", async () => {
+    const result = await call("PATCH", "/api/instances/claude", { configDir: join(fixture.info.dataDir, "providers", "claude-fixture") });
+    expect(result.status).toBe(400);
+    const saved = JSON.parse(readFileSync(join(fixture.info.dataDir, "config.json"), "utf8")) as { instances?: Record<string, { config?: object }> };
+    expect(saved.instances?.claude?.config ?? {}).not.toHaveProperty("configDir");
+  });
+
   it("refuses Auto over the API without the warning's acknowledgement, on creation and on a switch", async () => {
     const refused = /requires confirming the warning first \(acknowledgeLocalAuto\)/;
     const created = await call("POST", "/api/bots", { name: "Auto unconfirmed", settings: { approvalMode: "auto" } });

@@ -60,8 +60,8 @@ import {
   type AskQuestion,
 } from "../../shared/ask-question.ts";
 
-/** Parent-session credentials/routing a named account must not inherit. */
-export const CLAUDE_ACCOUNT_ENV_KEYS = [
+/** Credentials and routing that pick which Claude login a turn uses. */
+export const CLAUDE_AUTH_ENV_KEYS = [
   "CLAUDE_CODE_OAUTH_TOKEN",
   "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
   "CLAUDE_CODE_OAUTH_SCOPES",
@@ -126,8 +126,8 @@ function claudeEnvironment(
   const env: NodeJS.ProcessEnv = { BASH_MAX_TIMEOUT_MS: "600000", ...source, PATH: augmentedPath(), NPM_CONFIG_LOGLEVEL: "error" };
   if (configDir?.trim()) {
     env.CLAUDE_CONFIG_DIR = resolveClaudeConfigDir(configDir, env);
-    for (const key of CLAUDE_ACCOUNT_ENV_KEYS) {
-      // Subscription OAuth always comes from this account's own login, never the parent's.
+    for (const key of CLAUDE_AUTH_ENV_KEYS) {
+      // A company model's directory never signs in with the person's own Claude login.
       if (key.startsWith("CLAUDE_CODE_OAUTH_") || key.endsWith("_FILE_DESCRIPTOR") || !Object.hasOwn(instanceEnvironment, key)) {
         delete env[key];
       }
@@ -163,17 +163,17 @@ export function claudeInheritWarning(env: NodeJS.ProcessEnv): ProviderSnapshot["
   };
 }
 
-/** The selected CLI account's auth settings, without its hooks, permissions, MCP servers or
+/** The Claude login's auth settings, without its hooks, permissions, MCP servers or
  * personal instructions. */
 export function readClaudeAuthSettings(
   env: NodeJS.ProcessEnv,
   instanceEnvironment: NodeJS.ProcessEnv = {},
 ): { env?: Record<string, string>; apiKeyHelper?: string } {
-  if (CLAUDE_ACCOUNT_ENV_KEYS.some((key) => instanceEnvironment[key])) return {};
+  if (CLAUDE_AUTH_ENV_KEYS.some((key) => instanceEnvironment[key])) return {};
   try {
     const settings = JSON.parse(readFileSync(join(resolveClaudeConfigDir(undefined, env), "settings.json"), "utf8"));
     const authEnv: Record<string, string> = {};
-    for (const key of CLAUDE_ACCOUNT_ENV_KEYS) {
+    for (const key of CLAUDE_AUTH_ENV_KEYS) {
       if (!key.endsWith("_FILE_DESCRIPTOR") && typeof settings?.env?.[key] === "string") {
         authEnv[key] = settings.env[key];
       }
@@ -668,8 +668,8 @@ function decodeConfig(raw: unknown): ClaudeConfig {
   }
   const tools = decodeToolList(o.tools, "tools");
   const disallowedTools = decodeToolList(o.disallowedTools, "disallowedTools");
-  if (o.configDir !== undefined && typeof o.configDir !== "string") throw new Error("claude: configDir must be a string");
-  const configDir = typeof o.configDir === "string" ? o.configDir.trim() : undefined;
+  if (o.managed === true && o.configDir !== undefined && typeof o.configDir !== "string") throw new Error("claude: configDir must be a string");
+  const configDir = o.managed === true && typeof o.configDir === "string" ? o.configDir.trim() : undefined;
   if (configDir) resolveClaudeConfigDir(configDir);
   if (o.managedModels !== undefined && (o.managed !== true || !Array.isArray(o.managedModels) || !o.managedModels.length || o.managedModels.some(model => typeof model !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/.test(model)))) throw new Error("Invalid hosted Claude models.");
   return {
@@ -1251,7 +1251,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
         // Rotating an account's key/helper must not reuse the old process.
         auth: createHash("sha256").update(JSON.stringify({
           settings: authSettings,
-          env: Object.fromEntries(CLAUDE_ACCOUNT_ENV_KEYS.map((key) => [key, env[key]])),
+          env: Object.fromEntries(CLAUDE_AUTH_ENV_KEYS.map((key) => [key, env[key]])),
         })).digest("hex"),
       });
 

@@ -1,7 +1,7 @@
 // POST /api/instances/antigravity-accounts, body { displayName, sourceInstanceId }.
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { createClaudeAccountSchema } from "../claude-accounts.ts";
+import { accountNameSchema } from "../instance-settings.ts";
 import type { InstanceConfigMap } from "../contracts.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
@@ -12,7 +12,7 @@ export interface AntigravityAccountRouteDeps {
   exclusive<T>(work: () => Promise<T>): Promise<T> | null;
 }
 
-const addAccount = createClaudeAccountSchema.pick({ displayName: true }).extend({ sourceInstanceId: z.string().min(1).max(200) });
+const addAccount = accountNameSchema.extend({ sourceInstanceId: z.string().min(1).max(200) });
 
 export function createAntigravityAccountRoutes(deps: AntigravityAccountRouteDeps): RouteHandler {
   return async ({ req, res, path, method, json, readBody }) => {

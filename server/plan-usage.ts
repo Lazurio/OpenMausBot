@@ -60,7 +60,6 @@ export interface PlanAccount {
   name: string;
   driver: PlanDriver;
   environment: Record<string, string | undefined>;
-  configDir?: string;
 }
 
 export interface PlanCredential {
@@ -136,14 +135,11 @@ export function planAccountsFromInstances(instances: InstanceConfigMap): PlanAcc
   for (const [id, entry] of Object.entries(instances)) {
     const driver = DRIVER_OF[entry.driver];
     if (!driver) continue;
-    const config = asRecord(entry.config);
-    const configDir = typeof config?.configDir === "string" ? config.configDir : undefined;
     accounts.push({
       id,
       name: entry.displayName?.trim() || PRODUCT_NAME[driver],
       driver,
       environment: { ...entry.environment },
-      ...(configDir ? { configDir } : {}),
     });
   }
   return accounts;
@@ -222,7 +218,7 @@ export function fileCredentialReader(source: CredentialSource): CredentialReader
     async read(account) {
       const merged: NodeJS.ProcessEnv = { ...env, ...account.environment };
       const at = now();
-      if (account.driver === "claude") return readClaudeCredential(account, merged, source, at);
+      if (account.driver === "claude") return readClaudeCredential(merged, source, at);
       if (account.driver === "codex") return readCodexCredential(merged, source.readText, at);
       return readGrokCredential(merged, source.readText, at);
     },
@@ -602,7 +598,7 @@ function planUsageCacheKey(accounts: PlanAccount[]): string {
       .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
       .map(([name, value]) => `${name}=${value}`)
       .join("\n");
-    return [account.id, account.driver, account.name, account.configDir ?? "", environment].join("\u0000");
+    return [account.id, account.driver, account.name, environment].join("\u0000");
   }).join("\n");
 }
 
@@ -626,8 +622,8 @@ function decodeKeychainSecret(raw: string | null): string | null {
   return trimmed;
 }
 
-function claudeKeychainServices(account: PlanAccount, env: NodeJS.ProcessEnv, resolvedDir: string): string[] {
-  if (!account.configDir?.trim() && !env.CLAUDE_CONFIG_DIR?.trim()) return [CLAUDE_KEYCHAIN_SERVICE];
+function claudeKeychainServices(env: NodeJS.ProcessEnv, resolvedDir: string): string[] {
+  if (!env.CLAUDE_CONFIG_DIR?.trim()) return [CLAUDE_KEYCHAIN_SERVICE];
   let defaultDir: string | null = null;
   try {
     const withoutConfig = { ...env };
@@ -666,21 +662,20 @@ function readDarwinClaudeKeychain(service: string): Promise<string | null> {
 }
 
 async function readClaudeCredential(
-  account: PlanAccount,
   env: NodeJS.ProcessEnv,
   source: CredentialSource,
   now: number,
 ): Promise<PlanCredential> {
   let resolvedDir: string;
   try {
-    resolvedDir = resolveClaudeConfigDir(account.configDir, env);
+    resolvedDir = resolveClaudeConfigDir(undefined, env);
   } catch {
     return missingCredential();
   }
   const file = claudeCredentialFromText(source.readText(join(resolvedDir, ".credentials.json")), now);
   if (file.token || !source.readClaudeKeychain) return file;
   let sawExpired = file.expired;
-  for (const service of claudeKeychainServices(account, env, resolvedDir)) {
+  for (const service of claudeKeychainServices(env, resolvedDir)) {
     let raw: string | null = null;
     try {
       raw = (await source.readClaudeKeychain(service)) ?? null;

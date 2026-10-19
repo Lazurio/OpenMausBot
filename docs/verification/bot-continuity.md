@@ -42,14 +42,13 @@ in `.omb-scratch/verify-evidence/model-switch/`. This proves settings and turn
 dispatch, not the quality of a real model's engineering output. The store test
 also simulates a failed disk write and confirms neither scope changes.
 
-The picker smoke also includes an installed but signed-out Claude account and
-a missing Codex installation. The signed-out account stays in the picker's
-**Account** list; choosing it shows its sign-in card and **Use a local model**,
-never its cloud models. The missing Codex, which no bot uses, stays in Settings
+The picker smoke also includes an installed but signed-out Claude and a
+missing Codex installation. The signed-out Claude stays in the picker; choosing
+it shows its sign-in card and **Use a local model**, never its cloud models. The missing Codex, which no bot uses, stays in Settings
 only, and the picker keeps an **Engines and accounts** shortcut. A missing
 engine that a bot already runs on stays in that bot's picker with its install
 card, so the model never silently vanishes. `src/lib/engine-rail.test.ts`
-covers these rules for each Claude account, empty catalogs and leaving the
+covers these rules for each engine, empty catalogs and leaving the
 source catalog unchanged. `src/components/ModelPicker.interaction.test.ts`
 opens the real picker component and checks the sign-in and install cards, that
 no cloud model can be picked on a signed-out account while its local models
@@ -80,7 +79,7 @@ with Claude's own "Not logged in" frame. Pepper is on that Claude.
   that request in the page), then **No local models found**.
 - Sending `hello` on the signed-out Claude ends in the existing setup error
   with the **Sign in to Claude** card, not a silent failure.
-- Two more accounts were added through `POST /api/instances/claude-accounts`.
+- Two more Claude instances, **Spare** and **Work**, were added to the fixture.
   **Spare** and Pepper's own account were then pointed at a missing CLI with
   `PATCH /api/instances/:id`. The picker kept Pepper's account with its
   install card and the CLI-not-found reason, kept the signed-out, unused

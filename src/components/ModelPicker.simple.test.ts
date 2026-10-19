@@ -593,30 +593,13 @@ describe("the model picker in Simple mode", () => {
     expect(fixture.refreshInstances).toHaveBeenCalled();
   });
 
-  it("reaches every Claude account from the one Claude row, through a select above its models", () => {
-    const work: InstanceInfo = { ...claude(true, [{ id: "claude-sonnet-5-5", label: "Sonnet 5.5" }]), instanceId: "claude-work", displayName: "Work" };
-    fixture.instances = [claude(), work];
-    const forBot = bot();
-    const opened = open(forBot);
+  it("offers no Claude account select: bots use the computer's one Claude login", () => {
+    const spare: InstanceInfo = { ...claude(true, [{ id: "claude-sonnet-5-5", label: "Sonnet 5.5" }]), instanceId: "spare", displayName: "Spare" };
+    fixture.instances = [claude(), spare];
+    const opened = open(bot());
     expect(pane(opened)!.props.providers.map((provider) => provider.label)).toEqual(["Claude"]);
-    const account = pane(opened)!.props.account as ReactElement<ComponentProps<typeof ClaudeAccountSelect>>;
-    expect(account.type).toBe(ClaudeAccountSelect);
-    expect(account.props.accounts.map((instance) => instance.instanceId)).toEqual(["claude", "claude-work"]);
-    expect(account.props.selectedId).toBe("claude");
-    const html = region(menu(opened.html), "data-simple-models", "data-simple-effort-band");
-    expect(html.indexOf("data-simple-account")).toBeGreaterThan(-1);
-    expect(html.indexOf("data-simple-account")).toBeLessThan(html.indexOf("Opus 5.5<"));
-    expect(html).toContain('<option value="claude-work">Work</option>');
-
-    account.props.onSelect(work);
-    const browsed = render(forBot);
-    expect(labels(browsed)).toEqual(["Sonnet 5.5"]);
-    expect((pane(browsed)!.props.account as ReactElement<ComponentProps<typeof ClaudeAccountSelect>>).props.selectedId).toBe("claude-work");
-    expect(pane(browsed)!.props.providers[0].selected).toBe(true);
-    pane(browsed)!.props.onPick("claude-sonnet-5-5");
-    expect(fixture.dispatch).toHaveBeenLastCalledWith(expect.objectContaining({
-      type: "setModel", selection: expect.objectContaining({ instanceId: "claude-work", model: "claude-sonnet-5-5" }),
-    }));
+    expect(pane(opened)!.props.account).toBeUndefined();
+    expect(menu(opened.html)).not.toContain("data-simple-account");
   });
 
   it("shows no account select for a provider with one account", () => {

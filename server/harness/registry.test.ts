@@ -4,13 +4,39 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { ModelCatalog } from "../contracts.ts";
+import type { ModelCatalog, RuntimeEvent } from "../contracts.ts";
 import { resetPathCacheForTests } from "../env-path.ts";
 import { removeTempDir } from "../testing/cleanup.ts";
 import { makeFakeDriver } from "../testing/fake-driver.ts";
+import { EventBus } from "./bus.ts";
 import { ProviderRegistry, SNAPSHOT_DEADLINE_MS, SNAPSHOT_REUSE_MS } from "./registry.ts";
 
 describe("ProviderRegistry", () => {
+  it("replaces one instance and its event subscription without disposing or duplicating siblings", async () => {
+    const fake = makeFakeDriver();
+    const registry = new ProviderRegistry([fake.driver]);
+    const bus = new EventBus(() => {});
+    const events: RuntimeEvent[] = [];
+    bus.subscribe(event => events.push(event));
+    await registry.load({ work: { driver: "fake", config: { cli: "old-cli" } }, personal: { driver: "fake" } });
+    bus.attach(registry.instances());
+    const personal = registry.get("personal");
+    const before = fake.created.get("work")!;
+    bus.detach("work");
+    await registry.load({ work: { driver: "fake", displayName: "Renamed" } });
+    bus.attach([registry.get("work")!]);
+    const event = { eventId: "fixture", provider: "fake", threadId: "fixture", createdAt: new Date().toISOString(), type: "turn.started" } as const;
+    before.emit(event);
+    fake.created.get("personal")!.emit(event);
+    fake.created.get("work")!.emit(event);
+    expect(registry.get("personal")).toBe(personal);
+    expect(fake.disposed).toEqual(["work"]);
+    expect(registry.cliTarget("work")?.cli).toBeNull();
+    expect(events.map(event => event.providerInstanceId)).toEqual(["personal", "work"]);
+    bus.detachAll();
+    await registry.disposeAll();
+  });
+
   it("creates live instances for known drivers", async () => {
     const fake = makeFakeDriver();
     const registry = new ProviderRegistry([fake.driver]);

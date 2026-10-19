@@ -52,7 +52,7 @@ import { approvalHeldNote, approvalHeldReason, approvalModeForOrigin, autoVerdic
 import { bindSafetyFloor, denyAtSafetyFloor, heldAtSafetyFloor, safetyFloorOn } from "./safety-floor-gate.ts";
 import { CommandAllowlistStore, commandAllowlistCandidate } from "./command-allowlist.ts";
 import type { CommandAllowlistCandidate, CommandAllowlistResponse } from "../shared/command-allowlist.ts";
-import { claudeAccountInfo } from "./claude-accounts.ts";
+import { claudeSignInCommand } from "./claude-sign-in.ts";
 import {
   BrowserCleanupCoordinator,
   requireBrowserCleanupAcknowledged,
@@ -1257,8 +1257,7 @@ interface AuditPlan {
   roomId?: string;
 }
 
-const ACCOUNT_ADD_ENGINES = new Map([["/api/instances/claude-accounts", "claude"], ["/api/instances/chatgpt-accounts", "chatgpt"],
-  ["/api/instances/antigravity-accounts", "antigravity"]]);
+const ACCOUNT_ADD_ENGINES = new Map([["/api/instances/chatgpt-accounts", "chatgpt"], ["/api/instances/antigravity-accounts", "antigravity"]]);
 
 function adminAuditPlan(method: string, path: string): AuditPlan | null {
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
@@ -11133,8 +11132,8 @@ async function describeInstances() {
       return { ...described, ...policy, authentication: undefined, install: { ...instance.install, signInCommand: undefined } };
     }
     try {
-      const claudeAccount = claudeAccountInfo(instance.instanceId, entry, instance.cli ?? instance.cliDefault ?? "claude");
-      return { ...described, ...policy, claudeAccount, install: { ...instance.install, signInCommand: claudeAccount.signInCommand } };
+      const signInCommand = claudeSignInCommand(instance.cli ?? instance.cliDefault ?? "claude", { ...process.env, ...entry.environment });
+      return { ...described, ...policy, install: { ...instance.install, signInCommand } };
     } catch {
       return { ...described, ...policy, install: { ...instance.install, signInCommand: undefined } };
     }

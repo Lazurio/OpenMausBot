@@ -53,9 +53,9 @@ describe("Settings → Engines → ChatGPT accounts", () => {
       instanceId, driverKind: "codex", displayName: "Plan", snapshot: { state: "available", authenticated, chatgptPlan: true },
       models: { default: "gpt", options: [] }, authentication: { method: "browser-pkce", signOut },
     });
-    expect(accountActions("chatgpt", account("chatgpt", true, true))).toEqual({ signOut: true, remove: false });
-    expect(accountActions("chatgpt", account("chatgpt-work", true, false))).toEqual({ signOut: false, remove: true });
-    expect(accountActions("chatgpt", account("chatgpt-work", false, true))).toEqual({ signOut: false, remove: true });
+    expect(accountActions(account("chatgpt", true, true))).toEqual({ signOut: true, remove: false });
+    expect(accountActions(account("chatgpt-work", true, false))).toEqual({ signOut: false, remove: true });
+    expect(accountActions(account("chatgpt-work", false, true))).toEqual({ signOut: false, remove: true });
   });
 });
 
@@ -94,9 +94,10 @@ describe("Settings → Engines → setup cards", () => {
       instanceId: "chatgpt", driverKind: "codex", displayName: "ChatGPT", cliDefault: "codex",
       snapshot: { state: "available", authenticated, chatgptPlan: true }, models: { default: "gpt", options: [] },
     };
+    fixture.instances = [claude];
+    expect(renderToStaticMarkup(createElement(EnginesSettings))).not.toMatch(/Add another|Add Google account/);
     for (const [instance, label, other] of [
-      [claude, "Add another Claude account", "Add another ChatGPT account"],
-      [chatgpt, "Add another ChatGPT account", "Add another Claude account"],
+      [chatgpt, "Add another ChatGPT account", "Add Google account"],
       [{ instanceId: "antigravity", driverKind: "antigravityAgent", displayName: "Antigravity", cliDefault: "agy_acp_server", snapshot: { state: "available", authenticated }, models: { default: "gemini", options: [] } } as InstanceInfo, "Add Google account", "Add another ChatGPT account"],
     ] as const) {
       fixture.instances = [instance];
@@ -287,20 +288,13 @@ describe("Settings → Engines → Antigravity → Free up space", () => {
   });
 });
 
-describe("Settings → Engines → Claude accounts", () => {
-  function claude(instanceId: string, displayName: string, authenticated?: boolean, extra: Partial<InstanceInfo> = {}): InstanceInfo {
-    return {
-      instanceId,
-      driverKind: "claudeAgent",
-      displayName,
-      cliDefault: "claude",
-      access: "subscription",
-      snapshot: { state: "available", authenticated, ...(authenticated ? { account: { email: `${displayName.toLowerCase()}@example.test`, organization: "Studio" } } : {}) },
-      models: { default: "sonnet", options: [] },
-      claudeAccount: { configDir: `/profiles/${instanceId}`, signInCommand: `CLAUDE_CONFIG_DIR=/profiles/${instanceId} claude auth login`, signInShell: "sh", isDefault: instanceId === "claude" },
-      ...extra,
-    };
-  }
+describe("Settings → Engines → Claude", () => {
+  const claude = (authenticated?: boolean, extra: Partial<InstanceInfo> = {}): InstanceInfo => ({
+    instanceId: "claude", driverKind: "claudeAgent", displayName: "Claude", cliDefault: "claude", access: "subscription",
+    snapshot: { state: "available", authenticated, ...(authenticated ? { account: { email: "personal@example.test" } } : {}) },
+    models: { default: "sonnet", options: [] }, install: { signInCommand: "claude auth login" },
+    ...extra,
+  });
   function renderClaude(...instances: InstanceInfo[]) {
     vi.stubGlobal("window", {});
     vi.stubGlobal("navigator", { userAgent: "Linux" });
@@ -309,41 +303,17 @@ describe("Settings → Engines → Claude accounts", () => {
     return renderToStaticMarkup(createElement(EnginesSettings));
   }
 
-  it("lists every Claude account on one Claude card", () => {
-    const html = renderClaude(claude("claude", "Personal", true), claude("claude-work", "Work", false));
+  it.each([true, false, undefined])("is one engine on the computer's Claude login, with no accounts to add, name or remove (authenticated: %s)", (authenticated) => {
+    const html = renderClaude(claude(authenticated));
     expect(html.match(/data-engine-card=/g)).toHaveLength(1);
     expect(html).toContain('data-engine-card="claude"');
-    expect(html).toContain("2 accounts · 1 signed in");
-    expect(html).toContain('data-account="claude" data-account-state="signedIn"');
-    expect(html).toContain('data-account="claude-work" data-account-state="signedOut"');
+    for (const gone of ["data-accounts", "data-account=", "Add another Claude account", "Options for Claude", "Use an existing Claude folder"]) expect(html).not.toContain(gone);
   });
 
-  it("gives each account one clear action and no terminal steps until asked", () => {
-    const html = renderClaude(claude("claude", "Personal", true), claude("claude-work", "Work", false), claude("claude-team", "Team", undefined));
-    expect(html).toContain("personal@example.test · Studio");
-    expect(html).toContain("Not signed in");
-    expect(html).toContain("Sign-in not confirmed yet");
-    expect(html.match(/<button[^>]*>Sign in<\/button>/g)).toHaveLength(2);
-    for (const gone of ["Check account", "Manage account and sign-in", "claude auth login", "Default account"]) expect(html).not.toContain(gone);
-  });
-
-  it("names an API key instead of a person and never signs it out", () => {
-    const keyed = claude("claude-work", "Work", true);
-    keyed.snapshot.account = { method: "api-key" };
-    expect(renderClaude(keyed)).toContain("Uses an API key");
-    expect(accountActions("claude", keyed).signOut).toBe(false);
-  });
-
-  it("keeps the default account and never signs Claude out from here", () => {
-    expect(accountActions("claude", claude("claude", "Personal", true))).toEqual({ signOut: false, remove: false });
-    expect(accountActions("claude", claude("claude-work", "Work", false))).toEqual({ signOut: false, remove: true });
-  });
-
-  it("shows Claude Code's setup instead of accounts while it is missing", () => {
-    const html = renderClaude(claude("claude", "Personal", undefined, { snapshot: { state: "unavailable", reason: "`claude` CLI not found" } }));
+  it("shows Claude Code's setup while it is missing", () => {
+    const html = renderClaude(claude(undefined, { snapshot: { state: "unavailable", reason: "`claude` CLI not found" } }));
     expect(html).not.toContain("data-accounts");
     expect(html).toContain("CLI not found");
     expect(html).toContain("Needs setup");
   });
-
 });
