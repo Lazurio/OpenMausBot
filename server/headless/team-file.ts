@@ -46,7 +46,8 @@ const botFields = {
   // Lazurio overlay (DEV-6673 M3): bots work on this host; an older file's computer is read and ignored with a warning.
   computer: z.unknown().optional(),
   cwd: z.string().min(1).optional(),
-  browser: z.union([z.boolean(), z.object({ enabled: z.boolean(), profile: z.string().trim().min(1).max(100).optional() }).strict()]).optional(),
+  // Lazurio overlay (DEV-6673 M4a): bots work in the Environment browser; an older file's browser is read and ignored with a warning.
+  browser: z.unknown().optional(),
   // Lazurio overlay (DEV-6673, LAZURIO.md principle 3): every bot gets the Environment's tools; an older file's
   // tools is read and ignored with a warning.
   tools: z.unknown().optional(),
@@ -97,7 +98,6 @@ export interface DesiredBot {
   approval?: "ask" | "edits" | "auto" | "full";
   computer?: "auto" | "off" | "browser" | "local" | "vm" | "cloud";
   cwd?: string;
-  browser?: { enabled: boolean; profile?: string };
   skills: DesiredSkill[];
 }
 export interface DesiredRoom { name: string; team?: string; members: string[]; brief?: string; responder?: string }
@@ -217,16 +217,16 @@ export function checkTeamFile(input: TeamFileInput, file: string, dir: string): 
     });
     if (new Set(skills.map((skill) => skill.name)).size !== skills.length) throw usageError(`${where}: two skills share a name`);
     if (bot.computer !== undefined) warnings.push(`${where}: computer is ignored; bots work on this computer`);
+    if (bot.browser !== undefined) warnings.push(`${where}: browser is ignored; bots work in the Environment browser`);
     if (bot.tools !== undefined) warnings.push(`${where}: tools is ignored; every bot gets the tools of this computer`);
     const slash = bot.model?.indexOf("/") ?? -1;
-    const browser = bot.browser === undefined ? undefined : typeof bot.browser === "boolean" ? { enabled: bot.browser } : bot.browser;
     return {
       name: bot.name, ...(bot.was ? { was: bot.was } : {}), ...(bot.team ? { team: bot.team } : {}),
       ...(bot.title !== undefined ? { title: bot.title } : {}), ...(description !== undefined ? { description } : {}),
       ...(bot.chief !== undefined ? { chief: bot.chief } : {}), manages: bot.manages ?? [], ...(soul !== undefined ? { soul } : {}),
       ...(bot.model ? { model: { instanceId: bot.model.slice(0, slash), model: bot.model.slice(slash + 1) } } : {}),
       ...(bot.effort ? { effort: bot.effort } : {}), ...(bot.approval ? { approval: bot.approval } : {}),
-      ...(cwd ? { cwd } : {}), ...(browser ? { browser } : {}), skills,
+      ...(cwd ? { cwd } : {}), skills,
     };
   });
   const chiefs = new Map<string, string>();

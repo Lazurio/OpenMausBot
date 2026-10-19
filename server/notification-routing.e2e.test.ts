@@ -89,8 +89,9 @@ beforeAll(async () => {
   chmodSync(FAKE_CLAUDE, 0o755);
   chmodSync(FAKE_ACP, 0o755);
   home = mkdtempSync(join(tmpdir(), "omb-notification-routing-"));
-  // A browser stand-in: a room turn mounts the built-in browser, the place a person signs in on, only when one is there.
-  writeFileSync(join(home, "agent-browser"), `#!/bin/sh\nif [ "$1" = session ] && [ "$2" = list ]; then printf '{"success":true,"data":{"sessions":[]}}'; fi\nexit 0\n`, { mode: 0o755 });
+  // The place a person signs in on is the Environment browser, which the Platform's CLI declares: a stand-in.
+  mkdirSync(join(home, ".local", "bin"), { recursive: true });
+  writeFileSync(join(home, ".local", "bin", "lazurio"), `#!/bin/sh\nif [ "$2" = link ]; then printf '%s\\n' '{"schema":"lazurio.browser-cli.v1","kind":"browser-link","session":null,"link":"https://browser.vm-01.example.lazurio.io/"}'; else exit 2; fi\n`, { mode: 0o755 });
   const data = join(home, ".openmausbot");
   mkdirSync(data, { recursive: true });
   dumpFile = join(home, "quick-dump.json");
@@ -147,7 +148,6 @@ beforeAll(async () => {
       OMB_PORT: String(port),
       OMB_WEBHOOK_PORT: String(port + 1),
       OMB_TEST_INTERNAL_CAPABILITY_KEY: TEST_CAPABILITY_KEY,
-      OMB_AGENT_BROWSER_PATH: join(home, "agent-browser"),
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -228,8 +228,6 @@ describe("a room turn belongs to the room", () => {
     const bot = await createBot("Handsy", "stuck");
     let roomId: string | undefined;
     try {
-      // a sign-in needs a place to sign in on: a room turn works in the built-in browser
-      expect((await api("PATCH", "/api/config", { features: { browser: true } })).status).toBe(200);
       const room = (await api("POST", "/api/groups", {
         name: "War Room",
         memberIds: [bot.id],
@@ -242,7 +240,7 @@ describe("a room turn belongs to the room", () => {
 
       const stream = await openSse(`${base}/api/events`);
       try {
-        // The room owns the bot before its turn has mounted the browser: until then there is no place to sign in on (409).
+        // The room owns the bot before its turn has started in the Environment browser: until then there is no place to sign in on (409).
         const headers = await capability(bot.id, room.threadId);
         let asked = { status: 0, body: undefined as unknown };
         await expect.poll(async () => {
@@ -266,7 +264,6 @@ describe("a room turn belongs to the room", () => {
         stream.close();
       }
     } finally {
-      await api("PATCH", "/api/config", { features: { browser: false } }).catch(() => undefined);
       await cleanup([roomId], [bot.id]);
     }
   }, 45_000);

@@ -88,15 +88,10 @@ async function loopbackModel() {
   };
 }
 
-/** A browser stand-in: a turn mounts the built-in browser, the place a person signs in on, only when one is there. */
-const BROWSER_STAND_IN = `#!/bin/sh\nif [ "$1" = session ] && [ "$2" = list ]; then printf '{"success":true,"data":{"sessions":[]}}'; fi\nexit 0\n`;
-
 async function scenario(test: (f: any) => Promise<void>, options: { env?: Record<string, string>; fake?: Record<string, string>; scripted?: boolean; browser?: boolean } = {}) {
-  const parentEnv: NodeJS.ProcessEnv = { ...process.env, ...options.fake };
-  const browserTools = options.browser ? mkdtempSync(join(tmpdir(), "omb-runtime-roots-browser-")) : undefined;
-  if (browserTools) writeFileSync(join(browserTools, "agent-browser"), BROWSER_STAND_IN, { mode: 0o755 });
-  const session = await launchVerificationServer(parentEnv, undefined, undefined,
-    browserTools ? { binaryPath: join(browserTools, "agent-browser"), executablePath: join(browserTools, "chrome") } : undefined,
+  // The place a person signs in on is the Environment browser, which a stand-in Platform CLI declares.
+  const parentEnv: NodeJS.ProcessEnv = { ...process.env, ...options.fake, ...(options.browser ? { OMB_TEST_ENVIRONMENT_BROWSER: "1" } : {}) };
+  const session = await launchVerificationServer(parentEnv, undefined, undefined, undefined,
     undefined, { scripted: options.scripted !== false });
   const url = session.info.url;
   const dataDir = session.info.dataDir;
@@ -187,7 +182,6 @@ async function scenario(test: (f: any) => Promise<void>, options: { env?: Record
   } finally {
     if (restarted) await waitForExit(server, { signal: "SIGTERM" });
     await session.close();
-    if (browserTools) await removeTempDir(browserTools);
   }
 }
 
@@ -498,10 +492,6 @@ itHost("T7 queues a root on the computer seat at the wait ceiling and continues 
 const failedLines = async (f: any, threadId: string) => (await f.messages(threadId))
   .filter((message: any) => message.kind === "activity" && String(message.tool?.name ?? "").startsWith("error:"));
 
-const browserPlace = async (f: any) => {
-  expect((await f.api("PATCH", "/api/config", { features: { browser: true } })).status).toBe(200);
-};
-
 it("T8 Stop while parked on a credential card cancels the root and stops the card; a key provided afterwards is saved but starts nothing", () => scenario(async (f) => {
   f.script(f.clive.id, { key: "C0", match: ["T8-JOB"], steps: [{ tool: "request_credential", arguments: { credential_id: "xaiApiKey", reason: "T8 fixture model" } }], reply: "T8-ASKED: waiting for the key." });
   const job = f.clive.activeTaskId;
@@ -533,7 +523,6 @@ it("T8 Stop while parked on a credential card cancels the root and stops the car
 }), hostTimeout(60_000));
 
 it("T8 Stop while parked on a sign-in card cancels the root and stops the card; Cancel afterwards is saved but starts nothing", () => scenario(async (f) => {
-  await browserPlace(f);
   f.script(f.clive.id, { key: "C0", match: ["T8S-JOB"], steps: [{ tool: "request_sign_in", arguments: { site: "https://example.com/dashboard", reason: "The dashboard is behind a login." } }], reply: "T8S-ASKED: sign in to example.com." });
   const job = f.clive.activeTaskId;
   await f.say(f.clive.id, job, "T8S-JOB: check my example.com dashboard.");
@@ -560,7 +549,6 @@ it("T8 Stop while parked on a sign-in card cancels the root and stops the card; 
 }, { browser: true }), hostTimeout(60_000));
 
 it("T9 parks the root on a sign-in card and runs it again with the signed-in line on Done", () => scenario(async (f) => {
-  await browserPlace(f);
   f.script(f.clive.id,
     { key: "C1", match: [SIGNED_IN, "example.com"], reply: "T9-DONE: the dashboard is open." },
     { key: "C0", match: ["T9-JOB"], steps: [{ tool: "request_sign_in", arguments: { site: "https://example.com/dashboard", reason: "The dashboard is behind a login." } }], reply: "T9-ASKED: sign in to example.com." });

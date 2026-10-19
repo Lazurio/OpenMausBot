@@ -9,8 +9,6 @@ import { waitForExit } from "./testing/cleanup.ts";
 
 const jsonl = (path: string) => existsSync(path)
   ? readFileSync(path, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line)) : [];
-// The stand-in browser is a node script run through its shebang.
-const withBrowser = process.platform !== "win32";
 // Auto may land on this computer only on macOS and Windows.
 const itAutoThisComputer = process.platform === "linux" ? it.skip : it;
 
@@ -35,12 +33,7 @@ async function fixture(test: (f: any) => Promise<void>, { thisComputer = false }
       `if (after("--resume") || after("--session-id")) appendFileSync(${JSON.stringify(launchesPath)}, JSON.stringify({ resume: after("--resume"), servers: Object.keys(servers), token: servers.agents?.env?.OMB_COMMS_TOKEN ?? null, control: servers.computer?.env?.OMB_CONTROL_TOKEN ?? null }) + "\\n");`,
       `await import(${JSON.stringify(pathToFileURL(fileURLToPath(new URL("./testing/fake-claude-cli.ts", import.meta.url))).href)});`,
     ].join("\n"), { mode: 0o700 });
-    const browser = join(dataDir, "agent-browser.mjs");
-    writeFileSync(browser, [
-      "#!/usr/bin/env node",
-      'if (process.argv[2] === "session" && process.argv[3] === "list") process.stdout.write(JSON.stringify({ success: true, data: { sessions: [] } }));',
-    ].join("\n"), { mode: 0o700 });
-    // Add the ACP engine and the browser while the server is stopped.
+    // Add the ACP engine while the server is stopped.
     await waitForExit(session.child, { signal: "SIGTERM" });
     const configPath = join(dataDir, "config.json");
     const config = JSON.parse(readFileSync(configPath, "utf8"));
@@ -64,7 +57,6 @@ async function fixture(test: (f: any) => Promise<void>, { thisComputer = false }
       cwd: fileURLToPath(new URL("..", import.meta.url)),
       env: {
         ...verificationServerEnvironment({ FAKE_CLAUDE_MODE: "hang", FAKE_CLAUDE_RELEASE: release }, dataDir, Number(new URL(url).port)),
-        ...(withBrowser ? { OMB_AGENT_BROWSER_PATH: browser } : {}),
         ...(thisComputer ? { OMB_USER_DATA: userData } : {}),
       },
       stdio: ["ignore", log, log],
@@ -109,12 +101,13 @@ async function fixture(test: (f: any) => Promise<void>, { thisComputer = false }
   }
 }
 
-it("keeps a thread's Claude process and ACP session across turns, with agents and the browser mounted", () => fixture(async (f) => {
+it("keeps a thread's Claude process and ACP session across turns, with agents mounted", () => fixture(async (f) => {
   const { bot } = await f.cli("new-bot", "--name", "Warm Claude");
   await f.turn(bot, bot.activeTaskId, "First question.");
   await f.turn(bot, bot.activeTaskId, "Second question.");
   const warm = f.launches();
-  expect(warm.at(-1).servers).toEqual(expect.arrayContaining(withBrowser ? ["agents", "browser"] : ["agents"]));
+  expect(warm.at(-1).servers).toEqual(expect.arrayContaining(["agents"]));
+  expect(warm.at(-1).servers).not.toContain("browser");
   await f.turn(bot, bot.activeTaskId, "Third question.");
   await f.turn(bot, bot.activeTaskId, "Fourth question.");
   expect(f.launches()).toHaveLength(warm.length);

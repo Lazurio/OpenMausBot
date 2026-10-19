@@ -353,7 +353,6 @@
     "server/credential-request.test.ts",
     "server/decision-log-wiring.test.ts",
     "server/default-model-selection.test.ts",
-    "server/direct-screen-settlement-api.test.ts",
     "server/drivers/acp/acp.test.ts",
     "server/drivers/acp/cline.test.ts",
     "server/drivers/agents-bridge-wire.test.ts",

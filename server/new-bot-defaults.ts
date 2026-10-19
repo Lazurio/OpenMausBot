@@ -19,10 +19,10 @@ export const botDefaultModelSchema = z.object({
   "choose either a model variant or an effort level");
 
 // Preferences only: consent flags, live grants, bot IDs and execution state can never be replayed as permission grants.
-// Lazurio overlay (DEV-6673 M3): Works on, per-bot computers, MausBot's own connected apps and MCP server selection
-// are removed; saved defaults that name them still load, without them. So do upstream's Custom approval level,
-// the switch that made a bot ask before contacting another bot and the per-bot tool selection (DEV-6673).
-const REMOVED_DEFAULTS = ["computer", "cloudBackend", "autoStartVps", "composio", "mcpServers", "approvePeerComms", "toolScope"];
+// Lazurio overlay (DEV-6673 M3, M4a): Works on, per-bot computers, MausBot's own connected apps, MCP server selection
+// and browsers are removed; saved defaults that name them still load, without them. So do upstream's Custom approval
+// level, the switch that made a bot ask before contacting another bot and the per-bot tool selection (DEV-6673).
+const REMOVED_DEFAULTS = ["computer", "cloudBackend", "autoStartVps", "composio", "mcpServers", "browser", "browserProfile", "approvePeerComms", "toolScope"];
 const withoutRemovedDefaults = (value: unknown) => value && typeof value === "object" && !Array.isArray(value)
   ? Object.fromEntries(Object.entries(value).filter(([key, item]) => !REMOVED_DEFAULTS.includes(key) &&
     !(key === "approvalMode" && item === "custom")))
@@ -39,8 +39,6 @@ export const botDefaultsProfileSchema = z.preprocess(withoutRemovedDefaults, pro
   chiefOfStaff: z.boolean().optional(),
   managedSections: strings(100, 60).optional(),
   peers: strings(1000, 100).nullable().optional(),
-  browser: z.boolean().optional(),
-  browserProfile: z.string().max(100).nullable().optional(),
   parkDirectMessages: z.boolean().optional(),
   /** At creation, so a copy of a bot kept off the helper model is off it from its first moment. */
   helperModel: z.boolean().optional(),
