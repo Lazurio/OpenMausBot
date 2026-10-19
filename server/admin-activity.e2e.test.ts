@@ -158,8 +158,8 @@ posixOnly("admin activity log", () => {
     expect((await api("PATCH", `/api/bots/${botId}`, { approvePeerComms: true }, BOSS)).status).toBe(200);
     expect((await api("PATCH", `/api/bots/${botId}`, { pinned: true }, ADA)).status).toBe(200);
     expect((await api("PATCH", `/api/bots/${botId}`, { visibility: { people: ["nope"] } }, BOSS)).status).toBe(400);
-    const signOut = await api("POST", "/api/instances/no-such-engine/auth/sign-out", {}, BOSS);
-    expect(signOut.status, JSON.stringify(signOut.body)).toBeGreaterThanOrEqual(400);
+    const install = await api("POST", "/api/instances/no-such-engine/install", {}, BOSS);
+    expect(install.status, JSON.stringify(install.body)).toBeGreaterThanOrEqual(400);
     const hook = await api("POST", "/api/webhooks", { name: "Audit feed", botId, prompt: "Read it.", enabled: false }, BOSS);
     expect(hook.status).toBe(201);
     expect((await api("DELETE", `/api/webhooks/${hook.body.webhook.id}`, undefined, BOSS)).status).toBe(200);
@@ -173,7 +173,7 @@ posixOnly("admin activity log", () => {
       expect(actions, action).toContain(action);
     }
     expect(actions.filter((action) => action === "bot.update")).toHaveLength(1);
-    expect(actions).not.toContain("engine.auth-sign-out");
+    expect(actions).not.toContain("engine.install");
     expect(actions.filter((action) => action === "visibility.update")).toHaveLength(1);
     const audience = rows.find((entry) => entry.action === "visibility.update");
     expect(audience).toMatchObject({ who: BOSS, target: { kind: "bot", id: botId, name: "Audit Owl" }, before: { visibility: "everyone" }, after: { visibility: { people: [ADA] } } });

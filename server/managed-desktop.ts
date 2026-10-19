@@ -140,7 +140,6 @@ export class ManagedDesktopProviders {
         return {
           ...instance, models,
           refreshModels: async () => {},
-          startAuthentication: undefined, getAuthentication: undefined, completeAuthentication: undefined, cancelAuthentication: undefined, signOut: undefined,
           snapshot: async () => {
             if (!active()) return { state: "unavailable", reason: unavailable() };
             const snapshot = await instance.snapshot();

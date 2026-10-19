@@ -430,7 +430,6 @@ import { applyPendingWorkspaceRestore, readLastWorkspaceRestore, type WorkspaceR
 import { repairMovedWorkspacePaths } from "./moved-paths-repair.ts";
 import { createCustomDomainVerifier, customDomainIpv4, normalizeCustomDomain } from "./custom-domain.ts";
 import { allowedScopes, parseAllowList } from "./account-signin.ts";
-import { ProviderAuthSessions } from "./provider-auth-sessions.ts";
 import {
   clearSessionCookie,
   isLoopbackHost,
@@ -1271,8 +1270,8 @@ function adminAuditPlan(method: string, path: string): AuditPlan | null {
   if (m && method === "DELETE") plan.sessionId = m[1];
   m = /^\/api\/groups\/([\w-]+)$/.exec(path);
   if (m && method === "PATCH") plan.roomId = m[1];
-  m = /^\/api\/instances\/([\w.-]+)\/(install|auth\/complete|auth\/sign-out|claude-update)$/.exec(path);
-  if (m && method === "POST") plan.engineAction = { id: m[1]!, action: m[2]!.replace("/", "-") };
+  m = /^\/api\/instances\/([\w.-]+)\/(install|claude-update)$/.exec(path);
+  if (m && method === "POST") plan.engineAction = { id: m[1]!, action: m[2]! };
   return plan.config || plan.botId || plan.createsBots || plan.deletesBot || plan.createsWebhook || plan.webhookId || plan.sessionId || plan.pairing || plan.engineAction || plan.roomId ? plan : null;
 }
 
@@ -1409,7 +1408,6 @@ function queuedTurnTrigger(item: { trigger?: UsageTrigger; sender?: ResolvedSend
   if (item.peerAsk) return undefined;
   return item.sender ? { kind: "user", label: item.sender.name } : { kind: "owner" };
 }
-const providerAuthSessions = new ProviderAuthSessions();
 // OpenCode reads provider keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, …) from its environment. Wired before the first catalog probe below.
 let openCodeOrganisationManaged = (): boolean => false;
 const openCodeKeysAllowed = (): boolean => openCodeProviderKeysAllowed({
@@ -4807,7 +4805,6 @@ function closeSessionStreams(sessionId: string): void {
   }
 }
 sessions.onSessionRevoked((sessionId) => {
-  providerAuthSessions.revokeOwner(sessionId);
   closeSessionStreams(sessionId);
   // A revoked owner device no longer vouches for its lines (cloudOwnerPerson).
   ownerOnlyCache.clear();
@@ -11109,17 +11106,17 @@ async function describeInstances() {
       ...(entry?.access ? { access: entry.access } : {}),
     };
     if (hostedModels) return { ...described, readOnly: true,
-      install: undefined, authentication: undefined, cli: undefined, cliCandidates: [],
+      install: undefined, cli: undefined, cliCandidates: [],
     };
     const policyReason = policyModelRefusal(instance);
     const policy = policyReason ? { policy: { organizationName: managedPolicy.current()!.organizationName, reason: policyReason } } : {};
     if (managedDesktop.owns(instance.instanceId)) return {
       ...described, ...policy, readOnly: true, managed: managedDesktop.info(instance.instanceId),
-      install: undefined, authentication: undefined, cli: undefined, cliCandidates: [],
+      install: undefined, cli: undefined, cliCandidates: [],
     };
     if (entry?.driver !== "claudeAgent") return { ...described, ...policy };
     if (instance.instanceId === CLAUDE_API_INSTANCE) {
-      return { ...described, ...policy, authentication: undefined, install: { ...instance.install, signInCommand: undefined } };
+      return { ...described, ...policy, install: { ...instance.install, signInCommand: undefined } };
     }
     try {
       const signInCommand = claudeSignInCommand(instance.cli ?? instance.cliDefault ?? "claude", { ...process.env, ...entry.environment });
@@ -11134,7 +11131,7 @@ let companyShutdown = false;
 async function stopCompanyInstances(ids: string[]) {
   if (!ids.length) return;
   if (companyShutdown) {
-    for (const id of ids) { providerAuthSessions.clearInstance(id); bus.detach(id); }
+    for (const id of ids) bus.detach(id);
     return;
   }
   const cause = "turn interrupted — the Company connection changed";
@@ -11180,13 +11177,12 @@ async function stopCompanyInstances(ids: string[]) {
     if (group) store.patchGroup(group.id, { busyBotId: activeGroupSpeaker(group.id)?.botId ?? null });
     store.setActivity(bot.id, "idle");
   }
-  for (const id of ids) { providerAuthSessions.clearInstance(id); bus.detach(id); }
+  for (const id of ids) bus.detach(id);
 }
 
 async function persistProviderInstance(instanceId: string, instances: NonNullable<AppConfig["instances"]>) {
   saveConfig({ instances }, { replaceInstances: true });
   cfg.instances = instances;
-  providerAuthSessions.clearInstance(instanceId);
   bus.detach(instanceId);
   if (Object.hasOwn(instances, instanceId)) {
     await registry.load({ [instanceId]: instanceConfigs(cfg)[instanceId] });
@@ -11230,7 +11226,7 @@ async function reloadProviders(before: Record<string, unknown>) {
   for (const id of changed) providerInstancesChanging.add(id);
   // Those engines' processes are about to die: revoke before the first await.
   revokeEngineCapabilities(changed);
-  for (const id of changed) { providerAuthSessions.clearInstance(id); bus.detach(id); }
+  for (const id of changed) bus.detach(id);
   for (const task of direct) cancelDirectTurnDispatch(task.botId, task.threadId);
   for (const [threadId] of rooms) {
     const group = store.groupByThread(threadId);
@@ -11325,7 +11321,7 @@ const workspaceBackupAccess = {
       (current.kind !== "session" || (original.kind === "session" && current.session.id === original.session.id)));
   },
   exclusive: <T>(work: () => Promise<T>, keepLocked?: boolean) => workspaceMaintenance.run(work, {
-    idle: () => !providerFleetReloading && !providerAuthSessions.active && !browserEngineInstall &&
+    idle: () => !providerFleetReloading && !browserEngineInstall &&
       !routines?.isTicking && !calendarCalls?.isTicking &&
       store.bots.every((bot) => !botHasActiveTurn(bot.id) && !routines?.activeRunForBot(bot.id) && !botComputerControlSnapshot(bot.id).held) &&
       store.groups.every((group) => !groupIsWorking(group)),
@@ -11589,7 +11585,7 @@ ROUTES.push(createConfigRoutes({
   resyncOpenCodeProviderKeys, revokeEngineCapabilities, reloadProviders, broadcast, drainQueuedSends,
 }));
 ROUTES.push(createInstanceRoutes({
-  store, cfg, registry, sessions, providerAuthSessions,
+  store, cfg, registry,
   hostedModels: Boolean(hostedModels),
   providerConfigBusy: { get: () => providerConfigBusy, set: (busy) => { providerConfigBusy = busy; } },
   providerInstancesChanging, describeInstances, persistProviderInstance, configStatus, broadcast, testCliBinary,

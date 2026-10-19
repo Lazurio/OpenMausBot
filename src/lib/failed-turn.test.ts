@@ -7,7 +7,6 @@ const { activityPreview, botEngine, failedTurnCause, signedOutEngine } = await i
 const engine = (patch: Partial<InstanceInfo> = {}, snapshot: Partial<InstanceInfo["snapshot"]> = {}): InstanceInfo => ({
   instanceId: "claude", driverKind: "claudeAgent", displayName: "Claude",
   install: { command: { darwin: "x", linux: "x", win32: "x" }, signInCommand: "claude /login", server: { package: "@anthropic-ai/claude-code" } },
-  authentication: { method: "paste-code" },
   models: { default: "sonnet", options: [] },
   ...patch,
   snapshot: { state: "available", authenticated: false, ...snapshot },

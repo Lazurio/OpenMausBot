@@ -40,8 +40,7 @@ import {
   awayFromMainThread,
   openBot,
 } from "@/state/store";
-import { EngineSetup } from "./EngineSetup";
-import { signedOutHeadline, useLazurioSignIn } from "./LazurioEngineSignIn";
+import { EngineSetup, signedOutHeadline, useLazurioSignIn } from "./EngineSetup";
 import { openExternalLink } from "@/lib/app-links";
 import { CODEX_USAGE_URL, codexUsageLimitReached } from "../../shared/codex-usage-limit";
 import { ClaudeUpdatePrompt } from "./ClaudeUpdatePrompt";
@@ -287,8 +286,7 @@ export function FailedTurnRow({ tool, engine, onRetry }: {
   engine: InstanceInfo | undefined;
   onRetry?: () => void;
 }) {
-  const signedOut = signedOutEngine(tool, engine);
-  const lazurio = useLazurioSignIn(); // Lazurio overlay (DEV-6673)
+  const signedOut = signedOutEngine(tool, engine), lazurio = useLazurioSignIn(); // Lazurio overlay (DEV-6673)
   const cause = failedTurnCause(tool.name) ?? tool.name;
   return (
     <ErrorRow
