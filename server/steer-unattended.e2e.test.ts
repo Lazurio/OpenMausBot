@@ -128,7 +128,6 @@ posixOnly("a steered message does not lift the unattended mark on its own", () =
     // auto mode ON: an attended turn would sail straight through
     expect((await api("PATCH", `/api/bots/${bot.id}`, {
       autoApprove: true,
-      acknowledgeLocalAuto: true,
       modelSelection: { instanceId: "claude", model: "claude-fake" },
     })).status).toBe(200);
     const hook = await api("POST", "/api/webhooks", {

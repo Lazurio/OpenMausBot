@@ -72,7 +72,7 @@ describe("configured bot creation", () => {
     expect(result.bot).toMatchObject({ approvalMode: "full" });
     expect(f.events).toEqual(["POST /api/bots", "PATCH /api/bots/created", "PATCH /api/bots/created/tasks/initial"]);
     expect(f.bodies[1]).toMatchObject({ approvalMode: "full" });
-    expect(f.bodies[2]).toEqual({ approvalMode: "full", acknowledgeLocalAuto: false });
+    expect(f.bodies[2]).toEqual({ approvalMode: "full" });
     for (const body of f.bodies) expect(body).not.toHaveProperty("confirmFullAccess");
   });
 

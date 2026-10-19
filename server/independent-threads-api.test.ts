@@ -499,8 +499,8 @@ describe("independent bot tasks through the isolated control surface", () => {
     const taskB = second.task.taskId;
     await control(["set-model", "--bot", botId, "--task", taskB, "--instance", "claude", "--model", models[1]]);
     // This settings action models the trusted app's same-origin request.
-    expect((await api("PATCH", `/api/bots/${botId}/tasks/${taskB}`, { approvalMode: "auto", acknowledgeLocalAuto: true })).status).toBe(409);
-    expect((await api("PATCH", `/api/bots/${botId}/tasks/${taskB}`, { approvalMode: "auto", acknowledgeLocalAuto: true }, true)).status).toBe(200);
+    expect((await api("PATCH", `/api/bots/${botId}/tasks/${taskB}`, { approvalMode: "auto" })).status).toBe(409);
+    expect((await api("PATCH", `/api/bots/${botId}/tasks/${taskB}`, { approvalMode: "auto" }, true)).status).toBe(200);
     await control(["send", "--bot", botId, "--task", taskB, "--text", "ONLY_B"]);
     const launchedB = await dump(models[1]);
     expect(launchedA.pid).not.toBe(launchedB.pid);
@@ -689,7 +689,7 @@ describe("independent bot tasks through the isolated control surface", () => {
   it("runs an unattended task in the bot's own level, still carding what the provider asks, while a sibling runs attended", async () => {
     const created = await tool("create_bot", { name: "Unattended fixture", instance_id: "claude", model: models[0] });
     const botId = created.bot.id;
-    expect((await api("PATCH", `/api/bots/${botId}`, { approvalMode: "auto", acknowledgeLocalAuto: true })).status).toBe(200);
+    expect((await api("PATCH", `/api/bots/${botId}`, { approvalMode: "auto" })).status).toBe(200);
     const hook = await api("POST", "/api/webhooks", { name: "Fixture event", prompt: "UNATTENDED_ONLY", botId, runOn: "maus" });
     expect(hook.status).toBe(201);
     const delivered = await fetch(hook.body.credential.url, { method: "POST", body: "{}", headers: { "content-type": "application/json" } });

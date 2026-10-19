@@ -74,7 +74,7 @@ it("shares New bot defaults as a preset, imports it, and creates bots from file 
       skillsEnabled: false, skills: [{ name: "follow-up", description: "follow-up steps." }], notes: ["MEMORY.md", "memory/tone.md"] })]);
     expect(listed[0]).not.toHaveProperty("publisherName");
 
-    const fromFile = await ok("POST", "/api/bots", { name: "Sky", title: "Support", useDefaults: false, preset: fileId, acknowledgeLocalAuto: true });
+    const fromFile = await ok("POST", "/api/bots", { name: "Sky", title: "Support", useDefaults: false, preset: fileId });
     const fromFileSkills = (await ok("GET", `/api/bots/${fromFile.bot.id}/skills`)).skills;
     expect(fromFileSkills).toEqual([expect.objectContaining({ name: "follow-up", enabled: false })]);
     expect((await ok("GET", `/api/bots/${fromFile.bot.id}/memory/file?path=${encodeURIComponent("memory/tone.md")}`)).text).toBe("Warm.\n");
@@ -82,7 +82,7 @@ it("shares New bot defaults as a preset, imports it, and creates bots from file 
     const created = bots.find((bot) => bot.id === fromFile.bot.id)!;
     expect(created.installedPackage).toMatchObject({ id: "support-agent", source: "file", presetKey: "new-bot-defaults" });
     expect(created.approvalMode).toBe("full");
-    const withDefaults = await ok("POST", "/api/bots", { name: "Sky 3", preset: fileId, acknowledgeLocalAuto: true });
+    const withDefaults = await ok("POST", "/api/bots", { name: "Sky 3", preset: fileId });
     expect((await ok("GET", `/api/bots/${withDefaults.bot.id}/skills`)).skills).toEqual([expect.objectContaining({ name: "follow-up", enabled: false })]);
 
     const stored = JSON.parse(readFileSync(presetsFile, "utf8"));
@@ -93,7 +93,7 @@ it("shares New bot defaults as a preset, imports it, and creates bots from file 
     writeFileSync(presetsFile, JSON.stringify(stored));
     expect((await ok("GET", "/api/bot-presets")).presets.map((entry: { source: string; publisherName?: string }) => [entry.source, entry.publisherName]))
       .toEqual([["org", "Acme Partners"], ["file", undefined]]);
-    const fromOrg = await ok("POST", "/api/bots", { name: "Sky 2", useDefaults: false, preset: "org-preset-1", acknowledgeLocalAuto: true });
+    const fromOrg = await ok("POST", "/api/bots", { name: "Sky 2", useDefaults: false, preset: "org-preset-1" });
     expect((await ok("GET", `/api/bots/${fromOrg.bot.id}/skills`)).skills).toEqual([expect.objectContaining({ name: "follow-up", enabled: true, source: "org:acme/support-agent@1.0.0" })]);
     writeFileSync(join(fixture.info.dataDir, "org-library", "state.json"), JSON.stringify({ version: 1, installs: { [orgRow.installId]: { status: "withdrawn" } } }));
     expect((await ok("GET", "/api/bot-presets")).presets.map((entry: { source: string }) => entry.source)).toEqual(["org", "file"]);
