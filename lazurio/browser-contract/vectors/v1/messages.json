@@ -1,0 +1,1149 @@
+{
+  "schema": "lazurio.browser-vectors.v1",
+  "contract": "messages",
+  "cases": [
+    {
+      "name": "the five types",
+      "call": "browserMessage",
+      "expect": {
+        "info": "lazurio-browser:info",
+        "newTab": "lazurio-browser:new-tab",
+        "closed": "lazurio-browser:closed",
+        "identityRequest": "lazurio-browser:identity-request",
+        "identity": "lazurio-browser:identity"
+      }
+    },
+    {
+      "name": "v1",
+      "call": "messageMajors",
+      "expect": [
+        1
+      ]
+    },
+    {
+      "name": "whole numbers from 1, each once",
+      "call": "parseMessageMajors",
+      "args": [
+        [
+          1,
+          2
+        ]
+      ],
+      "expect": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "one major",
+      "call": "parseMessageMajors",
+      "args": [
+        [
+          1
+        ]
+      ],
+      "expect": [
+        1
+      ]
+    },
+    {
+      "name": "none named",
+      "call": "parseMessageMajors",
+      "args": [
+        {
+          "$": "undefined"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "an empty list names none",
+      "call": "parseMessageMajors",
+      "args": [
+        []
+      ],
+      "expect": null
+    },
+    {
+      "name": "a major twice",
+      "call": "parseMessageMajors",
+      "args": [
+        [
+          1,
+          1
+        ]
+      ],
+      "expect": null
+    },
+    {
+      "name": "a major below 1",
+      "call": "parseMessageMajors",
+      "args": [
+        [
+          0,
+          1
+        ]
+      ],
+      "expect": null
+    },
+    {
+      "name": "a fraction",
+      "call": "parseMessageMajors",
+      "args": [
+        [
+          1.5
+        ]
+      ],
+      "expect": null
+    },
+    {
+      "name": "a text",
+      "call": "parseMessageMajors",
+      "args": [
+        [
+          "1"
+        ]
+      ],
+      "expect": null
+    },
+    {
+      "name": "not a list",
+      "call": "parseMessageMajors",
+      "args": [
+        1
+      ],
+      "expect": null
+    },
+    {
+      "name": "an app as deployed today names no majors: v1",
+      "call": "messageMajor",
+      "args": [
+        null
+      ],
+      "expect": 1
+    },
+    {
+      "name": "an app that reads v1",
+      "call": "messageMajor",
+      "args": [
+        [
+          1
+        ]
+      ],
+      "expect": 1
+    },
+    {
+      "name": "the highest both read",
+      "call": "messageMajor",
+      "args": [
+        [
+          2,
+          1
+        ]
+      ],
+      "expect": 1
+    },
+    {
+      "name": "an app that reads no major of these gets nothing",
+      "call": "messageMajor",
+      "args": [
+        [
+          2
+        ]
+      ],
+      "expect": null
+    },
+    {
+      "name": "where the view's tab is, named by its view address",
+      "call": "viewInfoMessage",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+        "https://example.com/",
+        "Example"
+      ],
+      "expect": {
+        "type": "lazurio-browser:info",
+        "v": 1,
+        "view": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+        "url": "https://example.com/",
+        "title": "Example"
+      }
+    },
+    {
+      "name": "a new tab of the view's page",
+      "call": "viewNewTabMessage",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+        "https://example.com/a"
+      ],
+      "expect": {
+        "type": "lazurio-browser:new-tab",
+        "v": 1,
+        "view": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+        "url": "https://example.com/a"
+      }
+    },
+    {
+      "name": "the view's tab ended",
+      "call": "viewClosedMessage",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+      ],
+      "expect": {
+        "type": "lazurio-browser:closed",
+        "v": 1,
+        "view": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+      }
+    },
+    {
+      "name": "the view asks for the identity",
+      "call": "identityRequestMessage",
+      "args": [],
+      "expect": {
+        "type": "lazurio-browser:identity-request",
+        "v": 1
+      }
+    },
+    {
+      "name": "the app's answer with the shell's identity",
+      "call": "identityReplyMessage",
+      "args": [
+        {
+          "id": "vm-01.acme",
+          "name": "vm-01",
+          "who": "Acme",
+          "glyph": {
+            "kind": "initials",
+            "text": "AC"
+          }
+        }
+      ],
+      "expect": {
+        "type": "lazurio-browser:identity",
+        "v": 1,
+        "identity": {
+          "id": "vm-01.acme",
+          "name": "vm-01",
+          "who": "Acme",
+          "glyph": {
+            "kind": "initials",
+            "text": "AC"
+          }
+        }
+      }
+    },
+    {
+      "name": "the app's answer names the majors its parser reads",
+      "call": "identityReplyMessage",
+      "args": [
+        {
+          "id": "vm-01.acme",
+          "name": "vm-01",
+          "who": "Acme",
+          "glyph": {
+            "kind": "initials",
+            "text": "AC"
+          }
+        },
+        [
+          1
+        ]
+      ],
+      "expect": {
+        "type": "lazurio-browser:identity",
+        "v": 1,
+        "identity": {
+          "id": "vm-01.acme",
+          "name": "vm-01",
+          "who": "Acme",
+          "glyph": {
+            "kind": "initials",
+            "text": "AC"
+          }
+        },
+        "majors": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "an app that does not know the Environment answers none",
+      "call": "identityReplyMessage",
+      "args": [
+        null
+      ],
+      "expect": {
+        "type": "lazurio-browser:identity",
+        "v": 1,
+        "identity": null
+      }
+    },
+    {
+      "name": "info from the frame's window on the view's origin",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:info",
+            "view": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/",
+            "title": "Example"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "info",
+        "tab": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+        "title": "Example",
+        "url": "https://example.com/"
+      }
+    },
+    {
+      "name": "a message of v1 by its v",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:info",
+            "view": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/",
+            "title": "Example",
+            "v": 1
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "info",
+        "tab": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+        "title": "Example",
+        "url": "https://example.com/"
+      }
+    },
+    {
+      "name": "a message of another major is none",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:info",
+            "view": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/",
+            "title": "Example",
+            "v": 2
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a v that is no major is none",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:info",
+            "view": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/",
+            "title": "Example",
+            "v": "1"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a new tab of the page",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:new-tab",
+            "v": 1,
+            "view": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+            "url": "https://example.com/a"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "new-tab",
+        "tab": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+        "url": "https://example.com/a"
+      }
+    },
+    {
+      "name": "a new tab without its address is none",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:new-tab",
+            "view": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "the tab ended",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:closed",
+            "view": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "closed",
+        "tab": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+      }
+    },
+    {
+      "name": "info without its title is none",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:info",
+            "view": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "an id in lower case names the tab in upper case",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:info",
+            "view": "https://browser.vm-01.acme.lazurio.io/t/0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+            "url": "https://example.com/",
+            "title": "Example"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "info",
+        "tab": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+        "title": "Example",
+        "url": "https://example.com/"
+      }
+    },
+    {
+      "name": "a message without its view is none",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:closed"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a view with a query is none",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:info",
+            "view": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A?x=1",
+            "url": "https://example.com/",
+            "title": "Example"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a view with a slash after the id is none",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:info",
+            "view": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A/",
+            "url": "https://example.com/",
+            "title": "Example"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a view under /T/ is none",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:info",
+            "view": "https://browser.vm-01.acme.lazurio.io/T/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/",
+            "title": "Example"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "the bare view origin names no tab",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:info",
+            "view": "https://browser.vm-01.acme.lazurio.io/",
+            "url": "https://example.com/",
+            "title": "Example"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "another Environment's view is none",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:info",
+            "view": "https://browser.vm-02.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/",
+            "title": "Example"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a view of a three-label base is none",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:info",
+            "view": "https://browser.a.b.c.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/",
+            "title": "Example"
+          },
+          "origin": "https://browser.a.b.c.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.a.b.c.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "not from the frame's window",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:info",
+            "view": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/",
+            "title": "Example"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": false
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "from another origin",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:info",
+            "view": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/",
+            "title": "Example"
+          },
+          "origin": "https://browser.vm-02.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "no view framed",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:info",
+            "view": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/",
+            "title": "Example"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        null
+      ],
+      "expect": null
+    },
+    {
+      "name": "another type",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:other",
+            "view": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/",
+            "title": "Example"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a long title and address are cut for display",
+      "call": "acceptViewMessage",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:info",
+            "view": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": {
+              "$repeat": "u",
+              "times": 3000
+            },
+            "title": {
+              "$repeat": "t",
+              "times": 600
+            }
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        },
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "info",
+        "tab": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+        "title": {
+          "$repeat": "t",
+          "times": 500
+        },
+        "url": {
+          "$repeat": "u",
+          "times": 2048
+        }
+      }
+    },
+    {
+      "name": "an Organization's Environment",
+      "call": "viewEnvironmentId",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": "vm-01.acme"
+    },
+    {
+      "name": "a personal Environment",
+      "call": "viewEnvironmentId",
+      "args": [
+        "https://browser.jana.lazurio.io"
+      ],
+      "expect": "jana"
+    },
+    {
+      "name": "an app's origin is no view's",
+      "call": "viewEnvironmentId",
+      "args": [
+        "https://launchpad.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a tab's address is no origin",
+      "call": "viewEnvironmentId",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a request of a frame on a view's origin asks about its Environment",
+      "call": "identityRequestOf",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity-request"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        }
+      ],
+      "expect": "vm-01.acme"
+    },
+    {
+      "name": "a request of v1 by its v",
+      "call": "identityRequestOf",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity-request",
+            "v": 1
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        }
+      ],
+      "expect": "vm-01.acme"
+    },
+    {
+      "name": "a request of another major is none",
+      "call": "identityRequestOf",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity-request",
+            "v": 2
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "not from a frame of the page",
+      "call": "identityRequestOf",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity-request"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": false
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "from an origin that is no view's",
+      "call": "identityRequestOf",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity-request"
+          },
+          "origin": "https://launchpad.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "another type",
+      "call": "identityRequestOf",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity"
+          },
+          "origin": "https://browser.vm-01.acme.lazurio.io",
+          "fromFrame": true
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "the parent's answer on the origin the browser names",
+      "call": "acceptIdentityReply",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity",
+            "identity": {
+              "id": "vm-01.acme",
+              "name": "vm-01",
+              "who": "Acme",
+              "glyph": {
+                "kind": "initials",
+                "text": "AC"
+              }
+            }
+          },
+          "origin": "https://launchpad.vm-01.acme.lazurio.io",
+          "fromParent": true
+        },
+        "https://launchpad.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "identity": {
+          "id": "vm-01.acme",
+          "name": "vm-01",
+          "who": "Acme",
+          "glyph": {
+            "kind": "initials",
+            "text": "AC"
+          }
+        },
+        "majors": null
+      }
+    },
+    {
+      "name": "with the majors the app names",
+      "call": "acceptIdentityReply",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity",
+            "identity": {
+              "id": "vm-01.acme",
+              "name": "vm-01",
+              "who": "Acme",
+              "glyph": {
+                "kind": "initials",
+                "text": "AC"
+              }
+            },
+            "v": 1,
+            "majors": [
+              1
+            ]
+          },
+          "origin": "https://launchpad.vm-01.acme.lazurio.io",
+          "fromParent": true
+        },
+        "https://launchpad.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "identity": {
+          "id": "vm-01.acme",
+          "name": "vm-01",
+          "who": "Acme",
+          "glyph": {
+            "kind": "initials",
+            "text": "AC"
+          }
+        },
+        "majors": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "majors in another form name none",
+      "call": "acceptIdentityReply",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity",
+            "identity": {
+              "id": "vm-01.acme",
+              "name": "vm-01",
+              "who": "Acme",
+              "glyph": {
+                "kind": "initials",
+                "text": "AC"
+              }
+            },
+            "majors": "1"
+          },
+          "origin": "https://launchpad.vm-01.acme.lazurio.io",
+          "fromParent": true
+        },
+        "https://launchpad.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "identity": {
+          "id": "vm-01.acme",
+          "name": "vm-01",
+          "who": "Acme",
+          "glyph": {
+            "kind": "initials",
+            "text": "AC"
+          }
+        },
+        "majors": null
+      }
+    },
+    {
+      "name": "an answer of none",
+      "call": "acceptIdentityReply",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity",
+            "identity": null
+          },
+          "origin": "https://launchpad.vm-01.acme.lazurio.io",
+          "fromParent": true
+        },
+        "https://launchpad.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "identity": null,
+        "majors": null
+      }
+    },
+    {
+      "name": "where the browser names no parent, an app origin of an Environment",
+      "call": "acceptIdentityReply",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity",
+            "identity": {
+              "id": "vm-01.acme",
+              "name": "vm-01",
+              "who": "Acme",
+              "glyph": {
+                "kind": "initials",
+                "text": "AC"
+              }
+            }
+          },
+          "origin": "https://launchpad.vm-01.acme.lazurio.io",
+          "fromParent": true
+        },
+        null
+      ],
+      "expect": {
+        "identity": {
+          "id": "vm-01.acme",
+          "name": "vm-01",
+          "who": "Acme",
+          "glyph": {
+            "kind": "initials",
+            "text": "AC"
+          }
+        },
+        "majors": null
+      }
+    },
+    {
+      "name": "the browser's opaque name counts as none",
+      "call": "acceptIdentityReply",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity",
+            "identity": {
+              "id": "vm-01.acme",
+              "name": "vm-01",
+              "who": "Acme",
+              "glyph": {
+                "kind": "initials",
+                "text": "AC"
+              }
+            }
+          },
+          "origin": "https://launchpad.vm-01.acme.lazurio.io",
+          "fromParent": true
+        },
+        "null"
+      ],
+      "expect": {
+        "identity": {
+          "id": "vm-01.acme",
+          "name": "vm-01",
+          "who": "Acme",
+          "glyph": {
+            "kind": "initials",
+            "text": "AC"
+          }
+        },
+        "majors": null
+      }
+    },
+    {
+      "name": "not from the parent window",
+      "call": "acceptIdentityReply",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity",
+            "identity": {
+              "id": "vm-01.acme",
+              "name": "vm-01",
+              "who": "Acme",
+              "glyph": {
+                "kind": "initials",
+                "text": "AC"
+              }
+            }
+          },
+          "origin": "https://launchpad.vm-01.acme.lazurio.io",
+          "fromParent": false
+        },
+        "https://launchpad.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "from another origin than the named parent",
+      "call": "acceptIdentityReply",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity",
+            "identity": {
+              "id": "vm-01.acme",
+              "name": "vm-01",
+              "who": "Acme",
+              "glyph": {
+                "kind": "initials",
+                "text": "AC"
+              }
+            }
+          },
+          "origin": "https://t3code.vm-01.acme.lazurio.io",
+          "fromParent": true
+        },
+        "https://launchpad.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "unnamed, from an origin of no Environment",
+      "call": "acceptIdentityReply",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity",
+            "identity": {
+              "id": "vm-01.acme",
+              "name": "vm-01",
+              "who": "Acme",
+              "glyph": {
+                "kind": "initials",
+                "text": "AC"
+              }
+            }
+          },
+          "origin": "https://example.com",
+          "fromParent": true
+        },
+        null
+      ],
+      "expect": null
+    },
+    {
+      "name": "an answer of another major is none",
+      "call": "acceptIdentityReply",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity",
+            "identity": {
+              "id": "vm-01.acme",
+              "name": "vm-01",
+              "who": "Acme",
+              "glyph": {
+                "kind": "initials",
+                "text": "AC"
+              }
+            },
+            "v": 2
+          },
+          "origin": "https://launchpad.vm-01.acme.lazurio.io",
+          "fromParent": true
+        },
+        "https://launchpad.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "an answer without its identity is none",
+      "call": "acceptIdentityReply",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity"
+          },
+          "origin": "https://launchpad.vm-01.acme.lazurio.io",
+          "fromParent": true
+        },
+        "https://launchpad.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "another type",
+      "call": "acceptIdentityReply",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:info",
+            "identity": {
+              "id": "vm-01.acme",
+              "name": "vm-01",
+              "who": "Acme",
+              "glyph": {
+                "kind": "initials",
+                "text": "AC"
+              }
+            }
+          },
+          "origin": "https://launchpad.vm-01.acme.lazurio.io",
+          "fromParent": true
+        },
+        "https://launchpad.vm-01.acme.lazurio.io"
+      ],
+      "expect": null
+    }
+  ]
+}

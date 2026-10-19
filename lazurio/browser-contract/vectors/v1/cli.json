@@ -1,0 +1,654 @@
+{
+  "schema": "lazurio.browser-vectors.v1",
+  "contract": "cli",
+  "cases": [
+    {
+      "name": "v1",
+      "call": "browserCliSchema",
+      "expect": "lazurio.browser-cli.v1"
+    },
+    {
+      "name": "done, failure, usage, and an Environment without a browser",
+      "call": "browserCliExit",
+      "expect": {
+        "done": 0,
+        "failure": 1,
+        "usage": 2,
+        "noBrowser": 10
+      }
+    },
+    {
+      "name": "window's answer with its schema",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-window",
+          "session": "t3-1",
+          "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+          "created": true,
+          "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+          "command": "agent-browser --cdp 9222 --session t3-1"
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-window",
+          "session": "t3-1",
+          "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+          "created": true,
+          "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+          "command": "agent-browser --cdp 9222 --session t3-1"
+        }
+      }
+    },
+    {
+      "name": "link's answer",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-link",
+          "session": "t3-1",
+          "link": "https://launchpad.vm-01.acme.lazurio.io/.lazurio/browser?session=t3-1"
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-link",
+          "session": "t3-1",
+          "link": "https://launchpad.vm-01.acme.lazurio.io/.lazurio/browser?session=t3-1"
+        }
+      }
+    },
+    {
+      "name": "link --url's answer names its tab",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-link",
+          "session": null,
+          "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+          "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-link",
+          "session": null,
+          "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+          "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+        }
+      }
+    },
+    {
+      "name": "done's answer",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-done",
+          "session": "codex-1",
+          "outcome": "stopped"
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-done",
+          "session": "codex-1",
+          "outcome": "stopped"
+        }
+      }
+    },
+    {
+      "name": "without a browser, link answers with its own kind",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-link",
+          "available": false
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-link",
+          "available": false
+        }
+      }
+    },
+    {
+      "name": "without a browser, done answers with its own kind",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-done",
+          "available": false
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-done",
+          "available": false
+        }
+      }
+    },
+    {
+      "name": "window's answer",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-window",
+            "session": "t3-1",
+            "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "created": true,
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "command": "agent-browser --cdp 9222 --session t3-1"
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-window",
+        "session": "t3-1",
+        "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+        "created": true,
+        "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+        "command": "agent-browser --cdp 9222 --session t3-1"
+      }
+    },
+    {
+      "name": "an answer without a schema is v1",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-window",
+            "session": "t3-1",
+            "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "created": true,
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "command": "agent-browser --cdp 9222 --session t3-1"
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-window",
+        "session": "t3-1",
+        "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+        "created": true,
+        "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+        "command": "agent-browser --cdp 9222 --session t3-1"
+      }
+    },
+    {
+      "name": "members it does not know are ignored",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-window",
+            "session": "t3-1",
+            "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "created": true,
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "command": "agent-browser --cdp 9222 --session t3-1",
+            "later": 1
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-window",
+        "session": "t3-1",
+        "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+        "created": true,
+        "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+        "command": "agent-browser --cdp 9222 --session t3-1"
+      }
+    },
+    {
+      "name": "link's answer",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-link",
+            "session": "t3-1",
+            "link": "https://launchpad.vm-01.acme.lazurio.io/.lazurio/browser?session=t3-1"
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-link",
+        "session": "t3-1",
+        "link": "https://launchpad.vm-01.acme.lazurio.io/.lazurio/browser?session=t3-1"
+      }
+    },
+    {
+      "name": "link --url's answer without a session",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-link",
+            "session": null,
+            "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-link",
+        "session": null,
+        "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+        "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+      }
+    },
+    {
+      "name": "done's answer",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-done",
+            "session": "codex-1",
+            "outcome": "stopped"
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-done",
+        "session": "codex-1",
+        "outcome": "stopped"
+      }
+    },
+    {
+      "name": "done's outcome none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-done",
+            "session": "codex-1",
+            "outcome": "none"
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-done",
+        "session": "codex-1",
+        "outcome": "none"
+      }
+    },
+    {
+      "name": "done's outcome refused",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-done",
+            "session": "codex-1",
+            "outcome": "refused"
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-done",
+        "session": "codex-1",
+        "outcome": "refused"
+      }
+    },
+    {
+      "name": "done's outcome unconfirmed",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-done",
+            "session": "codex-1",
+            "outcome": "unconfirmed"
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-done",
+        "session": "codex-1",
+        "outcome": "unconfirmed"
+      }
+    },
+    {
+      "name": "an answer without a browser",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-link",
+            "available": false
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-link",
+        "available": false
+      }
+    },
+    {
+      "name": "a window's id in lower case is given in upper case",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-window",
+            "session": "t3-1",
+            "targetId": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+            "created": true,
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "command": "agent-browser --cdp 9222 --session t3-1"
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-window",
+        "session": "t3-1",
+        "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+        "created": true,
+        "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+        "command": "agent-browser --cdp 9222 --session t3-1"
+      }
+    },
+    {
+      "name": "an answer of another major is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v2",
+            "kind": "browser-window",
+            "session": "t3-1",
+            "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "created": true,
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "command": "agent-browser --cdp 9222 --session t3-1"
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "another kind is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-tab",
+            "session": "t3-1",
+            "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "created": true,
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "command": "agent-browser --cdp 9222 --session t3-1"
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a window without its target is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-window",
+            "session": "t3-1",
+            "created": true,
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "command": "agent-browser --cdp 9222 --session t3-1"
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a window whose session is outside the grammar is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-window",
+            "session": "../x",
+            "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "created": true,
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "command": "agent-browser --cdp 9222 --session t3-1"
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a link without its link is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-link",
+            "session": "t3-1"
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a link whose session is a number is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-link",
+            "session": 7,
+            "link": "https://launchpad.vm-01.acme.lazurio.io/.lazurio/browser?session=t3-1"
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a link --url whose tab is no target id is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-link",
+            "session": null,
+            "targetId": "x",
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "done with another outcome is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-done",
+            "session": "codex-1",
+            "outcome": "maybe"
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a text that is no JSON is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        "window"
+      ],
+      "expect": null
+    },
+    {
+      "name": "JSON that is no object is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        "[1]"
+      ],
+      "expect": null
+    },
+    {
+      "name": "open's answer, shown in a T3 Code thread's panel",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-open",
+          "session": "t3-1",
+          "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+          "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-open",
+          "session": "t3-1",
+          "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+          "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+        }
+      }
+    },
+    {
+      "name": "open's answer without a thread",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-open",
+          "session": null,
+          "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+          "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-open",
+          "session": null,
+          "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+          "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+        }
+      }
+    },
+    {
+      "name": "without a browser, open answers with its own kind",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-open",
+          "available": false
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-open",
+          "available": false
+        }
+      }
+    },
+    {
+      "name": "open's answer",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-open",
+            "session": "t3-1",
+            "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-open",
+        "session": "t3-1",
+        "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+        "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+      }
+    },
+    {
+      "name": "open's answer without a thread",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-open",
+            "session": null,
+            "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-open",
+        "session": null,
+        "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+        "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+      }
+    },
+    {
+      "name": "open without a browser",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-open",
+            "available": false
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-open",
+        "available": false
+      }
+    },
+    {
+      "name": "an open without its tab is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-open",
+            "session": null,
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "an open whose session is a number is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-open",
+            "session": 7,
+            "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A"
+          }
+        }
+      ],
+      "expect": null
+    }
+  ]
+}

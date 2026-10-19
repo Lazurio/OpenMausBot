@@ -207,6 +207,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Validate the Lazurio release contract and test selection
+        run: node --test scripts/lazurio-release-contract.node-test.mjs scripts/lazurio-ci-scope.node-test.mjs scripts/lazurio-removals.node-test.mjs scripts/lazurio-browser-contract.node-test.mjs
 
       - name: Typecheck
         run: pnpm typecheck

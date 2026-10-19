@@ -1,0 +1,28 @@
+Lazurio Platform
+Copyright 2026 Human and Machine s.r.o.
+
+Newly authored Platform code, documentation and supplied first-party templates
+are provided under Elastic License 2.0. Third-party components retain their
+original licenses and notices; see docs/licensing.md.
+
+The Environment browser's contract is provided under the MIT License instead
+(decision F50 point 6, 2026-10-12); its terms are in
+src/browser/contract/LICENSE, which a release's shell artifact carries as
+browser-contract/LICENSE. The exception covers exactly:
+- the directory src/browser/contract/: the contract module, its pure and Node
+  parts and its vectors;
+- the files a release's shell artifact lists under browserContract in its
+  artifact.json: the module's two parts as ES modules with their
+  declarations, its vectors with their README, and its own licence file;
+- by the grant recorded in decision F50 point 6 (2026-10-12), the functions
+  the T3 Code fork's overlay copied from src/browser/people/holds.ts at
+  49d54c9 into apps/server/src/lazurio/holders.ts, as that file's header
+  lists them: BootTime, readBootClock, parseBootTime, RecordedTab, LiveTabs,
+  parseLiveTabs, keptTabs, isStrip, holderDirectory, liveTabsPath,
+  parseHolder, holderFileText, parseHolderRecords, replaceOwnerFile,
+  processAlive and watchHolds (there watchDirectories).
+Platform files built from code that imports the module, such as the shell
+artifact's shell.js and contract.js and the view page's script, carry the
+parts of it they use; those parts stay under the MIT License.
+Everything else, the repository's root LICENSE included, stays under Elastic
+License 2.0.

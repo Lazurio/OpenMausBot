@@ -1,0 +1,825 @@
+{
+  "schema": "lazurio.browser-vectors.v1",
+  "contract": "address-bar",
+  "cases": [
+    {
+      "name": "nothing typed",
+      "call": "addressBarTarget",
+      "args": [
+        "  ",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "none"
+      }
+    },
+    {
+      "name": "about:blank",
+      "call": "addressBarTarget",
+      "args": [
+        "about:blank",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "about:blank"
+      }
+    },
+    {
+      "name": "an https address as typed",
+      "call": "addressBarTarget",
+      "args": [
+        "https://example.com/a?b=c#d",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "https://example.com/a?b=c#d"
+      }
+    },
+    {
+      "name": "an http address as typed",
+      "call": "addressBarTarget",
+      "args": [
+        "http://example.com",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "http://example.com/"
+      }
+    },
+    {
+      "name": "a scheme in capitals",
+      "call": "addressBarTarget",
+      "args": [
+        "HTTPS://EXAMPLE.COM/A",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "https://example.com/A"
+      }
+    },
+    {
+      "name": "a script is refused",
+      "call": "addressBarTarget",
+      "args": [
+        "javascript:alert(1)",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "scheme"
+      }
+    },
+    {
+      "name": "a file is refused",
+      "call": "addressBarTarget",
+      "args": [
+        "file:///etc/passwd",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "scheme"
+      }
+    },
+    {
+      "name": "localhost over http",
+      "call": "addressBarTarget",
+      "args": [
+        "localhost",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "http://localhost/"
+      }
+    },
+    {
+      "name": "localhost and a port over http",
+      "call": "addressBarTarget",
+      "args": [
+        "localhost:3000",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "http://localhost:3000/"
+      }
+    },
+    {
+      "name": "localhost in capitals with a port and a path",
+      "call": "addressBarTarget",
+      "args": [
+        "LOCALHOST:3000/app",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "http://localhost:3000/app"
+      }
+    },
+    {
+      "name": "an IP address over http",
+      "call": "addressBarTarget",
+      "args": [
+        "192.168.1.10",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "http://192.168.1.10/"
+      }
+    },
+    {
+      "name": "an IP address with a port and a path over http",
+      "call": "addressBarTarget",
+      "args": [
+        "192.168.1.10:8080/status",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "http://192.168.1.10:8080/status"
+      }
+    },
+    {
+      "name": "an IPv6 address with a port over http",
+      "call": "addressBarTarget",
+      "args": [
+        "[::1]:3000",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "http://[::1]:3000/"
+      }
+    },
+    {
+      "name": "a one-label name and a port over http",
+      "call": "addressBarTarget",
+      "args": [
+        "intranet:8080",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "http://intranet:8080/"
+      }
+    },
+    {
+      "name": "a one-label name and a path over http",
+      "call": "addressBarTarget",
+      "args": [
+        "intranet/wiki",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "http://intranet/wiki"
+      }
+    },
+    {
+      "name": "a name with a dot and a top-level domain over https",
+      "call": "addressBarTarget",
+      "args": [
+        "example.com",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "https://example.com/"
+      }
+    },
+    {
+      "name": "with a path and a query",
+      "call": "addressBarTarget",
+      "args": [
+        "docs.example.co.uk/guide?x=1",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "https://docs.example.co.uk/guide?x=1"
+      }
+    },
+    {
+      "name": "with a port",
+      "call": "addressBarTarget",
+      "args": [
+        "example.com:8443/x",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "https://example.com:8443/x"
+      }
+    },
+    {
+      "name": "a name in letters beyond ASCII",
+      "call": "addressBarTarget",
+      "args": [
+        "příklad.cz",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "https://xn--pklad-zsa96e.cz/"
+      }
+    },
+    {
+      "name": "a host of the domain that is no view is a page like any other",
+      "call": "addressBarTarget",
+      "args": [
+        "crm.vm-02.acme.lazurio.io",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "https://crm.vm-02.acme.lazurio.io/"
+      }
+    },
+    {
+      "name": "a single word is a search",
+      "call": "addressBarTarget",
+      "args": [
+        "intranet",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "https://www.google.com/search?q=intranet"
+      }
+    },
+    {
+      "name": "text with spaces is a search",
+      "call": "addressBarTarget",
+      "args": [
+        "nová karta lazurio",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "https://www.google.com/search?q=nov%C3%A1%20karta%20lazurio"
+      }
+    },
+    {
+      "name": "an e-mail address is a search",
+      "call": "addressBarTarget",
+      "args": [
+        "someone@example.com",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "https://www.google.com/search?q=someone%40example.com"
+      }
+    },
+    {
+      "name": "an e-mail address of a Czech domain is a search",
+      "call": "addressBarTarget",
+      "args": [
+        "user@example.cz",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "https://www.google.com/search?q=user%40example.cz"
+      }
+    },
+    {
+      "name": "a number is a search",
+      "call": "addressBarTarget",
+      "args": [
+        "3.14",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "https://www.google.com/search?q=3.14"
+      }
+    },
+    {
+      "name": "a one-letter top-level domain is a search",
+      "call": "addressBarTarget",
+      "args": [
+        "a.b",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "https://www.google.com/search?q=a.b"
+      }
+    },
+    {
+      "name": "an address with a space is a search",
+      "call": "addressBarTarget",
+      "args": [
+        "example.com/with a space",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "https://www.google.com/search?q=example.com%2Fwith%20a%20space"
+      }
+    },
+    {
+      "name": "a link to this Environment's tab is that tab",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "tab",
+        "tab": "0123456789ABCDEF0123456789ABCDEF",
+        "view": "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+      }
+    },
+    {
+      "name": "its id in lower case",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io/t/0123456789abcdef0123456789abcdef",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "tab",
+        "tab": "0123456789ABCDEF0123456789ABCDEF",
+        "view": "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+      }
+    },
+    {
+      "name": "typed without its scheme",
+      "call": "addressBarTarget",
+      "args": [
+        "browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "tab",
+        "tab": "0123456789ABCDEF0123456789ABCDEF",
+        "view": "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+      }
+    },
+    {
+      "name": "typed over http, as the view's https",
+      "call": "addressBarTarget",
+      "args": [
+        "http://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "tab",
+        "tab": "0123456789ABCDEF0123456789ABCDEF",
+        "view": "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+      }
+    },
+    {
+      "name": "a written default port is the address it stands for",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io:443/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "tab",
+        "tab": "0123456789ABCDEF0123456789ABCDEF",
+        "view": "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+      }
+    },
+    {
+      "name": "dot segments are the address they stand for",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io/x/../t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "tab",
+        "tab": "0123456789ABCDEF0123456789ABCDEF",
+        "view": "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+      }
+    },
+    {
+      "name": "this Environment's bare view origin opens a new remote tab",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "new-tab"
+      }
+    },
+    {
+      "name": "and with its slash, typed without a scheme",
+      "call": "addressBarTarget",
+      "args": [
+        "browser.vm-01.acme.lazurio.io/",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "new-tab"
+      }
+    },
+    {
+      "name": "another Environment's tab is that Environment's",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-02.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "foreign",
+        "href": "https://browser.vm-02.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        "where": "vm-02.acme"
+      }
+    },
+    {
+      "name": "another Environment's tab by a lower-case id, as the contract writes it",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-02.acme.lazurio.io/t/0123456789abcdef0123456789abcdef",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "foreign",
+        "href": "https://browser.vm-02.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        "where": "vm-02.acme"
+      }
+    },
+    {
+      "name": "a personal Environment's view",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.jana.lazurio.io/",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "foreign",
+        "href": "https://browser.jana.lazurio.io/",
+        "where": "jana"
+      }
+    },
+    {
+      "name": "without a known view origin a view link is no page here",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        null
+      ],
+      "expect": {
+        "kind": "foreign",
+        "href": "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        "where": "vm-01.acme"
+      }
+    },
+    {
+      "name": "on a view host, a slash after the id is refused",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF/",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "on a view host, a query is refused",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF?x=1",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "on a view host, a fragment is refused",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF#top",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "on a view host, another path of the view is refused",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io/assets/view.js",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "on a view host, a three-label base is refused",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.a.b.c.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "on a view host, a base that is no DNS label is refused",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.-vm.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "on a view host, another port is refused",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io:8443/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "on a view host written with the DNS root's trailing dot, a view address is refused",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io./t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "the bare origin written with the DNS root's trailing dot is refused",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io./",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "without a scheme, a view address written with the DNS root's trailing dot is refused, never searched for",
+      "call": "addressBarTarget",
+      "args": [
+        "browser.vm-01.acme.lazurio.io./t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "without a scheme, the bare origin written with the DNS root's trailing dot is refused",
+      "call": "addressBarTarget",
+      "args": [
+        "browser.vm-01.acme.lazurio.io.",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "a view host's name that no typed address takes is refused, never searched for",
+      "call": "addressBarTarget",
+      "args": [
+        "browser.vm_01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "an address on a view host that the URL parser refuses is refused, never searched for",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io:99999/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "a view address written as a network path is refused, never searched for",
+      "call": "addressBarTarget",
+      "args": [
+        "//browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "a view host written as a network path is refused, never searched for",
+      "call": "addressBarTarget",
+      "args": [
+        "//browser.vm-01.acme.lazurio.io",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "a view address written as a network path with backslashes is refused, never searched for",
+      "call": "addressBarTarget",
+      "args": [
+        "\\\\browser.vm-01.acme.lazurio.io\\t\\0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "a view address with a soft hyphen inside browser., which the URL parser drops, is refused, never searched for",
+      "call": "addressBarTarget",
+      "args": [
+        "brow\u00adser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "a view address with a soft hyphen inside lazurio.io is refused, never searched for",
+      "call": "addressBarTarget",
+      "args": [
+        "browser.vm-01.acme.lazu\u00adrio.io/t/0123456789ABCDEF0123456789ABCDEF",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "on a view host, the domain's own view host is refused",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.lazurio.io/",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "refused",
+        "reason": "view"
+      }
+    },
+    {
+      "name": "a host named so elsewhere is a page",
+      "call": "addressBarTarget",
+      "args": [
+        "https://browser.example.com/t/x",
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "kind": "page",
+        "url": "https://browser.example.com/t/x"
+      }
+    },
+    {
+      "name": "a search for the text",
+      "call": "searchAddress",
+      "args": [
+        "hello world"
+      ],
+      "expect": "https://www.google.com/search?q=hello%20world"
+    },
+    {
+      "name": "an https address",
+      "call": "navigableAddress",
+      "args": [
+        "https://example.com/a"
+      ],
+      "expect": "https://example.com/a"
+    },
+    {
+      "name": "an http address",
+      "call": "navigableAddress",
+      "args": [
+        "http://example.com"
+      ],
+      "expect": "http://example.com/"
+    },
+    {
+      "name": "about:blank",
+      "call": "navigableAddress",
+      "args": [
+        "about:blank"
+      ],
+      "expect": "about:blank"
+    },
+    {
+      "name": "a script is none",
+      "call": "navigableAddress",
+      "args": [
+        "javascript:alert(1)"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a file is none",
+      "call": "navigableAddress",
+      "args": [
+        "file:///etc/passwd"
+      ],
+      "expect": null
+    },
+    {
+      "name": "text without a scheme is none",
+      "call": "navigableAddress",
+      "args": [
+        "example.com"
+      ],
+      "expect": null
+    },
+    {
+      "name": "nothing is none",
+      "call": "navigableAddress",
+      "args": [
+        ""
+      ],
+      "expect": null
+    },
+    {
+      "name": "a view address is none, in any Environment",
+      "call": "navigableAddress",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a bare view origin is none",
+      "call": "navigableAddress",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io/"
+      ],
+      "expect": null
+    },
+    {
+      "name": "any address on a view host is none",
+      "call": "navigableAddress",
+      "args": [
+        "https://browser.vm-02.acme.lazurio.io/settings"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a view host written with the DNS root's trailing dot is none",
+      "call": "navigableAddress",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io./t/0123456789ABCDEF0123456789ABCDEF"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a host named so elsewhere is an address",
+      "call": "navigableAddress",
+      "args": [
+        "https://browser.example.com/"
+      ],
+      "expect": "https://browser.example.com/"
+    }
+  ]
+}

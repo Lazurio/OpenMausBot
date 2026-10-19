@@ -1,0 +1,134 @@
+{
+  "schema": "lazurio.browser-vectors.v1",
+  "contract": "remote-tab-ids",
+  "cases": [
+    {
+      "name": "an id in upper case is a remote tab's id",
+      "call": "isTargetId",
+      "args": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": true
+    },
+    {
+      "name": "an id in lower case is one too",
+      "call": "isTargetId",
+      "args": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "expect": true
+    },
+    {
+      "name": "an id in mixed case is one too",
+      "call": "isTargetId",
+      "args": [
+        "0123456789ABCDEF0123456789abcdef"
+      ],
+      "expect": true
+    },
+    {
+      "name": "31 digits are none",
+      "call": "isTargetId",
+      "args": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": false
+    },
+    {
+      "name": "33 digits are none",
+      "call": "isTargetId",
+      "args": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": false
+    },
+    {
+      "name": "a letter past f is none",
+      "call": "isTargetId",
+      "args": [
+        "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG"
+      ],
+      "expect": false
+    },
+    {
+      "name": "a UUID is none",
+      "call": "isTargetId",
+      "args": [
+        "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d"
+      ],
+      "expect": false
+    },
+    {
+      "name": "a path is none",
+      "call": "isTargetId",
+      "args": [
+        "../../etc/passwd"
+      ],
+      "expect": false
+    },
+    {
+      "name": "the empty text is none",
+      "call": "isTargetId",
+      "args": [
+        ""
+      ],
+      "expect": false
+    },
+    {
+      "name": "a number is none",
+      "call": "isTargetId",
+      "args": [
+        42
+      ],
+      "expect": false
+    },
+    {
+      "name": "null is none",
+      "call": "isTargetId",
+      "args": [
+        null
+      ],
+      "expect": false
+    },
+    {
+      "name": "the upper-case form of an upper-case id is the id",
+      "call": "targetIdOf",
+      "args": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    {
+      "name": "the upper-case form of a lower-case id",
+      "call": "targetIdOf",
+      "args": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "expect": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    {
+      "name": "the upper-case form of a mixed-case id",
+      "call": "targetIdOf",
+      "args": [
+        "0123456789ABCDEF0123456789abcdef"
+      ],
+      "expect": "0123456789ABCDEF0123456789ABCDEF"
+    },
+    {
+      "name": "what is no id has no form",
+      "call": "targetIdOf",
+      "args": [
+        "not-a-tab"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a number has no form",
+      "call": "targetIdOf",
+      "args": [
+        7
+      ],
+      "expect": null
+    }
+  ]
+}
