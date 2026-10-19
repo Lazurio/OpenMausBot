@@ -961,8 +961,6 @@
   "computer.android.agentNote": "Le contrôle par l'agent utilise cette même connexion USB autorisée. Aucune app compagnon sur le téléphone, aucun compte, ni Tailscale, ni appairage sans fil.",
   "computer.android.harnessNote": "Une fois connecté, demandez à n'importe quel Maus compatible d'ouvrir une app Android ou d'accomplir une tâche sur votre téléphone. Le skill Phone Harness fourni se charge automatiquement pour les demandes liées au téléphone.",
   "computer.android.step2": "Dans À propos du téléphone, appuyez sept fois sur {buildNumber} pour activer les options pour développeurs, puis activez {usbDebugging}.",
-  "engineSetup.chatgpt.description": "Utilisez votre forfait ChatGPT pour les requêtes IA éligibles dans OpenMausBot. Il est distinct de MausBot Cloud et de la facturation de l'API.",
-  "engineSetup.chatgpt.welcomeBody": "Les requêtes IA éligibles dans OpenMausBot utilisent votre forfait ChatGPT. Gérez l'utilisation et l'accès dans les paramètres de ChatGPT. Votre forfait ChatGPT est distinct de MausBot Cloud.",
   "remote.serverPairing.title": "Associer un téléphone ou un autre ordinateur",
   "remote.serverPairing.subtitle": "Créez un code à usage unique, puis scannez-le avec l’application OpenMausBot ou ouvrez le lien dans un navigateur. Les codes servent une fois et expirent après cinq minutes.",
   "remote.serverPairing.scope.admin": "Accès complet",

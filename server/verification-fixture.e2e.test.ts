@@ -51,7 +51,6 @@ it("keeps the fixture blind to this machine's installed CLIs (#2035)", async () 
       return response.json() as Promise<Record<string, any>>;
     };
     const { instances } = await get("/api/instances") as { instances: Array<{ instanceId: string; snapshot: { state: string } }> };
-    expect(instances.find((instance) => instance.instanceId === "chatgpt")?.snapshot.state).toBe("unavailable");
     expect(instances.filter((instance) => instance.snapshot.state === "available").map((instance) => instance.instanceId))
       .toEqual(["claude"]);
     if (cli) {

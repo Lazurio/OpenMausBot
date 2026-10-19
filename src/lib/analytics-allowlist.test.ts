@@ -34,7 +34,7 @@ describe("engine slugs", () => {
     const instances = [
       { instanceId: "claude-3f0c2b1e-9d1a-4c55-8a51-0a3a6f1e2b7c", driverKind: "claudeAgent" },
       { instanceId: "Ada's work Claude", driverKind: "claudeAgent" },
-      { instanceId: "chatgpt-7b2d1c3e-1111-4c55-8a51-0a3a6f1e2b7c", driverKind: "codex" },
+      { instanceId: "codex-7b2d1c3e-1111-4c55-8a51-0a3a6f1e2b7c", driverKind: "codex" },
       { instanceId: "openai-compat-0a3a6f1e-2b7c-4c55-8a51-3f0c2b1e9d1a", driverKind: "openai-compat" },
       { instanceId: "grok", driverKind: "grok" },
       { instanceId: "future", driverKind: "someFutureDriver" },
@@ -42,7 +42,7 @@ describe("engine slugs", () => {
     ];
     expect(engineSlug(instances, "claude-3f0c2b1e-9d1a-4c55-8a51-0a3a6f1e2b7c")).toBe("claude");
     expect(engineSlug(instances, "Ada's work Claude")).toBe("claude");
-    expect(engineSlug(instances, "chatgpt-7b2d1c3e-1111-4c55-8a51-0a3a6f1e2b7c")).toBe("codex");
+    expect(engineSlug(instances, "codex-7b2d1c3e-1111-4c55-8a51-0a3a6f1e2b7c")).toBe("codex");
     expect(engineSlug(instances, "openai-compat-0a3a6f1e-2b7c-4c55-8a51-3f0c2b1e9d1a")).toBe("openai_compat");
     expect(engineSlug(instances, "grok")).toBe("grok_api");
     for (const instanceId of ["future", "proto", "missing", undefined, null, 7]) expect(engineSlug(instances, instanceId)).toBe("other");
@@ -51,7 +51,7 @@ describe("engine slugs", () => {
 
   it("names a built-in instance's engine for a viewer who cannot list instances, and nothing else", () => {
     expect(engineSlug([], "claude")).toBe("claude");
-    expect(engineSlug([], "chatgpt")).toBe("codex");
+    expect(engineSlug([], "codex")).toBe("codex");
     expect(engineSlug([], "xaiApi")).toBe("grok_api");
     expect(engineSlug([], "openrouter")).toBe("openai_compat");
     expect(engineSlug([], "gemini")).toBe("gemini");

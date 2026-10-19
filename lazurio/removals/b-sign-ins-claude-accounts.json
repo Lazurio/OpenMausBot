@@ -60,7 +60,6 @@
     "server/routine-recovery.test.ts",
     "server/thread-model-follow.e2e.test.ts",
     "server/trust-controls.e2e.test.ts",
-    "src/components/EngineAccounts.tsx",
     "src/components/EnginesSettings.test.ts",
     "src/components/ModelPicker.simple.test.ts",
     "src/components/ModelPicker.test.ts",

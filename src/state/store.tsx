@@ -478,7 +478,6 @@ export interface InstanceInfo {
     state: "available" | "unavailable";
     reason?: string;
     authenticated?: boolean;
-    chatgptPlan?: boolean;
     authenticationUnavailableReason?: string;
     account?: { email?: string; organization?: string; method?: "login" | "api-key" };
     version?: string | null;
@@ -507,7 +506,7 @@ export interface InstanceInfo {
     backgroundText?: boolean;
   };
   access?: "subscription" | "custom" | "api";
-  authentication?: { method: "browser" | "browser-pkce"; signOut?: boolean };
+  authentication?: { method: "browser"; signOut?: boolean };
   install?: EngineInstall;
   cli?: string;
   cliDefault?: string;

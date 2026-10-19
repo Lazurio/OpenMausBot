@@ -1,0 +1,100 @@
+{
+  "area": "Own sign-ins: ChatGPT plan",
+  "why": "Engines use the Environment's own CLI logins, signed in from the Launchpad's Environment settings; MausBot keeps no OpenAI sign-in, token or CODEX_HOME of its own. Codex already reads the Environment's ChatGPT login in ~/.codex, so a ChatGPT plan engine would only be a second Codex engine with a sign-in of MausBot's own.",
+  "files": [
+    "server/drivers/chatgpt-plan-auth.ts",
+    "server/drivers/chatgpt-plan-auth.test.ts",
+    "server/chatgpt-plan-api.test.ts",
+    "scripts/verify-chatgpt-plan.mjs",
+    "docs/verification/chatgpt-plan.md",
+    "src/components/DeviceSignIn.tsx",
+    "src/components/DeviceSignIn.test.ts",
+    "src/components/ChatGptPlanStatus.tsx",
+    "src/components/ChatGptPlanSignIn.interaction.test.ts",
+    "src/components/EngineAccounts.tsx"
+  ],
+  "forbidden": [
+    "chatgpt-plan",
+    "chatgpt-accounts",
+    "chatgptPlan",
+    "ChatGptPlan",
+    "openai_chatgpt_plan",
+    "OPENMAUSBOT_CHATGPT_TOKEN",
+    "chatgpt_revocation_unconfirmed",
+    "subscription_sharing_usage_limit_exceeded",
+    "browser-pkce",
+    "DeviceSignIn",
+    "Continue with ChatGPT",
+    "Add another ChatGPT account",
+    "accounts.addChatgpt",
+    "accounts.removeBodyChatgpt",
+    "engineSetup.chatgpt.",
+    "engineSetup.device.",
+    "/__fixture/chatgpt"
+  ],
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/api/instances/chatgpt-accounts",
+      "body": {
+        "displayName": "x"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/instances/chatgpt/auth/start"
+    },
+    {
+      "method": "POST",
+      "path": "/api/instances/chatgpt/auth/sign-out"
+    }
+  ],
+  "changes": [
+    "docs/agents-tool-bridge.md",
+    "docs/verification/README.md",
+    "docs/verification/engines-ui.md",
+    "docs/verification/server-settings.md",
+    "scripts/testing/engines-preview.tsx",
+    "scripts/testing/vitest-shard-weights.json",
+    "scripts/verify-engines-ui.ts",
+    "server/agents-bridge-switch.test.ts",
+    "server/config.test.ts",
+    "server/config.ts",
+    "server/contracts.ts",
+    "server/drivers/codex-errors.ts",
+    "server/drivers/codex.test.ts",
+    "server/drivers/codex.ts",
+    "server/harness/registry.ts",
+    "server/imported-skills.test.ts",
+    "server/imported-skills.ts",
+    "server/index.ts",
+    "server/routes/instances.ts",
+    "server/verification-fixture.e2e.test.ts",
+    "src/components/ChatView.controls.test.ts",
+    "src/components/ChatView.tsx",
+    "src/components/EngineSetup.test.ts",
+    "src/components/EngineSetup.tsx",
+    "src/components/EnginesSettings.test.ts",
+    "src/components/ModelPicker.interaction.test.ts",
+    "src/components/ModelPicker.simple.test.ts",
+    "src/components/ModelPicker.test.ts",
+    "src/components/ModelPicker.tsx",
+    "src/lib/analytics-allowlist.test.ts",
+    "src/lib/built-in-instances.ts",
+    "src/lib/engine-rail.ts",
+    "src/locales/de.json",
+    "src/locales/en.json",
+    "src/locales/es.json",
+    "src/locales/fr.json",
+    "src/locales/hi.json",
+    "src/locales/ja.json",
+    "src/locales/pt-br.json",
+    "src/locales/source-hashes.json",
+    "src/locales/tr.json",
+    "src/locales/uk.json",
+    "src/locales/vi.json",
+    "src/locales/zh-tw.json",
+    "src/locales/zh.json",
+    "src/state/store.tsx"
+  ]
+}

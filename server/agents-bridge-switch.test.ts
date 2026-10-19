@@ -115,7 +115,6 @@ describe("which engines a turn is bridged on", () => {
     // PermissionRequest hooks: each can take a rule about a tool by name.
     const reason = "Codex reads its own layered configuration and hooks, which this version does not examine";
     expect(engineBridgeRefusal(ON, { driverKind: "codex", instanceId: "codex" }, {}, HOST)).toBe(reason);
-    expect(engineBridgeRefusal(ON, { driverKind: "codex", instanceId: "chatgpt", config: { authMode: "chatgpt-plan" } }, {}, HOST)).toBe(reason);
     // whatever its environment says about where that configuration is
     expect(agentsToolBridgeEnv(ON, bot, { driverKind: "codex", environment: { CODEX_HOME: join(folder(), "gone") } }, { HOME: folder() })).toEqual(off);
     expect(agentsToolBridgeEnv({}, bot, { driverKind: "codex" }, { OMB_AGENTS_TOOL_BRIDGE: "1" })).toEqual(off);
@@ -154,7 +153,7 @@ describe("which engines a turn is bridged on", () => {
     const bridged = new Set(Object.entries(fleet).filter(([, instance]) => engineBridgeRefusal(ON, turnEngine({ instanceId: "any", driverKind: instance.driver }, { any: instance }, { version: "2.1.232 (Claude Code)" }, CLAUDE.cwd), {}, HOST) === null).map(([id]) => id));
     for (const id of ["claude", "openaiCompat", "mistral", "cerebras", "groq", "meta"]) expect(bridged.has(id), id).toBe(true);
     // the default `grok` is the ACP agent, not the API-key driver
-    for (const id of ["codex", "chatgpt", "pi", "grok", "kimi", "droid", "cursor", "antigravity", "opencodeGo", "museCode", "qwen", "hermes", "cline"]) expect(bridged.has(id), id).toBe(false);
+    for (const id of ["codex", "pi", "grok", "kimi", "droid", "cursor", "antigravity", "opencodeGo", "museCode", "qwen", "hermes", "cline"]) expect(bridged.has(id), id).toBe(false);
     for (const id of bridged) expect(["claudeAgent", "openai-compat", "cerebras", "grok", "groq", "meta", "minimax", "mistral"], id).toContain(fleet[id]!.driver);
   });
 

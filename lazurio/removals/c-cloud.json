@@ -260,7 +260,6 @@
     "src/components/DecisionModelSettings.test.ts",
     "src/components/DecisionModelSettings.tsx",
     "src/components/DesktopWorkspaceSwitcher.tsx",
-    "src/components/EngineAccounts.tsx",
     "src/components/EnginesSettings.tsx",
     "src/components/LiveCallBar.test.ts",
     "src/components/LiveCallPill.test.ts",

@@ -1257,7 +1257,7 @@ interface AuditPlan {
   roomId?: string;
 }
 
-const ACCOUNT_ADD_ENGINES = new Map([["/api/instances/chatgpt-accounts", "chatgpt"], ["/api/instances/antigravity-accounts", "antigravity"]]);
+const ACCOUNT_ADD_ENGINES = new Map([["/api/instances/antigravity-accounts", "antigravity"]]);
 
 function adminAuditPlan(method: string, path: string): AuditPlan | null {
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;

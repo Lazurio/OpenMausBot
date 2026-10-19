@@ -381,8 +381,6 @@ export function nativeSkillFolders(
     }
   }
   if (engine.driverKind === "codex") {
-    // A ChatGPT-plan instance runs on a CODEX_HOME of its own.
-    if ((engine.config as { authMode?: unknown } | undefined)?.authMode === "chatgpt-plan") return [];
     return [join(absolute(env.CODEX_HOME) ?? join(home, ".codex"), "skills")];
   }
   return [];
