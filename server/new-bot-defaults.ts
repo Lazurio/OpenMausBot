@@ -4,6 +4,7 @@ import { EFFORT_LEVELS } from "../shared/wire.ts";
 import { isModelVariant } from "./contracts.ts";
 import { normalizeCronSchedule } from "../shared/routine-schedule.ts";
 import { parseToolScope, type ToolScope } from "../shared/tool-scope.ts";
+import { removedBotSetting } from "./lazurio-removed-config.ts";
 
 const strings = (max: number, length: number) => z.array(z.string().max(length)).max(max);
 const clock = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
@@ -20,10 +21,11 @@ export const botDefaultModelSchema = z.object({
 
 // Preferences only: consent flags, live grants, bot IDs and execution state can never be replayed as permission grants.
 // Lazurio overlay (DEV-6673 M3): Works on, per-bot computers, MausBot's own connected apps and MCP server selection
-// are removed; saved defaults that name them still load, without them.
+// are removed; saved defaults that name them still load, without them. So does upstream's Custom approval level (DEV-6673).
 const REMOVED_DEFAULTS = ["computer", "cloudBackend", "autoStartVps", "composio", "mcpServers"];
 const withoutRemovedDefaults = (value: unknown) => value && typeof value === "object" && !Array.isArray(value)
-  ? Object.fromEntries(Object.entries(value).filter(([key]) => !REMOVED_DEFAULTS.includes(key)))
+  ? Object.fromEntries(Object.entries(value).filter(([key, item]) => !REMOVED_DEFAULTS.includes(key) &&
+    !(key === "approvalMode" && item === "custom")))
   : value;
 export const botDefaultsProfileSchema = z.preprocess(withoutRemovedDefaults, profilePatchSchema.extend({
   name: z.string().max(100).refine(fitsOnOneLine, "name must fit on one line").optional(),
@@ -32,7 +34,7 @@ export const botDefaultsProfileSchema = z.preprocess(withoutRemovedDefaults, pro
   mascotExpression: z.string().max(60).nullable().optional(),
   modelSelection: botDefaultModelSchema.optional(),
   cwd: z.string().max(4096).nullable().optional(),
-  approvalMode: z.enum(["ask", "auto", "full", "custom"]).optional(),
+  approvalMode: z.enum(["ask", "auto", "full"]).optional(),
   alwaysAllow: strings(200, 500).optional(),
   chiefOfStaff: z.boolean().optional(),
   managedSections: strings(100, 60).optional(),
@@ -112,6 +114,9 @@ export function resolveBotCreationDefaults(saved: NewBotDefaults | undefined, bo
     throw Object.assign(new Error("useDefaults must be true or false"), { status: 400 });
   }
   const template = newBotDefaultsSchema.parse(body.useDefaults === false ? {} : saved ?? {});
+  // Lazurio overlay (DEV-6673): a request naming a removed setting is refused; a saved default that does is dropped above.
+  const removed = removedBotSetting(body.settings);
+  if (removed) throw Object.assign(new Error(`${removed} is not available in this distribution (it was removed)`), { status: 400 });
   const checked = botDefaultsProfileSchema.safeParse(body.settings === undefined ? {} : body.settings);
   if (!checked.success) throw Object.assign(new Error(checked.error.message), { status: 400 });
   const explicit = checked.data;

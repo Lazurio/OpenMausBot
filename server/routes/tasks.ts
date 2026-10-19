@@ -166,7 +166,6 @@ export function createTaskRoutes(deps: TaskRouteDeps): RouteHandler {
       if (body.approvalMode !== undefined && body.approvalMode !== "ask" && body.approvalMode !== "full") {
         return json(res, 400, { error: "new task approvalMode must be ask or full" });
       }
-      if (body.approvalMode === "full" && bot.approvalGrant) return json(res, 409, { error: "the bot's approval mode is still being confirmed" });
       if (phoneSecretSubmissions.hasBot(bot.id)) {
         return json(res, 409, { error: "this bot is securely saving a credential — try again when it finishes" });
       }
@@ -248,16 +247,8 @@ export function createTaskRoutes(deps: TaskRouteDeps): RouteHandler {
         if (extra.length) return json(res, 400, { error: "refreshPermissions cannot be combined with other thread settings" });
         const profile = store.bot(m[1]);
         if (!profile) return json(res, 404, { error: "no such bot" });
-        if (profile.approvalGrant) return json(res, 409, { error: "the bot's approval mode is still being confirmed" });
         if (threadBusy(profile.id, m[2])) return json(res, 409, { error: "stop this thread before changing its approval mode" });
-        const nextMode = approvalModeFor({ ...profile, approvalGrant: undefined });
-        // Custom never travels over the bot-reachable HTTP surface; only the desktop's private channel copies it.
-        if (nextMode === "custom") {
-          return json(res, 403, { error: "Refresh Custom access from the packaged desktop app" });
-        }
-        if (approvalModeFor(current) === "custom") {
-          return json(res, 403, { error: "Leaving Custom approval requires the packaged desktop app" });
-        }
+        const nextMode = approvalModeFor(profile);
         if (!supportsApprovalMode(current.modelSelection, nextMode)) {
           return json(res, 400, { error: "This provider does not support the selected approval level" });
         }
@@ -312,7 +303,6 @@ export function createTaskRoutes(deps: TaskRouteDeps): RouteHandler {
         else return json(res, 400, { error: "pinnedMessageId must belong to this thread" });
       }
       if (body.modelSelection !== undefined) {
-        if (current.approvalGrant) return json(res, 409, { error: "the bot's approval mode is still being confirmed" });
         const checked = checkedModelSelection(body.modelSelection, { selection: current.modelSelection, busy: threadBusy(current.id, current.threadId) }, body.requireAvailableModel === true);
         if (!checked.ok) return json(res, checked.status, { error: checked.error });
         patch.modelSelection = checked.selection;
@@ -320,15 +310,11 @@ export function createTaskRoutes(deps: TaskRouteDeps): RouteHandler {
       if (body.approvalMode !== undefined || body.autoApprove !== undefined) {
         if (body.autoApprove !== undefined && typeof body.autoApprove !== "boolean") return json(res, 400, { error: "autoApprove must be a boolean" });
         const mode: unknown = body.approvalMode ?? (body.autoApprove ? "auto" : "ask");
-        if (!isApprovalMode(mode)) return json(res, 400, { error: "approvalMode must be ask, edits, auto, full, or custom" });
-        // A thread PATCH cannot manufacture Custom: it needs the trusted desktop transition.
-        if (mode === "custom") return json(res, 403, { error: "Custom access requires trusted desktop confirmation" });
-        if (approvalModeFor(current) === "custom") return json(res, 403, { error: "Leaving Custom approval requires confirmation in the packaged desktop app" });
+        if (!isApprovalMode(mode)) return json(res, 400, { error: "approvalMode must be ask, edits, auto, or full" });
         if (!supportsApprovalMode(patch.modelSelection ?? current.modelSelection, mode)) {
           return json(res, 400, { error: "This provider does not support the selected approval level" });
         }
         if (threadBusy(current.id, current.threadId)) return json(res, 409, { error: "stop this thread before changing its approval mode" });
-        if (current.approvalGrant) return json(res, 409, { error: "the bot's approval mode is still being confirmed" });
         if (mode === "auto" && approvalModeFor(current) !== "auto" && auth.kind === "loopback" && !DESKTOP_MANAGED && !req.headers.origin && store.bots.some((bot) => bot.busy)) {
           return json(res, 409, { error: "Change approval mode from the app or a paired device while bots are working." });
         }

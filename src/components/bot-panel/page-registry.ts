@@ -30,7 +30,7 @@ export const PAGES: Record<PageId, PageMeta> = {
   setup: { title: "botSetup.ideas", home: "details", where: "botSettings.simple.details", keywords: "setup ideas finish" },
   model: { title: "model.simple.model", home: "details", where: "botPanel.where.model", keywords: "engine provider effort reasoning backup fallback cache warm default model" },
   instructions: { title: "botSettings.simple.instructions", home: "details", where: "botPanel.where.instructions", keywords: "soul.md soul standing instructions reply style conversational persona rules" },
-  approvals: { title: "botPanel.page.approvals", home: "details", where: "botPanel.where.beforeActs", keywords: "approve approval level auto mode full access ask custom config.toml permissions command allowlist" },
+  approvals: { title: "botPanel.page.approvals", home: "details", where: "botPanel.where.beforeActs", keywords: "approve approval level auto mode full access ask permissions command allowlist" },
   routines: { title: "botSettings.simple.routines", home: "details", where: "botPanel.where.routines", keywords: "schedule routines cron tasks run logs" },
   memory: { title: "botSettings.simple.memory", home: "library", where: "botPanel.where.memories", keywords: "memory notes remember obsidian upkeep tidy topic daily logs undo" },
   skills: { title: "botSettings.simple.skills", home: "library", where: "botPanel.where.skills", keywords: "skills import command learned procedures organization library teach" },

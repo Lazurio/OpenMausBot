@@ -16,13 +16,11 @@ It never launches `electron/main.mjs`, a real computer/browser driver, the
 operator's installed app, or their data directory. It accepts no server URL.
 
 Three separate Electron parents exercise the production supervisor, PID health
-probe, parent-held data-directory lease, private approval coordinator, and built
-server:
+probe, parent-held data-directory lease and built server:
 
 - Crash after a fake engine accepts a pinned user turn. Verify immediate
   unavailability, a different PID on the same port, the unchanged parent lease,
   the replacement's delegated child lease, and authenticated mutations.
-  The old child's pending approval must reject; a new approval must succeed.
   The shared control surface records `wait` and bounded `messages` results,
   while the fake engine's prompt ledger proves the interrupted turn was not
   resent. The intentionally hung fake engine is explicitly reaped by its exact

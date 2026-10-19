@@ -1560,7 +1560,6 @@ describe("ACP turns (fake CLI)", () => {
   it.each([
     ["ask", true, "default"],
     ["full", true, "bypassPermissions"],
-    ["custom", true, "default"],
     ["auto", false, "auto"],
   ] as const)("Grok %s with agents mounted=%s overrides a legacy full-auto setting", async (approvalMode, mounted, nativeMode) => {
     instance = await GrokAgentDriver.create({

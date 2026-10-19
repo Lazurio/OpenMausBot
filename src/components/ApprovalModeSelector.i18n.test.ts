@@ -30,7 +30,6 @@ describe("held notes name the buttons the selector shows", () => {
       "Aceitar edições automaticamente",
       "Aprovar por mim",
       "Acesso total",
-      "Personalizado (config.toml)",
     ]);
 
     setLocale("ja");

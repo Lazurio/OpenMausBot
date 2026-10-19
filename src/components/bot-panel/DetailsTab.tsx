@@ -35,11 +35,11 @@ export function DetailsTab({ bot, derived, overview, onOpen }: {
   const [editingSoul, setEditingSoul] = useState(false);
   const [localAutoWarning, setLocalAutoWarning] = useState<{ botId: string; patch: BotPatch } | null>(null);
   const [editingRoutine, setEditingRoutine] = useState<Routine | "new" | null>(null);
-  const { patch, approvalMode, engine, trustedModesAvailable } = derived;
+  const { patch, approvalMode, engine } = derived;
 
   // Antigravity's old Auto still executes as Ask: show that without changing the saved mode or granting Full.
   const displayedApprovalMode = engine?.driverKind === "antigravityAgent" && approvalMode === "auto" ? "ask" : approvalMode;
-  const autoOffered = approvalModeOptionsFor(engine?.driverKind ?? "", trustedModesAvailable)
+  const autoOffered = approvalModeOptionsFor(engine?.driverKind ?? "")
     .some((option) => option.mode === "auto");
   const chooseMode = (mode: Extract<ApprovalMode, "ask" | "auto" | "full">) => {
     if (bot.busy || mode === approvalMode) return;
@@ -53,7 +53,7 @@ export function DetailsTab({ bot, derived, overview, onOpen }: {
     }
     patch({ approvalMode: mode });
   };
-  const customMode = displayedApprovalMode === "edits" || displayedApprovalMode === "custom";
+  const customMode = displayedApprovalMode === "edits";
   const actsHint = customMode
     ? <span data-approval-custom>{t("botSettings.simple.customMode")}</span>
     : t(displayedApprovalMode === "auto" ? "botSettings.simple.decideHint"

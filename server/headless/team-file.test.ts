@@ -124,7 +124,7 @@ rooms:
     ["a model without its engine", "bots: [{ name: A, model: sonnet }]", "must be INSTANCE/MODEL"],
     ["a relative folder", "bots: [{ name: A, cwd: work/a }]", "cwd must be an absolute path on the server"],
     ["a home folder", "bots: [{ name: A, cwd: ~/work }]", "~ is not expanded the same way on the server"],
-    ["Custom approval", "bots: [{ name: A, approval: custom }]", "custom is set in the desktop app"],
+    ["Custom approval", "bots: [{ name: A, approval: custom }]", "custom was removed"],
     ["a soul file that is not there", "bots: [{ name: A, soul: { file: souls/nobody.md } }]", "souls/nobody.md could not be read (ENOENT)"],
     ["a bad tool selector", 'bots: [{ name: A, tools: { deny: ["Bash"] } }]', "selectors look like native:Bash"],
     ["a room member listed twice", "bots: [{ name: A }]\nrooms: [{ name: R, members: [A, a] }]", "a member is listed twice"],

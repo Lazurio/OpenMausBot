@@ -9,14 +9,12 @@ import { t } from "@/lib/i18n";
 import {
   approvalModeOptions,
   approvalModeOptionsFor,
-  approvalModeSelectionRequiresLocalDesktop,
   shownApprovalMode,
 } from "@/lib/approval-mode-options";
 
 export {
   approvalModeOptions,
   approvalModeOptionsFor,
-  approvalModeSelectionRequiresLocalDesktop,
   type ApprovalModeOption,
 } from "@/lib/approval-mode-options";
 
@@ -30,8 +28,6 @@ export function ApprovalModeSelector({
   menuDirection = "up",
   wide = false,
   disabled = false,
-  trustedModesAvailable = true,
-  trustedModesNotice,
   onManageCommandAllowlist,
 }: {
   approvalMode?: ApprovalMode;
@@ -43,8 +39,6 @@ export function ApprovalModeSelector({
   menuDirection?: "up" | "down";
   wide?: boolean;
   disabled?: boolean;
-  trustedModesAvailable?: boolean;
-  trustedModesNotice?: string;
   onManageCommandAllowlist?: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -56,11 +50,7 @@ export function ApprovalModeSelector({
   const current = approvalModeOptionsFor(driverKind).find((option) => option.mode === mode)
     ?? allOptions.find((option) => option.mode === mode)
     ?? allOptions[0];
-  const visibleOptions = approvalModeOptionsFor(driverKind, trustedModesAvailable);
-  const requiresLocalDesktop = approvalModeSelectionRequiresLocalDesktop(
-    mode,
-    trustedModesAvailable,
-  );
+  const visibleOptions = approvalModeOptionsFor(driverKind);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -81,7 +71,7 @@ export function ApprovalModeSelector({
 
   const CurrentIcon = current.Icon;
   const triggerDisabled = disabled && !onManageCommandAllowlist;
-  const modesDisabled = disabled || requiresLocalDesktop;
+  const modesDisabled = disabled;
   const allowlistAction = onManageCommandAllowlist && (
     <button
       type="button"
@@ -162,9 +152,7 @@ export function ApprovalModeSelector({
                     role="menuitemradio"
                     aria-checked={selected}
                     disabled={modesDisabled}
-                    title={
-                      disabled ? t("approvalMode.busy") : requiresLocalDesktop ? t("approvalMode.customLocalOnly") : undefined
-                    }
+                    title={disabled ? t("approvalMode.busy") : undefined}
                     onClick={() => {
                       if (modesDisabled) return;
                       onSelect(option.mode);
@@ -191,11 +179,6 @@ export function ApprovalModeSelector({
               );
             })}
             {!visibleOptions.some((option) => option.mode === "full") && allowlistAction}
-            {!trustedModesAvailable && (trustedModesNotice || driverKind === "codex" || requiresLocalDesktop) && (
-              <div className="border-t border-hairline/20 px-4 py-2.5 text-[11.5px] leading-snug text-ink-secondary">
-                {trustedModesNotice ?? t("approvalMode.customLocalOnlyDot")}
-              </div>
-            )}
           </div>
         </div>
       )}

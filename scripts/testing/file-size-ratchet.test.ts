@@ -15,14 +15,14 @@ const HARD_CAP = 2000;
 const LISTED_FROM = 1000;
 
 const LINES: Record<string, number> = {
-  "server/index.ts": 14421,
-  "src/state/store.tsx": 3486,
-  "electron/main.mjs": 3210,
-  "server/store.ts": 2423,
+  "server/index.ts": 13938,
+  "src/state/store.tsx": 3384,
+  "electron/main.mjs": 3198,
+  "server/store.ts": 2397,
   "src/components/Sidebar.tsx": 2329,
   "server/drivers/claude.ts": 2145,
   "server/drivers/acp/core.ts": 1994,
-  "server/drivers/codex.ts": 1705,
+  "server/drivers/codex.ts": 1615,
   "server/routines.ts": 1869,
   "src/components/RoutineCalendarPage.tsx": 1747,
   "server/config.ts": 1328,
@@ -33,7 +33,7 @@ const LINES: Record<string, number> = {
   "server/skills.ts": 1391,
   "scripts/mcp-server.ts": 1472,
   "server/drivers/pi.ts": 1143,
-  "src/components/Composer.tsx": 1144,
+  "src/components/Composer.tsx": 1141,
   "src/components/ModelPicker.tsx": 1180,
   "src/components/PhoneSetupFlow.tsx": 1283,
   "src/components/SettingsModal.tsx": 1075,

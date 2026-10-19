@@ -419,9 +419,7 @@ export async function teamExportVerb(ctx: VerbContext): Promise<VerbOutcome> {
       entry.model = `${bot.modelSelection.instanceId}/${bot.modelSelection.model}`;
       if (bot.modelSelection.effort) entry.effort = bot.modelSelection.effort;
     }
-    const approval = approvalModeFor(bot);
-    if (approval === "custom") skipped.push(`${bot.name}: its Custom approval level is set in the desktop app, not in a team file`);
-    else entry.approval = approval;
+    entry.approval = approvalModeFor(bot);
     if (bot.cwd) entry.cwd = bot.cwd;
     if (bot.browser === false || bot.browserProfile) entry.browser = { enabled: bot.browser !== false, ...(bot.browserProfile ? { profile: bot.browserProfile } : {}) };
     if (!everyTool(bot.toolScope)) entry.tools = bot.toolScope;
