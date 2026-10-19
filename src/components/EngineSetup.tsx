@@ -5,6 +5,7 @@ import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { copyText } from "@/lib/copy-text";
 import { RefreshEngines } from "./EngineLibrary";
+import { LazurioEngineSignIn, launchpadSignsIn, useLazurioSignIn } from "./LazurioEngineSignIn";
 export { signedOutHeadline, useLazurioSignIn } from "./LazurioEngineSignIn"; // Lazurio overlay (DEV-6673): for the chat's signed-out line
 
 type Platform = "darwin" | "win32" | "linux";
@@ -386,6 +387,8 @@ export function EngineSetup({
     return <ApiKeyEngineSetup instance={instance} className={className} unframed={unframed} />;
   }
 
+  // Lazurio overlay (DEV-6673): on a Lazurio Environment Codex and Claude sign in through the Environment settings.
+  if (lazurio && signInOnly && launchpadSignsIn(instance)) {
     return <LazurioEngineSignIn signIn={lazurio} instance={instance} className={className} unframed={unframed} />;
   }
 

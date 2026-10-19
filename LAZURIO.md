@@ -44,10 +44,40 @@ means a separate Environment.
 ### Engine sign-in
 
 **Decided on 2026-10-19 (the Organization Admin): as in Lazurio's T3 Code.**
+Engines use the Environment's own CLI login, which the person connects in
+the Environment settings of the Environment's Launchpad (Getting started,
+`/settings/start`). MausBot keeps no sign-in of its own: it only reads each
+engine's login status. The Launchpad signs in Codex (`~/.codex`) and Claude
+(`~/.claude`), the engines of LazurioPlatform's `src/launchpad/ai-sign-in.ts`.
+When one of them is signed out, its card says that the account is connected
+in the Environment settings and offers two things: **Otevřít Nastavení
+Prostředí**, a link to Getting started of this Environment's Launchpad opened
+in a new tab (as T3 Code's "Open Getting started"), and **Zkontrolovat
+znovu**, which reads the machine login again. It shows no terminal command
+and starts no device, OAuth or pasted-code flow. The chat's line for a turn
+Codex or Claude refused signed out says the same. Every other engine the
+Launchpad cannot sign in (Cursor and the other subscription CLIs) keeps
+upstream's card with its own CLI command, run on the Environment's machine;
+ACP's native `authenticate` for them is that same CLI login, not a
+credential MausBot holds.
 
+The person's language comes from the shell's document, `lazurio.shell.v1` at
+`/.lazurio/shell.json` on this origin (`locale`; Czech unless the profile is
+English). The link is shown only when everything binds to this Environment:
+the page is `mausbot.<base>.lazurio.io`, the document's `current` is `<base>`,
+that Environment's `apps.apps` is exactly `launchpad.<base>.lazurio.io` with
+the page's scheme, and the document came from this origin without a
+redirect. Otherwise the card names the Environment settings without a link.
+This is the one thing MausBot reads of the shell's data. Outside Lazurio the
+shell's script does not run, so `<html>` carries no `data-lazurio-theme`,
+nothing is read and upstream's card, with the engine's own sign-in command,
+stays. The Lazurio side is one module,
 `src/components/LazurioEngineSignIn.tsx`, with one hook in
 `src/components/EngineSetup.tsx` and one in `src/components/ChatView.tsx`;
 `src/components/LazurioEngineSignIn.test.ts` covers Codex and Claude under
+the shell, the English profile, a foreign Launchpad origin, a mismatched
+`current`, a redirected or foreign-origin document, an unreadable document,
+Cursor keeping upstream's card, and the card outside Lazurio.
 
 ## What the overlay adds
 
