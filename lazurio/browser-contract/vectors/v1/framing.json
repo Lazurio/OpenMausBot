@@ -1,0 +1,128 @@
+{
+  "schema": "lazurio.browser-vectors.v1",
+  "contract": "framing",
+  "cases": [
+    {
+      "name": "the clipboard and full screen, the sandbox, and the referrer that names the app's origin",
+      "call": "viewFrameAttributes",
+      "expect": {
+        "allow": "clipboard-read; clipboard-write; fullscreen",
+        "referrerpolicy": "origin",
+        "sandbox": "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals"
+      }
+    },
+    {
+      "name": "another Environment's Launchpad",
+      "call": "appShellOrigin",
+      "args": [
+        "https://launchpad.vm-02.acme.lazurio.io/c/1"
+      ],
+      "expect": "https://launchpad.vm-02.acme.lazurio.io"
+    },
+    {
+      "name": "another Environment's T3 Code",
+      "call": "appShellOrigin",
+      "args": [
+        "https://t3code.jana.lazurio.io/"
+      ],
+      "expect": "https://t3code.jana.lazurio.io"
+    },
+    {
+      "name": "an app that frames no views",
+      "call": "appShellOrigin",
+      "args": [
+        "https://mausbot.vm-02.acme.lazurio.io/"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a page elsewhere",
+      "call": "appShellOrigin",
+      "args": [
+        "https://launchpad.example.com/"
+      ],
+      "expect": null
+    },
+    {
+      "name": "no referrer",
+      "call": "appShellOrigin",
+      "args": [
+        null
+      ],
+      "expect": null
+    },
+    {
+      "name": "no address",
+      "call": "appShellOrigin",
+      "args": [
+        "launchpad"
+      ],
+      "expect": null
+    },
+    {
+      "name": "the Environment's own origins",
+      "call": "viewFrameAncestors",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io"
+      ],
+      "expect": "'self' https://*.vm-01.acme.lazurio.io"
+    },
+    {
+      "name": "a sibling app adds nothing",
+      "call": "viewFrameAncestors",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io",
+        "https://launchpad.vm-01.acme.lazurio.io/"
+      ],
+      "expect": "'self' https://*.vm-01.acme.lazurio.io"
+    },
+    {
+      "name": "another Environment's Launchpad that asks for the page",
+      "call": "viewFrameAncestors",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io",
+        "https://launchpad.vm-02.acme.lazurio.io/"
+      ],
+      "expect": "'self' https://*.vm-01.acme.lazurio.io https://launchpad.vm-02.acme.lazurio.io"
+    },
+    {
+      "name": "another Environment's T3 Code that asks for the page",
+      "call": "viewFrameAncestors",
+      "args": [
+        "https://browser.jana.lazurio.io",
+        "https://t3code.vm-01.acme.lazurio.io/c/1"
+      ],
+      "expect": "'self' https://*.jana.lazurio.io https://t3code.vm-01.acme.lazurio.io"
+    },
+    {
+      "name": "any other page that asks adds nothing",
+      "call": "viewFrameAncestors",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io",
+        "https://example.com/"
+      ],
+      "expect": "'self' https://*.vm-01.acme.lazurio.io"
+    },
+    {
+      "name": "a host of fewer than three labels is framed by itself only",
+      "call": "viewFrameAncestors",
+      "args": [
+        "http://localhost:4848",
+        "https://launchpad.vm-02.acme.lazurio.io/"
+      ],
+      "expect": "'self'"
+    },
+    {
+      "name": "Nová karta's page and the Environment's own apps, each once",
+      "call": "newTabFrameAncestors",
+      "args": [
+        [
+          "https://launchpad.vm-01.acme.lazurio.io",
+          "https://t3code.vm-01.acme.lazurio.io",
+          "https://launchpad.vm-01.acme.lazurio.io"
+        ]
+      ],
+      "expect": "'self' https://launchpad.vm-01.acme.lazurio.io https://t3code.vm-01.acme.lazurio.io"
+    }
+  ]
+}

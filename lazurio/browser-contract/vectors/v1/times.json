@@ -1,0 +1,51 @@
+{
+  "schema": "lazurio.browser-vectors.v1",
+  "contract": "times",
+  "cases": [
+    {
+      "name": "the hub's graces, Vrátit 1 s inside the grace, the beat and the joins, and the waits",
+      "call": "browserTimes",
+      "expect": {
+        "releaseGraceMs": 8000,
+        "viewerGraceMs": 30000,
+        "unviewedGraceMs": 600000,
+        "undoMs": 7000,
+        "holdsEveryMs": 30000,
+        "changesJoinMs": 100,
+        "snapshotJoinMs": 50,
+        "reconnectMs": 2000,
+        "newTabWaitMs": 2000,
+        "overviewEveryMs": 5000,
+        "standaloneAfterMs": 1500,
+        "foreignViewNamedMs": 4000,
+        "foreignViewLoadMs": 15000,
+        "identityAskMs": [
+          0,
+          1000,
+          4000
+        ],
+        "agentBrowserIdleTimeout": "1h"
+      }
+    },
+    {
+      "name": "the DevTools port, a window's page and window, what a message shows and what the hub reads of a holder file",
+      "call": "browserBounds",
+      "expect": {
+        "devtoolsPort": 9222,
+        "windowPage": {
+          "width": 1280,
+          "height": 800
+        },
+        "window": {
+          "width": 1280,
+          "height": 900
+        },
+        "titleLength": 500,
+        "addressLength": 2048,
+        "holderCharacters": 65536,
+        "holderTabs": 500,
+        "holderLabelLength": 200
+      }
+    }
+  ]
+}

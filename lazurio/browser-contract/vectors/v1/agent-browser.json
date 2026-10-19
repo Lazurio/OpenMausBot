@@ -1,0 +1,803 @@
+{
+  "schema": "lazurio.browser-vectors.v1",
+  "contract": "agent-browser",
+  "cases": [
+    {
+      "name": "agent-browser's own directory when it is named and absolute",
+      "call": "agentBrowserSocketDirectory",
+      "args": [
+        {
+          "AGENT_BROWSER_SOCKET_DIR": "/srv/agent",
+          "XDG_RUNTIME_DIR": "/run/user/1000"
+        }
+      ],
+      "expect": "/srv/agent"
+    },
+    {
+      "name": "the runtime directory's",
+      "call": "agentBrowserSocketDirectory",
+      "args": [
+        {
+          "XDG_RUNTIME_DIR": "/run/user/1000"
+        }
+      ],
+      "expect": "/run/user/1000/agent-browser"
+    },
+    {
+      "name": "an agent works in a tab while its session is bound to it and its daemon runs",
+      "call": "readHolds",
+      "args": [
+        {
+          "sockets": "$dir/agent-browser"
+        },
+        "$alive"
+      ],
+      "alive": [
+        4242
+      ],
+      "directory": {
+        "agent-browser/codex-1.target": {
+          "$json": {
+            "targetId": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+            "url": "about:blank",
+            "pinned": true
+          }
+        },
+        "agent-browser/codex-1.pid": "4242\n",
+        "agent-browser/t3-old.target": {
+          "$json": {
+            "targetId": "dddddddddddddddddddddddddddddddd",
+            "url": "about:blank",
+            "pinned": true
+          }
+        },
+        "agent-browser/t3-old.pid": "4343",
+        "agent-browser/claude-2.target": {
+          "$json": {
+            "targetId": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+            "url": "about:blank",
+            "pinned": true
+          }
+        },
+        "agent-browser/odd-3.target": {
+          "$json": {
+            "targetId": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+            "url": "about:blank",
+            "pinned": true
+          }
+        },
+        "agent-browser/odd-3.pid": "not a pid",
+        "agent-browser/codex-1.sock": "",
+        "agent-browser/short.target": {
+          "$json": {
+            "targetId": "abc"
+          }
+        },
+        "agent-browser/bot.1.target": {
+          "$json": {
+            "targetId": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+            "url": "about:blank",
+            "pinned": true
+          }
+        }
+      },
+      "expect": {
+        "holds": {
+          "holders": {
+            "$map": {}
+          },
+          "working": {
+            "$map": {
+              "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC": [
+                "codex-1"
+              ],
+              "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE": [
+                "odd-3"
+              ]
+            }
+          },
+          "bound": {
+            "$map": {
+              "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC": [
+                "claude-2",
+                "codex-1"
+              ],
+              "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD": [
+                "t3-old"
+              ],
+              "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE": [
+                "odd-3"
+              ]
+            }
+          }
+        },
+        "memory": {
+          "holders": {
+            "$map": {}
+          },
+          "bindings": {
+            "$map": {
+              "claude-2.target": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+              "codex-1.target": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+              "odd-3.target": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+              "t3-old.target": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"
+            }
+          }
+        },
+        "unreadable": [],
+        "present": [
+          "claude-2.target",
+          "codex-1.target",
+          "odd-3.target",
+          "short.target",
+          "t3-old.target"
+        ]
+      }
+    },
+    {
+      "name": "a binding read before that cannot be read now keeps its tab",
+      "call": "readHolds",
+      "args": [
+        {
+          "sockets": "$dir/agent-browser"
+        },
+        "$alive",
+        {
+          "holders": {
+            "$map": {}
+          },
+          "bindings": {
+            "$map": {
+              "codex-1.target": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+            }
+          }
+        }
+      ],
+      "alive": [
+        4242
+      ],
+      "directory": {
+        "agent-browser/codex-1.target": "{",
+        "agent-browser/codex-1.pid": "4242"
+      },
+      "expect": {
+        "holds": {
+          "holders": {
+            "$map": {}
+          },
+          "working": {
+            "$map": {
+              "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC": [
+                "codex-1"
+              ]
+            }
+          },
+          "bound": {
+            "$map": {
+              "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC": [
+                "codex-1"
+              ]
+            }
+          }
+        },
+        "memory": {
+          "holders": {
+            "$map": {}
+          },
+          "bindings": {
+            "$map": {
+              "codex-1.target": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+            }
+          }
+        },
+        "unreadable": [
+          "codex-1.target"
+        ],
+        "present": [
+          "codex-1.target"
+        ]
+      }
+    },
+    {
+      "name": "a binding never read binds nothing",
+      "call": "readHolds",
+      "args": [
+        {
+          "sockets": "$dir/agent-browser"
+        },
+        "$alive"
+      ],
+      "alive": [
+        4242
+      ],
+      "directory": {
+        "agent-browser/codex-1.target": "{",
+        "agent-browser/codex-1.pid": "4242"
+      },
+      "expect": {
+        "holds": {
+          "holders": {
+            "$map": {}
+          },
+          "working": {
+            "$map": {}
+          },
+          "bound": {
+            "$map": {}
+          }
+        },
+        "memory": {
+          "holders": {
+            "$map": {}
+          },
+          "bindings": {
+            "$map": {}
+          }
+        },
+        "unreadable": [
+          "codex-1.target"
+        ],
+        "present": [
+          "codex-1.target"
+        ]
+      }
+    },
+    {
+      "name": "a .pid that cannot be read counts as working",
+      "call": "readHolds",
+      "args": [
+        {
+          "sockets": "$dir/agent-browser"
+        },
+        "$alive"
+      ],
+      "alive": [],
+      "directory": {
+        "agent-browser/codex-1.target": {
+          "$json": {
+            "targetId": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+            "url": "about:blank",
+            "pinned": true
+          }
+        },
+        "agent-browser/codex-1.pid": {
+          "unreadable": true,
+          "text": "4343"
+        }
+      },
+      "expect": {
+        "holds": {
+          "holders": {
+            "$map": {}
+          },
+          "working": {
+            "$map": {
+              "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC": [
+                "codex-1"
+              ]
+            }
+          },
+          "bound": {
+            "$map": {
+              "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC": [
+                "codex-1"
+              ]
+            }
+          }
+        },
+        "memory": {
+          "holders": {
+            "$map": {}
+          },
+          "bindings": {
+            "$map": {
+              "codex-1.target": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+            }
+          }
+        },
+        "unreadable": [],
+        "present": [
+          "codex-1.target"
+        ]
+      }
+    },
+    {
+      "name": "a .pid that names no well-formed process id counts as working",
+      "call": "readHolds",
+      "args": [
+        {
+          "sockets": "$dir/agent-browser"
+        },
+        "$alive"
+      ],
+      "alive": [],
+      "directory": {
+        "agent-browser/s-empty.target": {
+          "$json": {
+            "targetId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "url": "about:blank",
+            "pinned": true
+          }
+        },
+        "agent-browser/s-empty.pid": "",
+        "agent-browser/s-zero.target": {
+          "$json": {
+            "targetId": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+            "url": "about:blank",
+            "pinned": true
+          }
+        },
+        "agent-browser/s-zero.pid": "0",
+        "agent-browser/s-signed.target": {
+          "$json": {
+            "targetId": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+            "url": "about:blank",
+            "pinned": true
+          }
+        },
+        "agent-browser/s-signed.pid": "+5",
+        "agent-browser/s-one.target": {
+          "$json": {
+            "targetId": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+            "url": "about:blank",
+            "pinned": true
+          }
+        },
+        "agent-browser/s-one.pid": "1",
+        "agent-browser/s-long.target": {
+          "$json": {
+            "targetId": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+            "url": "about:blank",
+            "pinned": true
+          }
+        },
+        "agent-browser/s-long.pid": "99999999999"
+      },
+      "expect": {
+        "holds": {
+          "holders": {
+            "$map": {}
+          },
+          "working": {
+            "$map": {
+              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA": [
+                "s-empty"
+              ],
+              "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB": [
+                "s-zero"
+              ],
+              "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC": [
+                "s-signed"
+              ],
+              "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD": [
+                "s-one"
+              ],
+              "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE": [
+                "s-long"
+              ]
+            }
+          },
+          "bound": {
+            "$map": {
+              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA": [
+                "s-empty"
+              ],
+              "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB": [
+                "s-zero"
+              ],
+              "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC": [
+                "s-signed"
+              ],
+              "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD": [
+                "s-one"
+              ],
+              "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE": [
+                "s-long"
+              ]
+            }
+          }
+        },
+        "memory": {
+          "holders": {
+            "$map": {}
+          },
+          "bindings": {
+            "$map": {
+              "s-empty.target": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "s-zero.target": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+              "s-signed.target": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+              "s-one.target": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+              "s-long.target": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"
+            }
+          }
+        },
+        "unreadable": [],
+        "present": [
+          "s-empty.target",
+          "s-long.target",
+          "s-one.target",
+          "s-signed.target",
+          "s-zero.target"
+        ]
+      }
+    },
+    {
+      "name": "a session whose .pid is gone has ended",
+      "call": "readHolds",
+      "args": [
+        {
+          "sockets": "$dir/agent-browser"
+        },
+        "$alive"
+      ],
+      "alive": [
+        4242
+      ],
+      "directory": {
+        "agent-browser/codex-1.target": {
+          "$json": {
+            "targetId": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+            "url": "about:blank",
+            "pinned": true
+          }
+        }
+      },
+      "expect": {
+        "holds": {
+          "holders": {
+            "$map": {}
+          },
+          "working": {
+            "$map": {}
+          },
+          "bound": {
+            "$map": {
+              "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC": [
+                "codex-1"
+              ]
+            }
+          }
+        },
+        "memory": {
+          "holders": {
+            "$map": {}
+          },
+          "bindings": {
+            "$map": {
+              "codex-1.target": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+            }
+          }
+        },
+        "unreadable": [],
+        "present": [
+          "codex-1.target"
+        ]
+      }
+    },
+    {
+      "name": "a process runs while kill -0 reaches it: this one",
+      "call": "processAlive",
+      "args": [
+        "$pid"
+      ],
+      "expect": true
+    },
+    {
+      "name": "no process has id 0",
+      "call": "processAlive",
+      "args": [
+        0
+      ],
+      "expect": false
+    },
+    {
+      "name": "init is never a session's daemon",
+      "call": "processAlive",
+      "args": [
+        1
+      ],
+      "expect": false
+    },
+    {
+      "name": "a negative id",
+      "call": "processAlive",
+      "args": [
+        -5
+      ],
+      "expect": false
+    },
+    {
+      "name": "a fraction",
+      "call": "processAlive",
+      "args": [
+        1.5
+      ],
+      "expect": false
+    },
+    {
+      "name": "an id past every system's range",
+      "call": "processAlive",
+      "args": [
+        4206649
+      ],
+      "expect": false
+    },
+    {
+      "name": "a daemon's reply line",
+      "call": "askDaemonSocket",
+      "args": [
+        "$dir/codex-1.sock",
+        "hello\n"
+      ],
+      "directory": {},
+      "daemon": {
+        "socket": "codex-1.sock",
+        "reply": "hi"
+      },
+      "heard": [
+        "hello"
+      ],
+      "expect": {
+        "kind": "reply",
+        "line": "hi"
+      }
+    },
+    {
+      "name": "no socket: nothing listens",
+      "call": "askDaemonSocket",
+      "args": [
+        "$dir/codex-1.sock",
+        "hello\n"
+      ],
+      "directory": {},
+      "expect": {
+        "kind": "absent"
+      }
+    },
+    {
+      "name": "a file that is no socket: nothing listens",
+      "call": "askDaemonSocket",
+      "args": [
+        "$dir/codex-1.sock",
+        "hello\n"
+      ],
+      "directory": {
+        "codex-1.sock": ""
+      },
+      "expect": {
+        "kind": "absent"
+      }
+    },
+    {
+      "name": "a daemon that closes without a reply",
+      "call": "askDaemonSocket",
+      "args": [
+        "$dir/codex-1.sock",
+        "hello\n"
+      ],
+      "directory": {},
+      "daemon": {
+        "socket": "codex-1.sock",
+        "reply": null
+      },
+      "heard": [
+        "hello"
+      ],
+      "expect": {
+        "kind": "no-answer"
+      }
+    },
+    {
+      "name": "a socket that cannot be opened proves nothing",
+      "call": "askDaemonSocket",
+      "args": [
+        "$dir/codex-1.sock",
+        "hello\n"
+      ],
+      "directory": {},
+      "daemon": {
+        "socket": "codex-1.sock",
+        "reply": "hi",
+        "unreadable": true
+      },
+      "expect": {
+        "kind": "no-answer"
+      }
+    },
+    {
+      "name": "no socket: no daemon to let go",
+      "call": "stopSessionDaemon",
+      "args": [
+        "$dir",
+        "codex-1"
+      ],
+      "directory": {
+        "codex-1.pid": "4242\n"
+      },
+      "expect": "none"
+    },
+    {
+      "name": "an acknowledged shutdown whose .pid goes is stopped",
+      "call": "stopSessionDaemon",
+      "args": [
+        "$dir",
+        "codex-1",
+        {
+          "exitWithinMs": 2000
+        }
+      ],
+      "directory": {
+        "codex-1.pid": "4242\n"
+      },
+      "daemon": {
+        "socket": "codex-1.sock",
+        "reply": "{\"id\":\"lazurio-browser-done\",\"success\":true,\"data\":{\"closed\":true}}",
+        "removes": [
+          "codex-1.pid"
+        ]
+      },
+      "expect": "stopped"
+    },
+    {
+      "name": "a daemon that refuses changes nothing",
+      "call": "stopSessionDaemon",
+      "args": [
+        "$dir",
+        "codex-1",
+        {
+          "exitWithinMs": 2000
+        }
+      ],
+      "directory": {
+        "codex-1.pid": "4242\n"
+      },
+      "daemon": {
+        "socket": "codex-1.sock",
+        "reply": "{\"success\":false,\"error\":\"busy\"}"
+      },
+      "expect": "refused"
+    },
+    {
+      "name": "no answer after the command went out is unconfirmed",
+      "call": "stopSessionDaemon",
+      "args": [
+        "$dir",
+        "codex-1",
+        {
+          "exitWithinMs": 2000
+        }
+      ],
+      "directory": {
+        "codex-1.pid": "4242\n"
+      },
+      "daemon": {
+        "socket": "codex-1.sock",
+        "reply": null
+      },
+      "expect": "unconfirmed"
+    },
+    {
+      "name": "an acknowledged shutdown whose .pid stays is unconfirmed",
+      "call": "stopSessionDaemon",
+      "args": [
+        "$dir",
+        "codex-1",
+        {
+          "exitWithinMs": 150
+        }
+      ],
+      "directory": {
+        "codex-1.pid": "4242\n"
+      },
+      "daemon": {
+        "socket": "codex-1.sock",
+        "reply": "{\"success\":true}"
+      },
+      "expect": "unconfirmed"
+    },
+    {
+      "name": "an acknowledged shutdown whose .pid cannot be checked is unconfirmed",
+      "call": "stopSessionDaemon",
+      "args": [
+        "$dir",
+        "codex-1",
+        {
+          "exitWithinMs": 150
+        }
+      ],
+      "directory": {
+        "codex-1.pid": "4242\n"
+      },
+      "daemon": {
+        "socket": "codex-1.sock",
+        "reply": "{\"success\":true}",
+        "locks": true
+      },
+      "expect": "unconfirmed"
+    },
+    {
+      "name": "a socket that cannot be opened is unconfirmed",
+      "call": "stopSessionDaemon",
+      "args": [
+        "$dir",
+        "codex-1",
+        {
+          "exitWithinMs": 150
+        }
+      ],
+      "directory": {
+        "codex-1.pid": "4242\n"
+      },
+      "daemon": {
+        "socket": "codex-1.sock",
+        "reply": "{\"success\":true}",
+        "unreadable": true
+      },
+      "expect": "unconfirmed"
+    },
+    {
+      "name": "a name outside the grammar is no session",
+      "call": "stopSessionDaemon",
+      "args": [
+        "$dir",
+        "../codex-1"
+      ],
+      "directory": {},
+      "expect": "none"
+    },
+    {
+      "name": "an empty socket directory gives way to the runtime directory's",
+      "call": "agentBrowserSocketDirectory",
+      "args": [
+        {
+          "AGENT_BROWSER_SOCKET_DIR": "",
+          "XDG_RUNTIME_DIR": "/run/user/1000"
+        }
+      ],
+      "expect": "/run/user/1000/agent-browser"
+    },
+    {
+      "name": "without a runtime directory, the home's",
+      "call": "agentBrowserSocketDirectory",
+      "args": [
+        {
+          "HOME": "/home/jana"
+        }
+      ],
+      "expect": "/home/jana/.agent-browser"
+    },
+    {
+      "name": "a namespace gets a directory of its own, named as agent-browser names it",
+      "call": "agentBrowserSocketDirectory",
+      "args": [
+        {
+          "XDG_RUNTIME_DIR": "/run/user/1000",
+          "AGENT_BROWSER_NAMESPACE": "Next Dev Loop: /Users/me/worktree!"
+        }
+      ],
+      "expect": "/run/user/1000/agent-browser/namespaces/next-dev-loop-users-me-worktree/run"
+    },
+    {
+      "name": "a namespace's separators at either end go",
+      "call": "agentBrowserSocketDirectory",
+      "args": [
+        {
+          "AGENT_BROWSER_SOCKET_DIR": "/srv/agent",
+          "AGENT_BROWSER_NAMESPACE": " --Agent__ "
+        }
+      ],
+      "expect": "/srv/agent/namespaces/agent/run"
+    },
+    {
+      "name": "a namespace of nothing but separators is none",
+      "call": "agentBrowserSocketDirectory",
+      "args": [
+        {
+          "XDG_RUNTIME_DIR": "/run/user/1000",
+          "AGENT_BROWSER_NAMESPACE": " -- "
+        }
+      ],
+      "expect": "/run/user/1000/agent-browser"
+    }
+  ]
+}

@@ -1,0 +1,675 @@
+{
+  "schema": "lazurio.browser-vectors.v1",
+  "contract": "live-tabs",
+  "cases": [
+    {
+      "name": "the schema the hub writes",
+      "call": "liveTabsSchema",
+      "expect": "lazurio.browser-tabs.v1"
+    },
+    {
+      "name": "the text of a list",
+      "call": "liveTabsText",
+      "args": [
+        [
+          "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+        ],
+        {
+          "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+          "at": 100
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-tabs.v1",
+          "tabs": [
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+          ],
+          "takenAt": {
+            "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+            "at": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "a list reads back",
+      "call": "parseLiveTabs",
+      "args": [
+        "{\"schema\":\"lazurio.browser-tabs.v1\",\"tabs\":[\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB\"],\"takenAt\":{\"boot\":\"6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f\",\"at\":100}}\n"
+      ],
+      "expect": {
+        "tabs": [
+          "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+        ],
+        "takenAt": {
+          "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+          "at": 100
+        }
+      }
+    },
+    {
+      "name": "its ids in upper case",
+      "call": "parseLiveTabs",
+      "args": [
+        {
+          "$json": {
+            "tabs": [
+              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ],
+            "takenAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 1
+            }
+          }
+        }
+      ],
+      "expect": {
+        "tabs": [
+          "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ],
+        "takenAt": {
+          "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+          "at": 1
+        }
+      }
+    },
+    {
+      "name": "a list without a schema is v1",
+      "call": "parseLiveTabs",
+      "args": [
+        {
+          "$json": {
+            "tabs": [
+              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            ],
+            "takenAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 1
+            }
+          }
+        }
+      ],
+      "expect": {
+        "tabs": [
+          "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ],
+        "takenAt": {
+          "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+          "at": 1
+        }
+      }
+    },
+    {
+      "name": "members it does not know are ignored",
+      "call": "parseLiveTabs",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-tabs.v1",
+            "tabs": [
+              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            ],
+            "takenAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 1
+            },
+            "later": 1
+          }
+        }
+      ],
+      "expect": {
+        "tabs": [
+          "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        ],
+        "takenAt": {
+          "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+          "at": 1
+        }
+      }
+    },
+    {
+      "name": "a list of another major is no list",
+      "call": "parseLiveTabs",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-tabs.v2",
+            "tabs": [
+              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            ],
+            "takenAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 1
+            }
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "another document's schema is no list",
+      "call": "parseLiveTabs",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-holder.v1",
+            "tabs": [
+              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            ],
+            "takenAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 1
+            }
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "text that is no JSON",
+      "call": "parseLiveTabs",
+      "args": [
+        "{"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a list of ids alone",
+      "call": "parseLiveTabs",
+      "args": [
+        {
+          "$json": [
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          ]
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "no time",
+      "call": "parseLiveTabs",
+      "args": [
+        {
+          "$json": {
+            "tabs": [
+              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            ]
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a time of the wall clock",
+      "call": "parseLiveTabs",
+      "args": [
+        {
+          "$json": {
+            "tabs": [
+              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            ],
+            "takenAt": "2026-10-11T12:00:00Z"
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "an id that is none",
+      "call": "parseLiveTabs",
+      "args": [
+        {
+          "$json": {
+            "tabs": [
+              "x"
+            ],
+            "takenAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 1
+            }
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "tabs that are no list",
+      "call": "parseLiveTabs",
+      "args": [
+        {
+          "$json": {
+            "tabs": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "takenAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 1
+            }
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "an app drops a stored tab only when a list of this boot taken after its record lacks it",
+      "call": "keptTabs",
+      "args": [
+        [
+          {
+            "id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 10
+            }
+          },
+          {
+            "id": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 90
+            }
+          },
+          {
+            "id": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 100
+            }
+          },
+          {
+            "id": "dddddddddddddddddddddddddddddddd",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 100.5
+            }
+          },
+          {
+            "id": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+            "recordedAt": null
+          },
+          {
+            "id": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+            "recordedAt": {
+              "boot": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+              "at": 5000
+            }
+          }
+        ],
+        {
+          "tabs": [
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          ],
+          "takenAt": {
+            "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+            "at": 100
+          }
+        },
+        "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
+      ],
+      "expect": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+        "dddddddddddddddddddddddddddddddd"
+      ]
+    },
+    {
+      "name": "a list of another boot drops nothing",
+      "call": "keptTabs",
+      "args": [
+        [
+          {
+            "id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 10
+            }
+          },
+          {
+            "id": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 90
+            }
+          },
+          {
+            "id": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 100
+            }
+          },
+          {
+            "id": "dddddddddddddddddddddddddddddddd",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 100.5
+            }
+          },
+          {
+            "id": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+            "recordedAt": null
+          },
+          {
+            "id": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+            "recordedAt": {
+              "boot": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+              "at": 5000
+            }
+          }
+        ],
+        {
+          "tabs": [],
+          "takenAt": {
+            "boot": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+            "at": 100
+          }
+        },
+        "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
+      ],
+      "expect": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+        "dddddddddddddddddddddddddddddddd",
+        "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+        "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+      ]
+    },
+    {
+      "name": "no list drops nothing",
+      "call": "keptTabs",
+      "args": [
+        [
+          {
+            "id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 10
+            }
+          },
+          {
+            "id": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 90
+            }
+          },
+          {
+            "id": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 100
+            }
+          },
+          {
+            "id": "dddddddddddddddddddddddddddddddd",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 100.5
+            }
+          },
+          {
+            "id": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+            "recordedAt": null
+          },
+          {
+            "id": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+            "recordedAt": {
+              "boot": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+              "at": 5000
+            }
+          }
+        ],
+        null,
+        "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
+      ],
+      "expect": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+        "dddddddddddddddddddddddddddddddd",
+        "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+        "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+      ]
+    },
+    {
+      "name": "no boot clock drops nothing",
+      "call": "keptTabs",
+      "args": [
+        [
+          {
+            "id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 10
+            }
+          },
+          {
+            "id": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 90
+            }
+          },
+          {
+            "id": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 100
+            }
+          },
+          {
+            "id": "dddddddddddddddddddddddddddddddd",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 100.5
+            }
+          },
+          {
+            "id": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+            "recordedAt": null
+          },
+          {
+            "id": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+            "recordedAt": {
+              "boot": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+              "at": 5000
+            }
+          }
+        ],
+        {
+          "tabs": [
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          ],
+          "takenAt": {
+            "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+            "at": 100
+          }
+        },
+        null
+      ],
+      "expect": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+        "dddddddddddddddddddddddddddddddd",
+        "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
+        "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"
+      ]
+    },
+    {
+      "name": "a record made after the snapshot began stays",
+      "call": "keptTabs",
+      "args": [
+        [
+          {
+            "id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 200
+            }
+          }
+        ],
+        {
+          "tabs": [],
+          "takenAt": {
+            "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+            "at": 199
+          }
+        },
+        "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
+      ],
+      "expect": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ]
+    },
+    {
+      "name": "the next snapshot, begun after the record, lets it go",
+      "call": "keptTabs",
+      "args": [
+        [
+          {
+            "id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "recordedAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 200
+            }
+          }
+        ],
+        {
+          "tabs": [],
+          "takenAt": {
+            "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+            "at": 229
+          }
+        },
+        "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f"
+      ],
+      "expect": []
+    },
+    {
+      "name": "the list lives in the runtime directory",
+      "call": "liveTabsPath",
+      "args": [
+        {
+          "XDG_RUNTIME_DIR": "/run/user/1000"
+        }
+      ],
+      "expect": "/run/user/1000/lazurio-browser/tabs.json"
+    },
+    {
+      "name": "no runtime directory, no list",
+      "call": "liveTabsPath",
+      "args": [
+        {}
+      ],
+      "expect": {
+        "$": "undefined"
+      }
+    },
+    {
+      "name": "the hub writes the list owner-only and whole",
+      "call": "writeLiveTabs",
+      "args": [
+        "$dir/lazurio-browser/tabs.json",
+        [
+          "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+        ],
+        {
+          "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+          "at": 100
+        }
+      ],
+      "directory": {},
+      "after": {
+        "lazurio-browser/": {
+          "mode": "700"
+        },
+        "lazurio-browser/tabs.json": {
+          "json": {
+            "schema": "lazurio.browser-tabs.v1",
+            "tabs": [
+              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+            ],
+            "takenAt": {
+              "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+              "at": 100
+            }
+          },
+          "mode": "600"
+        }
+      },
+      "expect": {
+        "$": "undefined"
+      }
+    },
+    {
+      "name": "the hub's list",
+      "call": "readLiveTabs",
+      "args": [
+        "$dir/tabs.json"
+      ],
+      "directory": {
+        "tabs.json": "{\"schema\":\"lazurio.browser-tabs.v1\",\"tabs\":[\"00000000000000000000000000000001\"],\"takenAt\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":80}}\n"
+      },
+      "expect": {
+        "tabs": [
+          "00000000000000000000000000000001"
+        ],
+        "takenAt": {
+          "boot": "8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f",
+          "at": 80
+        }
+      }
+    },
+    {
+      "name": "no path, no list",
+      "call": "readLiveTabs",
+      "args": [
+        {
+          "$": "undefined"
+        }
+      ],
+      "directory": {},
+      "expect": null
+    },
+    {
+      "name": "no file, no list",
+      "call": "readLiveTabs",
+      "args": [
+        "$dir/tabs.json"
+      ],
+      "directory": {},
+      "expect": null
+    },
+    {
+      "name": "a file that cannot be read is no list",
+      "call": "readLiveTabs",
+      "args": [
+        "$dir/tabs.json"
+      ],
+      "directory": {
+        "tabs.json": {
+          "unreadable": true,
+          "text": "{\"schema\":\"lazurio.browser-tabs.v1\",\"tabs\":[\"00000000000000000000000000000001\"],\"takenAt\":{\"boot\":\"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\",\"at\":80}}\n"
+        }
+      },
+      "expect": null
+    },
+    {
+      "name": "a list of another major is no list",
+      "call": "readLiveTabs",
+      "args": [
+        "$dir/tabs.json"
+      ],
+      "directory": {
+        "tabs.json": "{\"schema\": \"lazurio.browser-tabs.v2\", \"tabs\": [], \"takenAt\": {\"boot\": \"8f8a7c39-1111-4c3e-9a0e-2b1f0c3d4e5f\", \"at\": 80}}"
+      },
+      "expect": null
+    }
+  ]
+}

@@ -1,0 +1,766 @@
+{
+  "schema": "lazurio.browser-vectors.v1",
+  "contract": "new-tab",
+  "cases": [
+    {
+      "name": "the element's event",
+      "call": "newTabEventName",
+      "expect": "lazurio-new-tab"
+    },
+    {
+      "name": "twelve tools at most",
+      "call": "maxNewTabTools",
+      "expect": 12
+    },
+    {
+      "name": "tools with an id, a label, a letter and an icon",
+      "call": "parseNewTabTools",
+      "args": [
+        [
+          {
+            "id": "terminal",
+            "label": "Terminal",
+            "key": "T",
+            "icon": "terminal"
+          },
+          {
+            "id": "files",
+            "label": "Files",
+            "key": "F",
+            "icon": "files"
+          }
+        ]
+      ],
+      "expect": [
+        {
+          "id": "terminal",
+          "label": "Terminal",
+          "key": "T",
+          "icon": "terminal"
+        },
+        {
+          "id": "files",
+          "label": "Files",
+          "key": "F",
+          "icon": "files"
+        }
+      ]
+    },
+    {
+      "name": "no tools",
+      "call": "parseNewTabTools",
+      "args": [
+        []
+      ],
+      "expect": []
+    },
+    {
+      "name": "an id and a label alone",
+      "call": "parseNewTabTools",
+      "args": [
+        [
+          {
+            "id": "agents",
+            "label": "Agents"
+          }
+        ]
+      ],
+      "expect": [
+        {
+          "id": "agents",
+          "label": "Agents"
+        }
+      ]
+    },
+    {
+      "name": "twelve tools",
+      "call": "parseNewTabTools",
+      "args": [
+        [
+          {
+            "id": "tool-0",
+            "label": "Tool 0"
+          },
+          {
+            "id": "tool-1",
+            "label": "Tool 1"
+          },
+          {
+            "id": "tool-2",
+            "label": "Tool 2"
+          },
+          {
+            "id": "tool-3",
+            "label": "Tool 3"
+          },
+          {
+            "id": "tool-4",
+            "label": "Tool 4"
+          },
+          {
+            "id": "tool-5",
+            "label": "Tool 5"
+          },
+          {
+            "id": "tool-6",
+            "label": "Tool 6"
+          },
+          {
+            "id": "tool-7",
+            "label": "Tool 7"
+          },
+          {
+            "id": "tool-8",
+            "label": "Tool 8"
+          },
+          {
+            "id": "tool-9",
+            "label": "Tool 9"
+          },
+          {
+            "id": "tool-10",
+            "label": "Tool 10"
+          },
+          {
+            "id": "tool-11",
+            "label": "Tool 11"
+          }
+        ]
+      ],
+      "expect": [
+        {
+          "id": "tool-0",
+          "label": "Tool 0"
+        },
+        {
+          "id": "tool-1",
+          "label": "Tool 1"
+        },
+        {
+          "id": "tool-2",
+          "label": "Tool 2"
+        },
+        {
+          "id": "tool-3",
+          "label": "Tool 3"
+        },
+        {
+          "id": "tool-4",
+          "label": "Tool 4"
+        },
+        {
+          "id": "tool-5",
+          "label": "Tool 5"
+        },
+        {
+          "id": "tool-6",
+          "label": "Tool 6"
+        },
+        {
+          "id": "tool-7",
+          "label": "Tool 7"
+        },
+        {
+          "id": "tool-8",
+          "label": "Tool 8"
+        },
+        {
+          "id": "tool-9",
+          "label": "Tool 9"
+        },
+        {
+          "id": "tool-10",
+          "label": "Tool 10"
+        },
+        {
+          "id": "tool-11",
+          "label": "Tool 11"
+        }
+      ]
+    },
+    {
+      "name": "thirteen tools is no list of tools",
+      "call": "parseNewTabTools",
+      "args": [
+        [
+          {
+            "id": "tool-0",
+            "label": "Tool 0"
+          },
+          {
+            "id": "tool-1",
+            "label": "Tool 1"
+          },
+          {
+            "id": "tool-2",
+            "label": "Tool 2"
+          },
+          {
+            "id": "tool-3",
+            "label": "Tool 3"
+          },
+          {
+            "id": "tool-4",
+            "label": "Tool 4"
+          },
+          {
+            "id": "tool-5",
+            "label": "Tool 5"
+          },
+          {
+            "id": "tool-6",
+            "label": "Tool 6"
+          },
+          {
+            "id": "tool-7",
+            "label": "Tool 7"
+          },
+          {
+            "id": "tool-8",
+            "label": "Tool 8"
+          },
+          {
+            "id": "tool-9",
+            "label": "Tool 9"
+          },
+          {
+            "id": "tool-10",
+            "label": "Tool 10"
+          },
+          {
+            "id": "tool-11",
+            "label": "Tool 11"
+          },
+          {
+            "id": "tool-12",
+            "label": "Tool 12"
+          }
+        ]
+      ],
+      "expect": null
+    },
+    {
+      "name": "not a list is no list of tools",
+      "call": "parseNewTabTools",
+      "args": [
+        {
+          "id": "terminal",
+          "label": "Terminal"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a tool that is no object is no list of tools",
+      "call": "parseNewTabTools",
+      "args": [
+        [
+          "terminal"
+        ]
+      ],
+      "expect": null
+    },
+    {
+      "name": "an id outside the grammar is no list of tools",
+      "call": "parseNewTabTools",
+      "args": [
+        [
+          {
+            "id": "Terminal",
+            "label": "Terminal"
+          }
+        ]
+      ],
+      "expect": null
+    },
+    {
+      "name": "a tool without its label is no list of tools",
+      "call": "parseNewTabTools",
+      "args": [
+        [
+          {
+            "id": "terminal"
+          }
+        ]
+      ],
+      "expect": null
+    },
+    {
+      "name": "a blank label is no list of tools",
+      "call": "parseNewTabTools",
+      "args": [
+        [
+          {
+            "id": "terminal",
+            "label": " "
+          }
+        ]
+      ],
+      "expect": null
+    },
+    {
+      "name": "a label past 48 characters is no list of tools",
+      "call": "parseNewTabTools",
+      "args": [
+        [
+          {
+            "id": "terminal",
+            "label": {
+              "$repeat": "x",
+              "times": 49
+            }
+          }
+        ]
+      ],
+      "expect": null
+    },
+    {
+      "name": "a label with a control character is no list of tools",
+      "call": "parseNewTabTools",
+      "args": [
+        [
+          {
+            "id": "terminal",
+            "label": "Terminal\n"
+          }
+        ]
+      ],
+      "expect": null
+    },
+    {
+      "name": "a key that is no letter or digit is no list of tools",
+      "call": "parseNewTabTools",
+      "args": [
+        [
+          {
+            "id": "terminal",
+            "label": "Terminal",
+            "key": "Tab"
+          }
+        ]
+      ],
+      "expect": null
+    },
+    {
+      "name": "a key of a number is no list of tools",
+      "call": "parseNewTabTools",
+      "args": [
+        [
+          {
+            "id": "terminal",
+            "label": "Terminal",
+            "key": 7
+          }
+        ]
+      ],
+      "expect": null
+    },
+    {
+      "name": "an icon outside the grammar is no list of tools",
+      "call": "parseNewTabTools",
+      "args": [
+        [
+          {
+            "id": "terminal",
+            "label": "Terminal",
+            "icon": "<svg>"
+          }
+        ]
+      ],
+      "expect": null
+    },
+    {
+      "name": "an id twice is no list of tools",
+      "call": "parseNewTabTools",
+      "args": [
+        [
+          {
+            "id": "terminal",
+            "label": "Terminal",
+            "key": "T",
+            "icon": "terminal"
+          },
+          {
+            "id": "terminal",
+            "label": "Files",
+            "key": "F",
+            "icon": "files"
+          }
+        ]
+      ],
+      "expect": null
+    },
+    {
+      "name": "a letter twice, regardless of case is no list of tools",
+      "call": "parseNewTabTools",
+      "args": [
+        [
+          {
+            "id": "terminal",
+            "label": "Terminal",
+            "key": "T",
+            "icon": "terminal"
+          },
+          {
+            "id": "files",
+            "label": "Files",
+            "key": "t",
+            "icon": "files"
+          }
+        ]
+      ],
+      "expect": null
+    },
+    {
+      "name": "null is no list of tools",
+      "call": "parseNewTabTools",
+      "args": [
+        null
+      ],
+      "expect": null
+    },
+    {
+      "name": "the tab's view, as the contract writes it",
+      "call": "newTabViewOf",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io/t/0123456789abcdef0123456789abcdef",
+        "0123456789ABCDEF0123456789ABCDEF"
+      ],
+      "expect": "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+    },
+    {
+      "name": "another tab's view is none",
+      "call": "newTabViewOf",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io/t/FEDCBA9876543210FEDCBA9876543210",
+        "0123456789ABCDEF0123456789ABCDEF"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a view with a query is none",
+      "call": "newTabViewOf",
+      "args": [
+        "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF?x=1",
+        "0123456789ABCDEF0123456789ABCDEF"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a page with its view",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "page",
+          "tab": "0123456789ABCDEF0123456789ABCDEF",
+          "view": "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+        }
+      ],
+      "expect": {
+        "kind": "page",
+        "tab": "0123456789ABCDEF0123456789ABCDEF",
+        "view": "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+      }
+    },
+    {
+      "name": "a tab with its view",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "tab",
+          "tab": "0123456789ABCDEF0123456789ABCDEF",
+          "view": "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+        }
+      ],
+      "expect": {
+        "kind": "tab",
+        "tab": "0123456789ABCDEF0123456789ABCDEF",
+        "view": "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+      }
+    },
+    {
+      "name": "the tab's id in upper case",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "tab",
+          "tab": "0123456789abcdef0123456789abcdef",
+          "view": "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+        }
+      ],
+      "expect": {
+        "kind": "tab",
+        "tab": "0123456789ABCDEF0123456789ABCDEF",
+        "view": "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+      }
+    },
+    {
+      "name": "another Environment's view is a view all the same",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "tab",
+          "tab": "0123456789ABCDEF0123456789ABCDEF",
+          "view": "https://browser.vm-02.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+        }
+      ],
+      "expect": {
+        "kind": "tab",
+        "tab": "0123456789ABCDEF0123456789ABCDEF",
+        "view": "https://browser.vm-02.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+      }
+    },
+    {
+      "name": "a tool",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "tool",
+          "id": "terminal"
+        }
+      ],
+      "expect": {
+        "kind": "tool",
+        "id": "terminal"
+      }
+    },
+    {
+      "name": "members it does not know are ignored",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "tool",
+          "id": "terminal",
+          "later": true
+        }
+      ],
+      "expect": {
+        "kind": "tool",
+        "id": "terminal"
+      }
+    },
+    {
+      "name": "another kind is no choice",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "link",
+          "tab": "0123456789ABCDEF0123456789ABCDEF"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a kind in another case is no choice",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "Page",
+          "tab": "0123456789ABCDEF0123456789ABCDEF",
+          "view": "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a page without its view is no choice",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "page",
+          "tab": "0123456789ABCDEF0123456789ABCDEF"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a tab that is no target id is no choice",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "page",
+          "tab": "not-a-tab",
+          "view": "https://browser.vm-01.acme.lazurio.io/t/not-a-tab"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "another tab's view is no choice",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "page",
+          "tab": "0123456789ABCDEF0123456789ABCDEF",
+          "view": "https://browser.vm-01.acme.lazurio.io/t/FEDCBA9876543210FEDCBA9876543210"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a view with a query is no choice",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "page",
+          "tab": "0123456789ABCDEF0123456789ABCDEF",
+          "view": "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF?x=1"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a view with a fragment is no choice",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "page",
+          "tab": "0123456789ABCDEF0123456789ABCDEF",
+          "view": "https://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF#x"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a view over http is no choice",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "page",
+          "tab": "0123456789ABCDEF0123456789ABCDEF",
+          "view": "http://browser.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a view of a three-label base is no choice",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "tab",
+          "tab": "0123456789ABCDEF0123456789ABCDEF",
+          "view": "https://browser.a.b.c.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "an app's origin is no choice",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "tab",
+          "tab": "0123456789ABCDEF0123456789ABCDEF",
+          "view": "https://t3code.vm-01.acme.lazurio.io/t/0123456789ABCDEF0123456789ABCDEF"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a tool outside the grammar is no choice",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "tool",
+          "id": "Terminal"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a tool without its id is no choice",
+      "call": "parseNewTabChoice",
+      "args": [
+        {
+          "kind": "tool"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "null is no choice",
+      "call": "parseNewTabChoice",
+      "args": [
+        null
+      ],
+      "expect": null
+    },
+    {
+      "name": "the registry of tool ids and their icons",
+      "call": "newTabToolIcons",
+      "expect": {
+        "terminal": "terminal",
+        "files": "files",
+        "diff": "diff",
+        "pull-request": "pull-request",
+        "linked-pull-requests": "pull-request",
+        "agents": "bot",
+        "device": "device"
+      }
+    },
+    {
+      "name": "a registry id draws its icon",
+      "call": "newTabToolIcon",
+      "args": [
+        {
+          "id": "terminal"
+        }
+      ],
+      "expect": "terminal"
+    },
+    {
+      "name": "linked pull requests draw the pull request's icon",
+      "call": "newTabToolIcon",
+      "args": [
+        {
+          "id": "linked-pull-requests",
+          "icon": "linked-pull-requests"
+        }
+      ],
+      "expect": "pull-request"
+    },
+    {
+      "name": "agents draw the bot",
+      "call": "newTabToolIcon",
+      "args": [
+        {
+          "id": "agents"
+        }
+      ],
+      "expect": "bot"
+    },
+    {
+      "name": "an id outside the registry draws the icon it names in the registry",
+      "call": "newTabToolIcon",
+      "args": [
+        {
+          "id": "my-shell",
+          "icon": "terminal"
+        }
+      ],
+      "expect": "terminal"
+    },
+    {
+      "name": "an id outside the registry without such an icon draws the default",
+      "call": "newTabToolIcon",
+      "args": [
+        {
+          "id": "my-tool",
+          "icon": "sparkles"
+        }
+      ],
+      "expect": "grid"
+    },
+    {
+      "name": "an id outside the registry without an icon draws the default",
+      "call": "newTabToolIcon",
+      "args": [
+        {
+          "id": "my-tool"
+        }
+      ],
+      "expect": "grid"
+    }
+  ]
+}
