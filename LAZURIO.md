@@ -68,6 +68,10 @@ builds them.
    browser (one Chromium with one profile, DevTools on `127.0.0.1:9222`).
    A bot opens its own tabs in it through Lazurio's `agent-browser`, as a T3
    Code thread does, with the session `bot-<id>`. The bot's strip holds its
+   tabs in its holder file (`bot-<id>.json`), which MausBot's server writes;
+   deleting or archiving the bot removes its tabs there and ends the bot's
+   `agent-browser` session, so its daemon holds nothing, and the Platform's
+   hub ends a tab nothing holds. A person sees a bot's tab
    and works in it at the same time as the bot, in MausBot's right panel,
    through the Platform's view (`browser.<…>/t/<id>`) and New tab: the same
    view as in T3 Code and the Launchpad, from the Platform's vendored browser
