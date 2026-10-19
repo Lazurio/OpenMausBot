@@ -23,7 +23,6 @@ import { sectionKey, type BotRecord, type GroupRecord, type Store } from "../sto
 import { pinnedClientThreadGuard } from "./pinned-client-thread.ts";
 import type { ModelSelectionCheck } from "./bots-create.ts";
 import { PASS, type RouteHandler } from "./table.ts";
-import { removedBotSetting, removedBotSettingError } from "../lazurio-removed-config.ts";
 
 export interface BotPatchRouteDeps {
   store: Store;
@@ -69,9 +68,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
       if (!body || typeof body !== "object" || Array.isArray(body)) {
         return json(res, 400, { error: "body must be a JSON object" });
       }
-      // Lazurio overlay (DEV-6673): a write naming a removed gate or level is refused as a whole.
-      const removedSetting = removedBotSetting(body);
-      if (removedSetting) return json(res, 400, { error: removedBotSettingError(removedSetting) });
       const pairedDevice = req.headers["x-openmausbot-companion"] === "1";
       if ((auth.kind === "session" && !auth.scopes.includes("admin")) || pairedDevice) {
         const field = clientBotPatchViolation(body);

@@ -82,6 +82,7 @@
     "server/routes/bot-patch.ts",
     "server/routes/bot-settings.ts",
     "server/routes/status.ts",
+    "server/routes/table.ts",
     "server/routes/tasks.ts",
     "server/routes/thread-models.ts",
     "server/routine-delegation.e2e.test.ts",
