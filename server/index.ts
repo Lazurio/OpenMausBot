@@ -10866,7 +10866,7 @@ ROUTES.push(createBotCreateRoutes({
   store, cfg, presetStore, orgInstallStatuses,
   desktopManaged: DESKTOP_MANAGED,
   maxWorkspaceBots: MAX_WORKSPACE_BOTS, cloudOwnerKey: CLOUD_OWNER_KEY,
-  hostedModels, cloudRoutineAuthors,
+  hostedModels, cloudRoutineAuthors, supportsApprovalMode,
   routines: () => routines,
   storedAvatarExists, defaultSelection, checkedModelSelection, cloudOwnerSession, wireBot,
 }));
