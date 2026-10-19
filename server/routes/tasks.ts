@@ -16,7 +16,6 @@ import { titleConversationExcerpt, type ThreadTitleSource } from "../thread-titl
 import type { MessagePage } from "./channels.ts";
 import { bulkDeleteThreadIds, type BulkDeleteRefusal } from "./bulk-delete.ts";
 import { PASS, type RouteHandler } from "./table.ts";
-import { removedBotSetting, removedBotSettingError } from "../lazurio-removed-config.ts";
 
 type HostedModels = NonNullable<ReturnType<typeof hostedModelPolicy>>;
 
@@ -223,9 +222,6 @@ export function createTaskRoutes(deps: TaskRouteDeps): RouteHandler {
       const current = store.projectBotForTask(m[1], m[2]);
       if (!current) return json(res, 404, { error: "no such task" });
       const allowed = new Set(["title", "projectId", "modelSelection", "updateBotDefault", "resetApprovalToAsk", "approvalMode", "autoApprove", "requireAvailableModel", "pinnedMessageId", "archivedAt", "pinned", "snoozedUntil", "refreshPermissions", "link"]);
-      // Lazurio overlay (DEV-6673): a write naming a removed gate or level is refused as a whole.
-      const removedSetting = removedBotSetting(body);
-      if (removedSetting) return json(res, 400, { error: removedBotSettingError(removedSetting) });
       if (Object.keys(body).some((key) => !allowed.has(key))) return json(res, 400, { error: "unsupported thread setting" });
       const notYours = cloudThreadRefusal(auth, m[2]);
       if (notYours) return json(res, 403, { error: notYours });
