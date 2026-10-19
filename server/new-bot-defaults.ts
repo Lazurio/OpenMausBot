@@ -34,7 +34,6 @@ export const botDefaultsProfileSchema = z.preprocess(withoutRemovedDefaults, pro
   alwaysAllow: strings(200, 500).optional(),
   chiefOfStaff: z.boolean().optional(),
   managedSections: strings(100, 60).optional(),
-  approvePeerComms: z.boolean().optional(),
   peers: strings(1000, 100).nullable().optional(),
   browser: z.boolean().optional(),
   browserProfile: z.string().max(100).nullable().optional(),

@@ -2173,10 +2173,6 @@ describe("harness HTTP API", () => {
       expect((await api("PATCH", `/api/bots/${second.id}`, { hidden: true })).status).toBe(200);
       expect((await create({ name: "Archived member", memberIds: [second.id] })).status).toBe(403);
       expect((await manage({ action: "add_members", memberIds: [second.id] })).status).toBe(403);
-      expect((await api("PATCH", `/api/bots/${chief.id}`, { approvePeerComms: true })).status).toBe(200);
-      expect((await manage({ action: "rename", name: "No review" })).body.error).toMatch(/peer approval is required/);
-      expect((await create({ name: "No review", memberIds: [peer.id] })).status).toBe(403);
-      expect((await api("PATCH", `/api/bots/${chief.id}`, { approvePeerComms: false })).status).toBe(200);
       for (let count = 1; count < 4; count += 1) {
         const created = await create({ name: `Bounded room ${count}`, memberIds: [peer.id] });
         expect(created.status).toBe(201);
@@ -4306,7 +4302,6 @@ describe("harness HTTP API", () => {
       title: "Project Lead",
       autoApprove: true,
       alwaysAllow: ["Bash:git"],
-      approvePeerComms: true,
       chiefOfStaff: true,
     });
     const beforeImport = (await api("GET", "/api/bots")).body;
@@ -4365,7 +4360,6 @@ describe("harness HTTP API", () => {
       threadId: trusted.threadId,
       autoApprove: true,
       alwaysAllow: ["Bash:git"],
-      approvePeerComms: true,
       chiefOfStaff: true,
     });
     expect(after.bots.filter((bot: { chiefOfStaff?: boolean }) => bot.chiefOfStaff).map((bot: { id: string }) => bot.id).sort()).toEqual(chiefsBefore);

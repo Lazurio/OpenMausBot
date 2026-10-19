@@ -11,7 +11,6 @@ import {
   escalationDeliverable,
   escalationText,
   NEEDS_INPUT_GATE,
-  peerApprovalGate,
   RAISED_GATE,
   type Escalation,
   type EscalationBot,
@@ -75,11 +74,6 @@ describe("escalationChip", () => {
     expect(chip).not.toContain("[drop");
   });
 
-  it("carries the peer-approval gate for a pending contact card", () => {
-    expect(peerApprovalGate("ask_bot", "Hedge")).toBe("its approval card to contact @Hedge is waiting on the person");
-    expect(peerApprovalGate("delegate_bot", "Hedge")).toBe("its approval card to delegate to @Hedge is waiting on the person");
-    expect(escalationChip(escalation({ kind: "peer-approval", gate: peerApprovalGate("ask_bot", "Hedge") }))).toContain("Escalation: Mira's work");
-  });
 });
 
 describe("EscalationLedger", () => {

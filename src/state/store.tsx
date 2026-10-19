@@ -308,7 +308,6 @@ export interface Bot extends DefaultBotFields {
   chiefOfStaff?: boolean;
   managedSections?: string[];
   createdBy?: string; reportsTo?: string;
-  approvePeerComms?: boolean;
   peers?: string[];
   fallback?: Array<{ instanceId: string; model: string }>;
   browser?: boolean;

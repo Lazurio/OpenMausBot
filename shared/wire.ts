@@ -327,7 +327,6 @@ export interface WireBot extends DefaultBotFields {
    * failures and routine results reach. Absent: it reports to `createdBy`. */
   reportsTo?: string;
   /** Pause for human approval before this bot talks to a peer. */
-  approvePeerComms?: boolean;
   /** Bot ids this bot is allowed to contact. */
   peers?: string[];
   /** Ordered backups used only by opt-in, pre-prompt startup recovery. */

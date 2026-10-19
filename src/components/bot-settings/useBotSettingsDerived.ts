@@ -29,7 +29,6 @@ export type BotPatch = Partial<
     | "voice"
     | "chiefOfStaff"
     | "managedSections"
-    | "approvePeerComms"
     | "browser"
     | "recordBrowserSteps"
     | "modelSelection"

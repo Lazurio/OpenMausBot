@@ -1,7 +1,7 @@
-import type { PeerAction } from "./peer-approval-key.ts";
 import { hasAuthority, peerAllowed, peerName } from "./peer-roster.ts";
 
-export type EscalationKind = "peer-approval" | "needs-input" | "raised";
+// Lazurio overlay (DEV-6673): no peer approval card parks a run, so it is not a kind of escalation.
+export type EscalationKind = "needs-input" | "raised";
 
 export interface EscalationBot {
   id: string;
@@ -72,12 +72,6 @@ export class EscalationLedger {
   }
 }
 
-export function peerApprovalGate(action: PeerAction, targetName: string): string {
-  const verb = action === "ask_bot" ? "contact" : action === "delegate_bot" ? "delegate to" : "post in";
-  const named = action === "post_to_room" ? `the room “${peerName(targetName)}”` : `@${peerName(targetName)}`;
-  return `its approval card to ${verb} ${named} is waiting on the person`;
-}
-
 export const NEEDS_INPUT_GATE = "its turn ended on a question the person has not answered";
 export const RAISED_GATE = "it raised this flag itself";
 
@@ -104,7 +98,7 @@ export function escalationText(escalation: Escalation, count: EscalationCount): 
   lines.push(
     "This notice informs; it assigns nothing, and the gate stays a person's to lift. Decide, in this order:",
     "1. If the gate has already lifted by the time you read this — the card answered, the question answered — say so here in one plain sentence and stop.",
-    "2. Otherwise tell the person, in one or two plain sentences, what is being asked of them and where to answer it, then stop. Never answer a gate in the person's place and never approve a contact for a teammate.",
+    "2. Otherwise tell the person, in one or two plain sentences, what is being asked of them and where to answer it, then stop. Never answer a gate in the person's place.",
     "3. Report in one sentence what you told the person. Do not assign the gated thread other work: an answered card or question continues it, and after a raised flag the person's reply in that thread does.",
   );
   return lines.join("\n");

@@ -155,7 +155,7 @@ posixOnly("admin activity log", () => {
     expect(bot.status).toBe(201);
     const botId = bot.body.bot.id as string;
     expect((await api("PATCH", `/api/bots/${botId}`, { visibility: { people: [ADA] } }, BOSS)).status).toBe(200);
-    expect((await api("PATCH", `/api/bots/${botId}`, { approvePeerComms: true }, BOSS)).status).toBe(200);
+    expect((await api("PATCH", `/api/bots/${botId}`, { parkDirectMessages: true }, BOSS)).status).toBe(200);
     expect((await api("PATCH", `/api/bots/${botId}`, { pinned: true }, ADA)).status).toBe(200);
     expect((await api("PATCH", `/api/bots/${botId}`, { visibility: { people: ["nope"] } }, BOSS)).status).toBe(400);
     const install = await api("POST", "/api/instances/no-such-engine/install", {}, BOSS);
@@ -207,7 +207,7 @@ posixOnly("admin activity log", () => {
     const bot = (await api("POST", "/api/bots", { name: "Race Finch" }, BOSS)).body.bot as { id: string };
     // Boss's request is slow: its body arrives only after the owner on this
     // machine has made (and finished) a change of their own to the same thing.
-    const slowBot = slowRequest("PATCH", `/api/bots/${bot.id}`, { approvePeerComms: true }, BOSS);
+    const slowBot = slowRequest("PATCH", `/api/bots/${bot.id}`, { parkDirectMessages: true }, BOSS);
     await new Promise((r) => setTimeout(r, 300));
     slowBot.release();
     expect((await slowBot.response).status).toBe(200);
@@ -220,7 +220,7 @@ posixOnly("admin activity log", () => {
     const rows = (await activity("?what=all")).filter((entry) => entry.type === "admin");
     const botRows = rows.filter((entry) => entry.action === "bot.update" && entry.target?.id === bot.id);
     expect(botRows.map((entry) => [entry.who, entry.changed]).sort()).toEqual([
-      [BOSS, ["approvePeerComms"]],
+      [BOSS, ["parkDirectMessages"]],
     ].sort());
     const configRows = rows.filter((entry) => entry.action === "config.update" &&
       (JSON.stringify(entry.after).includes("Race desk") || JSON.stringify(entry.after).includes("365")));

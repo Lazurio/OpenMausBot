@@ -14,6 +14,7 @@ import { ProposalStatus } from "./ProposalStatus";
 import type { useBotSettingsDerived } from "./useBotSettingsDerived";
 import { useBotEditor } from "./BotEditorContext";
 
+export type PermissionsPart = "chief" | "approval";
 
 export function PermissionsSection({
   bot,
@@ -92,30 +93,6 @@ export function PermissionsSection({
           onSave={managedSections => patch({ managedSections, acknowledgePeerScope: true })}
         />}
         {bot.chiefOfStaff && <ProposalStatus bot={bot} kind="owner" />}
-      </div>}
-
-      {shows("peers") && <div className="rounded-xl bg-card p-4">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <div className="text-[15px] font-medium text-ink">{t("permissions.peers.title")}</div>
-            <div className="mt-0.5 text-[13px] text-ink-secondary">
-              {bot.approvePeerComms
-                ? t("permissions.peers.on")
-                : t("permissions.peers.off")}
-            </div>
-            <ProposalStatus bot={bot} kind="owner" />
-          </div>
-          <Switch
-            checked={Boolean(bot.approvePeerComms)}
-            aria-label={t("permissions.peers.title")}
-            disabled={!bot.approvePeerComms && !canCoordinate}
-            onClick={() => patch({ approvePeerComms: !bot.approvePeerComms })}
-            title={!bot.approvePeerComms && !canCoordinate ? t("permissions.cannotCoordinate") : undefined}
-            className="disabled:cursor-not-allowed"
-          />
-        </div>
-        {Array.isArray(bot.peers) && <PeersListNote peers={bot.peers} bots={state.bots}
-          onOpen={() => patch({ peers: null, acknowledgePeerScope: true })} />}
       </div>}
 
       {shows("approval") && <div className="rounded-xl bg-card p-4">

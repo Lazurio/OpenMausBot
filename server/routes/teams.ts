@@ -5,7 +5,6 @@ import { validateBotCwd } from "../bot-cwd.ts";
 import { fetchBotDirectory, matchDirectoryBots, type MatchedDirectoryBot } from "../bot-directory.ts";
 import { isBotPackage, packageSummary, parsePackageDocument, renderBotPackageMarkdown, type PackageDocument } from "../bot-package.ts";
 import { parseVisibility } from "../bot-visibility.ts";
-import type { AppConfig } from "../config.ts";
 import type { ModelSelection } from "../contracts.ts";
 import type { OrgLibrary } from "../org-library.ts";
 import {
@@ -32,13 +31,11 @@ import { sectionKey, type BotRecord, type GroupRecord, type Store } from "../sto
 import { createTeamBackup, importTeamBackup } from "../team-backup.ts";
 import { fetchGithubTeam, fetchGrokTemplateCard, fetchLibraryTeam, fetchTeamCatalog } from "../team-library.ts";
 import { createTeamManifest, parseTeamManifest } from "../team-manifest.ts";
-import { CursorFallback, defaultCursorSession, type CursorSession } from "../cursor-session.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
 export interface TeamRouteDeps {
   store: Store;
-  cfg: Pick<AppConfig, "mcpServers">;
   /** The exporting person's name, as a package's author: the server's profile's, or on a Team Cloud the person's own. */
   authorName(auth: RequestAuth): string | undefined;
   routines(): RoutineManager | null;
@@ -56,18 +53,15 @@ export interface TeamRouteDeps {
   collectTeamSkills(bots: readonly BotRecord[], selection: unknown):
     | { ok: true; all: boolean; skillsByBot: Map<string, ExportablePackageSkill[]>; skipped: TeamExportSkip[]; available: string[] }
     | { ok: false; error: string; available: string[] };
-  /** The optional Cursor sign-in behind the one-click Grok Bot import; the app's own by default. */
-  cursor?: () => CursorSession;
   /** On a Team Cloud: false for someone else's private chat, which a team backup never carries. */
   threadShown?(auth: RequestAuth): (threadId: string) => boolean;
 }
 
 export function createTeamRoutes(deps: TeamRouteDeps): RouteHandler {
   const {
-    store, cfg, broadcast, publicBot, publicGroupState, groupWithThread, defaultSelection, defaultsPresetFor,
+    store, broadcast, publicBot, publicGroupState, groupWithThread, defaultSelection, defaultsPresetFor,
     packageImportDeps, starterNotes, checkedExportSkillNames, collectExportSkills, collectTeamSkills,
   } = deps;
-  const cursorSession = deps.cursor ?? defaultCursorSession;
   return async ({ req, res, url, path, method, auth, json, readBody }) => {
     let m: RegExpMatchArray | null = null;
     const routines = deps.routines();
@@ -240,26 +234,7 @@ export function createTeamRoutes(deps: TeamRouteDeps): RouteHandler {
           error: error instanceof Error ? error.message : "The Grok Bot could not be loaded",
         });
       }
-      // Signed in to Cursor: the full setup too. Any failure keeps the card and the copy-paste export, with one line why.
-      const session = cursorSession();
-      if (!(await session.status()).signedIn) return json(res, 200, card);
-      try {
-        return json(res, 200, { ...card, export: await session.fetchTemplate(card) });
-      } catch (error) {
-        return json(res, 200, { ...card, exportNote: error instanceof CursorFallback ? error.message : "Cursor could not share this template's setup." });
-      }
-    }
-    if (method === "GET" && path === "/api/team-library/cursor") {
-      res.setHeader("cache-control", "no-store");
-      return json(res, 200, await cursorSession().status());
-    }
-    if (method === "POST" && path === "/api/team-library/cursor/sign-in") {
-      res.setHeader("cache-control", "no-store");
-      return json(res, 200, cursorSession().startSignIn());
-    }
-    if (method === "POST" && path === "/api/team-library/cursor/sign-out") {
-      cursorSession().signOut();
-      return json(res, 200, await cursorSession().status());
+      return json(res, 200, card);
     }
     if (method === "GET" && path === "/api/teams/scout") {
       // Creates nothing: bots exist only once the person sends the manifest to /api/teams/import.

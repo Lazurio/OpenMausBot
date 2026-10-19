@@ -5,12 +5,10 @@ Off by default. Turn it on with `"features": { "chiefEscalations": true }` in
 While it is off nothing below happens: no notice, no line in the Chief's
 prompt, and `raise_escalation` is not mounted.
 
-A healthy run can park on a gate only a person can lift. Three ways it
-happens:
+A healthy run can park on a gate only a person can lift. Two ways it
+happens (bots contact, delegate to and post in rooms without a person's
+approval, so no peer card parks a run in this distribution):
 
-- a **peer-communication approval card** lands and waits — a bot with
-  `approvePeerComms` asked to contact, delegate to, or post in something,
-  and the person has not answered the card in that bot's thread;
 - a teammate's turn ends on a **`NEEDS INPUT:` question** the person has
   not answered;
 - a bot raises the flag itself with **`raise_escalation`** — a permission,

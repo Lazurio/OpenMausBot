@@ -297,7 +297,6 @@
     "server/full-access-workflows.e2e.test.ts": 14,
     "server/group-goal-run.e2e.test.ts": 9,
     "server/group-goal-wait-cap.e2e.test.ts": 9,
-    "server/group-local-vm.e2e.test.ts": 116,
     "server/group-thread-usage.e2e.test.ts": 3,
     "server/guarded-messages-api.test.ts": 23,
     "server/handoff-in-my-folder.e2e.test.ts": 3,

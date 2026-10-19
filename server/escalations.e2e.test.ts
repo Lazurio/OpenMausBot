@@ -60,48 +60,6 @@ async function launch() {
   return { url, dataDir, api, control, dump, messages, botsNow, plan, useCli, turnEnded, escalationsThread, close: () => fixture.close() };
 }
 
-it("delivers a pending peer-comm approval card to the Chief's escalations thread", async () => {
-  const { api, control, dump, messages, plan, useCli, turnEnded, escalationsThread, close } = await launch();
-  try {
-    const chief = (await control(["new-bot", "--name", "Clive", "--section", "Ops"])).bot;
-    await api("PATCH", `/api/bots/${chief.id}`, { chiefOfStaff: true });
-    const ada = (await control(["new-bot", "--name", "Ada", "--section", "Ops"])).bot;
-    await api("PATCH", `/api/bots/${ada.id}`, { approvePeerComms: true, approvalMode: "ask" });
-    const hedge = (await control(["new-bot", "--name", "Hedge", "--section", "Ops"])).bot;
-    await useCli();
-    plan(ada.activeTaskId, {
-      tools: [{ name: "coordinate_bots", server: "agents", input: { bot_ids: [hedge.id], message: "Hedge, a quick one before I file the memo.", consult: true } }],
-      replies: ["I asked Hedge and will wait for the person's say-so."],
-    });
-    plan(chief.activeTaskId, { replies: ["Standing by."] });
-
-    await control(["send", "--bot", ada.id, "--text", "File the memo after checking with Hedge."]);
-    await expect.poll(async () => (await messages(ada.activeTaskId)).some((m) => m.kind === "options" && m.card?.requestId), { timeout: 20_000 }).toBe(true);
-    const escalations = await escalationsThread(chief.id);
-    await expect.poll(async () => (await messages(escalations.threadId)).some((m) =>
-      m.kind === "activity" && m.tool?.ok === false && /Escalation: Ada's work .*approval card to contact @Hedge is waiting on the person/.test(m.tool?.name ?? "")
-      && m.threadRef?.threadId === ada.activeTaskId && m.threadRef?.botId === ada.id,
-    ), { timeout: 10_000 }).toBe(true);
-    const run = await dump(escalations.threadId);
-    const prompt = JSON.stringify(run.prompt);
-    expect(prompt).toContain("[Escalation notice from OpenMausBot — not from the person.");
-    expect(prompt).toContain("approval card to contact @Hedge is waiting on the person");
-    expect(prompt).toContain("Hedge, a quick one before I file the memo.");
-    expect(prompt).toContain(`bot_id \\"${ada.id}\\"`);
-    expect(prompt).toContain(`thread_id \\"${ada.activeTaskId}\\"`);
-    expect(run.systemPrompt).toContain("Team escalations");
-    const noticeLine = (await messages(escalations.threadId)).find((m) => m.role === "user" && /Escalation notice/.test(m.text ?? ""));
-    expect(noticeLine?.peerAsk).toEqual({ botId: ada.id, name: "Ada", unattended: true, incident: { threadId: ada.activeTaskId, notified: true } });
-
-    await api("POST", `/api/bots/${ada.id}/respond`, { requestId: (await messages(ada.activeTaskId)).find((m) => m.kind === "options")?.card?.requestId, behavior: "deny" });
-    await turnEnded(ada.id, ada.activeTaskId);
-    await turnEnded(chief.id, escalations.threadId);
-    expect((await messages(hedge.activeTaskId)).filter((m) => m.role === "user")).toEqual([]);
-  } finally {
-    await close();
-  }
-}, 150_000);
-
 it("delivers a teammate turn that ends needing input to the Chief's escalations thread", async () => {
   const { api, control, dump, messages, plan, useCli, turnEnded, escalationsThread, close } = await launch();
   try {

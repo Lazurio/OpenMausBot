@@ -5,6 +5,8 @@ import type { JsonValue } from "./schema.ts";
 const REMOVED_CONFIG_KEYS: ReadonlyArray<readonly string[]> = [
   ["box"], ["vps"], ["localVm"], ["composio"], ["mcpServers"], ["features", "sharedComputers"],
   ...["computer", "cloudBackend", "autoStartVps", "composio", "mcpServers"].map((key) => ["newBotDefaults", "profile", key]),
+  // DEV-6673, LAZURIO.md principle 2: bots contact each other without a person's approval.
+  ["newBotDefaults", "profile", "approvePeerComms"],
   // LAZURIO.md principle 3: no research key of MausBot's own.
   ["treg"],
 ];
@@ -30,6 +32,7 @@ export function removedConfigKey(value: JsonValue): string | null {
   return null;
 }
 
+// Request fields of removed gates (DEV-6673, LAZURIO.md principle 2): the confirmation upstream's Auto warning asked
 const REMOVED_BOT_FIELDS: readonly string[] = ["acknowledgeLocalAuto", "approvePeerComms", "approvalGrant", "toolScope", "xResearch", "phoneApps", "vpsAlias"];
 
 /** A field or value a bot or thread write names that Lazurio removed (DEV-6673), or null; such a write is refused with 400. */
