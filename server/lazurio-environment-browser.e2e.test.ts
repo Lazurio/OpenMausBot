@@ -3,7 +3,7 @@
 // Environment that declares its browser: a fake Platform CLI and a runtime directory. agent-browser's session
 // bindings are written as the Platform's `lazurio browser window` leaves them. No browser runs.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -73,6 +73,15 @@ describe.skipIf(process.platform === "win32")("a Lazurio server on an Environmen
     expect(browser).toContain(`lazurio browser done --session bot-${bot.id}`);
   });
 
+  it("runs a bot's engine with its own agent-browser session, so a command without --session uses it", async () => {
+    const bot = (await call("POST", "/api/bots", { name: "Session user" })).body.bot;
+    rmSync(fixture.fixtureDumpPath, { force: true });
+    expect((await call("POST", `/api/bots/${bot.id}/messages`, { text: "Open a page." })).status).toBe(202);
+    await expect.poll(() => existsSync(fixture.fixtureDumpPath), { timeout: 15_000 }).toBe(true);
+    await expect.poll(() => { try { return JSON.parse(readFileSync(fixture.fixtureDumpPath, "utf8")).env?.AGENT_BROWSER_SESSION; } catch { return undefined; } },
+      { timeout: 5_000 }).toBe(`bot-${bot.id}`);
+  });
+
   it("offers no browser setting of MausBot's own", async () => {
     const config = (await call("GET", "/api/config")).body;
     expect(config).not.toHaveProperty("browserEngine");
@@ -110,5 +119,14 @@ describe.skipIf(process.platform === "win32")("a Lazurio server without a declar
     const browser = sections.find((section) => section.id === "browser")?.text ?? "";
     expect(browser).toMatch(/This Environment has no Environment browser/);
     expect(browser).not.toContain("agent-browser --cdp");
+  });
+
+  it("gives the bot's engine no agent-browser session", async () => {
+    const headers = { "content-type": "application/json", origin: fixture.info.url };
+    const bot = (await (await fetch(`${fixture.info.url}/api/bots`, { method: "POST", headers, body: JSON.stringify({ name: "No session" }) })).json() as any).bot;
+    rmSync(fixture.fixtureDumpPath, { force: true });
+    expect((await fetch(`${fixture.info.url}/api/bots/${bot.id}/messages`, { method: "POST", headers, body: JSON.stringify({ text: "Hello." }) })).status).toBe(202);
+    await expect.poll(() => { try { return JSON.parse(readFileSync(fixture.fixtureDumpPath, "utf8")).env !== undefined; } catch { return false; } }, { timeout: 15_000 }).toBe(true);
+    expect(JSON.parse(readFileSync(fixture.fixtureDumpPath, "utf8")).env.AGENT_BROWSER_SESSION).toBeUndefined();
   });
 });

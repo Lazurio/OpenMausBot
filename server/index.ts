@@ -7141,6 +7141,7 @@ async function startTurn(
       const dispatch = await guardTurnDispatch(shareNote.after(instance.adapter.sendTurn({
         threadId,
         botId: bot.id,
+        ...(environmentBrowserOn ? { agentBrowserSession: botBrowserSession(bot.id) } : {}),
         startupRecovery: cfg.automaticRecovery?.enabled === true &&
           (opts?.automaticRecoveryIndex ?? 0) < ((liveBot ?? bot).fallback?.length || (cfg.automaticRecovery.backup ? 1 : 0)),
         text: withTurnClock(clock, withRecalled(recalled, dispatchContext.turnText + shareNote.text)),
@@ -8673,6 +8674,7 @@ async function runClaimedGroupMemberTurn(
         ...roomSession.send,
         threadId,
         botId: readyBot.id,
+        ...(environmentBrowserOn ? { agentBrowserSession: botBrowserSession(readyBot.id) } : {}),
         text: roomSession.text,
         ...(roomRecalled ? { recalled: roomRecalled } : {}),
         images: turnImages,
