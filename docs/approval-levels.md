@@ -63,6 +63,11 @@ that reaches depends on who runs the tools:
 A request already on screen stays for you to answer, and an action already
 running finishes. A team change sets the level on working bots too.
 
+At every level a bot contacts, delegates to and posts in rooms without a
+person's approval: upstream's per-bot switch that made a bot ask a person
+first, and its approval cards, are removed too. Which teammates a bot may reach is
+still its team's and its peers list's.
+
 A department's sidebar menu has **Set for all bots in this department…**, for the owner
 or an admin. It sets one approval level (Ask, Auto-accept edits, Approve for
 me or Full access), or one model and effort, on every bot in that department. It

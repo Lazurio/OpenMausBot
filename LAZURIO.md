@@ -98,6 +98,8 @@ builds them.
     an exact upstream tag, Lazurio-only code lives in Lazurio-named modules,
     and each change says which principle it serves.
 
+  bot at Full on every server, with T3 Code's four levels and no gate before
+  Full, before Auto or before contacting another bot (2,
 
 Until a gap is closed the sections below describe the code as it is; plan
 DEV-6673 tracks each gap.
@@ -156,6 +158,23 @@ stays. The Lazurio side is one module,
 the shell, the English profile, a foreign Launchpad origin, a mismatched
 `current`, a redirected or foreign-origin document, an unreadable document,
 Cursor keeping upstream's card, and the card outside Lazurio.
+
+### Access levels
+
+**Decided on 2026-10-19 (the Organization Admin; root decision 0172 with its
+addendum of 2026-10-19).** Every bot runs at **Full access** by default, as
+Lazurio's T3 Code runs `full-access`, on every server, a hosted company
+workspace included, and nothing turns it on, lowers it or asks first. A
+person may choose to supervise a bot or a conversation with the levels of
+T3 Code: Ask for approval (`approval-required`), Auto-accept edits
+approval. Real questions a bot needs answered, and missing sign-ins, still
+reach a person, and under a supervised level OpenMausBot's own proposals
+(profile, routine, team setup, skill) keep their review cards. Full access is
+not consent to publish: merges, releases and writes to connected apps keep
+their own gates (the Steward team's rules, GitHub rights and branch rules).
+Narrower rights mean a separate Environment. What upstream had beyond this
+is removed ([below](#what-the-overlay-removes)), and
+`server/lazurio-full-access.e2e.test.ts` checks it on a real server.
 
 ## What the overlay adds
 
@@ -249,10 +268,18 @@ signed-in accounts, and integrations come from the Environment.
   host with a MausBot account (`publish_page`, `unpublish_page`, Share on a
   page's card, the published-page card). A page shows in the chat from the
   bot's folder, as before.
+- **Gates before full access**: a hosted workspace's Ask default and its
+  refusal of Full without the operator flag `OMB_SHARED_WORKSPACE_FULL_ACCESS`;
+  the Custom (`config.toml`) level with the desktop's private two-phase grant
+  (Electron's approval coordinator, its IPC channel and the server's grant
+  journal); the warning before Auto (`acknowledgeLocalAuto`); and the
+  per-bot switch that made a bot ask a person before contacting another bot
   (`approvePeerComms`) with its approval cards; since v0.1.130 also the "Send
   on your behalf?" hold on a bot's outbound messages, the Ask a new bot was
   started on, and the "Allow once?" before a bot used this computer. A saved
   Custom level, grant
+  marker or switch loads and drops; a write that names one, or the removed
+  confirmation, is refused with 400 ([Access levels](#access-levels)).
 - **Telemetry to upstream**: upstream's PostHog analytics, the welcome
   tour's name and e-mail form, the `@devs` bug report to the MausBot team
   (`report_bug`) with the recent log it attached, and the "Product updates by
