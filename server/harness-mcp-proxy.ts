@@ -9,17 +9,17 @@ const MAX_INPUT_BYTES = 1_048_576;
 const MAX_OUTPUT_BYTES = 16_777_216;
 const MAX_PENDING = 16;
 type RpcId = string | number | null;
-export type HarnessMcpKind = "browser" | "data";
+// Lazurio overlay (DEV-6673 M4a): the bots' own browser and its route are removed; Data is the one family left.
+export type HarnessMcpKind = "data";
 
-const NAMES: Record<HarnessMcpKind, string> = { browser: "Browser", data: "Data" };
+const NAMES: Record<HarnessMcpKind, string> = { data: "Data" };
 const INSTRUCTIONS: Partial<Record<HarnessMcpKind, string>> = { data: DATA_INSTRUCTIONS };
 const RECOVERY: Record<HarnessMcpKind, string> = {
-  browser: " This failure does not establish that all browsers are unavailable. Keep the requested computer and account; do not bypass a permission refusal or human takeover, and do not repeat an uncertain action without checking its result.",
   data: " The tables already loaded are unchanged; check with data_describe or SHOW TABLES before repeating a load, and do not repeat a statement whose result is uncertain.",
 };
 
 function parseHarnessMcpKind(value: unknown): HarnessMcpKind | null {
-  return value === "browser" || value === "data" ? value : null;
+  return value === "data" ? value : null;
 }
 
 /** Node's fetch (undici) rejects with the socket error as its `cause`: refused before anything was sent, reset or closed after. */
@@ -140,7 +140,7 @@ function run(kind: HarnessMcpKind): void {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const kind = parseHarnessMcpKind(process.argv[2]);
   if (!kind) {
-    process.stderr.write("usage: harness-mcp-proxy browser|computer|data\n");
+    process.stderr.write("usage: harness-mcp-proxy data\n");
     process.exitCode = 2;
   } else run(kind);
 }
