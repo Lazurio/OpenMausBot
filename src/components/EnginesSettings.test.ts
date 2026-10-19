@@ -53,6 +53,7 @@ describe("Settings → Engines → setup cards", () => {
     fixture.instances = ["claudeAgent", "codex", "openai-compat"].map((driverKind) => ({
       instanceId: `company.fixture.${driverKind}`, displayName: `Company ${driverKind}`, driverKind, readOnly: true,
       snapshot: { state: "available", authenticated: true }, models: { default: "model", options: [] },
+      install: { signInCommand: "fixture login" },
     }));
     const companyOnly = renderToStaticMarkup(createElement(EnginesSettings));
     for (const driver of ["claudeAgent", "codex", "openai-compat"]) expect(companyOnly).toContain(`Company ${driver}`);

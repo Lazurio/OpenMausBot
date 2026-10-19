@@ -11,8 +11,6 @@ import type {
   EngineAccess,
   InstanceConfigMap,
   InstanceId,
-  ProviderAuthenticationStart,
-  ProviderAuthenticationStatus,
   ProviderInstance,
   ProviderSnapshot,
 } from "../contracts.ts";
@@ -325,30 +323,6 @@ export class ProviderRegistry {
     }
   }
 
-  async startAuthentication(instanceId: InstanceId): Promise<ProviderAuthenticationStart | null> {
-    const instance = this.get(instanceId);
-    return instance?.startAuthentication ? instance.startAuthentication() : null;
-  }
-
-  async getAuthentication(instanceId: InstanceId, flowId: string): Promise<ProviderAuthenticationStatus | null> {
-    const instance = this.get(instanceId);
-    return instance?.getAuthentication ? instance.getAuthentication(flowId) : null;
-  }
-
-  async completeAuthentication(instanceId: InstanceId, flowId: string, callbackUrl: string): Promise<boolean> {
-    const instance = this.get(instanceId);
-    if (!instance?.completeAuthentication) return false;
-    await instance.completeAuthentication(flowId, callbackUrl);
-    return true;
-  }
-
-  async cancelAuthentication(instanceId: InstanceId): Promise<boolean> {
-    const instance = this.get(instanceId);
-    if (!instance?.cancelAuthentication) return false;
-    await instance.cancelAuthentication();
-    return true;
-  }
-
   describe(options: { known?: boolean } = {}) {
     return this.describeWith((instance) => {
       const seed = options.known && this.unread?.has(instance.instanceId) ? this.seeds.get(instance.instanceId) : undefined;
@@ -433,11 +407,6 @@ export class ProviderRegistry {
           },
           access: driver?.metadata.access ?? "subscription",
           install: withServerInstall(driver?.install, npmPresent),
-          authentication: inst.startAuthentication
-            ? {
-                signOut: inst.signOut !== undefined,
-              }
-            : undefined,
           cli: this.cliByInstance.get(inst.instanceId),
           cliDefault: cliDefaultOf(driver),
           cliCandidates: candidatesFor(driver),

@@ -428,7 +428,6 @@ import { createWorkspaceBackupRoutes, isWorkspaceBackupSessionControl } from "./
 import { applyPendingWorkspaceRestore, readLastWorkspaceRestore, type WorkspaceRestoreResult } from "./workspace-backup.ts";
 import { repairMovedWorkspacePaths } from "./moved-paths-repair.ts";
 import { createCustomDomainVerifier, customDomainIpv4, normalizeCustomDomain } from "./custom-domain.ts";
-import { ProviderAuthSessions } from "./provider-auth-sessions.ts";
 import { allowedScopes, parseAllowList } from "./account-signin.ts";
 import {
   clearSessionCookie,
@@ -1265,7 +1264,6 @@ function bookTurnUsage(row: Omit<UsageRow, "at" | "costSource">, tokensReported 
   }
 }
 
-const providerAuthSessions = new ProviderAuthSessions();
 // OpenCode reads provider keys (ANTHROPIC_API_KEY, OPENAI_API_KEY, …) from its environment. Wired before the first catalog probe below.
 let openCodeOrganisationManaged = (): boolean => false;
 const openCodeKeysAllowed = (): boolean => openCodeProviderKeysAllowed({
@@ -4418,7 +4416,6 @@ function closeSessionStreams(sessionId: string): void {
   }
 }
 sessions.onSessionRevoked((sessionId) => {
-  providerAuthSessions.revokeOwner(sessionId);
   closeSessionStreams(sessionId);
   // A revoked owner device no longer vouches for its lines (cloudOwnerPerson).
   ownerOnlyCache.clear();
@@ -10474,18 +10471,17 @@ async function describeInstances() {
       ...(entry?.access ? { access: entry.access } : {}),
     };
     if (hostedModels) return { ...described, readOnly: true,
-      install: undefined, authentication: undefined, cli: undefined, cliCandidates: [],
-    };
+      install: undefined, cli: undefined, cliCandidates: [],
     };
     const policyReason = policyModelRefusal(instance);
     const policy = policyReason ? { policy: { organizationName: managedPolicy.current()!.organizationName, reason: policyReason } } : {};
     if (managedDesktop.owns(instance.instanceId)) return {
       ...described, ...policy, readOnly: true, managed: managedDesktop.info(instance.instanceId),
-      install: undefined, authentication: undefined, cli: undefined, cliCandidates: [],
+      install: undefined, cli: undefined, cliCandidates: [],
     };
     if (entry?.driver !== "claudeAgent") return { ...described, ...policy };
     if (instance.instanceId === CLAUDE_API_INSTANCE) {
-      return { ...described, ...policy, authentication: undefined, install: { ...instance.install, signInCommand: undefined } };
+      return { ...described, ...policy, install: { ...instance.install, signInCommand: undefined } };
     }
     try {
       const signInCommand = claudeSignInCommand(instance.cli ?? instance.cliDefault ?? "claude", { ...process.env, ...entry.environment });
@@ -10500,7 +10496,7 @@ let companyShutdown = false;
 async function stopCompanyInstances(ids: string[]) {
   if (!ids.length) return;
   if (companyShutdown) {
-    for (const id of ids) { providerAuthSessions.clearInstance(id); bus.detach(id); }
+    for (const id of ids) bus.detach(id);
     return;
   }
   const cause = "turn interrupted — the Company connection changed";
@@ -10545,13 +10541,12 @@ async function stopCompanyInstances(ids: string[]) {
     if (group) store.patchGroup(group.id, { busyBotId: activeGroupSpeaker(group.id)?.botId ?? null });
     store.setActivity(bot.id, "idle");
   }
-  for (const id of ids) { providerAuthSessions.clearInstance(id); bus.detach(id); }
+  for (const id of ids) bus.detach(id);
 }
 
 async function persistProviderInstance(instanceId: string, instances: NonNullable<AppConfig["instances"]>) {
   saveConfig({ instances }, { replaceInstances: true });
   cfg.instances = instances;
-  providerAuthSessions.clearInstance(instanceId);
   bus.detach(instanceId);
   if (Object.hasOwn(instances, instanceId)) {
     await registry.load({ [instanceId]: instanceConfigs(cfg)[instanceId] });
@@ -10595,7 +10590,7 @@ async function reloadProviders(before: Record<string, unknown>) {
   for (const id of changed) providerInstancesChanging.add(id);
   // Those engines' processes are about to die: revoke before the first await.
   revokeEngineCapabilities(changed);
-  for (const id of changed) { providerAuthSessions.clearInstance(id); bus.detach(id); }
+  for (const id of changed) bus.detach(id);
   for (const task of direct) cancelDirectTurnDispatch(task.botId, task.threadId);
   for (const [threadId] of rooms) {
     const group = store.groupByThread(threadId);
@@ -10660,7 +10655,6 @@ const workspaceBackupAccess = {
     return Boolean(current?.scopes.includes("admin") && current.kind === original.kind &&
       (current.kind !== "session" || (original.kind === "session" && current.session.id === original.session.id)));
   },
-    idle: () => !providerFleetReloading && !providerAuthSessions.active && !browserEngineInstall &&
   exclusive: <T>(work: () => Promise<T>, keepLocked?: boolean) => workspaceMaintenance.run(work, {
       !routines?.isTicking && !calendarCalls?.isTicking &&
       store.bots.every((bot) => !botHasActiveTurn(bot.id) && !routines?.activeRunForBot(bot.id) && !botComputerControlSnapshot(bot.id).held) &&
@@ -10927,7 +10921,7 @@ ROUTES.push(createConfigRoutes({
   resyncOpenCodeProviderKeys, revokeEngineCapabilities, reloadProviders, broadcast, drainQueuedSends,
 }));
 ROUTES.push(createInstanceRoutes({
-  store, cfg, registry, sessions, providerAuthSessions,
+  store, cfg, registry,
   hostedModels: Boolean(hostedModels),
   providerConfigBusy: { get: () => providerConfigBusy, set: (busy) => { providerConfigBusy = busy; } },
   providerInstancesChanging, describeInstances, persistProviderInstance, configStatus, broadcast, testCliBinary,

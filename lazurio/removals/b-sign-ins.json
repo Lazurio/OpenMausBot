@@ -94,6 +94,19 @@
     "engineSetup.claude.",
     "engineSetup.grok.start",
     "Connect ChatGPT",
+    "data-device-sign-in",
+    "ProviderAuthSessions",
+    "provider-auth-sessions",
+    "providerAuthSessions",
+    "startAuthentication",
+    "getAuthentication",
+    "completeAuthentication",
+    "cancelAuthentication",
+    "authenticationMethod",
+    "ProviderAuthentication",
+    "/auth/start",
+    "/auth/complete",
+    "/auth/cancel",
     "/auth/status",
     "CURSOR_CLI_CLIENT_ID",
     "onePasswordToken",
@@ -139,6 +152,26 @@
     },
     {
       "method": "GET",
+      "path": "/api/instances/codex/auth/status"
+    },
+    {
+      "method": "POST",
+      "path": "/api/instances/codex/auth/complete",
+      "body": {
+        "flowId": "x",
+        "callbackUrl": "http://127.0.0.1/?code=x"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/instances/codex/auth/cancel"
+    },
+    {
+      "method": "POST",
+      "path": "/api/instances/codex/auth/sign-out"
+    },
+    {
+      "method": "GET",
       "path": "/api/team-library/cursor"
     },
     {
@@ -158,6 +191,7 @@
     "pnpm-lock.yaml",
     "scripts/after-pack.mjs",
     "scripts/build-npm-package.mjs",
+    "scripts/packaged-native-modules.test.mjs",
     "scripts/prepare-duckdb.mjs",
     "scripts/prepare-duckdb.test.mjs",
     "scripts/verify-engines-ui.ts",
@@ -179,9 +213,15 @@
     "server/drivers/codex.test.ts",
     "server/engine-status-reads.e2e.test.ts",
     "server/harness/registry.ts",
+    "server/hosted-models-api.test.ts",
+    "server/hosted-models.test.ts",
+    "server/hosted-models.ts",
     "server/index.test.ts",
+    "server/managed-desktop.test.ts",
+    "server/managed-desktop.ts",
     "server/request-auth.test.ts",
     "server/request-auth.ts",
+    "server/routes/instances.test.ts",
     "server/routes/sign-in-cards.test.ts",
     "server/routes/sign-in-cards.ts",
     "server/sign-in-request.e2e.test.ts",
@@ -200,6 +240,7 @@
     "src/components/ModelPickerFull.tsx",
     "src/components/SecretRequestCard.tsx",
     "src/components/SettingsModal.groups.test.ts",
+    "src/components/SettingsModal.i18n.test.ts",
     "src/components/SettingsModal.search.test.ts",
     "src/components/SettingsModal.simple.test.ts",
     "src/components/SettingsModal.tsx",

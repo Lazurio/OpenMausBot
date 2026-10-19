@@ -8,10 +8,8 @@ import { findCliCandidates, resetPathCache } from "../env-path.ts";
 import type { ProviderRegistry } from "../harness/registry.ts";
 import { checkEngine, type EngineCheck } from "../engine-check.ts";
 import { HOSTED_PROVIDER_SETTINGS_ERROR } from "../hosted-models.ts";
-import type { ProviderAuthSessions } from "../provider-auth-sessions.ts";
 import { instanceSettingsSchema } from "../instance-settings.ts";
 import { providerIconPatchSchema, withInstanceIcon } from "../provider-icon.ts";
-import type { SessionRegistry } from "../sessions.ts";
 import type { Store } from "../store.ts";
 import type { BusyFlag, ConfigStatus } from "./config.ts";
 import { PASS, type RouteHandler } from "./table.ts";
@@ -20,8 +18,6 @@ export interface InstanceRouteDeps {
   store: Pick<Store, "bots" | "tasks">;
   cfg: AppConfig;
   registry: Pick<ProviderRegistry, "get" | "refreshModels" | "installRuntime" | "cliTarget" | "forgetSnapshots">;
-  sessions: Pick<SessionRegistry, "isLive">;
-  providerAuthSessions: Pick<ProviderAuthSessions, "status" | "start" | "revokeOwner" | "signOut" | "complete" | "cancel">;
   hostedModels: boolean;
   providerConfigBusy: BusyFlag;
   providerInstancesChanging: Pick<Set<string>, "add" | "delete">;
@@ -40,14 +36,14 @@ export interface InstanceRouteDeps {
 
 export function createInstanceRoutes(deps: InstanceRouteDeps): RouteHandler {
   const {
-    store, cfg, registry, sessions, providerAuthSessions, hostedModels, providerConfigBusy, providerInstancesChanging,
+    store, cfg, registry, hostedModels, providerConfigBusy, providerInstancesChanging,
     persistProviderInstance, configStatus, broadcast, testCliBinary, cliProbeEnvironment, threadBusy,
     botForThread, activeGroupTurnForBot,
   } = deps;
   const describeInstances = async () => hostedModels ? deps.describeInstances() : withEndpointUrls(await deps.describeInstances(), cfg.instances ?? {});
   // One updater per executable: Claude instances can share an install, and two self-updates would race its files.
   const claudeUpdatesInFlight = new Set<string>();
-  return async ({ req, res, url, path, method, auth, json, readBody }) => {
+  return async ({ req, res, url, path, method, json, readBody }) => {
     if (method === "GET" && path === "/api/instances") {
       // Rescan PATH: Windows never pushes PATH changes into a live process, so a CLI installed since launch stays invisible.
       resetPathCache();
@@ -98,23 +94,13 @@ export function createInstanceRoutes(deps: InstanceRouteDeps): RouteHandler {
       } finally { providerConfigBusy.set(false); }
     }
 
-    const authStatus = /^\/api\/instances\/([\w.-]+)\/auth\/status$/.exec(path);
-    if (method === "GET" && authStatus) {
-      res.setHeader("cache-control", "no-store");
-      const state = await providerAuthSessions.status(authStatus[1], auth.kind === "session" ? auth.session.id : "loopback", url.searchParams.get("flowId") ?? "");
-      // A finished device sign-in changed what the engine reports; the page reads the engines next.
-      if (state.phase !== "waiting") registry.forgetSnapshots();
-      return json(res, 200, { auth: state });
-    }
-    const instanceAction = /^\/api\/instances\/([\w.-]+)\/(refresh-models|install|check|auth\/start|auth\/complete|auth\/cancel|auth\/sign-out)$/.exec(path);
+    const instanceAction = /^\/api\/instances\/([\w.-]+)\/(refresh-models|install|check)$/.exec(path);
     if (method === "POST" && instanceAction) {
       if (!String(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) {
         return json(res, 415, { error: "content-type must be application/json" });
       }
       const instanceId = instanceAction[1];
       const action = instanceAction[2];
-      const owner = auth.kind === "session" ? auth.session.id : "loopback";
-      if (action.startsWith("auth/")) res.setHeader("cache-control", "no-store");
       try {
         if (action === "check") {
           const instance = registry.get(instanceId);
@@ -126,42 +112,8 @@ export function createInstanceRoutes(deps: InstanceRouteDeps): RouteHandler {
           if (!(await registry.refreshModels(instanceId))) return json(res, 404, { error: "unknown instance" });
           return json(res, 200, { instances: await describeInstances() });
         }
-        if (action === "install") {
-          if (!(await registry.installRuntime(instanceId))) return json(res, 404, { error: "Installing this engine from Settings is not available on this server. Use the install command on the machine running OpenMausBot." });
-          return json(res, 200, { instances: await describeInstances() });
-        }
-        if (action === "auth/start") {
-          const instance = registry.get(instanceId);
-          if (!instance) return json(res, 404, { error: "unknown instance" });
-          const started = await providerAuthSessions.start(instance, owner);
-          if (started.phase === "succeeded") registry.forgetSnapshots();
-          // Revocation can arrive while the CLI is obtaining a device code.
-          if (auth.kind === "session" && !sessions.isLive(auth.session.id)) {
-            providerAuthSessions.revokeOwner(owner);
-            return json(res, 401, { error: "Your session ended. Start a new sign-in." });
-          }
-          return json(res, 200, { auth: started });
-        }
-        if (action === "auth/sign-out") {
-          const instance = registry.get(instanceId);
-          if (!instance) return json(res, 404, { error: "unknown instance" });
-          await providerAuthSessions.signOut(instance, owner);
-          registry.forgetSnapshots();
-          return json(res, 200, { instances: await describeInstances() });
-        }
-        if (action === "auth/complete") {
-          const body = await readBody(req);
-          const flowId = typeof body?.flowId === "string" ? body.flowId : "";
-          // `code` for a pasted sign-in code (Claude), `callbackUrl` for a browser callback
-          const callbackUrl = typeof body?.callbackUrl === "string" ? body.callbackUrl : typeof body?.code === "string" ? body.code : "";
-          if (!flowId || !callbackUrl) return json(res, 400, { error: "flowId and a code or callbackUrl are required" });
-          await providerAuthSessions.complete(instanceId, owner, flowId, callbackUrl);
-          registry.forgetSnapshots();
-          return json(res, 200, { ok: true });
-        }
-        const body = await readBody(req, 4096);
-        await providerAuthSessions.cancel(instanceId, owner, typeof body?.flowId === "string" ? body.flowId : "");
-        return json(res, 200, { ok: true });
+        if (!(await registry.installRuntime(instanceId))) return json(res, 404, { error: "Installing this engine from Settings is not available on this server. Use the install command on the machine running OpenMausBot." });
+        return json(res, 200, { instances: await describeInstances() });
       } catch (error) {
         const requestedStatus = error && typeof error === "object" ? (error as { status?: unknown }).status : undefined;
         const status = typeof requestedStatus === "number" && [400, 401, 404, 409, 413, 415].includes(requestedStatus) ? requestedStatus : 500;

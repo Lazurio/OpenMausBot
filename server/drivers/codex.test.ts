@@ -479,6 +479,7 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
     expect(recorder.events.some((event) => event.type === "runtime.error" && event.message.includes("automatic review"))).toBe(false);
   });
 
+  it("names the signed-in ChatGPT account from Codex's protocol", async () => {
     const codexHome = join(scratch, ".codex");
     mkdirSync(codexHome, { recursive: true });
     const claims = Buffer.from(JSON.stringify({ email: "stale-file@example.test" })).toString("base64url");

@@ -28,7 +28,7 @@ import {
   awayFromMainThread,
   openBot,
 } from "@/state/store";
-import { EngineSetup } from "./EngineSetup";
+import { EngineSetup, signedOutHeadline, useLazurioSignIn } from "./EngineSetup";
 import { openExternalLink } from "@/lib/app-links";
 import { CODEX_USAGE_URL, codexUsageLimitReached } from "../../shared/codex-usage-limit";
 import { ClaudeUpdatePrompt } from "./ClaudeUpdatePrompt";
@@ -246,7 +246,7 @@ export function FailedTurnRow({ tool, engine, onRetry, botId, threadId }: {
   threadId?: string;
 }) {
   const resume = useLimitResetContinue(botId, threadId, tool.limitResetsAt);
-  const signedOut = signedOutEngine(tool, engine);
+  const signedOut = signedOutEngine(tool, engine), lazurio = useLazurioSignIn(); // Lazurio overlay (DEV-6673)
   const cause = failedTurnCause(tool.name) ?? tool.name;
   return (
     <ErrorRow

@@ -47,7 +47,6 @@ it("adds Company instances without mutating personal/global configuration or per
     expect(company.displayName).toContain("Company · Fixture Agency");
     expect(company.models.options.map(row => row.id)).toEqual(provider.models);
     expect(manager.info(id)).toEqual({ organizationId: value.organizationId, organizationName: value.organizationName });
-    expect(company.startAuthentication).toBeUndefined(); expect(company.signOut).toBeUndefined();
     expect(await company.snapshot()).toMatchObject({ authenticated: true, billing: "metered", account: { organization: value.organizationName, email: value.email } });
   }
   expect(JSON.stringify(await registry.describe())).not.toContain(value.token);

@@ -5,6 +5,7 @@ import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { copyText } from "@/lib/copy-text";
 import { RefreshEngines } from "./EngineLibrary";
+export { signedOutHeadline, useLazurioSignIn } from "./LazurioEngineSignIn"; // Lazurio overlay (DEV-6673): for the chat's signed-out line
 
 type Platform = "darwin" | "win32" | "linux";
 

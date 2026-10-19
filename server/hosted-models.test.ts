@@ -69,7 +69,6 @@ it("locks native and OpenRouter instances to assigned catalogs and fixed gateway
   for (const [id, model] of [["claude", "claude-fixture"], ["codex", "gpt-fixture"], ["opencode", "provider/fixture"]]) {
     const instance = registry.get(id)!;
     expect(instance.models.options.map(row => row.id)).toEqual([model]);
-    expect(instance.startAuthentication).toBeUndefined();
     await expect(instance.adapter.sendTurn({ threadId: "forbidden", text: "Synthetic", model: "unassigned" })).rejects.toThrow("not assigned");
     await instance.refreshModels?.();
   }
