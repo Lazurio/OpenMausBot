@@ -252,6 +252,7 @@
     }
   ],
   "changes": [
+    "scripts/testing/dictation.e2e.test.ts",
     "server/admin-activity.e2e.test.ts",
     "server/admin-activity.test.ts",
     "server/admin-activity.ts",
@@ -283,6 +284,9 @@
     "server/drivers/pi.ts",
     "server/drivers/turn-mcp.ts",
     "server/engine-homes/layout.ts",
+    "server/harness-mcp-proxy.test.ts",
+    "server/harness-mcp-proxy.ts",
+    "server/harness-mcp-token.ts",
     "server/harness/registry.ts",
     "server/headless/team-apply.test.ts",
     "server/headless/team-apply.ts",
@@ -305,6 +309,7 @@
     "server/remote-sessions.test.ts",
     "server/routes/bot-patch.ts",
     "server/routes/config.ts",
+    "server/routes/own-mcp-http.test.ts",
     "server/routes/status.ts",
     "server/routine-unanswered-wait.e2e.test.ts",
     "server/runtime-roots.e2e.test.ts",
