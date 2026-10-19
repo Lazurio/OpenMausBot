@@ -243,9 +243,6 @@ describe("ClaudeDriver.decodeConfig", () => {
         },
       }),
     ).rejects.toThrow(/interactive approval broker/);
-    // Lazurio overlay (DEV-6673 M3): Claude signs in on the machine itself, never from here.
-    expect(bypass.startAuthentication).toBeUndefined();
-    expect(bypass.signOut).toBeUndefined();
     await bypass.dispose();
   });
 

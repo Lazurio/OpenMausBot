@@ -291,21 +291,6 @@ export interface EngineInstall {
   server?: { package: string };
 }
 
-export interface ProviderAuthenticationStart {
-  phase: "waiting" | "succeeded";
-  flowId: string | null;
-  authorizationUrl: string | null;
-  expiresAt: string | null;
-  /** A short-lived code to enter only at the provider's authorization URL. */
-  userCode?: string;
-}
-
-export interface ProviderAuthenticationStatus extends Omit<ProviderAuthenticationStart, "phase"> {
-  phase: "waiting" | "succeeded" | "failed" | "expired" | "cancelled";
-  /** Safe, actionable copy; never unfiltered CLI output or credentials. */
-  message?: string;
-}
-
 export interface ModelCatalog {
   default: string;
   options: Array<{
@@ -380,14 +365,8 @@ export interface ProviderInstance {
   readonly refreshModels?: () => Promise<void>;
   /** Set while the last run's catalog is still refreshing; a turn awaits it, listen does not. */
   readonly startupModelRefresh?: Promise<void>;
-  /** Optional first-party runtime installation and account setup. */
+  /** Optional first-party runtime installation. */
   readonly installRuntime?: () => Promise<void>;
-  readonly startAuthentication?: () => Promise<ProviderAuthenticationStart>;
-  readonly getAuthentication?: (flowId: string) => Promise<ProviderAuthenticationStatus>;
-  readonly completeAuthentication?: (flowId: string, callbackUrl: string) => Promise<void>;
-  readonly cancelAuthentication?: () => Promise<void>;
-  /** Remove the provider CLI's stored sign-in on this server; never touches another instance's home. */
-  readonly signOut?: () => Promise<void>;
   readonly adapter: ProviderAdapter;
   snapshot(): Promise<ProviderSnapshot>;
   /** Cheap one-shot text call (titles, summaries); the signal is a best-effort cap. */

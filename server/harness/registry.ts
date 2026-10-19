@@ -6,8 +6,6 @@ import type {
   EngineAccess,
   InstanceConfigMap,
   InstanceId,
-  ProviderAuthenticationStart,
-  ProviderAuthenticationStatus,
   ProviderInstance,
   ProviderSnapshot,
 } from "../contracts.ts";
@@ -236,30 +234,6 @@ export class ProviderRegistry {
     }
   }
 
-  async startAuthentication(instanceId: InstanceId): Promise<ProviderAuthenticationStart | null> {
-    const instance = this.get(instanceId);
-    return instance?.startAuthentication ? instance.startAuthentication() : null;
-  }
-
-  async getAuthentication(instanceId: InstanceId, flowId: string): Promise<ProviderAuthenticationStatus | null> {
-    const instance = this.get(instanceId);
-    return instance?.getAuthentication ? instance.getAuthentication(flowId) : null;
-  }
-
-  async completeAuthentication(instanceId: InstanceId, flowId: string, callbackUrl: string): Promise<boolean> {
-    const instance = this.get(instanceId);
-    if (!instance?.completeAuthentication) return false;
-    await instance.completeAuthentication(flowId, callbackUrl);
-    return true;
-  }
-
-  async cancelAuthentication(instanceId: InstanceId): Promise<boolean> {
-    const instance = this.get(instanceId);
-    if (!instance?.cancelAuthentication) return false;
-    await instance.cancelAuthentication();
-    return true;
-  }
-
   async describe() {
     const candidatesByName = new Map<string, string[]>();
     const candidatesFor = (driver: AnyProviderDriver | undefined): string[] => {
@@ -320,13 +294,6 @@ export class ProviderRegistry {
           },
           access: driver?.metadata.access ?? "subscription",
           install: withServerInstall(driver?.install, npmPresent),
-          authentication: inst.startAuthentication
-            ? {
-                // Lazurio overlay (DEV-6673 M3): no device-code or pasted-code engine logins here any more.
-                method: "browser" as const, // a link and a callback URL (managed engines)
-                signOut: inst.signOut !== undefined,
-              }
-            : undefined,
           cli: this.cliByInstance.get(inst.instanceId),
           cliDefault: cliDefaultOf(driver),
           cliCandidates: candidatesFor(driver),

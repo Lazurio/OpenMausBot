@@ -505,7 +505,6 @@ export interface InstanceInfo {
     backgroundText?: boolean;
   };
   access?: "subscription" | "custom" | "api";
-  authentication?: { method: "browser"; signOut?: boolean };
   install?: EngineInstall;
   cli?: string;
   cliDefault?: string;
