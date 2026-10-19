@@ -27,7 +27,7 @@ export function PermissionsSection({
   derived: ReturnType<typeof useBotSettingsDerived>;
   parts?: readonly PermissionsPart[];
 }) {
-  const { patch, engine, canCoordinate, approvalMode, trustedModesAvailable, sectionName, currentChief } = derived;
+  const { patch, engine, canCoordinate, approvalMode, sectionName, currentChief } = derived;
   const { state, dispatch } = useStore();
   const ownerOrAdmin = useOwnerOrAdmin();
   const { draft } = useBotEditor();
@@ -137,7 +137,6 @@ export function PermissionsSection({
             menuDirection="down"
             wide
             disabled={Boolean(bot.busy)}
-            trustedModesAvailable={trustedModesAvailable}
             onManageCommandAllowlist={!draft && ownerOrAdmin === true ? () => setCommandAllowlistTarget({ botId: bot.id, botName: bot.name }) : undefined}
           />
         </div>

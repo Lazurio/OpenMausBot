@@ -101,7 +101,6 @@ const { createDisplayMediaGuard, invokeDisplayMediaCallback, selectCaptureSource
 const { STAGE_PREFIX: APPIMAGE_CUA_STAGE_PREFIX } = require("./cua-linux-bundle.cjs");
 const { desktopViewerUrl, sameDesktopViewerOrigin } = require("./desktop-viewer.cjs");
 const { createDesktopWorkspaceManager } = require("./desktop-workspace.cjs");
-const { createTrustedApprovalModeCoordinator } = require("./approval-trusted-mode.cjs");
 const { DESKTOP_MUTATION_HEADER, desktopServerHeaders } = require("./desktop-server-auth.cjs");
 const { MIN_BOUNDS, normalizeUnreadCount, parseWindowState, resolveWindowState } = require("./window-state.cjs");
 
@@ -319,7 +318,6 @@ const managedDesktopRelay = createManagedDesktopRelay();
 const proPlanRelay = createProPlanRelay();
 const utilityServerExits = new WeakMap();
 const UTILITY_SERVER_STOP_TIMEOUT_MS = 6_500;
-const trustedApprovalMode = createTrustedApprovalModeCoordinator({ randomId: randomUUID });
 const desktopMutationToken = randomBytes(32).toString("base64url");
 const desktopLaunchId = randomUUID();
 const companionMutationToken = randomBytes(32).toString("base64url");
@@ -1162,7 +1160,6 @@ async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmen
   proc.on("message", (message) => {
     if (!serverSupervisor.isCurrent(proc)) return;
     try {
-      if (trustedApprovalMode.receive(proc, message)) return;
       if (managedDesktopRelay.receive(proc, message)) return;
       if (orgLibrary?.receive(message)) return;
       if (receivePhoneSecretSave(proc, message)) return;
@@ -1179,7 +1176,6 @@ async function startServerOn(port, dataDir = runningDataDir ?? startupEnvironmen
   let exited = false;
   proc.once("exit", (code) => {
     exited = true;
-    trustedApprovalMode.rejectProcess(proc);
     managedDesktopRelay.rejectProcess(proc);
     resolveServerExit();
     slog(`exited code=${code}`);
@@ -2850,14 +2846,6 @@ async function saveWorkspaceCredential(name, value) {
 ipcMain.handle("credential:set", localOnly("credential:set", (_event, name, value) =>
   saveWorkspaceCredential(name, value),
 ));
-
-ipcMain.handle("approvals:set-trusted-mode", localOnly("approvals:set-trusted-mode", (_event, botId, mode, options) => {
-  // A separately launched dev server is outside this trust path: never degrade this grant to loopback HTTP.
-  if (!app.isPackaged || !serverProc) {
-    throw new Error("Full and Custom approval modes require the embedded desktop server");
-  }
-  return trustedApprovalMode.request(serverProc, botId, mode, options);
-}));
 
 async function broadcastDesktopCapabilities() {
   const localConnection = await cuaReady;
