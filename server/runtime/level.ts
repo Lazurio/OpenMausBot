@@ -9,7 +9,7 @@ export interface LevelInput {
   driverKind?: string;
 }
 
-/** `custom` never travels: it is one provider's own rule set, so it has no rank. */
+/** The levels in rank order. */
 const TRAVELS: readonly Level[] = ["ask", "edits", "auto", "full"];
 const rank = (level: Level): number => TRAVELS.indexOf(level);
 
@@ -30,7 +30,7 @@ function engineCap(inherited: Level, driverKind: string | undefined): Level {
 export function assignmentLevel(input: LevelInput): { level: Level; source: LevelSource } {
   const { own, chief, origin, chiefLineage, driverKind } = input;
   const inherited = chiefLineage && (origin === "person" || origin === "routine") ? chief : undefined;
-  if (own === "custom" || inherited === undefined || rank(inherited) <= rank(own)) return { level: own, source: "own" };
+  if (inherited === undefined || rank(inherited) <= rank(own)) return { level: own, source: "own" };
   const capped = engineCap(inherited, driverKind);
   if (rank(capped) <= rank(own)) return { level: own, source: "engine_cap" };
   return { level: capped, source: capped === inherited ? "chief" : "engine_cap" };

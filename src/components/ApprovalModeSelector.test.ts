@@ -6,7 +6,6 @@ import {
   ApprovalModeSelector,
   approvalModeOptions,
   approvalModeOptionsFor,
-  approvalModeSelectionRequiresLocalDesktop,
 } from "./ApprovalModeSelector";
 
 describe("approval mode selector", () => {
@@ -32,20 +31,15 @@ describe("approval mode selector", () => {
         label: "Full access",
         description: "Full computer access (elevated risk)",
       },
-      {
-        mode: "custom",
-        label: "Custom (config.toml)",
-        description: "Uses permissions defined in config.toml",
-      },
     ]);
   });
 
-  it("offers provider-supported Full access but keeps config.toml Codex-only", () => {
+  // Lazurio overlay (DEV-6673): the four levels of Lazurio's T3 Code; upstream's Custom (config.toml) is removed.
+  it("offers provider-supported Full access, and no Custom level", () => {
     expect(approvalModeOptionsFor("codex").map((option) => option.mode)).toEqual([
       "ask",
       "auto",
       "full",
-      "custom",
     ]);
     expect(approvalModeOptionsFor("claudeAgent").map((option) => option.mode)).toEqual([
       "ask",
@@ -57,12 +51,10 @@ describe("approval mode selector", () => {
 
   it.each(["cursorAgent", "opencodeGo"])("offers Full access for %s, and no Edits level it cannot map", (kind) => {
     expect(approvalModeOptionsFor(kind).map((option) => option.mode)).toEqual(["ask", "auto", "full"]);
-    expect(approvalModeOptionsFor(kind, false).map((option) => option.mode)).toEqual(["ask", "auto", "full"]);
   });
 
   it("offers Grok its native acceptEdits as Auto-accept edits", () => {
     expect(approvalModeOptionsFor("grokAgent").map((option) => option.mode)).toEqual(["ask", "edits", "auto", "full"]);
-    expect(approvalModeOptionsFor("grokAgent", false).map((option) => option.mode)).toEqual(["ask", "edits", "auto", "full"]);
   });
 
   it("offers Antigravity Auto as the explicit full-access grant, not native review", () => {
@@ -74,12 +66,11 @@ describe("approval mode selector", () => {
     ]);
     expect(options[2].chip).toBe("Auto");
     expect(options[2].description).toContain("Automatically approve tool requests");
-    expect(approvalModeOptionsFor("antigravityAgent", false).map((option) => option.mode)).toEqual(["ask", "edits", "full"]);
   });
 
   it("shows the effective Antigravity mode without upgrading saved Auto settings", () => {
-    const render = (mode: "ask" | "auto" | "full" | undefined, autoApprove = false, trustedModesAvailable = true) => renderToStaticMarkup(createElement(ApprovalModeSelector, {
-      approvalMode: mode, autoApprove, trustedModesAvailable,
+    const render = (mode: "ask" | "auto" | "full" | undefined, autoApprove = false) => renderToStaticMarkup(createElement(ApprovalModeSelector, {
+      approvalMode: mode, autoApprove,
       providerName: "Antigravity", driverKind: "antigravityAgent", onSelect: () => {},
     }));
     for (const html of [render("ask"), render("auto"), render(undefined, true)]) {
@@ -87,22 +78,12 @@ describe("approval mode selector", () => {
       expect(html).not.toContain('aria-label="Auto (full access)');
     }
     expect(render("full")).toContain('aria-label="Auto (full access) for Antigravity"');
-    expect(render("full", false, false)).toContain('aria-label="Auto (full access) for Antigravity"');
   });
 
   it("explains Auto fallbacks and offers Full, the default level, on every provider", () => {
     expect(approvalModeOptionsFor("grokAgent").find((option) => option.mode === "auto")?.description).toContain("automatic review to approve routine actions");
     expect(approvalModeOptionsFor("customAgent").find((option) => option.mode === "auto")?.description).toContain("behaves like Ask");
     expect(approvalModeOptionsFor("customAgent").map((option) => option.mode)).toEqual(["ask", "auto", "full"]);
-  });
-
-  it("offers Full without the packaged desktop bridge and hides only Custom", () => {
-    expect(approvalModeOptionsFor("codex", false).map((option) => option.mode)).toEqual([
-      "ask",
-      "auto",
-      "full",
-    ]);
-    expect(approvalModeOptionsFor("claudeAgent", false).map((option) => option.mode)).toEqual(["ask", "edits", "auto", "full"]);
   });
 
   it("keeps the composer trigger icon-only and the settings trigger labeled", () => {
@@ -116,16 +97,5 @@ describe("approval mode selector", () => {
       approvalMode: "full", providerName: "Grok", driverKind: "grokAgent", onSelect: () => {}, wide: true,
     }));
     expect(settings).toMatch(/<span class="truncate">Full access<\/span>/);
-  });
-
-  it("locks an existing Custom bot to the local packaged desktop", () => {
-    expect(approvalModeSelectionRequiresLocalDesktop("custom", false)).toBe(true);
-    expect(approvalModeSelectionRequiresLocalDesktop("ask", false)).toBe(false);
-    expect(approvalModeSelectionRequiresLocalDesktop("custom", true)).toBe(false);
-    const html = renderToStaticMarkup(createElement(ApprovalModeSelector, {
-      approvalMode: "custom", trustedModesAvailable: false,
-      providerName: "Missing provider", driverKind: "", onSelect: () => {},
-    }));
-    expect(html).toContain('aria-label="Custom (config.toml) for Missing provider"');
   });
 });

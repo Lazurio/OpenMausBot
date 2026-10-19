@@ -70,11 +70,7 @@ describe("independent bot task state", () => {
     expect(reloaded.taskByThread(bot.id, sibling.threadId)).toMatchObject({ approvalMode: "ask", alwaysAllow: [] });
     expect(reloaded.messagesFor(first)).toEqual(history);
 
-    reloaded.patchBot(bot.id, {
-      approvalMode: "full",
-      approvalGrant: { requestId: "grant-1", mode: "full", phase: "prepared", threadId: first, threadOnly: true, refreshPermissions: true },
-    });
-    expect(approvalModeFor(reloaded.bot(bot.id)!)).toBe("ask");
+    reloaded.patchBot(bot.id, { approvalMode: "full" });
     const caughtUp = reloaded.refreshTaskPermissions(bot.id, sibling.threadId);
     expect(caughtUp).toMatchObject({ approvalMode: "full", autoApprove: false, alwaysAllow: ["Read", "Bash"] });
     expect(reloaded.taskByThread(bot.id, first)?.approvalMode).toBe("auto");
@@ -416,21 +412,6 @@ describe("independent bot task state", () => {
     expect(migrated.messagesFor(second.threadId).at(-1)?.text).toBe("Second conversation");
     expect(savedBots()[0]!.tasks).toHaveLength(2);
     expect(savedBots()[0]!.tasks!.every((task) => task.modelSelection === undefined)).toBe(true);
-  });
-
-  it("revokes elevated task snapshots along with a stale bot elevation grant", () => {
-    const store = new Store(selection);
-    const bot = store.createBot();
-    store.patchBot(bot.id, { approvalMode: "full", autoApprove: true });
-    const task = store.createTask(bot.id)!;
-    expect(approvalModeFor(store.projectBotForTask(bot.id, task.threadId)!)).toBe("full");
-    store.patchBot(bot.id, {
-      approvalGrant: { requestId: "uncommitted", mode: "full", phase: "prepared" },
-    });
-    expect(approvalModeFor(store.projectBotForTask(bot.id, task.threadId)!)).toBe("ask");
-    const reloaded = new Store(selection);
-    expect(reloaded.taskByThread(bot.id, task.threadId)).toMatchObject({ approvalMode: "ask", autoApprove: false });
-    expect(approvalModeFor(reloaded.projectBotForTask(bot.id, task.threadId)!)).toBe("ask");
   });
 
   it("groups threads in folders without changing models or running state", () => {

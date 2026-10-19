@@ -22,7 +22,6 @@ person picks stays until someone changes it.
 | **Auto-accept edits** | Approves file edits automatically; other actions can still require approval. Offered where the provider has such a mode (Claude, Grok, Qwen Code, Gemini CLI). |
 | **Approve for me** | Uses the provider's automatic review on Codex, Claude, Cursor, and Grok to approve routine actions and ask about others. Providers without an equivalent fall back to asking. |
 | **Full access** | Enables the provider's permissive mode for commands, edits, and selected-computer actions, including potentially destructive or sensitive work. Residual native permission prompts are answered for you. OMB profile changes, routine actions, team setup, bot deletion, and enabled skill authoring apply without a second approval. Peer-review prompts are skipped within the bot's authorized scope. Work handed on with `coordinate_bots` uses the receiving bot's setting, never the sender's — except from a Chief of Staff, whose level flows down (below). Actual questions and missing credentials still need your input. |
-| **Custom (`config.toml`)** | Codex only. OpenMausBot reads and reapplies the effective approval and sandbox settings from your Codex configuration. |
 
 Full access applies the moment you pick it: no confirmation dialog, no second
 step. It can be turned on from any client that can reach the app's API: the
@@ -34,10 +33,12 @@ Refresh permissions copies it onto one thread. Every engine runs it (see
 Provider mappings), on a hosted company workspace too
 ([guarded messages](verification/guarded-messages.md)).
 
-Custom is different: it can only be entered or left from a packaged local
-desktop app, where the choice crosses a private process channel rather than the
-bot-accessible HTTP API, because it holds restrictions you wrote yourself. It
-is hidden in development, standalone web, and remote pages.
+The levels are those of Lazurio's T3 Code (`approval-required`,
+`auto-accept-edits`, `auto`, `full-access`). Upstream's **Custom
+(`config.toml`)** level, which only the desktop app could set through a
+private grant channel, is removed in this distribution; a saved Custom level
+loads and drops, so its bot or thread follows the default, and a request that
+names it is refused.
 
 A team's sidebar menu has **Set for all bots in this team…**, for the owner
 or an admin. It sets one approval level (Ask, Auto-accept edits, Approve for
@@ -53,9 +54,7 @@ way for every level, so a thread opened with New thread moves too; a bot is
 this computer shows the same warning as its own settings. Model changes keep
 each bot on its own engine and move the threads that use the bot's model; a
 thread with a model of its own keeps it, including the one open on screen
-(the bot's own settings, by contrast, move that thread with the bot). Custom
-stays a per-bot setting: a bot or thread on Custom leaves it only in the
-desktop app.
+(the bot's own settings, by contrast, move that thread with the bot).
 
 Full access does not bypass operating system privacy controls,
 authentication, CAPTCHA or MFA, service permissions,
@@ -98,8 +97,7 @@ for that turn. The level is computed once when the assignment is written and
 recorded on it (docs/runtime-contract.md §3); the turn runs with exactly that
 level.
 
-It only ever raises: a teammate already on a higher level keeps it, a teammate
-on Custom keeps its own configuration, and a Chief handing work out from an
+It only ever raises: a teammate already on a higher level keeps it, and a Chief handing work out from an
 Ask conversation passes nothing on. Every engine runs Full access, so only
 Auto-accept edits can be capped: a teammate on an engine without it (Codex,
 whose Ask already writes the workspace) stays on its own level. The teammate's
@@ -159,9 +157,7 @@ stop the prompts.
 
 A bot at **Full access** keeps it when you switch it to another engine: every
 engine runs Full access, so there is no reset to Ask and no confirmation. The
-bot's threads that follow its model keep their level too. **Custom** rules
-belong to Codex, so a Custom bot goes back to Ask before it changes engine.
-Switching to an engine that cannot run the bot's level (for example
+bot's threads that follow its model keep their level too. Switching to an engine that cannot run the bot's level (for example
 Auto-accept edits on Codex) still asks to choose Ask first.
 
 ## Asking you questions
@@ -210,9 +206,7 @@ multi-question card renders its structured form on current apps instead.
 | Pi | Pi's own tools run; computer control and custom MCP tools ask | not offered | Ask (no reviewer) | Custom MCP tools run without asking; computer-control confirms are approved |
 | API engines (OpenAI-compatible, Grok API, MiniMax, Mistral, Cerebras, Groq, Meta) | OMB's tool gate asks | not offered | Ask (no reviewer) | OMB's tool gate approves each call |
 
-These settings apply on each turn, including resumed conversations. Switching
-to a different provider while on Custom requires leaving Custom first;
-choose Ask.
+These settings apply on each turn, including resumed conversations.
 Native modes require a CLI version that supports them; OpenMausBot does not
 silently substitute unrestricted access when a mode is rejected.
 
@@ -243,15 +237,9 @@ The [Full Access workflow recipe](verification/full-access.md) tests immediate
 profile, routine, team, skill, and peer actions through the real server and MCP
 proxy. Its fixture also verifies that explicit Ask sibling threads still wait.
 
-Run `pnpm exec electron scripts/smoke-approval-modes.cjs` to exercise the real
-private desktop-to-server grant protocol in a disposable fixture. It verifies
-that Full access applies over HTTP while Custom is refused there and Full → Auto
-→ Ask on resumed Claude turns. It also checks that Ask still prompts,
-peer-started Full turns auto-approve, switching the receiving bot back to Ask
-restores prompts even for a Full-access sender, delegated Codex Custom uses the
-native Auto reviewer consistently, and questions remain interactive. Provider
-processes are scripted fakes; this does not verify live account eligibility or
-the quality of a provider's automatic reviewer. No live user data is used.
-Grok coverage exercises two model selections across fresh/resumed Auto turns,
-real built-in MCP reads under a scripted native reviewer, returning to Ask,
-and held deletion, credential, spoofed-title command, and question requests.
+Every level, Full access included, is set over the server's HTTP API; the
+server tests in `server/index.test.ts` and `server/full-access-default.e2e.test.ts`
+cover setting each level, a bot's next turns running at it, and a saved Custom
+level dropping on load. Provider processes are scripted fakes; this does not
+verify live account eligibility or the quality of a provider's automatic
+reviewer. No live user data is used.

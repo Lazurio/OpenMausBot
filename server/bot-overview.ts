@@ -161,7 +161,6 @@ function wontLines(facts: OverviewFacts): string[] {
   const lines: string[] = [];
   const mode = approvalModeFor(facts.bot);
   if (mode === "ask") lines.push("Command approvals use Ask mode; saved permissions and provider rules still apply.");
-  if (mode === "custom") lines.push("Command approvals follow the provider's custom configuration.");
   if (facts.bot.peers?.length === 0) lines.push("Cannot initiate contact with other bots.");
   else if (mode !== "full" && facts.bot.approvePeerComms) lines.push("Asks before contacting other bots.");
   if (!facts.routines.some((routine) => routine.enabled)) lines.push("Won't act on a schedule.");

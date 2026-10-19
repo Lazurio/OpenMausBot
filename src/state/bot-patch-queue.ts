@@ -183,11 +183,11 @@ export function createBotPatchQueue(options: BotPatchQueueOptions): BotPatchQueu
       entries.set(botId, entry);
       entry.pending = { ...entry.pending, ...patch };
       if (hasOwn(patch, "approvalMode") && !hasOwn(patch, "applyToAllThreads")) delete entry.pending.applyToAllThreads;
-      // A private Full/Custom grant cannot be cancelled once it crosses the Electron bridge.
+      // An in-flight Full write the person has already changed again is cancelled.
       const inFlightMode = entry.inFlight.approvalMode;
       if (
         entry.running &&
-        (inFlightMode === "full" || inFlightMode === "custom") &&
+        inFlightMode === "full" &&
         hasOwn(patch, "approvalMode") &&
         patch.approvalMode !== inFlightMode
       ) {

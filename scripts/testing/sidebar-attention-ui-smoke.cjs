@@ -1,6 +1,6 @@
 // The Active Threads popover geometry contract: it keeps its 16px inset at the
 // row densities, and in the avatar column anchors to the Active Threads button.
-// Run by scripts/smoke-approval-modes.cjs (its --ui group, or
+// Run by scripts/smoke-approval-modes.cjs (by default, or
 // --sidebar-attention-only alone; --capture-only writes the PNG evidence
 // without asserting).
 const { BrowserWindow } = require("electron");

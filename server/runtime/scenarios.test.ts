@@ -1210,8 +1210,6 @@ describe("§3 one level rule", () => {
     const ownWins = ok(enqueueFrom(w, root, workFor("dev", "Lint", { levels: { own: "full", chief: "edits" }, driverKind: "claudeAgent" })));
     expect(ownWins.level).toBe("full");
     expect(ownWins.levelSource).toBe("own");
-    const customNeverTravels = ok(enqueueFrom(w, root, workFor("dev", "Shell", { levels: { own: "ask", chief: "custom" }, driverKind: "codex" })));
-    expect(customNeverTravels.level).toBe("ask");
 
     const outsideRoot = w.rt.begin({
       origin: { kind: "outside", source: "webhook", ref: "hook-1" },
