@@ -524,7 +524,9 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
       };
       const launchAttempt = async (attempt: number): Promise<void> => {
         const env = childEnv();
+        // Lazurio (DEV-6673 M4a): the bot's agent-browser session for its commands, also in the shell policy below.
         const agentBrowserSession = turn.guestConfined ? undefined : turn.agentBrowserSession;
+        if (agentBrowserSession) env.AGENT_BROWSER_SESSION = agentBrowserSession; else delete env.AGENT_BROWSER_SESSION;
         const launchedLogin = chatgptTurn ? storedCodexLogin(env) : null;
         const appServerArgs = ["app-server", ...(config.managed ? managedCodexArgs(config.managed) : codexLocalProviderArgs(env, turn.model)), ...codexToolSurfaceArgs(),
           // A guest-driven turn: no shell, no file reads (-c wins over config files).
