@@ -8,8 +8,8 @@ const english = en as Record<string, string>;
 const DEPARTMENT_COPY = [
   "sidebar.section.", "sidebar.bot.moveToSection", "sidebar.newChannel.context", "team.", "teamSettings.", "teamShare.",
   "teamMemory.", "teamLibrary.share", "teamImport.newSection", "teamImport.backupCopies", "botAccess.teams.", "newBot.team",
-  "botPanel.page.team", "botPanel.page.chiefTeams", "permissions.chief.", "composer.mention.team", "canvas.", "canvasComputers.",
-  "mapComposer.placeholder", "place.view.autoTeam.line",
+  "botPanel.page.team", "botPanel.page.chiefTeams", "permissions.chief.", "composer.mention.team", "canvas.",
+  "mapComposer.placeholder",
 ];
 const TEAM_MAP = new Set(["canvas.title", "canvas.addToMap", "canvas.region"]);
 const words = (text: string) => text.replace(/\{\w+\}/g, "");

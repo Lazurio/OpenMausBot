@@ -11,49 +11,40 @@ const EVERYDAY_PREFIXES: Record<string, readonly string[]> = {
   "notifications and alerts": ["attention.", "notifications.", "error.", "readyBots.", "app.loading."],
   "the sidebar and the switcher": ["sidebar."],
   "the bot panel": [
-    "botPanel.", "botSettings.simple.", "botAccess.tools.", "botAccess.browser.", "memory.learnFromRooms.", "memory.upkeep.",
+    "botPanel.", "botSettings.simple.", "memory.learnFromRooms.", "memory.upkeep.",
   ],
   "the Screen panel and where a bot works": [
-    "place.", "computer.tab.", "computer.simple.", "computer.phase.", "computer.cloud.", "computer.badge.", "computer.problem.",
-    "computer.screen.", "vm.cloud.", "browser.",
-  ],
+    "computer.tab.",
+      ],
   "MausBot Cloud: buying it, setting it up, moving to it and sharing with it": [
-    "cloudBuy.", "cloudIntro.", "cloudTrial.", "cloudSetup.", "cloudIntent.", "cloudNotice.", "cloudHowTo.", "cloudScene.", "cloudProPopup.",
-    "cloudCredit.", "cloudPower.", "cloudSignIn.", "cloudAdd.", "cloudHome.", "cloudPhone.", "cloudAccount.", "pro.", "lending.",
-    "files.", "usageMeter.",
-  ],
+    "cloudBuy.", "cloudSetup.",
+    "cloudSignIn.", "cloudHome.", "lending.",
+      ],
   "routines and automations": ["routines.", "automations."],
-  "the team map": ["canvas.", "mapComputer.", "canvasComputers."],
-  "Apps": ["apps.", "connectors."],
-  "the Settings pages Simple mode shows": ["settings.section.", "settings.group.", "settings.mcpCalls.", "settings.logins."],
+  "the team map": ["canvas."],
+  "Apps": ["apps."],
+  "the Settings pages Simple mode shows": ["settings.section.", "settings.group.", "settings.mcpCalls."],
   "the Usage page and its traces": ["trace.", "usage.page."],
 };
 
 const EVERYDAY_KEYS: Record<string, readonly string[]> = {
   "the Screen panel": [
-    "computer.close", "computer.sleepTitle", "computer.capturingVm", "computer.capturingLocal", "computer.chooseCloudWake",
-    "computer.chooseCloudOpen", "computer.chooseCloudManage", "computer.autoChooseCloudOpen", "computer.createVm", "computer.replaceVm",
-    "computer.openVmSetup", "computer.confirm.replaceVm", "computer.err.emptyFrame", "computer.err.frameTimeout", "computer.err.noDesktopLink",
-    "computer.err.vmNotReady", "computer.err.vmEngine", "computer.err.localEngine", "computer.err.vmOpenSettings", "computer.worksOnHint",
-    "computer.worksOnHintCloudHome", "computer.linux.waylandAfter", "vm.dest.vm", "vm.setup.start", "vm.setup.starting", "vm.stopped.detail",
-    "vm.stopped.idle",
-  ],
+    "computer.close",
+                      ],
   "the bot panel": [
     "botOverview.line.computer", "botOverview.line.privateWorkspace", "botOverview.preference.cloud", "botOverview.preference.vm",
     "botSettings.replyStyle.conversationalHint", "voice.engine",
   ],
   "adding and sharing a bot": ["newBot.presetKeeps", "presetShare.never"],
   "signing in to an AI, the Cloud's own sign-in included": [
-    "engineSetup.claude.description", "engineSetup.claude.connectedAccount", "engineSetup.device.description", "engineSetup.device.security",
-    "engineSetup.device.connectedAccount", "engineSetup.device.failed", "engineSetup.device.enableHint", "engineSetup.grok.description",
-    "engineSetup.grok.security", "engineSetup.grok.connectedAccount", "engineSetup.grok.failed", "engineSetup.grok.notInstalled",
-    "engineSetup.serverInstall", "engineSetup.serverUpdate", "engineSetup.serverInstalling", "engineSetup.sendRedirect",
-    "engineSetup.sameMachine", "engineSetup.invalidStatus", "engines.account.signInHint", "engines.trialCredit", "engines.trialCreditEnded",
+            "engineSetup.grok.notInstalled",
+    "engineSetup.serverInstall", "engineSetup.serverUpdate", "engineSetup.serverInstalling",
+    "engineSetup.sameMachine", "engineSetup.invalidStatus",
     "grokFinish.messageApps", "keys.cerebras.desc", "keys.groq.desc", "keys.meta.desc",
   ],
   "the Settings pages Simple mode shows": [
-    "settings.diagnostics.subtitle", "settings.diagnostics.elsewhere", "settings.import.appsSubtitle", "settings.profiles.temporaryHint",
-    "settings.profiles.myChromeUnavailable", "remote.serverPairing.cloudPersonal", "remote.serverPairing.error",
+    "settings.diagnostics.subtitle", "settings.diagnostics.elsewhere", "settings.import.appsSubtitle",
+    "remote.serverPairing.cloudPersonal", "remote.serverPairing.error",
   ],
 };
 
@@ -83,10 +74,8 @@ const ALLOWED: Record<string, string> = {
   "sidebar.switchServerError": "points at the app menu's Server menu",
   "sidebar.update.howOther": "a server added from the app menu's Server menu: its update is for whoever runs it, not this app",
   "sidebar.update.howOtherRestart": "a server added from the app menu's Server menu: its update is for whoever runs it, not this app",
-  "cloudPhone.step1": "points at the app menu's Server menu, entry by entry",
   "lending.viaAccess": "points at the Settings → Servers page by its label",
   "lending.viaAccessTerminal": "points at the Settings → Servers page by its label",
-  "botAccess.tools.syntax": "the tool names people type, such as mcp:SERVER:NAME",
 };
 
 const prefixes = Object.values(EVERYDAY_PREFIXES).flat();
