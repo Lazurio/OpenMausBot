@@ -291,7 +291,7 @@ export function FailedTurnRow({ tool, engine, onRetry }: {
   return (
     <ErrorRow
       message={cause}
-      headline={signedOut ? signedOutHeadline(signedOut.displayName, lazurio) ?? t("chat.error.signedOut", { name: signedOut.displayName }) : plainErrorLine(cause)}
+      headline={signedOut ? signedOutHeadline(signedOut, lazurio) ?? t("chat.error.signedOut", { name: signedOut.displayName }) : plainErrorLine(cause)}
       onRetry={onRetry}
       setupInstance={tool.setup ? engine : undefined}
       claudeUpdateInstance={tool.claudeUpdate ? claudeUpdateTarget(engine) : undefined}
