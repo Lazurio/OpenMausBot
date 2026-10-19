@@ -40,7 +40,7 @@ recreating a removed fixture directory.
    error appears and the button becomes enabled again. Settings must remain
    closable. Real Google browser, callback and account flows are deliberately
    not exercised by this fixture.
-5. Expand Codex/Claude and check that each account row keeps its identity and
+5. Expand ChatGPT plan and check that each account row keeps its identity and
    that **Sign out** stays in the row's **⋯** menu. Expand the advanced CLI disclosure to reach path,
    reset and update controls. Tab to a card and press Enter/Space; its native
    disclosure must work with a visible focus indicator.
@@ -48,10 +48,9 @@ recreating a removed fixture directory.
    **Update OpenCode on this server**. Click each and confirm the fixture error
    appears with its button usable again. Terminal commands remain under
    **Prefer a terminal?**. These clicks never perform a real installation.
-7. Expand Claude and use **Add another Claude account** inside its card. Enter
-   an account name, collapse/reopen the card, and confirm the draft remains.
-   Cancel, then repeat with **Add another ChatGPT account** in the ChatGPT card.
-   Submit once to check that the fixture-only error stays inside that card and
+7. Expand ChatGPT plan and use **Add another ChatGPT account** inside its card.
+   Enter an account name, collapse/reopen the card, and confirm the draft
+   remains. Submit once to check that the fixture-only error stays inside that card and
    the form remains editable. Neither action should appear below the engine
    grid, in unrelated providers, or in read-only managed cards. Provider-icon
    editing controls should not appear. Repeat at a 390px viewport.

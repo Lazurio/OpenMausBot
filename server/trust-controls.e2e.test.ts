@@ -134,14 +134,13 @@ it("puts a bot's fact into every teammate's prompt at once, and Undo takes it ba
   expect((await api("POST", `/api/threads/${b.threadId}/undo`, { requestId: proposed.body.requestId })).body).toMatchObject({ alreadyUndone: true });
 });
 
-it("preserves accounts referenced by a fallback chain before delete or credential-directory change", async () => {
-  const account = await api("POST", "/api/instances/claude-accounts", { displayName: "Fallback fixture account" });
-  expect(account.status, JSON.stringify(account.body)).toBe(201);
-  const instanceId = account.body.instanceId;
+it("preserves an engine referenced by a fallback chain before delete", async () => {
+  const endpoint = await api("POST", "/api/instances/openai-compat", { displayName: "Fallback fixture endpoint", url: "http://127.0.0.1:9/v1", key: "fixture-only", models: ["fixture-model"] });
+  expect(endpoint.status, JSON.stringify(endpoint.body)).toBe(201);
+  const instanceId = endpoint.body.instanceId;
   const b = await bot("Referenced fallback");
-  expect((await api("PATCH", `/api/bots/${b.id}`, { fallback: [{ instanceId, model: "claude-sonnet-5" }] })).status).toBe(200);
+  expect((await api("PATCH", `/api/bots/${b.id}`, { fallback: [{ instanceId, model: "fixture-model" }] })).status).toBe(200);
   expect((await api("DELETE", `/api/instances/${instanceId}`)).status).toBe(409);
-  expect((await api("PATCH", `/api/instances/${instanceId}`, { configDir: join(fixture.info.dataDir, "synthetic-account-directory") })).status).toBe(409);
   await api("PATCH", `/api/bots/${b.id}`, { fallback: [] });
   expect((await api("DELETE", `/api/instances/${instanceId}`)).status).toBe(200);
 });

@@ -5,10 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ensureDirs } from "../config.ts";
 import type { ProviderInstance } from "../contracts.ts";
 import { removeTempDir } from "../testing/cleanup.ts";
-import { recordEvents } from "../testing/events.ts";
-import { CLAUDE_ACCOUNT_ENV_KEYS, ClaudeDriver, resolveClaudeConfigDir } from "./claude.ts";
+import { CLAUDE_AUTH_ENV_KEYS, ClaudeDriver, resolveClaudeConfigDir } from "./claude.ts";
 
-// Reads synthetic account labels and records its spawn contract; never the real CLI, Keychain or network.
+// Reads synthetic login labels and records its spawn contract; never the real CLI, Keychain or network.
 const FAKE_CLI = `#!/usr/bin/env node
 import { appendFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -16,7 +15,7 @@ import { createInterface } from "node:readline";
 const args = process.argv.slice(2);
 const configDir = process.env.CLAUDE_CONFIG_DIR || join(process.env.HOME, ".claude");
 const auth = JSON.parse(readFileSync(join(configDir, "fixture-auth.json"), "utf8"));
-const keys = ${JSON.stringify(CLAUDE_ACCOUNT_ENV_KEYS)};
+const keys = ${JSON.stringify(CLAUDE_AUTH_ENV_KEYS)};
 appendFileSync(join(configDir, "calls.ndjson"), JSON.stringify({
   args, configDir, home: process.env.HOME,
   env: Object.fromEntries(keys.map(key => [key, process.env[key]]))
@@ -49,12 +48,12 @@ function account(name: string, auth: unknown = { loggedIn: true, email: `${name}
   return dir;
 }
 
-async function create(configDir?: string, environment: Record<string, string> = {}) {
+async function create(company?: { configDir: string }, environment: Record<string, string> = {}) {
   const instance = await ClaudeDriver.create({
     instanceId: `claude-${instances.length}`,
     displayName: "Fixture Claude",
     enabled: true,
-    config: { cli, configDir, permissionMode: "acceptEdits" },
+    config: { cli, permissionMode: "acceptEdits", ...(company ? { managed: true, configDir: company.configDir } : {}) },
     environment,
   });
   instances.push(instance);
@@ -67,11 +66,11 @@ function calls(dir: string): Array<{ args: string[]; configDir: string; home: st
 
 beforeEach(() => {
   ensureDirs();
-  scratch = mkdtempSync(join(tmpdir(), "omb-claude-accounts-"));
+  scratch = mkdtempSync(join(tmpdir(), "omb-claude-config-dir-"));
   cli = join(scratch, "fake-claude.mjs");
   writeFileSync(cli, FAKE_CLI, { mode: 0o755 });
   vi.stubEnv("CLAUDE_CONFIG_DIR", "");
-  for (const key of CLAUDE_ACCOUNT_ENV_KEYS) vi.stubEnv(key, `fixture-parent-${key}`);
+  for (const key of CLAUDE_AUTH_ENV_KEYS) vi.stubEnv(key, `fixture-parent-${key}`);
   vi.stubGlobal("fetch", vi.fn(async () => new Response("offline fixture", { status: 503 })));
 });
 
@@ -82,48 +81,24 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-describe("Claude account configuration", () => {
-  it("keeps the default config unchanged and resolves explicit, inherited, and home-relative directories", () => {
+describe("Claude configuration directory", () => {
+  it("is the computer's Claude login, and a directory of its own only for company models", () => {
     const home = join(scratch, "home");
-    expect(ClaudeDriver.decodeConfig({ configDir: " " })).toEqual(ClaudeDriver.defaultConfig());
-    expect(ClaudeDriver.decodeConfig({ configDir: " ~/work " }).configDir).toBe("~/work");
+    expect(ClaudeDriver.decodeConfig({ configDir: "/data/providers/claude-account" })).toEqual(ClaudeDriver.defaultConfig());
+    expect(ClaudeDriver.decodeConfig({ configDir: 12 })).toEqual(ClaudeDriver.defaultConfig());
+    expect(ClaudeDriver.decodeConfig({ managed: true, configDir: " " })).toEqual({ ...ClaudeDriver.defaultConfig(), managed: true });
+    expect(ClaudeDriver.decodeConfig({ managed: true, configDir: " ~/company " }).configDir).toBe("~/company");
     expect(resolveClaudeConfigDir("~/work", { HOME: home })).toBe(join(home, "work"));
     expect(resolveClaudeConfigDir("~", { USERPROFILE: home })).toBe(home);
     expect(resolveClaudeConfigDir(undefined, { HOME: home })).toBe(join(home, ".claude"));
     expect(resolveClaudeConfigDir("", { HOME: home, CLAUDE_CONFIG_DIR: "~/inherited" })).toBe(join(home, "inherited"));
     expect(resolveClaudeConfigDir(join(scratch, "explicit"), { CLAUDE_CONFIG_DIR: join(scratch, "ignored") })).toBe(join(scratch, "explicit"));
     for (const configDir of [12, null, "relative/path", "~other/work", "/bad\npath"]) {
-      expect(() => ClaudeDriver.decodeConfig({ configDir })).toThrow(/configDir/);
+      expect(() => ClaudeDriver.decodeConfig({ managed: true, configDir })).toThrow(/configDir/);
     }
   });
 
-  it("isolates two concurrent instances across catalogs, auth probes, turns, and permission reviews", async () => {
-    const dirs = [account("work"), account("personal")];
-    vi.stubEnv("CLAUDE_CONFIG_DIR", account("parent"));
-    const providers = await Promise.all(dirs.map(dir => create(dir)));
-    await Promise.all(providers.map(async (provider, index) => {
-      const name = index === 0 ? "work" : "personal";
-      expect(provider.models.options.some(option => option.id === `${name}-model`)).toBe(true);
-      expect(provider.models.options.some(option => option.id === `${index === 0 ? "personal" : "work"}-model`)).toBe(false);
-      expect(await provider.snapshot()).toMatchObject({ authenticated: true, account: { email: `${name}@example.test`, organization: `${name} team` } });
-      const recorder = recordEvents(provider.adapter);
-      await provider.adapter.sendTurn({ threadId: `account-${name}`, text: "hello" });
-      await recorder.until(event => event.type === "turn.completed");
-      expect(recorder.events.some(event => event.type === "item.completed" && event.itemType === "assistant_text" && event.text === `${name}@example.test`)).toBe(true);
-      recorder.stop();
-      expect(await provider.reviewPermission?.("review fixture only")).toBe(`${name}@example.test`);
-      const recorded = calls(dirs[index]!);
-      expect(recorded).toHaveLength(5);
-      expect(recorded.filter(call => call.args[0] === "--help")).toHaveLength(1);
-      for (const call of recorded) {
-        expect(call.configDir).toBe(dirs[index]);
-        expect(call.home).toBe(process.env.HOME);
-        expect(call.env).toEqual({});
-      }
-    }));
-  });
-
-  it("honors the existing environment account when configDir is absent", async () => {
+  it("honors the computer's CLAUDE_CONFIG_DIR", async () => {
     const dir = account("existing");
     vi.stubEnv("CLAUDE_CONFIG_DIR", dir);
     const provider = await create();
@@ -133,27 +108,16 @@ describe("Claude account configuration", () => {
     expect(calls(dir)[0]?.env.ANTHROPIC_API_KEY).toBeUndefined();
   });
 
-  it("preserves explicit custom endpoints and injected local models without inheriting subscription OAuth", async () => {
-    const dir = account("custom");
-    const provider = await create(dir, {
-      ANTHROPIC_BASE_URL: "http://127.0.0.1:9999",
-      ANTHROPIC_AUTH_TOKEN: "fixture-custom-key",
-      CLAUDE_CODE_OAUTH_TOKEN: "fixture-explicit-oauth-is-not-an-account-login",
-      CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR: "99",
-      UNSLOTH_STUDIO_AUTH_TOKEN: "fixture-local-key",
-    });
-    await provider.reviewPermission?.("fixture review");
-    expect(calls(dir)[0]?.env).toEqual({ ANTHROPIC_BASE_URL: "http://127.0.0.1:9999", ANTHROPIC_AUTH_TOKEN: "fixture-custom-key" });
-    const recorder = recordEvents(provider.adapter);
-    await provider.adapter.sendTurn({ threadId: "account-injected", text: "hello", model: "unsloth::fixture-model" });
-    await recorder.until(event => event.type === "turn.completed");
-    recorder.stop();
-    // The turn is the last spawn (a version check may come before it).
-    expect(calls(dir).at(-1)?.env).toEqual({
-      ANTHROPIC_BASE_URL: "http://127.0.0.1:8888",
-      ANTHROPIC_AUTH_TOKEN: "fixture-local-key",
-      ANTHROPIC_API_KEY: "fixture-local-key",
-    });
+  it("keeps company models in their own directory, without the computer's login", async () => {
+    const dir = account("company");
+    vi.stubEnv("CLAUDE_CONFIG_DIR", account("parent"));
+    const provider = await create({ configDir: dir }, { ANTHROPIC_BASE_URL: "http://127.0.0.1:9999", ANTHROPIC_API_KEY: "fixture-company-key" });
+    await provider.snapshot();
+    expect(calls(dir).length).toBeGreaterThan(0);
+    for (const call of calls(dir)) {
+      expect(call.configDir).toBe(dir);
+      expect(call.env).toEqual({ ANTHROPIC_BASE_URL: "http://127.0.0.1:9999", ANTHROPIC_API_KEY: "fixture-company-key" });
+    }
   });
 
   it("publishes only bounded display identity from a successful auth status", async () => {
@@ -161,7 +125,8 @@ describe("Claude account configuration", () => {
       loggedIn: true, email: " person@example.test ", orgName: " Team ",
       accessToken: "must-not-appear", refreshToken: "must-not-appear", extra: { secret: "must-not-appear" },
     });
-    const provider = await create(dir);
+    vi.stubEnv("CLAUDE_CONFIG_DIR", dir);
+    const provider = await create();
     expect(await provider.snapshot()).toEqual({
       state: "available", version: "fixture-claude", authenticated: true,
       account: { email: "person@example.test", organization: "Team" }, billing: "subscription",

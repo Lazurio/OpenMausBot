@@ -191,7 +191,7 @@ describe("plan usage fetcher", () => {
     const fetchImpl = vi.fn<PlanFetch>();
     const configDir = join(tmpdir(), "omb-plan-usage-claude");
     const reads: string[] = [];
-    const report = await fetchPlanUsage([account("claude", { id: "work", name: "Work Claude", configDir })], {
+    const report = await fetchPlanUsage([account("claude", { id: "work", name: "Work Claude", environment: { CLAUDE_CONFIG_DIR: configDir } })], {
       fetch: fetchImpl,
       now: () => NOW,
       credentials: fileCredentialReader({
@@ -249,7 +249,7 @@ describe("plan usage fetcher", () => {
       seven_day: { utilization: 40, resets_at: "2026-10-03T00:00:00.000Z" },
     }));
     const services: string[] = [];
-    const report = await fetchPlanUsage([account("claude", { configDir })], {
+    const report = await fetchPlanUsage([account("claude", { environment: { CLAUDE_CONFIG_DIR: configDir } })], {
       fetch: fetchImpl,
       now: () => NOW,
       credentials: fileCredentialReader({
@@ -276,7 +276,7 @@ describe("plan usage fetcher", () => {
     const suffixed = `Claude Code-credentials-${createHash("sha256").update(configDir).digest("hex").slice(0, 8)}`;
     const fetchImpl = vi.fn<PlanFetch>(async () => jsonResponse({}));
     const services: string[] = [];
-    const report = await fetchPlanUsage([account("claude", { id: "work", name: "Work Claude", configDir })], {
+    const report = await fetchPlanUsage([account("claude", { id: "work", name: "Work Claude", environment: { CLAUDE_CONFIG_DIR: configDir } })], {
       fetch: fetchImpl,
       now: () => NOW,
       credentials: fileCredentialReader({
@@ -406,13 +406,13 @@ describe("plan usage fetcher", () => {
 
   it("lists configured Claude, Codex, and Grok accounts and skips other engines", () => {
     expect(planAccountsFromInstances({
-      claude: { driver: "claudeAgent", displayName: "  Personal Claude  ", config: { configDir: "/tmp/claude" } },
+      claude: { driver: "claudeAgent", displayName: "  Personal Claude  ", environment: { CLAUDE_CONFIG_DIR: "/tmp/claude" } },
       codex: { driver: "codex" },
       grok: { driver: "grokAgent", environment: { GROK_HOME: "/tmp/grok" } },
       cursor: { driver: "cursorAgent", displayName: "Cursor" },
       api: { driver: "grok", displayName: "Grok API" },
     })).toEqual([
-      { id: "claude", name: "Personal Claude", driver: "claude", environment: {}, configDir: "/tmp/claude" },
+      { id: "claude", name: "Personal Claude", driver: "claude", environment: { CLAUDE_CONFIG_DIR: "/tmp/claude" } },
       { id: "codex", name: "Codex", driver: "codex", environment: {} },
       { id: "grok", name: "Grok", driver: "grok", environment: { GROK_HOME: "/tmp/grok" } },
     ]);

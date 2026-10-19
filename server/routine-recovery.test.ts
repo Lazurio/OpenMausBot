@@ -276,7 +276,7 @@ describe("an unattended run only its owner can fix", () => {
   it("waits out a usage limit that resets within twelve hours, once, and says so once", async () => {
     const h = harness();
     const resetsAt = START + 2 * 3_600_000;
-    const limit = "This Claude account has reached its 5-hour limit, which resets soon. Until then, switch this bot to another engine or Claude account.";
+    const limit = "This Claude account has reached its 5-hour limit, which resets soon. Until then, switch this bot to another engine.";
     const run = await h.start(h.routine().id);
     h.fail("thread-1", limit, { stopReason: "quota", limitResetsAt: resetsAt });
     expect(h.run(run.id)).toMatchObject({ status: "queued", retried: "usage_limit", retryAt: resetsAt + MINUTE, threadId: "thread-1",

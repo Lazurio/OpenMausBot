@@ -55,7 +55,7 @@ const { ensureDirs } = await import("../server/config.ts");
 ensureDirs();
 const { ClaudeDriver } = await import("../server/drivers/claude.ts");
 const { recordEvents } = await import("../server/testing/events.ts");
-const provider = await ClaudeDriver.create({ instanceId: "fixture", displayName: "Offline Claude", enabled: true, environment: {}, config: { cli, configDir: account, permissionMode: "acceptEdits", tools: [] } });
+const provider = await ClaudeDriver.create({ instanceId: "fixture", displayName: "Offline Claude", enabled: true, environment: {}, config: { cli, permissionMode: "acceptEdits", tools: [] } });
 const recorder = recordEvents(provider.adapter);
 try {
   for (let i = 0; i < 2; i++) {

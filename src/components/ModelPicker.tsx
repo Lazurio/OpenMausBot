@@ -341,8 +341,7 @@ export type RailProvider = {
 export function railProviders(instances: InstanceInfo[], selectedInstance: InstanceInfo | undefined,
   claudeInstance: InstanceInfo | undefined, openaiInstance: InstanceInfo | undefined) {
   const firstOf: Record<SignInFamily, InstanceInfo | undefined> = {
-    claude: instances.find((instance) => isClaudeAccount(instance) && instance.claudeAccount?.isDefault)
-      ?? instances.find(isClaudeAccount),
+    claude: instances.find(isClaudeAccount),
     openai: instances.find((instance) => signInFamily(instance) === "openai"),
   };
   const opensOn: Record<SignInFamily, InstanceInfo | undefined> = { claude: claudeInstance, openai: openaiInstance };
@@ -514,8 +513,7 @@ export function ModelPicker({
   const openaiAccounts = pickerInstances.filter((instance) => signInFamily(instance) === "openai");
   const openaiRailInstance = openaiAccounts.find((instance) => instance.instanceId === lastOpenaiIdRef.current)
     ?? openaiAccounts.find((instance) => instance.instanceId === selection.instanceId) ?? openaiAccounts[0];
-  const multipleClaudeAccounts = state.instances.filter(isClaudeAccount).length > 1;
-  const showActiveAccount = (multipleClaudeAccounts && isClaudeAccount(active)) || Boolean(active?.snapshot.chatgptPlan);
+  const showActiveAccount = Boolean(active?.snapshot.chatgptPlan);
   const claudeRailInstance = claudeAccounts.find((instance) => instance.instanceId === lastClaudeIdRef.current)
     ?? claudeAccounts.find((instance) => instance.instanceId === selection.instanceId) ?? claudeAccounts[0];
   const railInstance =
@@ -714,7 +712,7 @@ export function ModelPicker({
     return [...groups.subscription, ...groups.api, ...groups.custom];
   })();
   const simpleFamily = signInFamily(railInstance);
-  const simpleAccounts = simpleFamily === "claude" ? claudeAccounts : simpleFamily === "openai" ? openaiAccounts : [];
+  const simpleAccounts = simpleFamily === "openai" ? openaiAccounts : [];
   const simpleLabel = simpleProviders.find((provider) => provider.selected)?.label ?? railInstance?.displayName ?? "";
   const simpleSignIn = !customOnly && needsSignIn(railInstance);
   const simpleOfficial = customOnly || simpleSignIn ? [] : official;
@@ -962,9 +960,6 @@ export function ModelPicker({
                       </span>
                     </div>
                   </div>
-                  {isClaudeAccount(railInstance) && claudeAccounts.length > 1 && (
-                    <ClaudeAccountSelect accounts={claudeAccounts} selectedId={railInstance.instanceId} onSelect={selectRail} />
-                  )}
                   {signInFamily(railInstance) === "openai" && openaiAccounts.length > 1 && (
                     <ClaudeAccountSelect accounts={openaiAccounts} selectedId={railInstance.instanceId} onSelect={selectRail} />
                   )}
@@ -1002,12 +997,6 @@ export function ModelPicker({
                 ) : blocked ? (
                   <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 pt-1">
                     <EngineSetup instance={railInstance} intent={pane === "custom" ? "inject" : "cloud"} />
-                    {railInstance.claudeAccount && needsSignIn(railInstance) && pane !== "custom" && (
-                      <p className="mt-2 text-[11.5px] leading-relaxed text-ink-secondary">
-                        {railInstance.claudeAccount.signInShell === "powershell" && `${t("engines.account.powershell")} `}
-                        {t("engines.account.signInHint")}
-                      </p>
-                    )}
                     <p className="mt-2 text-center text-[11.5px] text-ink-tertiary">
                       {railInstance.snapshot.chatgptPlan ? t("engineSetup.chatgpt.modelsAfterSignIn") : pane === "main" && official.length > 0
                         ? official.length === 1

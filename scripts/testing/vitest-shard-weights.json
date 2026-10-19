@@ -41,7 +41,6 @@
   "server/checkpoints.test.ts": 43,
   "server/chief-level-delegation.e2e.test.ts": 8,
   "server/chief-rooms.e2e.test.ts": 4,
-  "server/claude-account-api.test.ts": 15,
   "server/cli-service-trust.e2e.test.ts": 1,
   "server/cli-stop.e2e.test.ts": 1,
   "server/cloud-guest-shell.e2e.test.ts": 28,
