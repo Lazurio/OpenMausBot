@@ -114,6 +114,10 @@ export interface SendTurnInput {
   systemVolatile?: string;
   /** The message tags teammates, so digest-based delivery must not suppress the mentions note even when it is unchanged. */
   mentionTurn?: boolean;
+  /** Lazurio overlay (DEV-6673 M4a): the bot's agent-browser session (`bot-<id>`) where the Environment declares its
+   * browser. A driver sets AGENT_BROWSER_SESSION to it for the commands the bot's agent runs, as T3 Code does per
+   * thread, so agent-browser and `lazurio browser` use the bot's session even without --session; absent, it sets none. */
+  agentBrowserSession?: string;
   /** Per-bot integrations the driver may hand to the agent as tools. */
   integrations?: {
     /** Stdio connection to a computer MCP server. `scope` is set only for the host desktop, so host-only approval rules never apply elsewhere. */
