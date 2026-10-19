@@ -524,10 +524,12 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
       };
       const launchAttempt = async (attempt: number): Promise<void> => {
         const env = childEnv();
+        const agentBrowserSession = turn.guestConfined ? undefined : turn.agentBrowserSession;
         const launchedLogin = chatgptTurn ? storedCodexLogin(env) : null;
         const appServerArgs = ["app-server", ...(config.managed ? managedCodexArgs(config.managed) : codexLocalProviderArgs(env, turn.model)), ...codexToolSurfaceArgs(),
           // A guest-driven turn: no shell, no file reads (-c wins over config files).
-          ...(turn.guestConfined ? GUEST_CONFINED_CODEX_ARGS : [])];
+          ...(turn.guestConfined ? GUEST_CONFINED_CODEX_ARGS : []),
+          ...(agentBrowserSession ? ["-c", `shell_environment_policy.set.AGENT_BROWSER_SESSION=${JSON.stringify(agentBrowserSession)}`] : [])];
         const baseEnv = new Map(Object.entries(env).filter(([, value]) => value !== undefined));
         const mountedNames = new Set<string>();
         const literalEnvs = new Map<string, Record<string, string>>();

@@ -1184,6 +1184,9 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
       if (authSettingsPath) args.push("--settings", authSettingsPath);
       // Approvals and browser credentials expire at the turn boundary; native background workers must not outlive it.
       env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = "1";
+      // Lazurio overlay (DEV-6673 M4a): the bot's own agent-browser session for the commands its agent runs.
+      if (turn.agentBrowserSession) env.AGENT_BROWSER_SESSION = turn.agentBrowserSession;
+      else delete env.AGENT_BROWSER_SESSION;
       const cwd = turn.cwd ?? homedir();
       const commandCwd = permissionLaunchCwd(cwd);
       const privateFileFlags = new Set(["--mcp-config", "--settings"]);
@@ -1197,6 +1200,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
         base: env.ANTHROPIC_BASE_URL ?? null,
         configDir: env.CLAUDE_CONFIG_DIR ?? null,
         hooks: Boolean(hooks),
+        agentBrowserSession: env.AGENT_BROWSER_SESSION ?? null,
         // Rotating an account's key/helper must not reuse the old process.
         auth: createHash("sha256").update(JSON.stringify({
           settings: authSettings,

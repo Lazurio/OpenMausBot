@@ -400,6 +400,21 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     scratch = mkdtempSync(join(tmpdir(), "omb-claude-test-"));
   });
 
+  it("hands the bot's agent-browser session to the commands its agent runs, and none without one (Lazurio)", async () => {
+    const dump = join(scratch, "agent-browser-session.json"); process.env.FAKE_CLAUDE_DUMP = dump;
+    process.env.AGENT_BROWSER_SESSION = "inherited-from-the-server";
+    try {
+      await create();
+      await instance.adapter.sendTurn({ threadId: "t-session", text: "Open a page", agentBrowserSession: "bot-fixture" });
+      await recorder.until((event) => event.type === "turn.completed");
+      expect(JSON.parse(readFileSync(dump, "utf8")).env.AGENT_BROWSER_SESSION).toBe("bot-fixture");
+      recorder.events.length = 0;
+      await instance.adapter.sendTurn({ threadId: "t-no-session", text: "No browser here" });
+      await recorder.until((event) => event.type === "turn.completed");
+      expect(JSON.parse(readFileSync(dump, "utf8")).env.AGENT_BROWSER_SESSION).toBeUndefined();
+    } finally {
+      delete process.env.AGENT_BROWSER_SESSION;
+    }
   });
 
   afterEach(async () => {

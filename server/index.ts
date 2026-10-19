@@ -6902,6 +6902,7 @@ async function startTurn(
       const dispatch = await guardTurnDispatch(shareNote.after(quickFallback.sendTurn(instance, {
         threadId,
         botId: bot.id,
+        ...(environmentBrowserOn ? { agentBrowserSession: botBrowserSession(bot.id) } : {}),
         startupRecovery,
         ...(recalled ? { recalled } : {}),
         images: dispatchContext.images,
@@ -8372,6 +8373,7 @@ async function runClaimedGroupMemberTurn(
         ...roomSession.send,
         threadId,
         botId: readyBot.id,
+        ...(environmentBrowserOn ? { agentBrowserSession: botBrowserSession(readyBot.id) } : {}),
         text: roomSession.text,
         ...(roomRecalled ? { recalled: roomRecalled } : {}),
         images: turnImages,

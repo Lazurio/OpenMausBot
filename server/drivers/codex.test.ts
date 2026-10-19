@@ -919,8 +919,25 @@ describe("CodexDriver turns (fake app-server)", () => {
     expect(instance.adapter.capabilities.agentsMcp).toBe(true);
   });
 
+  it("hands the bot's agent-browser session to the commands its agent runs, and none without one (Lazurio)", async () => {
     await create();
+    const dump = join(scratch, "agent-browser-session.json");
     process.env.FAKE_CODEX_DUMP = dump;
+    process.env.AGENT_BROWSER_SESSION = "inherited-from-the-server";
+    try {
+      await instance.adapter.sendTurn({ threadId: "t-session", text: "open a page", agentBrowserSession: "bot-fixture" });
+      await recorder.until((event) => event.type === "turn.completed");
+      let seen = JSON.parse(readFileSync(dump, "utf8"));
+      expect(seen.env.AGENT_BROWSER_SESSION).toBe("bot-fixture");
+      expect(seen.argv).toContain('shell_environment_policy.set.AGENT_BROWSER_SESSION="bot-fixture"');
+      recorder.events.length = 0;
+      await instance.adapter.sendTurn({ threadId: "t-no-session", text: "no browser here" });
+      await recorder.until((event) => event.type === "turn.completed");
+      seen = JSON.parse(readFileSync(dump, "utf8"));
+      expect(seen.env.AGENT_BROWSER_SESSION).toBeUndefined();
+      expect(JSON.stringify(seen.argv)).not.toContain("AGENT_BROWSER_SESSION");
+    } finally {
+      delete process.env.AGENT_BROWSER_SESSION;
     }
   });
 

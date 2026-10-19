@@ -201,6 +201,12 @@ computer of its own, and it opens its own tabs in the Environment browser.
   prints the link a person opens to work in the same tab, `agent-browser
   --cdp 9222 --session bot-<id> <command>` works in it from the bot's shell
   (the CLI, not an MCP server or a tool of MausBot's own), and `lazurio
+  browser done --session bot-<id>` lets it go. As T3 Code does for a thread,
+  the commands a bot's Claude or Codex agent runs also carry
+  `AGENT_BROWSER_SESSION=bot-<id>` while the Environment declares its browser
+  (Codex through its shell policy too), so a command without `--session`
+  still uses the bot's session; other engines rely on the explicit
+  `--session`. `request_sign_in`'s "browser" place is the Environment browser.
 - **The bot's strip.** The server keeps
   `$XDG_RUNTIME_DIR/lazurio-browser/holders/bot-<id>.json`, the holder file
   the Platform's hub reads: a tab enters it when the bot's session binds it,
