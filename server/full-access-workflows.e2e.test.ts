@@ -123,12 +123,12 @@ it("applies requested Full Access workflows through MCP without duplicate approv
     writeFileSync(join(dataDir, "bots.json"), JSON.stringify(savedBots, null, 2));
     await restart();
     expect((await api("GET", "/api/health")).capabilities).toMatchObject({ guardedFullAccess: 1 });
-    expect((await api("GET", "/api/health")).capabilities.sharedWorkspaceFullAccess).toBeUndefined();
     const request = { threadId: chief.activeTaskId, text: "WRONG_MODE_MUST_NOT_RUN", sendId: randomUUID(),
       expectedActiveLeafId: (await api("GET", `/api/threads/${chief.activeTaskId}/messages?limit=1`)).activeLeafId };
     expect((await api("POST", `/api/bots/${chief.id}/messages/guarded`, request, 409)).code).toBe("guarded_permissions");
     expect((await api("POST", `/api/bots/${chief.id}/messages/guarded`, { ...request, threadId: ask.threadId, expectedApprovalMode: "full", expectedActiveLeafId: null }, 409)).code).toBe("guarded_permissions");
-    await api("POST", `/api/bots/${chief.id}/tasks`, { title: "No operator grant", approvalMode: "full" }, 403);
+    // Lazurio overlay (DEV-6673): a new Full thread needs no operator grant.
+    expect((await api("POST", `/api/bots/${chief.id}/tasks`, { title: "No operator grant", approvalMode: "full" }, 201)).task.approvalMode).toBe("full");
     expect(providerTurns()).toHaveLength(0);
     evidence.push({ setup: "fixture-only persisted modes", restartedPid: restarted?.pid, modes: [
       { botId: chief.id, default: "full", fullTask: chief.activeTaskId, askTask: ask.threadId },

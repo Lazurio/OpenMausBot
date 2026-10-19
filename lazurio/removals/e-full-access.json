@@ -1,13 +1,36 @@
+{
+  "area": "Gates before full access",
+  "why": "Every bot runs at Full by default, as Lazurio's T3 Code runs full-access, and nothing turns it on, lowers it or gates it (root decision 0172 with its addendum of 2026-10-19; LAZURIO.md, principle 2). A person may still choose to supervise a bot or a conversation; narrower rights mean a separate Environment.",
     "server/outbound-hold.test.ts",
     "server/outbound-hold.ts",
+  "forbidden": [
+    "setDefaultApprovalMode",
+    "HOSTED_FULL_ACCESS_REFUSAL",
+    "OMB_SHARED_WORKSPACE_FULL_ACCESS",
+    "sharedWorkspaceFullAccess",
+    "operator's dedicated policy",
     "peer approval is required",
     "startsOnAsk",
     "newBot.startsOnAsk",
     "botSettings.simple.custom",
     "botPanel.acts.custom",
     "approvalMode.customLocalOnlyDot"
+  ],
+  "routes": [],
+  "changes": [
+    "docs/approval-levels.md",
+    "docs/verification/guarded-messages.md",
+    "server/approval-mode.test.ts",
+    "server/enterprise.test.ts",
+    "server/enterprise.ts",
+    "server/full-access-workflows.e2e.test.ts",
+    "server/routes/bot-patch.ts",
     "server/routes/internal-tools.ts",
+    "server/routes/status.ts",
+    "server/routes/tasks.ts",
     "src/components/thread-approval.tsx",
     "src/lib/ai-switch.ts",
     "src/lib/i18n.test.ts",
     "src/lib/new-bot.ts"
+  ]
+}

@@ -4,7 +4,6 @@ import {
   APPROVAL_MODES,
   DEFAULT_APPROVAL_MODE,
   approvalModeFor,
-  setDefaultApprovalMode,
   supportsApprovalMode,
   modelSwitchNeedsAsk,
   hasNativeAutoReview,
@@ -87,18 +86,6 @@ describe("approval modes", () => {
     // Every bot made over HTTP stores the legacy bit off beside no level.
     expect(approvalModeFor({ autoApprove: false })).toBe("full");
     expect(approvalModeFor({ approvalMode: "ask", autoApprove: false })).toBe("ask");
-  });
-
-  it("keeps Ask as the default where the server says so (a shared company workspace)", () => {
-    setDefaultApprovalMode("ask");
-    try {
-      expect(approvalModeFor({})).toBe("ask");
-      expect(approvalModeFor({ autoApprove: false })).toBe("ask");
-      expect(approvalModeFor({ approvalMode: "full" })).toBe("full");
-    } finally {
-      setDefaultApprovalMode(DEFAULT_APPROVAL_MODE);
-    }
-    expect(approvalModeFor({})).toBe("full");
   });
 
   it("prefers a valid explicit mode and fails closed around corrupt values", () => {

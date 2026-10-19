@@ -14,9 +14,8 @@ too: each engine runs in its own most permissive mode, and a real question or
 a missing credential still reaches you. That covers a bot made in New bot,
 through the API or by onboarding, each new thread, a Chief's new teammates,
 and bots imported from a team backup, a shared team file or the organization
-library. A level a person picks stays until someone changes it. On a hosted
-company workspace the default stays Ask, because Full access there comes only
-from the operator's dedicated policy.
+library, on every server, a hosted company workspace included. A level a
+person picks stays until someone changes it.
 
 | Level | Behavior |
 | --- | --- |
@@ -32,8 +31,7 @@ calling the local API where local calls count as you (development, the CLI, a
 self-hosted server). Picked in bot settings, it applies to the bot and every
 one of its existing threads at once; picked in the composer, to that thread;
 Refresh permissions copies it onto one thread. Every engine runs it (see
-Provider mappings). On a hosted company workspace, Full access still comes
-only from the operator's dedicated policy
+Provider mappings), on a hosted company workspace too
 ([guarded messages](verification/guarded-messages.md)).
 
 Custom is different: it can only be entered or left from a packaged local
