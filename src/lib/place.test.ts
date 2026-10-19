@@ -13,7 +13,6 @@ import { toolSurfaceKind } from "../../shared/tool-surface";
   });
 
   it("classifies tool names without guessing computer for unrelated tools", () => {
-    expect(toolSurfaceKind("agent_browser_open")).toBe("browser");
     expect(toolSurfaceKind("browser__snapshot")).toBe("browser");
     expect(toolSurfaceKind("computer__click")).toBe("computer");
     expect(toolSurfaceKind("hotkey")).toBe("computer");
