@@ -41,6 +41,14 @@ connected apps, computers and sign-ins are removed from the code
 ([below](#what-the-overlay-removes)). Narrower access than the Environment's
 means a separate Environment.
 
+### Engine sign-in
+
+**Decided on 2026-10-19 (the Organization Admin): as in Lazurio's T3 Code.**
+
+`src/components/LazurioEngineSignIn.tsx`, with one hook in
+`src/components/EngineSetup.tsx` and one in `src/components/ChatView.tsx`;
+`src/components/LazurioEngineSignIn.test.ts` covers Codex and Claude under
+
 ## What the overlay adds
 
 - **The open-source edition.** Upstream's `enterprise/` folder is removed
@@ -96,8 +104,18 @@ signed-in accounts, and integrations come from the Environment.
   connections, apps a bot inherits from its Chief and the suggestion to add
   a helper-model key. Every Claude bot gets the Environment's user-scope MCP
 - **Own sign-ins**: saved logins (`fill_login`), 1Password and the in-app
+  Claude, Codex and Grok sign-in flows, the ChatGPT plan engine with its own
+  OpenAI sign-in (the Codex engine already reads the Environment's ChatGPT
+  login), the Antigravity engine with its own Google sign-in and runtime (the
+  Launchpad has no Antigravity sign-in), and added Claude accounts with their
   own configuration folders, the Cursor sign-in for a Grok Bot import (the
   paste import stays), and with them the server's sign-in sessions and
+  the `/api/instances/:id/auth/*` routes. Engines use the computer's own
+  logins (`codex login`, `claude auth login`, done in the Environment
+  settings) and MausBot only reads their status
+  ([above](#engine-sign-in)). A saved `config.json` that still has a removed
+  engine or account loads and drops it; a bot that used one shows its engine
+  unavailable until another is picked.
 - **Own computers**: Local VMs (Cua containers) with their image updates, the
   Boat cloud computer, VPS computers and a bot's VPS alias, lent, shared and
   team computers with the team map's computer screens, "Works on" and
@@ -156,6 +174,10 @@ Shadow DOM (`<lazurio-rail>`, `<lazurio-column-head>`, `<lazurio-buddy>`)
 defined by `/.lazurio/shell.js`, which the Environment's Launchpad serves on
 this origin behind the Environment's gateway, with its data in
 `/.lazurio/shell.json` (LazurioPlatform decision F36). MausBot knows nothing
+of Lazurio's data and fetches nothing itself, apart from the Launchpad's
+address and the language for a signed-out engine's card
+([Engine sign-in](#engine-sign-in)), so a new rail, a new picker or new data
+needs no release of this fork.
 
 The slot is two upstream files, each its own line in
 `allowed_upstream_changes`:
