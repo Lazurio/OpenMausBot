@@ -18,7 +18,6 @@ import {
 } from "./memory-journal.ts";
 import type { ModelSelection } from "./contracts.ts";
 import * as mdb from "./message-db.ts";
-import { peerAllowKey } from "./peer-approval-key.ts";
 import { canAccessTeam } from "./peer-roster.ts";
 import { Store, toWireTask, type BotRecord } from "./store.ts";
 import type { TeamSetupRequest } from "../shared/team-setup.ts";
@@ -1002,29 +1001,6 @@ describe("Store", () => {
     expect(reloadedAgain.bot(upper.id)?.browserProfile).toBe("work-3");
     expect(reloadedAgain.bot(canonical.id)?.browserProfile).toBe("work");
     expect(reloadedAgain.bot(suffixed.id)?.browserProfile).toBe("work-2");
-  });
-
-  it("migrates unambiguous legacy peer grants without guessing duplicate names", () => {
-    const store = new Store(selection);
-    const requester = store.createBot();
-    const helper = store.patchBot(store.createBot().id, { name: "Helper" })!;
-    store.patchBot(store.createBot().id, { name: "Twin" });
-    store.patchBot(store.createBot().id, { name: "Twin" });
-    store.patchBot(requester.id, {
-      alwaysAllow: ["ask_bot:@Helper", "delegate_bot:@Twin", "Bash:git status"],
-    });
-
-    const reloaded = new Store(selection);
-    expect(reloaded.bot(requester.id)?.alwaysAllow).toEqual([
-      peerAllowKey("ask_bot", helper.id),
-      "delegate_bot:@Twin",
-      "Bash:git status",
-    ]);
-
-    const persisted: BotRecord[] = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8"));
-    expect(persisted.find((bot) => bot.id === requester.id)?.alwaysAllow).toEqual(
-      reloaded.bot(requester.id)?.alwaysAllow,
-    );
   });
 
   it("promotes task-only provider tool grants to the bot default", () => {
@@ -2286,7 +2262,7 @@ describe("soul", () => {
       ] };
     store.applyTeamSetup(request);
     expect(new Store(selection).bot("created-by-chief")?.visibility).toEqual({ people: ["hr@example.test"] });
-    expect(new Store(selection).bot("created-by-chief")).toMatchObject({ approvePeerComms: false });
+    expect(new Store(selection).bot("created-by-chief")).not.toHaveProperty("approvePeerComms");
     const open = new Store(selection);
     const everyoneChief = open.createBot({ name: "Ops", section: "Ops" });
     open.patchBot(everyoneChief.id, { chiefOfStaff: true });

@@ -98,7 +98,6 @@
   "server/org-library.e2e.test.ts": 4,
   "server/org-library.test.ts": 32,
   "server/peer-allowlist.e2e.test.ts": 7,
-  "server/peer-approval.e2e.test.ts": 7,
   "server/phone-claim.e2e.test.ts": 9,
   "server/post-to-room.test.ts": 31,
   "server/presets.e2e.test.ts": 8,

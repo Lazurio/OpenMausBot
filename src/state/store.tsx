@@ -315,7 +315,6 @@ export interface Bot {
   pinnedMessageId?: string;
   chiefOfStaff?: boolean;
   managedSections?: string[];
-  approvePeerComms?: boolean;
   peers?: string[];
   fallback?: Array<{ instanceId: string; model: string }>;
   browser?: boolean;

@@ -770,10 +770,11 @@ describe("the Settings tab", () => {
     const order = ["Profile", "Teamwork", "Tools", "Sharing", "Activity", ">Scout<", "Advanced mode"].map(at);
     expect(order.every((index) => index > -1)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    for (const text of ["What Scout does", "Voice", "Notifications", "Team", "Chief of Staff", "Ask me before contacting other bots",
+    for (const text of ["What Scout does", "Voice", "Notifications", "Team", "Chief of Staff",
       "Tool selection", "Webhooks", "Always allowed", "Get it on your phone", "Phone and email", "Overview",
       "What Scout sees", "History", "Usage for all bots", "Pin to top", "Duplicate", "Copy conversation ID",
       "Mark all conversations as read", "Archive Scout", "Delete Scout"]) expect(html).toContain(text);
+    expect(html).not.toContain("Ask me before contacting other bots");
     expect(html).not.toContain("Who can see it");
     expect(html).not.toContain(">Slack<");
     expect(html.match(/>Soon</g)).toHaveLength(1);
@@ -796,21 +797,20 @@ describe("the Settings tab", () => {
     expect(find(visibility, "data-panel-page", "visibility").props.value).toBe("Everyone");
   });
 
-  it("switches notifications, Chief of Staff, peer checks and Advanced mode", () => {
+  it("switches notifications, Chief of Staff and Advanced mode", () => {
     const rendered = settings(makeBot());
     (row(rendered, "notify").props.onChange as () => void)();
     expect(patch).toHaveBeenLastCalledWith({ notifications: false });
     (row(rendered, "chief").props.onChange as () => void)();
     expect(patch).toHaveBeenLastCalledWith({ chiefOfStaff: true });
-    (row(rendered, "peers").props.onChange as () => void)();
-    expect(patch).toHaveBeenLastCalledWith({ approvePeerComms: true });
+    // Lazurio overlay (DEV-6673): no switch makes a bot ask before contacting another bot.
+    expect(rendered.html).not.toContain('data-panel-row="peers"');
     (row(rendered, "advanced").props.onChange as () => void)();
     expect(fixture.setAdvanced).toHaveBeenCalledWith(true);
 
     fixture.derived.canCoordinate = false;
     const cannot = settings(makeBot());
     expect(row(cannot, "chief").props.disabled).toBe(true);
-    expect(row(cannot, "peers").props.disabled).toBe(true);
   });
 
   it("runs the sidebar's bot actions with the same confirmations", () => {

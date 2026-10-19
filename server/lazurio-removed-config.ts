@@ -6,6 +6,8 @@ import type { JsonValue } from "./schema.ts";
 const REMOVED_CONFIG_KEYS: ReadonlyArray<readonly string[]> = [
   ["box"], ["vps"], ["localVm"], ["composio"], ["mcpServers"], ["features", "sharedComputers"],
   ...["computer", "cloudBackend", "autoStartVps", "composio", "mcpServers"].map((key) => ["newBotDefaults", "profile", key]),
+  // DEV-6673, LAZURIO.md principle 2: bots contact each other without a person's approval.
+  ["newBotDefaults", "profile", "approvePeerComms"],
 ];
 
 // Values a setting can no longer take (DEV-6673, LAZURIO.md principle 2): upstream's Custom approval level.
@@ -29,8 +31,9 @@ export function removedConfigKey(value: JsonValue): string | null {
   return null;
 }
 
-// Request fields of removed gates (DEV-6673, LAZURIO.md principle 2): the confirmation upstream's Auto warning asked for.
-const REMOVED_BOT_FIELDS: readonly string[] = ["acknowledgeLocalAuto"];
+// Request fields of removed gates (DEV-6673, LAZURIO.md principle 2): the confirmation upstream's Auto warning asked
+// for, and the switch that made a bot ask a person before contacting another bot.
+const REMOVED_BOT_FIELDS: readonly string[] = ["acknowledgeLocalAuto", "approvePeerComms"];
 
 /** A field or value a bot or thread write names that Lazurio removed (DEV-6673), or null; such a write is refused with 400. */
 export function removedBotSetting(settings: unknown): string | null {

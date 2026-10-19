@@ -11,7 +11,6 @@ function baseFacts(overrides: Partial<OverviewFacts> = {}): OverviewFacts {
       soul: "",
       cwd: undefined,
       autoApprove: false,
-      approvePeerComms: false,
       peers: [],
       browser: undefined,
       chiefOfStaff: undefined,
@@ -63,14 +62,15 @@ describe("buildBotOverview", () => {
     expect(buildBotOverview(baseFacts({ bot })).wont).not.toContain(WONT_ORDER[0]);
   });
 
-  it("does not promise duplicate profile or peer approvals in Full Access", () => {
-    const bot = { ...baseFacts().bot, peers: undefined, approvePeerComms: true, approvalMode: "full" as const, autoApprove: false };
+  // Lazurio overlay (DEV-6673): no bot asks a person before contacting another bot, at any level.
+  it("never promises peer approvals, and promises profile proposal cards only under supervision", () => {
+    const bot = { ...baseFacts().bot, peers: undefined, approvalMode: "full" as const, autoApprove: false };
     const full = buildBotOverview(baseFacts({ bot })).wont;
     expect(full).not.toContain("Asks before contacting other bots.");
     expect(full).not.toContain("Profile proposal cards require your approval.");
     for (const approvalMode of ["ask", "edits"] as const) {
       const reviewed = buildBotOverview(baseFacts({ bot: { ...bot, approvalMode, autoApprove: true } })).wont;
-      expect(reviewed).toContain("Asks before contacting other bots.");
+      expect(reviewed).not.toContain("Asks before contacting other bots.");
       expect(reviewed).toContain("Profile proposal cards require your approval.");
     }
     expect(buildBotOverview(baseFacts({ bot: { ...bot, peers: [] } })).wont)
@@ -168,7 +168,7 @@ describe("buildBotOverview", () => {
 
   it("stays reachable by default when peers are unset, and names no computer preference", () => {
     const facts = baseFacts({
-      bot: { ...baseFacts().bot, peers: undefined, approvePeerComms: false },
+      bot: { ...baseFacts().bot, peers: undefined },
     });
     const overview = buildBotOverview(facts);
     expect(overview.reaches.some((line) => line.startsWith("Computer preference"))).toBe(false);

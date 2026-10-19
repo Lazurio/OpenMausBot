@@ -303,12 +303,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
         }
       }
       // Lazurio overlay (DEV-6673): upstream's warning gate before Auto (acknowledgeLocalAuto) is removed; a person picks a level, nothing confirms it.
-      if (body.approvePeerComms !== undefined) {
-        if (typeof body.approvePeerComms !== "boolean") {
-          return json(res, 400, { error: "approvePeerComms must be true or false" });
-        }
-        patch.approvePeerComms = body.approvePeerComms;
-      }
       // null: everyone visible in the section; an array (even empty) is the explicit wiring. Narrowing is free;
       // widening needs acknowledgePeerScope, since any loopback caller (a bot with Bash) gets admin.
       if (body.peers !== undefined) {
@@ -382,7 +376,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
           loosened.push("peers");
         }
       }
-      if (body.approvePeerComms === false && existingBot?.approvePeerComms === true) loosened.push("approvePeerComms");
       if (section !== undefined && sectionKey(existingBot?.section) !== sectionKey(section)) loosened.push("section");
       if (Array.isArray(patch.alwaysAllow) && patch.alwaysAllow.some((key) => !(existingBot?.alwaysAllow ?? []).includes(key))) {
         loosened.push("alwaysAllow");
