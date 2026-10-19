@@ -6,6 +6,7 @@ import { parseVisibility } from "../bot-visibility.ts";
 import type { createCloudRoutineAuthors } from "../cloud-lending.ts";
 import type { AppConfig } from "../config.ts";
 import type { ModelSelection } from "../contracts.ts";
+import type { createApprovalModeSupport } from "../harness-capabilities.ts";
 import type { hostedModelPolicy } from "../hosted-models.ts";
 import { journalMemoryWrite } from "../memory-journal.ts";
 import { resolveBotCreationDefaults } from "../new-bot-defaults.ts";
@@ -27,6 +28,7 @@ export interface BotCreateRouteDeps {
   orgInstallStatuses(): ReadonlyMap<string, OrgInstallStatus>;
   desktopManaged: boolean;
   maxWorkspaceBots: number;
+  supportsApprovalMode: ReturnType<typeof createApprovalModeSupport>;
   cloudOwnerKey: string | null;
   hostedModels: ReturnType<typeof hostedModelPolicy>;
   cloudRoutineAuthors: ReturnType<typeof createCloudRoutineAuthors> | null;
@@ -71,7 +73,7 @@ export function createBotCreateRoutes(deps: BotCreateRouteDeps): RouteHandler {
     desktopManaged: DESKTOP_MANAGED,
     maxWorkspaceBots: MAX_WORKSPACE_BOTS, cloudOwnerKey: CLOUD_OWNER_KEY,
     hostedModels, cloudRoutineAuthors,
-    storedAvatarExists, defaultSelection, checkedModelSelection, cloudOwnerSession, wireBot,
+    storedAvatarExists, defaultSelection, checkedModelSelection, cloudOwnerSession, wireBot, supportsApprovalMode,
   } = deps;
   return async ({ req, res, path, method, auth, json, readBody }) => {
     const routines = deps.routines();
@@ -161,6 +163,10 @@ export function createBotCreateRoutes(deps: BotCreateRouteDeps): RouteHandler {
         selection = checked.selection;
       }
       if (hostedModels && !hostedModels.allows(selection)) return json(res, 400, { error: hostedModels.error() });
+      // Lazurio overlay (DEV-6673): a level the bot's engine does not run (Auto-accept edits on Codex) is refused, as on a thread.
+      if (settings.approvalMode && !supportsApprovalMode(selection, settings.approvalMode)) {
+        return json(res, 400, { error: "This provider does not support the selected approval level" });
+      }
       // The capacity check sits beside the synchronous write, after every await.
       if (store.bots.length >= MAX_WORKSPACE_BOTS) {
         return json(res, 409, { error: `this workspace is limited to ${MAX_WORKSPACE_BOTS} bots` });

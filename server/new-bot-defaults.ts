@@ -31,6 +31,7 @@ export const botDefaultsProfileSchema = z.preprocess(withoutRemovedDefaults, pro
   mascotExpression: z.string().max(60).nullable().optional(),
   modelSelection: botDefaultModelSchema.optional(),
   cwd: z.string().max(4096).nullable().optional(),
+  approvalMode: z.enum(["ask", "edits", "auto", "full"]).optional(),
   alwaysAllow: strings(200, 500).optional(),
   chiefOfStaff: z.boolean().optional(),
   managedSections: strings(100, 60).optional(),

@@ -167,6 +167,10 @@ Lazurio's T3 Code runs `full-access`, on every server, a hosted company
 workspace included, and nothing turns it on, lowers it or asks first. A
 person may choose to supervise a bot or a conversation with the levels of
 T3 Code: Ask for approval (`approval-required`), Auto-accept edits
+(`auto-accept-edits`) and Approve for me (`auto`), on a bot, a thread, at
+creation or as the new-bot default; nothing chooses one for them. A level
+the bot's engine does not run (Auto-accept edits on Codex) is refused when
+the bot is created, as on a thread. Bots contact, delegate to and post in rooms without a person's
 approval. Real questions a bot needs answered, and missing sign-ins, still
 reach a person, and under a supervised level OpenMausBot's own proposals
 (profile, routine, team setup, skill) keep their review cards. Full access is
