@@ -298,9 +298,12 @@ A write that names a removed setting (`PUT /api/config` with `box`, `vps`,
 `localVm`, `composio`, `mcpServers`, `features.sharedComputers` or a removed
 new-bot default, `approvePeerComms` and the Custom level included) is refused
 with 400 as a whole, never half-applied; a saved `config.json` that still has
-one loads and drops it. So is a bot or thread write that names
-`acknowledgeLocalAuto`, `approvePeerComms` or the Custom level
-(`server/lazurio-removed-config.ts`).
+one loads and drops it. So is every bot and thread write (`POST`, `PUT` or
+`PATCH` under `/api/bots`) whose body names `acknowledgeLocalAuto`,
+`approvePeerComms`, `approvalGrant` or the Custom level, at its top or in its
+`settings`: the route table reads such a body through
+`refusingRemovedBotSettings` (`server/lazurio-removed-config.ts`), which
+answers 400 before any route changes anything.
 
 Each area has a manifest in [`lazurio/removals/`](lazurio/removals): the
 upstream files it deletes and changes (CI allows exactly those), the strings

@@ -97,7 +97,7 @@ describe("no gate before a level a person picks", () => {
   };
 
   beforeAll(async () => {
-    fixture = await launchVerificationServer({});
+    fixture = await launchVerificationServer({}, undefined, undefined, undefined, undefined, undefined, ["codex"]);
   }, 60_000);
 
   afterAll(async () => {
@@ -152,6 +152,32 @@ describe("no gate before a level a person picks", () => {
     expect(listed.approvalMode).toBe("full");
     expect((await call("GET", "/api/bots?messages=0")).body.bots.some((row: { name: string }) => row.name === "Confirmed" || row.name === "Custom")).toBe(false);
   });
+  it("refuses a removed field on every bot and thread write, before anything changes", async () => {
+    const bot = (await call("POST", "/api/bots", { name: "Unchanged" })).body.bot as { id: string };
+    const threadId = await firstThread(bot.id);
+    const state = async () => {
+      const bots = (await call("GET", "/api/bots?messages=0")).body.bots as Array<{ id: string; name: string; title?: string; tasks?: Array<{ threadId: string; title?: string }> }>;
+      const own = bots.find((row) => row.id === bot.id)!;
+      return { count: bots.length, title: own.title ?? "", threads: (own.tasks ?? []).map((task) => [task.threadId, task.title ?? ""]) };
+    };
+    const before = await state();
+    const removed = [{ acknowledgeLocalAuto: true }, { approvePeerComms: true }, { approvalGrant: {} }, { approvalMode: "custom" }];
+    for (const field of removed) {
+      for (const [method, path, body] of [
+        ["POST", "/api/bots", { name: "Created", ...field }],
+        ["POST", "/api/bots", { name: "Created", settings: field }],
+        ["PATCH", `/api/bots/${bot.id}`, { title: "Changed", ...field }],
+        ["POST", `/api/bots/${bot.id}/tasks`, { title: "Created", ...field }],
+        ["PATCH", `/api/bots/${bot.id}/tasks/${threadId}`, { title: "Changed", ...field }],
+      ] as const) {
+        const result = await call(method, path, body);
+        expect(result.status, `${method} ${path} ${JSON.stringify(body)}`).toBe(400);
+        expect(result.body.error, `${method} ${path}`).toMatch(/is not available in this distribution \(it was removed\)/);
+      }
+    }
+    expect(await state()).toEqual(before);
+  });
+
 });
 
 describe("bots contact each other without a person's approval", () => {
