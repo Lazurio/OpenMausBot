@@ -1,31 +1,24 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { closeSync, mkdtempSync, openSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { closeSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, expect, it } from "vitest";
 
 import { launchVerificationServer, runControlOmb, verificationServerEnvironment, type VerificationServer } from "../scripts/control-omb.ts";
 import { ROUTINE_SUPERSEDED } from "./routine-execution.ts";
-import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
+import { waitForExit } from "./testing/cleanup.ts";
 import { readHandoffs } from "./testing/handoff-rows.ts";
 
 let fixture: VerificationServer | undefined;
 let restarted: ChildProcess | undefined;
-let browserTools: string | undefined;
 afterEach(async () => {
   await waitForExit(restarted, { signal: "SIGTERM" });
   await fixture?.close();
-  if (browserTools) await removeTempDir(browserTools);
-  browserTools = undefined;
 });
 
 it("starts the next scheduled run of a routine whose sign-in nobody answered, and stops the old wait", async () => {
-  // A browser stand-in: the person signs in on the built-in browser, which a turn mounts only when one is there.
-  const tools = mkdtempSync(join(tmpdir(), "omb-unanswered-wait-browser-"));
-  writeFileSync(join(tools, "agent-browser"), `#!/bin/sh\nif [ "$1" = session ] && [ "$2" = list ]; then printf '{"success":true,"data":{"sessions":[]}}'; fi\nexit 0\n`, { mode: 0o755 });
-  browserTools = tools;
-  fixture = await launchVerificationServer(undefined, undefined, undefined, { binaryPath: join(tools, "agent-browser"), executablePath: join(tools, "chrome") });
+  // The person signs in on the Environment browser, which a stand-in Platform CLI declares.
+  fixture = await launchVerificationServer({ ...process.env, OMB_TEST_ENVIRONMENT_BROWSER: "1" });
   const { url, dataDir, logPath } = fixture.info;
   const raw = async (method: string, path: string, body?: unknown, token?: string) => {
     const response = await fetch(url + path, {
@@ -56,7 +49,6 @@ it("starts the next scheduled run of a routine whose sign-in nobody answered, an
     `await import(${JSON.stringify(pathToFileURL(join(process.cwd(), "server/testing/fake-claude-cli.ts")).href)});`,
   ].join("\n"), { mode: 0o700 });
   await api("PATCH", "/api/instances/claude", { cli: wrapper });
-  await api("PATCH", "/api/config", { features: { browser: true } });
   const { routine } = await api("POST", "/api/routines", {
     name: "Morning check", prompt: "Sign in to the site and check the dashboard.", botId: bot.id,
     schedule: { type: "cron", expression: "30 7 * * 1-5", timeZone: "Europe/London" },

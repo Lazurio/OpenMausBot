@@ -43,7 +43,7 @@ export interface ModelSelection {
   variant?: string;
 }
 
-/** A place a bot can act: this host's own screen (through the desktop app) or the built-in browser. */
+/** A place a bot can act: this host's own screen (through the desktop app) or the Environment browser. */
 export type Surface = "local" | "browser";
 
 export const MAUS_COLOR_NAMES = [
