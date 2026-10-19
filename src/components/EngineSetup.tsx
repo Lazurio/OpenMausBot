@@ -6,6 +6,7 @@ import { t } from "@/lib/i18n";
 import { copyText } from "@/lib/copy-text";
 import { DeviceSignIn } from "./DeviceSignIn";
 import { RefreshEngines } from "./EngineLibrary";
+import { LazurioEngineSignIn, useLazurioSignIn } from "./LazurioEngineSignIn";
 
 type Platform = "darwin" | "win32" | "linux";
 
@@ -481,6 +482,7 @@ export function EngineSetup({
   description?: string;
 }) {
   const { state } = useStore();
+  const lazurio = useLazurioSignIn(); // Lazurio overlay (DEV-6673)
   const cloudHome = state.config?.cloudHome === true;
   const install = instance.install;
   const installCommand = installCommandFor(install);
@@ -509,6 +511,11 @@ export function EngineSetup({
 
   if (apiKeySetup(instance)) {
     return <ApiKeyEngineSetup instance={instance} className={className} unframed={unframed} />;
+  }
+
+  // Lazurio overlay (DEV-6673): on a Lazurio Environment the engine signs in through the Environment settings.
+  if (lazurio && signInOnly) {
+    return <LazurioEngineSignIn signIn={lazurio} instance={instance} className={className} unframed={unframed} />;
   }
 
   if (intent === "cloud" && grokKeyInstead(instance, cloudHome)) {
