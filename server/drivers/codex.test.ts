@@ -205,7 +205,6 @@ describe("CodexDriver turns (fake app-server)", () => {
     expect(recorder.events.some((event) => event.type === "runtime.error" && /outside the selected configuration/.test(event.message))).toBe(true);
   });
 
-  it.each(["ask", "custom", "full"] as const)("preserves shell exclusions for scoped %s turns on new and resumed threads", async (approvalMode) => {
     const dump = join(scratch, "shell-policy.json"); process.env.FAKE_CODEX_DUMP = dump;
     const policy = { inherit: "all", ignore_default_excludes: true, exclude: ["USER_SECRET_*"],
       include_only: ["*"], set: { SAFE_FIXTURE_LABEL: "retained" } };
@@ -389,19 +388,6 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
     expect(notices[0]).toMatchObject({ threadId: "app-thread", message: expect.stringContaining("git status --short") });
     expect(notices[0]?.type === "runtime.error" && notices[0].message).toMatch(/Ask.*Auto|Auto.*Ask/);
     expect(recorder.events.find((event) => event.type === "turn.completed")).toMatchObject({ ok: true });
-  });
-
-  it("names Custom rather than Auto when Custom uses native automatic review", async () => {
-    process.env.FAKE_CODEX_REVIEW_EVENTS = JSON.stringify([{
-      method: "item/autoApprovalReview/completed",
-      params: { threadId: "codex-thread-1", turnId: "turn-1", reviewId: "custom-1", review: { status: "timedOut" } },
-    }]);
-    await create({ mode: "review-events", fullAuto: true });
-    await instance.adapter.sendTurn({ threadId: "app-thread", text: "check", approvalMode: "custom" });
-    await recorder.until((event) => event.type === "turn.completed");
-    const notices = recorder.events.filter((event) => event.type === "runtime.error" && event.message.includes("automatic review"));
-    expect(notices).toHaveLength(1);
-    expect(notices[0]).toMatchObject({ message: expect.stringContaining("Retry stays Custom") });
   });
 
   it.each([
@@ -798,121 +784,7 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
     },
   );
 
-  it("reasserts the effective config.toml settings for Custom", async () => {
-    await create({ mode: "resume", fullAuto: true });
-    const dump = join(scratch, "custom.json");
-    process.env.FAKE_CODEX_DUMP = dump;
-    mkdirSync(NATIVE_DIR, { recursive: true });
-
-    await instance.adapter.sendTurn({
-      threadId: "t-custom",
-      text: "continue",
-      approvalMode: "custom",
-      resumeCursor: "codex-thread-custom",
-    });
-    await recorder.until((event) => event.type === "turn.completed");
-
-    const calls = JSON.parse(readFileSync(dump, "utf8")).calls as Array<{
-      method: string;
-      params: Record<string, unknown>;
-    }>;
-    expect(calls.find((call) => call.method === "config/read")?.params).toMatchObject({
-      cwd: expect.any(String),
-      includeLayers: false,
-    });
-    expect(calls.find((call) => call.method === "thread/resume")?.params).toMatchObject({
-      threadId: "codex-thread-custom",
-      approvalPolicy: "never",
-      approvalsReviewer: "auto_review",
-      sandbox: "read-only",
-    });
-    expect(calls.find((call) => call.method === "turn/start")?.params).toMatchObject({
-      approvalPolicy: "never",
-      approvalsReviewer: "auto_review",
-      sandboxPolicy: { type: "readOnly" },
-    });
-    const nativeLog = readFileSync(join(NATIVE_DIR, "t-custom.ndjson"), "utf8");
-    expect(nativeLog).toContain("[effective config omitted]");
-    expect(nativeLog).not.toContain("innocuous-config-secret-7a9c");
-  });
-
-  it.each([
-    ["thread/start", undefined],
-    ["thread/resume", "codex-thread-profile"],
-  ] as const)("reasserts a named Custom permission profile through %s and turn/start", async (
-    threadMethod,
-    resumeCursor,
-  ) => {
-    await create({ mode: "config-profile" });
-    const threadId = `t-custom-profile-${threadMethod.replace("/", "-")}`;
-    const dump = join(scratch, `${threadId}.json`);
-    process.env.FAKE_CODEX_DUMP = dump;
-    mkdirSync(NATIVE_DIR, { recursive: true });
-
-    await instance.adapter.sendTurn({
-      threadId,
-      text: "continue with my profile",
-      approvalMode: "custom",
-      ...(resumeCursor ? { resumeCursor } : {}),
-    });
-    await recorder.until((event) => event.type === "turn.completed");
-
-    const calls = JSON.parse(readFileSync(dump, "utf8")).calls as Array<{
-      method: string;
-      params: Record<string, unknown>;
-    }>;
-    expect(calls.find((call) => call.method === "initialize")?.params).toMatchObject({
-      capabilities: { experimentalApi: true },
-    });
-    const threadParams = calls.find((call) => call.method === threadMethod)?.params;
-    expect(threadParams).toMatchObject({
-      permissions: "private-operator-profile",
-      approvalPolicy: "on-request",
-      approvalsReviewer: "user",
-    });
-    expect(threadParams).not.toHaveProperty("sandbox");
-    const turnParams = calls.find((call) => call.method === "turn/start")?.params;
-    expect(turnParams).toMatchObject({
-      permissions: "private-operator-profile",
-      approvalPolicy: "on-request",
-      approvalsReviewer: "user",
-    });
-    expect(turnParams).not.toHaveProperty("sandboxPolicy");
-  });
-
-  it("falls back to the safe legacy Custom settings when profiles are unsupported", async () => {
-    await create({ mode: "config-profile-unsupported" });
-    const dump = join(scratch, "custom-profile-fallback.json");
-    process.env.FAKE_CODEX_DUMP = dump;
-
-    await instance.adapter.sendTurn({
-      threadId: "t-custom-profile-fallback",
-      text: "continue safely",
-      approvalMode: "custom",
-      resumeCursor: "codex-thread-profile-fallback",
-    });
-    await recorder.until((event) => event.type === "turn.completed");
-
-    const calls = JSON.parse(readFileSync(dump, "utf8")).calls as Array<{
-      method: string;
-      params: Record<string, unknown>;
-    }>;
-    const resumes = calls.filter((call) => call.method === "thread/resume");
-    expect(resumes).toHaveLength(2);
-    expect(resumes[0]?.params).toMatchObject({ permissions: "private-operator-profile" });
-    expect(resumes[1]?.params).toMatchObject({
-      approvalPolicy: "on-request",
-      approvalsReviewer: "user",
-      sandbox: "read-only",
-    });
-    expect(calls.find((call) => call.method === "turn/start")?.params).toMatchObject({
-      approvalPolicy: "on-request",
-      approvalsReviewer: "user",
-      sandboxPolicy: { type: "readOnly" },
-    });
-  });
-
-  it.each(["ask", "auto", "full", "custom"] as const)("stops before replacing unknown native instructions in %s mode", async (approvalMode) => {
+  it.each(["ask", "auto", "full"] as const)("stops before replacing unknown native instructions in %s mode", async (approvalMode) => {
     await create({ mode: "config-read-error" });
     const dump = join(scratch, "custom-config-error.json");
     process.env.FAKE_CODEX_DUMP = dump;
@@ -1613,7 +1485,7 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
         text: `message-${index}`,
         system,
         ...(index > 0 ? { resumeCursor: cursor } : {}),
-        approvalMode: "custom",
+        approvalMode: "ask",
       });
       await recorder.until((event) => event.type === "turn.completed" && event.turnId === turnId);
       const calls = JSON.parse(readFileSync(dump, "utf8")).calls as Array<{
@@ -1632,7 +1504,7 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
     }
   });
 
-  it.each(["ask", "auto", "full", "custom"] as const)("preserves configured native rules and keeps them private in %s mode", async (approvalMode) => {
+  it.each(["ask", "auto", "full"] as const)("preserves configured native rules and keeps them private in %s mode", async (approvalMode) => {
     await create({ mode: "resume" });
     process.env.FAKE_CODEX_INSTRUCTIONS = "Private native rules.";
     const dump = join(scratch, "native-instructions.json");
@@ -2029,33 +1901,6 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
     expect(recorder.events.some((event) => event.type === "request.opened")).toBe(false);
     expect(JSON.parse(readFileSync(dump, "utf8")).decision).toEqual({
       permissions: { network: { enabled: true } },
-      scope: "turn",
-    });
-  });
-
-  it("does not turn Custom never + read-only into blanket permission grants", async () => {
-    await create({ mode: "permissions-approval" });
-    const dump = join(scratch, "custom-permissions-approval.json");
-    process.env.FAKE_CODEX_DUMP = dump;
-
-    await instance.adapter.sendTurn({
-      threadId: "t-custom-permissions",
-      text: "use the network",
-      approvalMode: "custom",
-    });
-    const opened = await recorder.until((event) => event.type === "request.opened");
-    expect(opened).toMatchObject({
-      requestType: "permission",
-      summary: 'Needs network access — Requested permissions: {"network":{"enabled":true}}',
-      requiresExplicitApproval: true,
-    });
-
-    await instance.adapter.respondToRequest("t-custom-permissions", opened.requestId!, {
-      behavior: "deny",
-    });
-    await recorder.until((event) => event.type === "turn.completed");
-    expect(JSON.parse(readFileSync(dump, "utf8")).decision).toEqual({
-      permissions: {},
       scope: "turn",
     });
   });

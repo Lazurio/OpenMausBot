@@ -43,7 +43,7 @@ const botFields = {
   soul: textOrFile.optional(),
   model: z.string().regex(/^[\w.-]+\/\S.*$/, "must be INSTANCE/MODEL, such as claude/claude-sonnet-5-5").optional(),
   effort: z.enum(["none", "low", "medium", "high", "xhigh", "max"]).optional(),
-  approval: z.enum(["ask", "edits", "auto", "full"], { error: "must be ask, edits, auto or full (custom is set in the desktop app)" }).optional(),
+  approval: z.enum(["ask", "edits", "auto", "full"], { error: "must be ask, edits, auto or full (custom was removed)" }).optional(),
   // Lazurio overlay (DEV-6673 M3): bots work on this host; an older file's computer is read and ignored with a warning.
   computer: z.unknown().optional(),
   cwd: z.string().min(1).optional(),

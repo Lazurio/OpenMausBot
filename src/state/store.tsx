@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { flushSync } from "react-dom";
+import type { BotVisibility, CardAnswerer, EffortLevel, InstalledPackageMetadata, LiveCallState, ServerFrame, GroupThreadUsage, SteerQueueReason, WireGroup, WireTask, OptionCardData as WireOptionCard } from "../../shared/wire";
 import { movesThreadToTop } from "../../shared/wire"; import type { DefaultBotFields } from "../../shared/default-bot";
 import { reorderStable } from "../../shared/bot-order";
 import { withOneChief } from "../../shared/bot-owner";
@@ -29,7 +30,6 @@ import type { ModelVariantOption, RuntimeEvent } from "../../shared/runtime-even
 import type { MausColor, MausMotion } from "@/lib/mascot";
 import type { BotAvatarCrop } from "../../shared/bot-avatar";
 import { approvalModeFor, type ApprovalMode } from "../../shared/approval-mode";
-import { desktopCapabilitiesNow } from "@/lib/desktop";
 import { sameModelSelection } from "../../shared/thread-model";
 import type { BotBodyId } from "../../shared/bot-body";
 import type { QuestionRequestCardData } from "../../shared/ask-question";
@@ -66,7 +66,7 @@ import { reconcileSnapshotQueues, rememberConsumedQueueId, replaceBotQueues } fr
 export type { MausColor } from "@/lib/mascot";
 export type { RoutineRunCardData } from "../../shared/routine-run";
 
-export interface OptionCardData extends Pick<WireOptionCard, "fixedOptions" | "webhookRequest" | "appTriggerRequest" | "yourComputer"> {
+export interface OptionCardData extends Pick<WireOptionCard, "fixedOptions" | "webhookRequest"> {
   title: string;
   subtitle: string;
   options: string[];
@@ -407,6 +407,7 @@ export type { BrowserEngineSummary, BrowserProfile, ConfigStatus, ManagedPolicyS
 // A section left out here is wiped from state.config whenever a config frame lands.
 export type ConfigStatusFrame = Pick<
   ConfigStatus,
+  "xai" | "mistral" | "cerebras" | "groq" | "meta" | "deepseek" | "anthropic" | "openai" | "openrouter" | "openaiCompat" | "fleet" | "rooms" | "mcp" | "threads" | "automaticRecovery" | "cacheKeepWarm" | "opencodeGo" | "tts" | "decider" | "helpers" | "imageGen" | "live" | "profile" | "language" | "features" | "onboarding" | "edition" | "budgets" | "billing" | "managedPolicy" | "cloudHome" | "team"
 >;
 
 export function configStatusFromFrame(frame: ConfigStatusFrame): ConfigStatus {
@@ -1690,7 +1691,7 @@ export function reducer(state: AppState, action: Action): AppState {
       let switched = updateBot(bumpTranscriptGeneration(state, action.bot.threadId), action.bot.id, (bot) => ({
         ...bot,
         ...action.bot,
-        toolScope: action.bot.toolScope, managedSections: action.bot.managedSections,
+        managedSections: action.bot.managedSections,
         messages: action.bot.messages ?? [],
         hasMore: action.bot.hasMore,
         awaitingThreadSnapshot: false,
@@ -1864,119 +1865,36 @@ export { api, ApiError };
 export const MESSAGE_PAGE_SIZE = 200;
 
 
-type TrustedApprovalBridge = {
-  setMode(
-    botId: string,
-    mode: ApprovalMode,
-    options?: { acknowledgeLocalAuto?: boolean; threadId?: string; threadOnly?: boolean; allThreads?: boolean; refreshPermissions?: boolean },
-  ): Promise<BotAnnouncement>;
-};
-
-export function desktopApprovalBridge(): TrustedApprovalBridge | undefined {
-  if (typeof window === "undefined" || !window.ogb?.approvals) return undefined;
-  return desktopCapabilitiesNow().host.packaged ? window.ogb.approvals : undefined;
-}
-
+// Lazurio overlay (DEV-6673): every approval level, Full included, is set over the HTTP API; the desktop's
+// private grant channel is removed with upstream's Custom level.
 export async function persistTaskApproval(
   botId: string, threadId: string, patch: TaskUpdatePatch,
-  bridge: TrustedApprovalBridge | undefined,
   request: (path: string, init?: RequestInit) => Promise<{ bot: BotAnnouncement }> = api,
 ): Promise<BotAnnouncement> {
   const { approvalMode, autoApprove, acknowledgeLocalAuto, ...ordinary } = patch;
-  const mode = approvalMode ?? (autoApprove === undefined ? undefined : autoApprove ? "auto" : "ask");
-  if (mode === "custom" && !bridge) throw new Error("This approval change requires the packaged desktop app");
-  if (mode && bridge) {
-    if (Object.keys(ordinary).length) await request(`/api/bots/${botId}/tasks/${threadId}`, { method: "PATCH", body: JSON.stringify(ordinary) });
-    return bridge.setMode(botId, mode, { threadId, threadOnly: true, acknowledgeLocalAuto: acknowledgeLocalAuto === true });
-  }
   const result = await request(`/api/bots/${botId}/tasks/${threadId}`, { method: "PATCH", body: JSON.stringify({ ...ordinary, approvalMode, autoApprove, acknowledgeLocalAuto }) });
   return result.bot;
 }
 
-/** Custom authority never goes over the bot-accessible HTTP API; entering grants it after ordinary fields, leaving revokes it first. */
 export async function persistBotUpdate(
   botId: string,
   patch: BotUpdatePatch,
   signal: AbortSignal,
   request: (path: string, init?: RequestInit) => Promise<{ bot: BotAnnouncement }> = api,
-  trustedApprovals: TrustedApprovalBridge | undefined = desktopApprovalBridge(),
-  currentBot?: BotAnnouncement,
 ): Promise<BotAnnouncement> {
-  const {
-    approvalMode,
-    applyToAllThreads,
-    ...ordinaryPatch
-  } = patch;
-  const leavesCustom = approvalMode !== undefined && approvalMode !== "custom" &&
-    (approvalModeFor(currentBot ?? {}) === "custom" ||
-      (applyToAllThreads === true && threadApprovalModes(currentBot ?? {}).includes("custom")));
-  const viaBridge = approvalMode === "custom" || leavesCustom ||
-    (approvalMode === "full" && trustedApprovals !== undefined);
-
-  if (!viaBridge) {
-    const result = await request(`/api/bots/${botId}`, {
-      method: "PATCH",
-      body: JSON.stringify(
-        approvalMode === undefined ? ordinaryPatch : {
-          ...ordinaryPatch,
-          approvalMode,
-          ...(applyToAllThreads ? { applyToAllThreads: true } : {}),
-        },
-      ),
-      signal,
-    });
-    return result.bot;
-  }
-
-  if (!trustedApprovals || approvalMode === undefined) {
-    throw new Error("This approval-level change requires the packaged desktop app");
-  }
-
-  const trustedOptions = {
-    acknowledgeLocalAuto: ordinaryPatch.acknowledgeLocalAuto === true,
-    ...(applyToAllThreads ? { allThreads: true } : {}),
-  };
-
-  const rejectCancelledTrustedGrant = async () => {
-    if (!signal.aborted) return;
-    // IPC cannot cancel a grant already at the embedded server: revoke an aborted Full/Custom grant before reporting cancellation.
-    if (approvalMode === "full" || approvalMode === "custom") {
-      try {
-        await trustedApprovals.setMode(botId, "ask", { acknowledgeLocalAuto: false, ...(applyToAllThreads ? { allThreads: true } : {}) });
-      } catch (error) {
-        throw new Error(
-          `The cancelled ${approvalMode === "full" ? "Full access" : "Custom approval"} grant could not be revoked: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      }
-    }
-    throw new DOMException("The bot update was cancelled", "AbortError");
-  };
-
-  if (leavesCustom) {
-    const modeBot = await trustedApprovals.setMode(botId, approvalMode, trustedOptions);
-    await rejectCancelledTrustedGrant();
-    if (Object.keys(ordinaryPatch).length === 0) return modeBot;
-    const result = await request(`/api/bots/${botId}`, {
-      method: "PATCH",
-      body: JSON.stringify(ordinaryPatch),
-      signal,
-    });
-    return result.bot;
-  }
-
-  if (Object.keys(ordinaryPatch).length > 0) {
-    await request(`/api/bots/${botId}`, {
-      method: "PATCH",
-      body: JSON.stringify(ordinaryPatch),
-      signal,
-    });
-  }
-  if (signal.aborted) throw new DOMException("The bot update was cancelled", "AbortError");
-  const modeBot = await trustedApprovals.setMode(botId, approvalMode, trustedOptions);
-  await rejectCancelledTrustedGrant();
-  return modeBot;
+  const { approvalMode, applyToAllThreads, ...ordinaryPatch } = patch;
+  const result = await request(`/api/bots/${botId}`, {
+    method: "PATCH",
+    body: JSON.stringify(
+      approvalMode === undefined ? ordinaryPatch : {
+        ...ordinaryPatch,
+        approvalMode,
+        ...(applyToAllThreads ? { applyToAllThreads: true } : {}),
+      },
+    ),
+    signal,
+  });
+  return result.bot;
 }
 
 /** Non-optimistic: local state changes only after the server removed the bot and any computer only it owned. */
@@ -2071,8 +1989,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const botPatchQueue = useMemo(
     () =>
       createBotPatchQueue({
-        send: (botId, patch, signal, currentBot) =>
-          persistBotUpdate(botId, patch, signal, api, desktopApprovalBridge(), currentBot),
+        send: (botId, patch, signal) => persistBotUpdate(botId, patch, signal, api),
         reconcile: async (botId, signal) => {
           const result: { bots: BotAnnouncement[] } = await api(`/api/bots?messages=${MESSAGE_PAGE_SIZE}`, { signal });
           return result.bots.find((candidate) => candidate.id === botId) ?? null;
@@ -2151,14 +2068,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const defaults = patch.updateBotDefault || patch.approvalMode !== undefined
         ? [...taskWrites.values()].filter((write) => write.botId === botId) : [];
       const promise = Promise.all([previous?.promise, ...defaults.map((write) => write.promise)].map((save) => save?.catch(() => {})))
-        .then(async () => {
-          if (patch.resetApprovalToAsk && window.ogb?.approvals) {
-            return window.ogb.approvals.setMode(botId, "ask", {
-              threadId, modelSelection: patch.modelSelection, updateBotDefault: Boolean(patch.updateBotDefault),
-            });
-          }
-          return persistTaskApproval(botId, threadId, patch, desktopApprovalBridge());
-        });
+        .then(() => persistTaskApproval(botId, threadId, patch));
       const execution = Promise.all([previous?.execution, promise]);
       void execution.catch(() => {});
       const pending = { botId, updatesDefault: Boolean(patch.updateBotDefault || previous?.updatesDefault), patch: { ...previous?.patch, ...patch }, promise, execution };
@@ -2713,21 +2623,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             showError(new Error("That thread is no longer available"));
             break;
           }
-          const mode = approvalModeFor(bot);
-          const current = approvalModeFor(currentTaskBot(bot, action.threadId));
           const acknowledgeLocalAuto = action.acknowledgeLocalAuto === true;
-          const bridge = desktopApprovalBridge();
-          const viaBridge = mode === "custom" || current === "custom" || (mode === "full" && bridge !== undefined);
-          const refreshed = viaBridge
-            ? bridge
-              ? bridge.setMode(action.botId, mode, {
-                threadId: action.threadId, threadOnly: true, refreshPermissions: true, acknowledgeLocalAuto,
-              })
-              : Promise.reject(new Error("This approval change requires the packaged desktop app"))
-            : api<{ bot: BotAnnouncement }>(`/api/bots/${action.botId}/tasks/${action.threadId}`, {
-              method: "PATCH",
-              body: JSON.stringify({ refreshPermissions: true, ...(acknowledgeLocalAuto ? { acknowledgeLocalAuto: true } : {}) }),
-            }).then((result) => result.bot);
+          const refreshed = api<{ bot: BotAnnouncement }>(`/api/bots/${action.botId}/tasks/${action.threadId}`, {
+            method: "PATCH",
+          }).then((result) => result.bot);
           void refreshed.then((updated) => {
             if (updated) rawDispatch({ type: "botPatched", bot: withTaskWrites(updated) });
           }).catch(showError);

@@ -69,8 +69,6 @@ describe("buildBotOverview", () => {
   it("uses the effective approval level rather than the legacy Auto bit", () => {
     const bot = { ...baseFacts().bot, approvalMode: "full" as const, autoApprove: false };
     expect(buildBotOverview(baseFacts({ bot })).wont).not.toContain(WONT_ORDER[0]);
-    expect(buildBotOverview(baseFacts({ bot: { ...bot, approvalMode: "custom" } })).wont)
-      .toContain("Command approvals follow the provider's custom configuration.");
   });
 
   it("does not promise duplicate profile or peer approvals in Full Access", () => {
@@ -78,7 +76,7 @@ describe("buildBotOverview", () => {
     const full = buildBotOverview(baseFacts({ bot })).wont;
     expect(full).not.toContain("Asks before contacting other bots.");
     expect(full).not.toContain("Profile proposal cards require your approval.");
-    for (const approvalMode of ["ask", "custom"] as const) {
+    for (const approvalMode of ["ask", "edits"] as const) {
       const reviewed = buildBotOverview(baseFacts({ bot: { ...bot, approvalMode, autoApprove: true } })).wont;
       expect(reviewed).toContain("Asks before contacting other bots.");
       expect(reviewed).toContain("Profile proposal cards require your approval.");

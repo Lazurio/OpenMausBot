@@ -34,7 +34,7 @@ describe("command allowlist menu access", () => {
     render(select, manage).nodes.find((node) => node.props["aria-haspopup"] === "menu")!.props.onClick!();
     const open = render(select, manage);
     expect(open.html.indexOf("Full access")).toBeLessThan(open.html.indexOf("Command allowlist"));
-    expect(open.html.indexOf("Command allowlist")).toBeLessThan(open.html.indexOf("Custom (config.toml)"));
+    expect(open.html).not.toContain("Custom (config.toml)");
     open.nodes.find((node) => node.props.role === "menuitem")!.props.onClick!();
     expect(manage).toHaveBeenCalledOnce();
     expect(select).not.toHaveBeenCalled();
@@ -51,21 +51,21 @@ describe("command allowlist menu access", () => {
     expect(manage).not.toHaveBeenCalled();
   });
 
-  it("offers Full access without the desktop bridge and sends only Custom to the desktop app", () => {
+  // Lazurio overlay (DEV-6673): no Custom level and no desktop-only notice.
+  it("offers Full access from any client, and no Custom level", () => {
     const select = vi.fn();
     fixture.open = true;
-    const open = render(select, undefined, false);
+    const open = render(select, undefined);
     expect(open.html).not.toContain("Custom (config.toml)");
-    expect(open.html).toContain("Custom approval must be changed in the local packaged desktop app.");
-    expect(open.html).not.toContain("Full and Custom are available in the packaged desktop app.");
+    expect(open.html).not.toContain("packaged desktop app");
     open.nodes.filter((node) => node.props.role === "menuitemradio")
       .find((node) => renderToStaticMarkup(node).includes("Full access"))!.props.onClick!();
     expect(select).toHaveBeenCalledExactlyOnceWith("full");
   });
 
-  it("offers the action without trusted modes, and omits it when the caller lacks management authority", () => {
+  it("offers the action, and omits it when the caller lacks management authority", () => {
     fixture.open = true;
-    expect(render(vi.fn(), vi.fn(), false).html).toContain("Command allowlist");
+    expect(render(vi.fn(), vi.fn()).html).toContain("Command allowlist");
     expect(render(vi.fn()).html).not.toContain("Command allowlist");
   });
 

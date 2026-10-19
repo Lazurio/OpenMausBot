@@ -25,15 +25,7 @@ export async function deliverFullAccessApproval(
   }
 }
 
-/** Full access is the person's grant to this receiving bot: never inherited from a sender (delegatedApprovalMode aside), and
- * peer-started Custom turns run as Auto. */
-export function approvalModeForOrigin(mode: ApprovalMode, origin: { peerInitiated: boolean }): ApprovalMode {
-  if (mode === "custom" && origin.peerInitiated) return "auto";
-  return mode;
-}
-
-/** Custom is a provider config of its own and is never compared. */
-const LEVEL_RANK: Partial<Record<ApprovalMode, number>> = { ask: 0, edits: 1, auto: 2, full: 3 };
+const LEVEL_RANK: Record<ApprovalMode, number> = { ask: 0, edits: 1, auto: 2, full: 3 };
 
 /** A Chief of Staff's level flows down: only a Chief's, only from the conversation it delegates from, only upward, and capped
  * at what the teammate's engine implements. A bot never raises itself this way; null keeps the teammate's own. */
@@ -45,12 +37,10 @@ export function delegatedApprovalMode(input: {
   recipientDriverKind: string | undefined;
 }): ApprovalMode | null {
   if (!input.senderIsChief || input.sameBot) return null;
-  // A Chief's Custom reads as Approve for me for a teammate, like any peer-started Custom turn.
-  const sender = LEVEL_RANK[approvalModeForOrigin(input.senderMode, { peerInitiated: true })] ?? 0;
+  const sender = LEVEL_RANK[input.senderMode];
   const own = LEVEL_RANK[input.recipientMode];
-  if (own === undefined) return null;
   for (const mode of ["full", "auto", "edits"] as const) {
-    const rank = LEVEL_RANK[mode]!;
+    const rank = LEVEL_RANK[mode];
     if (rank > sender) continue;
     if (rank <= own) return null;
     if (supportsApprovalMode(input.recipientDriverKind, mode)) return mode;
@@ -112,7 +102,7 @@ export function autoVerdict(
   if (mode === "auto" && WEB_SEARCH.has(bareToolName(tool))) {
     return { approve: `approved ${tool} (web search)`, source: "web-search" };
   }
-  if (mode === "auto" || mode === "custom") return { approve: null, source: "native-approval" };
+  if (mode === "auto") return { approve: null, source: "native-approval" };
   return { approve: null, source: "no-grant" };
 }
 

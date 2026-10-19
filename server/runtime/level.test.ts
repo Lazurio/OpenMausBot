@@ -29,14 +29,6 @@ describe("assignmentLevel", () => {
     expect(level({ origin: "outside", own: "auto" })).toEqual({ level: "auto", source: "own" });
   });
 
-  it("never lets custom travel", () => {
-    expect(level({ own: "custom", chief: "full", driverKind: "codex" })).toEqual({ level: "custom", source: "own" });
-    expect(level({ own: "custom", chief: "ask", driverKind: "codex" })).toEqual({ level: "custom", source: "own" });
-    expect(level({ own: "custom", chief: undefined, driverKind: "codex" })).toEqual({ level: "custom", source: "own" });
-    expect(level({ own: "ask", chief: "custom", driverKind: "codex" })).toEqual({ level: "ask", source: "own" });
-    expect(level({ own: "auto", chief: "custom", driverKind: "codex" })).toEqual({ level: "auto", source: "own" });
-  });
-
   describe("engine cap", () => {
     it("steps an inherited level down to the highest one the engine runs", () => {
       expect(level({ chief: "full", driverKind: "claudeAgent" })).toEqual({ level: "full", source: "chief" });
@@ -67,7 +59,7 @@ describe("assignmentLevel", () => {
     it("agrees with the capability flags for every engine that has a row", () => {
       const expected = (inherited: Level, driverKind: string): { level: Level; source: LevelSource } => {
         const caps = engineCapabilities(driverKind);
-        const runs: Record<Level, boolean> = { ask: true, edits: caps.edits, auto: caps.nativeReviewer, full: caps.full, custom: false };
+        const runs: Record<Level, boolean> = { ask: true, edits: caps.edits, auto: caps.nativeReviewer, full: caps.full };
         const from = TRAVELS.indexOf(inherited);
         for (let i = from; i >= 0; i--) {
           const candidate = TRAVELS[i]!;

@@ -48,7 +48,6 @@ import { parseProtocolAskQuestions, questionChoices } from "../../shared/ask-que
 import { codexQuestionReply, openAsyncQuestion, type CodexAsk } from "./codex-questions.ts";
 import { codexReleaseUpdate, codexUpdateCommand } from "./codex-update.ts";
 export { codexUpdateCommand };
-import { effectiveApprovalPolicy, effectiveApprovalsReviewer } from "./codex-approval-config.ts";
 import { mcpStdioServer } from "../mcp-gate-config.ts";
 
 export { decodeCodexSelection, readCodexModelCatalog, STATIC_CODEX_MODELS } from "./codex-catalog.ts";
@@ -126,8 +125,6 @@ const DENY_TIMEOUT_NOTE =
 interface CodexApprovalParams {
   thread: Record<string, unknown>;
   turn: Record<string, unknown>;
-  /** Legacy settings for an older app-server that rejects the named-profile field. */
-  fallback?: Omit<CodexApprovalParams, "fallback">;
 }
 
 /** RequestPermissionProfile uses null for permission families that were not
@@ -256,7 +253,7 @@ function extendShellExclusions(policy: Record<string, unknown>, patterns: readon
 
 /** Codex persists these on its native thread, so they are explicit on start, resume and every turn.
  * Codex has no narrower "edits only" sandbox, so a stray Edits value asks. */
-function namedApprovalParams(mode: Exclude<ApprovalMode, "custom">): CodexApprovalParams {
+function namedApprovalParams(mode: ApprovalMode): CodexApprovalParams {
   if (mode === "full") {
     return {
       thread: {
@@ -296,68 +293,6 @@ function withResolvedSandbox(params: CodexApprovalParams, session: unknown): Cod
     throw new Error("Codex did not apply the requested sandbox mode; cannot safely start the turn.");
   }
   return { ...params, turn: { ...params.turn, sandboxPolicy: sandbox } };
-}
-
-function legacyCustomApprovalParams(config: Record<string, unknown>): CodexApprovalParams {
-  const approvalPolicy = effectiveApprovalPolicy(config.approval_policy);
-  const approvalsReviewer = effectiveApprovalsReviewer(config.approvals_reviewer);
-  const sandbox = config.sandbox_mode === "workspace-write" ||
-    config.sandbox_mode === "danger-full-access" ||
-    config.sandbox_mode === "read-only"
-    ? config.sandbox_mode
-    : "read-only";
-  let sandboxPolicy: Record<string, unknown>;
-  if (sandbox === "danger-full-access") sandboxPolicy = { type: "dangerFullAccess" };
-  else if (sandbox === "read-only") sandboxPolicy = { type: "readOnly" };
-  else {
-    const workspace = config.sandbox_workspace_write && typeof config.sandbox_workspace_write === "object"
-      ? config.sandbox_workspace_write as Record<string, unknown>
-      : {};
-    sandboxPolicy = {
-      type: "workspaceWrite",
-      ...(Array.isArray(workspace.writable_roots) ? { writableRoots: workspace.writable_roots } : {}),
-      ...(typeof workspace.network_access === "boolean" ? { networkAccess: workspace.network_access } : {}),
-      ...(typeof workspace.exclude_slash_tmp === "boolean" ? { excludeSlashTmp: workspace.exclude_slash_tmp } : {}),
-      ...(typeof workspace.exclude_tmpdir_env_var === "boolean"
-        ? { excludeTmpdirEnvVar: workspace.exclude_tmpdir_env_var }
-        : {}),
-    };
-  }
-  return {
-    thread: { approvalPolicy, approvalsReviewer, sandbox },
-    turn: { approvalPolicy, approvalsReviewer, sandboxPolicy },
-  };
-}
-
-function configuredPermissionProfile(config: Record<string, unknown>): string | null {
-  if (typeof config.default_permissions !== "string") return null;
-  const profile = config.default_permissions.trim();
-  if (!profile || profile.length > 240 || containsControlCharacter(profile)) return null;
-  return profile;
-}
-
-function customApprovalParams(raw: unknown): CodexApprovalParams {
-  const config = raw && typeof raw === "object" && !Array.isArray(raw)
-    ? raw as Record<string, unknown>
-    : {};
-  const fallback = legacyCustomApprovalParams(config);
-  const permissions = configuredPermissionProfile(config);
-  const approvalPolicy = effectiveApprovalPolicy(config.approval_policy);
-  const approvalsReviewer = effectiveApprovalsReviewer(config.approvals_reviewer);
-  // Codex 0.151 profiles define the sandbox but not the approval policy: reassert both approval
-  // fields so a resumed Full thread cannot keep `never`.
-  return permissions
-    ? {
-        thread: { permissions, approvalPolicy, approvalsReviewer },
-        turn: { permissions, approvalPolicy, approvalsReviewer },
-        fallback,
-      }
-    : fallback;
-}
-
-function permissionProfileUnsupported(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /(?:experimental api|invalid params|unknown field|unknown.*permissions|permissions.*(?:unsupported|sandbox)|cannot.*permissions)/i.test(message);
 }
 
 /** Native instructions and image bytes stay out of diagnostics; the provider still gets the unmodified request. */
@@ -1373,13 +1308,8 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
           effectiveConfig,
           stableInstructions ?? turn.system ?? "",
         );
-        let approvalParams: CodexApprovalParams;
-        if (approvalMode === "custom") {
-          // Omitting these on a resumed thread would keep the previous named mode.
-          approvalParams = customApprovalParams(effectiveConfig);
-        } else {
-          approvalParams = namedApprovalParams(approvalMode);
-        }
+        // Lazurio overlay (DEV-6673): Custom (Codex's own config.toml) is removed; every level is a named one.
+        let approvalParams = namedApprovalParams(approvalMode);
         // Codex's `never` means "do not ask to escalate", not "grant every requested permission":
         // only Full may synthesize approvals.
         autoAcceptPermissions = approvalMode === "full";
@@ -1403,14 +1333,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
           const resumeUnarchived = () => resumeThread().catch((error) => !archivedNativeCodexThread(error, cursor) ? Promise.reject(error)
             : request("thread/unarchive", { threadId: cursor }).then(resumeThread, () => Promise.reject(error)));
           try {
-            let resumed;
-            try {
-              resumed = await resumeUnarchived();
-            } catch (error) {
-              if (!approvalParams.fallback || !permissionProfileUnsupported(error)) throw error;
-              approvalParams = approvalParams.fallback;
-              resumed = await resumeUnarchived();
-            }
+            const resumed = await resumeUnarchived();
             approvalParams = withResolvedSandbox(approvalParams, resumed);
             codexThreadId = resumed?.thread?.id ?? cursor;
             rolloutAt = rolloutMark(resumed?.thread?.path);
@@ -1442,14 +1365,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
               ...(turn.guestConfined ? { environments: [] } : {}),
               ephemeral: false,
             });
-          let started;
-          try {
-            started = await startThread();
-          } catch (error) {
-            if (!approvalParams.fallback || !permissionProfileUnsupported(error)) throw error;
-            approvalParams = approvalParams.fallback;
-            started = await startThread();
-          }
+          const started = await startThread();
           approvalParams = withResolvedSandbox(approvalParams, started);
           codexThreadId = started?.thread?.id ?? null;
           rolloutAt = rolloutMark(started?.thread?.path);
@@ -1492,13 +1408,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
             ...(turn.effort ? { effort: turn.effort } : {}),
           });
         };
-        try {
-          await startTurn();
-        } catch (error) {
-          if (!approvalParams.fallback || !permissionProfileUnsupported(error)) throw error;
-          approvalParams = approvalParams.fallback;
-          await startTurn();
-        }
+        await startTurn();
         // Only after turn/start accepted the input may the receipt claim delivery.
         if (commitVolatile) commitVolatile();
         releaseSlot();

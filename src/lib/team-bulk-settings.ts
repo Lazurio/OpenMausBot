@@ -5,7 +5,7 @@ import type { BotUpdatePatch } from "@/state/bot-patch-queue";
 import { approvalModeFor, supportsApprovalMode, type ApprovalMode } from "../../shared/approval-mode";
 import type { EffortLevel, ModelSelection } from "../../shared/wire";
 
-/** Custom is per bot: it can only be granted through the desktop's confirmation for that one bot. */
+/** Every level a team change can set on each of its bots. */
 export const TEAM_APPROVAL_MODES = ["ask", "edits", "auto", "full"] as const satisfies readonly ApprovalMode[];
 export type TeamApprovalMode = (typeof TEAM_APPROVAL_MODES)[number];
 

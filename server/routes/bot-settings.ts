@@ -1,4 +1,3 @@
-import { approvalModeFor, type ApprovalMode } from "../../shared/approval-mode.ts";
 import { botAvatarUrlFromStoredPath } from "../../shared/bot-avatar.ts";
 import type { CommandAllowlistResponse } from "../../shared/command-allowlist.ts";
 import type { WireBot } from "../../shared/wire.ts";
@@ -8,7 +7,6 @@ import { parseBotProfilePatch } from "../bot-profile.ts";
 import { commandAllowlistCandidate, type CommandAllowlistStore } from "../command-allowlist.ts";
 import type { AppConfig } from "../config.ts";
 import type { ModelSelection } from "../contracts.ts";
-import type { createApprovalModeSupport } from "../harness-capabilities.ts";
 import type { ProviderRegistry } from "../harness/registry.ts";
 import type { hostedModelPolicy } from "../hosted-models.ts";
 import { profileSnapshot } from "../profile-revision.ts";
@@ -30,7 +28,6 @@ export interface BotSettingsRouteDeps {
   cloudHome: boolean;
   cloudOwnerProfileFields: readonly ("name" | "title" | "description" | "soul" | "notifications")[];
   hostedModels: ReturnType<typeof hostedModelPolicy>;
-  supportsApprovalMode: ReturnType<typeof createApprovalModeSupport>;
   directTurnBots: { get(threadId: string): BotRecord | undefined };
   broadcast(payload: Record<string, unknown>): void;
   wireBot(bot: BotRecord): WireBot;
@@ -40,7 +37,6 @@ export interface BotSettingsRouteDeps {
   threadBusy(botId: string, threadId: string): boolean;
   activeGroupTurnForBot(botId: string): { group: GroupRecord; threadId: string } | null;
   checkedModelSelection(raw: unknown, current?: { selection: ModelSelection; busy: boolean }, requireAvailableModel?: boolean): ModelSelectionCheck;
-  engineSwitchNeedsAsk(mode: ApprovalMode, from: ModelSelection, to: ModelSelection): boolean;
   readCursor(threadId: string): { lastReadMessageId?: string };
   canManageCommandAllowlist(auth: RequestAuth): boolean;
   commandAllowlistResponse(bot: BotRecord): CommandAllowlistResponse;
@@ -53,8 +49,8 @@ export function createBotSettingsRoutes(deps: BotSettingsRouteDeps): RouteHandle
   const {
     store, cfg, registry, commandAllowlist,
     commandAllowlistDrivers: COMMAND_ALLOWLIST_DRIVERS, cloudHome: CLOUD_HOME, cloudOwnerProfileFields: CLOUD_OWNER_PROFILE_FIELDS,
-    hostedModels, supportsApprovalMode, directTurnBots, broadcast, wireBot, cloudOwnerSession, storedAvatarExists,
-    requestedTaskBot, threadBusy, activeGroupTurnForBot, checkedModelSelection, engineSwitchNeedsAsk, readCursor,
+    hostedModels, directTurnBots, broadcast, wireBot, cloudOwnerSession, storedAvatarExists,
+    requestedTaskBot, threadBusy, activeGroupTurnForBot, checkedModelSelection, readCursor,
     canManageCommandAllowlist, commandAllowlistResponse, cardAnswerRefusal,
   } = deps;
   const pinnedClientThread = pinnedClientThreadGuard(store);
@@ -128,9 +124,6 @@ export function createBotSettingsRoutes(deps: BotSettingsRouteDeps): RouteHandle
       if (!existing) return json(res, 404, { error: "no such bot" });
       requirePinnedClientThread(existing.id, undefined);
       const selected = requestedTaskBot(existing.id, undefined);
-      if (existing.approvalGrant) {
-        return json(res, 409, { error: "wait for the approval-level change to finish before changing models" });
-      }
       const checked = checkedModelSelection(
         body,
         { selection: selected.modelSelection, busy: threadBusy(selected.id, selected.threadId) },
@@ -140,15 +133,6 @@ export function createBotSettingsRoutes(deps: BotSettingsRouteDeps): RouteHandle
       if (activeGroupTurnForBot(existing.id)) {
         const groupChecked = checkedModelSelection(checked.selection, { selection: existing.modelSelection, busy: true });
         if (!groupChecked.ok) return json(res, groupChecked.status, { error: groupChecked.error });
-      }
-      if ([existing, selected].some((owner) => {
-        const mode = approvalModeFor(owner);
-        return mode === "custom" &&
-          (!supportsApprovalMode(checked.selection, mode) || engineSwitchNeedsAsk(mode, owner.modelSelection, checked.selection));
-      })) {
-        return json(res, 400, {
-          error: "Changing providers with elevated permissions requires choosing Ask first",
-        });
       }
       const bot = store.patchBot(existing.id, { modelSelection: checked.selection });
       if (!bot) return json(res, 404, { error: "no such bot" });

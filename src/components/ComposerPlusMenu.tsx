@@ -4,7 +4,6 @@ import { approvalModeFor } from "../../shared/approval-mode";
 import {
   approvalModeOptions,
   approvalModeOptionsFor,
-  approvalModeSelectionRequiresLocalDesktop,
   shownApprovalMode,
   simpleApprovalName,
 } from "@/lib/approval-mode-options";
@@ -69,7 +68,6 @@ const check = <Check size={15} className="shrink-0 text-accent" aria-hidden="tru
 /** The thread's approval level, the same choices the Advanced composer's shield offers: the level shown and its menu.
  * Simple mode names the levels as the bot panel does. */
 function approvalMenu(choice: ApprovalChoice, simple: boolean) {
-  const trusted = choice.trustedModesAvailable ?? true;
   const mode = shownApprovalMode(choice.driverKind, approvalModeFor({ approvalMode: choice.approvalMode, autoApprove: choice.autoApprove }));
   const all = approvalModeOptions();
   const shown = approvalModeOptionsFor(choice.driverKind).find((option) => option.mode === mode)
@@ -77,12 +75,11 @@ function approvalMenu(choice: ApprovalChoice, simple: boolean) {
     ?? all[0];
   const name = (option: typeof shown) => simple ? simpleApprovalName(option.mode, choice.driverKind) : option.label;
   const current = simple ? { ...shown, label: name(shown), chip: name(shown) } : shown;
-  const localOnly = approvalModeSelectionRequiresLocalDesktop(mode, trusted);
   return {
     current,
-    note: localOnly ? t("approvalMode.customLocalOnlyDot") : choice.busy ? t("approvalMode.whileWorking") : undefined,
+    note: choice.busy ? t("approvalMode.whileWorking") : undefined,
     items: [
-      ...approvalModeOptionsFor(choice.driverKind, trusted).map((option): SidebarMenuItem => {
+      ...approvalModeOptionsFor(choice.driverKind).map((option): SidebarMenuItem => {
         const Icon = option.Icon;
         return {
           key: `approval:${option.mode}`,

@@ -45,7 +45,7 @@ export function teamSetupRevision(bot: BotRecord, fields?: TeamSetupFields): str
       ...profileSnapshot(bot), section: section(bot.section), modelSelection: bot.modelSelection,
       hidden: Boolean(bot.hidden), chiefOfStaff: Boolean(bot.chiefOfStaff), peers: bot.peers,
       managedSections: bot.managedSections,
-      approvalMode: bot.approvalMode, autoApprove: bot.autoApprove, approvalGrant: bot.approvalGrant,
+      approvalMode: bot.approvalMode, autoApprove: bot.autoApprove,
       receipt: bot.lastTeamSetupReceipt?.requestId,
     })).digest("hex");
   }

@@ -11,7 +11,7 @@ const NAME_MAX = 80;
 const DETAIL_MAX = 200;
 const FILES_SHOWN = 8;
 
-const LEVEL_LABEL: Record<Level, string> = { ask: "Ask", edits: "Edits", auto: "Auto", full: "Full access", custom: "Custom" };
+const LEVEL_LABEL: Record<Level, string> = { ask: "Ask", edits: "Edits", auto: "Auto", full: "Full access" };
 
 const OUTSIDE_SOURCE: Record<OriginSource, string> = {
   chat: "a chat line nothing proves the user wrote",

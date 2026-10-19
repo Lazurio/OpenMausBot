@@ -173,9 +173,6 @@ function resendable(waiting: Pending, bot: Bot | undefined): Message | undefined
 async function saveSwitch(action: SetModel): Promise<unknown> {
   const threadId = action.threadId!;
   const { selection: modelSelection, updateBotDefault, resetApprovalToAsk } = action;
-  if (resetApprovalToAsk && window.ogb?.approvals) {
-    return window.ogb.approvals.setMode(action.botId, "ask", { threadId, modelSelection, updateBotDefault: Boolean(updateBotDefault) });
-  }
   const body = { modelSelection, ...(updateBotDefault ? { updateBotDefault: true } : {}), ...(resetApprovalToAsk ? { resetApprovalToAsk: true } : {}) };
   const result = await api(`/api/bots/${action.botId}/tasks/${threadId}`, { method: "PATCH", body: JSON.stringify(body) }) as { bot?: unknown } | null;
   return result?.bot;

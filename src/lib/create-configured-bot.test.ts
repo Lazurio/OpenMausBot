@@ -6,7 +6,7 @@ import { createConfiguredBot } from "./create-configured-bot";
 afterEach(() => vi.unstubAllGlobals());
 
 describe("configured bot creation", () => {
-  function fixture(mode: "ask" | "auto" | "full" | "custom", fail = 0, selection?: Bot["modelSelection"]) {
+  function fixture(mode: "ask" | "auto" | "full", fail = 0, selection?: Bot["modelSelection"]) {
     const draft = new BotCreationDraft(EMPTY_BOT_DEFAULTS, vi.fn());
     draft.patch({ name: "Fixture", approvalMode: mode, notifications: false });
     let bot = { ...draft.bot, id: "created", threadId: "initial", approvalMode: "ask" } as Bot;
@@ -20,19 +20,18 @@ describe("configured bot creation", () => {
       if (init?.method === "PATCH") bot = { ...bot, ...body };
       return { bot };
     }) as unknown as typeof api;
-    let grants = 0;
-    const approvals = { setMode: vi.fn(async (_id: string, grant: string, options?: { threadId?: string }) => {
-      events.push(`grant ${options?.threadId ?? "bot"}`);
-      if (++grants === fail) throw new Error("Grant rejected");
-      bot = { ...bot, approvalMode: grant } as Bot;
-      return bot;
-    }) };
-    return { draft, events, bodies, request, approvals };
+    // The nth PATCH fails, as a refused level would.
+    let patches = 0;
+    const failing = vi.fn(async (path: string, init?: RequestInit) => {
+      if (init?.method === "PATCH" && ++patches === fail) throw new Error("Level refused");
+      return request(path, init);
+    }) as unknown as typeof api;
+    return { draft, events, bodies, request: fail ? failing : request };
   }
 
   it("sets the chosen audience in the first creation request", async () => {
     const f = fixture("ask");
-    await createConfiguredBot(f.draft, f.request, persistBotUpdate, f.approvals, "admins");
+    await createConfiguredBot(f.draft, f.request, persistBotUpdate, "admins");
     expect(f.events[0]).toBe("POST /api/bots");
     expect(f.bodies[0]).toMatchObject({ visibility: "admins", useDefaults: false });
   });
@@ -49,7 +48,6 @@ describe("configured bot creation", () => {
   it("applies tool restrictions atomically before a new bot is published", async () => {
     const f = fixture("ask");
     f.draft.patch({ toolScope: { allow: [], deny: ["mcp:mail:send"] } });
-    await createConfiguredBot(f.draft, f.request, persistBotUpdate, f.approvals);
     expect(f.bodies[0]).toMatchObject({ settings: { toolScope: { allow: [], deny: ["mcp:mail:send"] } } });
     expect(f.bodies[1]).not.toHaveProperty("toolScope");
   });
@@ -58,7 +56,7 @@ describe("configured bot creation", () => {
     const selection = { instanceId: "claude", model: "sonnet", effort: "high" as const };
     const f = fixture("ask", 0, selection);
     f.draft.setModel({ instanceId: selection.instanceId, model: selection.model });
-    const result = await createConfiguredBot(f.draft, f.request, persistBotUpdate, f.approvals);
+    const result = await createConfiguredBot(f.draft, f.request, persistBotUpdate);
     expect(f.bodies[0]).toMatchObject({ modelSelection: { instanceId: "claude", model: "sonnet" }, requireAvailableModel: true });
     expect(f.bodies[1]).not.toHaveProperty("modelSelection");
     expect(result.bot.modelSelection).toEqual(selection);
@@ -73,23 +71,21 @@ describe("configured bot creation", () => {
     expect(f.events).not.toContain("DELETE /api/bots/created");
   });
 
-  for (const mode of ["ask", "auto", "full", "custom"] as const) {
+  // Lazurio overlay (DEV-6673): every level goes over the API; the desktop grant and Custom are removed.
+  for (const mode of ["ask", "auto", "full"] as const) {
     it(`commits ${mode} settings without reapplying the template`, async () => {
       const f = fixture(mode);
-      const result = await createConfiguredBot(f.draft, f.request, persistBotUpdate, f.approvals);
+      const result = await createConfiguredBot(f.draft, f.request, persistBotUpdate);
       expect(f.bodies[0]).toMatchObject({ useDefaults: false, name: "Fixture" });
       expect(result.bot).toMatchObject({ approvalMode: mode, notifications: false });
       expect(result.warnings).toEqual([]);
-      expect(f.events.filter(event => event.startsWith("grant"))).toEqual(
-        mode === "full" || mode === "custom" ? ["grant bot", "grant initial"] : [],
-      );
       expect(f.events).not.toContain("DELETE /api/bots/created");
     });
   }
 
-  it("applies Full to the bot and its first thread over the API when there is no desktop bridge", async () => {
+  it("applies Full to the bot and its first thread over the API", async () => {
     const f = fixture("full");
-    const result = await createConfiguredBot(f.draft, f.request, persistBotUpdate, undefined);
+    const result = await createConfiguredBot(f.draft, f.request, persistBotUpdate);
     expect(result.bot).toMatchObject({ approvalMode: "full" });
     expect(f.events).toEqual(["POST /api/bots", "PATCH /api/bots/created", "PATCH /api/bots/created/tasks/initial"]);
     expect(f.bodies[1]).toMatchObject({ approvalMode: "full" });
@@ -97,25 +93,11 @@ describe("configured bot creation", () => {
     for (const body of f.bodies) expect(body).not.toHaveProperty("confirmFullAccess");
   });
 
-  it("still refuses Custom without the desktop bridge and removes the half-made bot", async () => {
-    const f = fixture("custom");
-    await expect(createConfiguredBot(f.draft, f.request, persistBotUpdate, undefined)).rejects.toThrow("packaged desktop app");
-    expect(f.events).toEqual(["POST /api/bots", "DELETE /api/bots/created"]);
-  });
-
   for (const fail of [1, 2]) {
-    it(`rolls back when native grant ${fail} fails`, async () => {
+    it(`rolls back when the level write ${fail} fails`, async () => {
       const f = fixture("full", fail);
-      await expect(createConfiguredBot(f.draft, f.request, persistBotUpdate, f.approvals)).rejects.toThrow("Grant rejected");
+      await expect(createConfiguredBot(f.draft, f.request, persistBotUpdate)).rejects.toThrow("Level refused");
       expect(f.events.at(-1)).toBe("DELETE /api/bots/created");
     });
   }
-
-  it("does not grant the initial thread when the native bot grant returns the wrong mode", async () => {
-    const f = fixture("full");
-    f.approvals.setMode.mockImplementation(async () => ({ ...f.draft.bot, id: "created", threadId: "initial", approvalMode: "ask" }));
-    await expect(createConfiguredBot(f.draft, f.request, persistBotUpdate, f.approvals)).rejects.toThrow("was not granted");
-    expect(f.approvals.setMode).toHaveBeenCalledTimes(1);
-    expect(f.events.at(-1)).toBe("DELETE /api/bots/created");
-  });
 });

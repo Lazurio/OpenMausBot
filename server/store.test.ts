@@ -24,6 +24,7 @@ import { Store, toWireTask, type BotRecord } from "./store.ts";
 import type { TeamSetupRequest } from "../shared/team-setup.ts";
 import { SECTION_CONTEXTS_FILE, readSectionContext, writeSectionContext } from "./section-context.ts";
 import { allowsTool } from "../shared/tool-scope.ts";
+import { approvalModeFor } from "../shared/approval-mode.ts";
 
 const selection = (): ModelSelection => ({ instanceId: "claude", model: "claude-sonnet-5" });
 
@@ -931,64 +932,26 @@ describe("Store", () => {
     expect(messages.at(-1)).toMatchObject({ role: "user", text: "hi there" });
   });
 
-  it("revokes an unconfirmed elevated approval grant before startup work", () => {
-    const store = new Store(selection);
-    const bot = store.createBot();
-    store.patchBot(bot.id, {
-      approvalMode: "full",
-      approvalGrant: {
-        requestId: "123e4567-e89b-42d3-a456-426614174000",
-        mode: "full",
-        phase: "confirmed",
-      },
-    });
-
-    const reloaded = new Store(selection);
-    expect(reloaded.bot(bot.id)).toMatchObject({
-      approvalMode: "ask",
-      autoApprove: false,
-    });
-    expect(reloaded.bot(bot.id)).not.toHaveProperty("approvalGrant");
-
-    const persisted: BotRecord[] = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8"));
-    expect(persisted.find((candidate) => candidate.id === bot.id)).toMatchObject({
-      approvalMode: "ask",
-      autoApprove: false,
-    });
-    expect(persisted.find((candidate) => candidate.id === bot.id)).not.toHaveProperty("approvalGrant");
-  });
-
-  it.each(["prepared", "confirmed", "activated", "committed"] as const)("revokes a thread-scoped grant after restart in phase %s", (phase) => {
-    const store = new Store(selection);
-    const bot = store.createBot();
-    const target = store.createTask(bot.id, "Target")!;
-    store.patchBot(bot.id, { approvalMode: "full", approvalGrant: {
-      requestId: "123e4567-e89b-42d3-a456-426614174000", mode: "full", phase, threadId: target.threadId,
-    } });
-    store.patchTask(bot.id, target.threadId, { approvalMode: "full" });
-    const reloaded = new Store(selection);
-    expect(reloaded.bot(bot.id)?.approvalMode).toBe("ask");
-    expect(reloaded.bot(bot.id)?.approvalGrant).toBeUndefined();
-    expect(reloaded.projectBotForTask(bot.id, target.threadId)?.approvalMode).toBe("ask");
-  });
-
-  it.each(["prepared", "confirmed", "activated", "committed"] as const)("recovers a composer-only grant in phase %s without downgrading other threads", (phase) => {
+  // Lazurio overlay (DEV-6673): the desktop's approval grant and Custom are removed. A saved marker and a saved
+  // Custom level load and drop, so the bot and its thread follow the Full default; other levels stay.
+  it("drops a saved desktop approval grant and a saved Custom level on load", () => {
     const store = new Store(selection);
     const bot = store.createBot();
     const target = store.createTask(bot.id, "Target")!;
     const sibling = store.createTask(bot.id, "Other work")!;
-    store.patchBot(bot.id, { approvalMode: "full", approvalGrant: {
-      requestId: "123e4567-e89b-42d3-a456-426614174000", mode: "custom", phase, threadId: target.threadId, threadOnly: true,
-    } });
-    store.patchTask(bot.id, target.threadId, { approvalMode: "custom" });
-    store.patchTask(bot.id, sibling.threadId, { approvalMode: "full" });
-    expect(store.projectBotForTask(bot.id, sibling.threadId)?.approvalGrant).toBeUndefined();
-    expect(store.projectBotForTask(bot.id, target.threadId)?.approvalGrant?.phase).toBe(phase);
+    store.patchBot(bot.id, { approvalMode: "custom", approvalGrant: {
+      requestId: "123e4567-e89b-42d3-a456-426614174000", mode: "custom", phase: "confirmed", threadId: target.threadId,
+    } } as unknown as Partial<BotRecord>);
+    store.patchTask(bot.id, target.threadId, { approvalMode: "custom" } as unknown as Parameters<Store["patchTask"]>[2]);
+    store.patchTask(bot.id, sibling.threadId, { approvalMode: "ask" });
     const reloaded = new Store(selection);
-    expect(reloaded.bot(bot.id)?.approvalMode).toBe("full");
-    expect(reloaded.bot(bot.id)?.approvalGrant).toBeUndefined();
-    expect(reloaded.projectBotForTask(bot.id, target.threadId)?.approvalMode).toBe("ask");
-    expect(reloaded.projectBotForTask(bot.id, sibling.threadId)?.approvalMode).toBe("full");
+    expect(reloaded.bot(bot.id)).not.toHaveProperty("approvalGrant");
+    expect(reloaded.bot(bot.id)?.approvalMode).toBeUndefined();
+    expect(approvalModeFor(reloaded.bot(bot.id)!)).toBe("full");
+    expect(approvalModeFor(reloaded.projectBotForTask(bot.id, target.threadId)!)).toBe("full");
+    expect(reloaded.projectBotForTask(bot.id, sibling.threadId)?.approvalMode).toBe("ask");
+    const persisted: Array<Record<string, unknown>> = JSON.parse(readFileSync(join(DATA_DIR, "bots.json"), "utf8"));
+    expect(persisted.find((candidate) => candidate.id === bot.id)).not.toHaveProperty("approvalGrant");
   });
 
     const store = new Store(selection);

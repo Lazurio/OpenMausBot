@@ -342,33 +342,15 @@ describe("thread control placement", () => {
     expect(markup).toMatch(/<textarea[^>]*disabled=""[^>]*aria-busy="true"/);
     expect(markup).not.toContain("Finish group setup");
   });
-  it("offers trusted modes in the composer without requiring a Full bot default", () => {
+  // Lazurio overlay (DEV-6673): every level is set over HTTP; no desktop bridge, no Custom level.
+  it("applies Full access from the composer at once", () => {
     const fullBot = { ...bot, busy: false, approvalMode: "full" as const };
     expect(renderToStaticMarkup(createElement(ChatView, { bot: fullBot }))).not.toContain("Use bot’s Full access for this thread");
-    window.ogb = { approvals: { setMode: vi.fn() } } as unknown as NonNullable<Window["ogb"]>;
-    expect(renderToStaticMarkup(createElement(ChatView, { bot: fullBot }))).not.toContain("Use bot’s Full access for this thread");
-    renderToStaticMarkup(createElement(ChatView, { bot }));
-    expect(fixture.approval?.trustedModesAvailable).toBe(true);
-    fixture.approval!.onSelect("custom");
-    expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "updateTask", botId: "bot", threadId: "selected", patch: { approvalMode: "custom" } });
-    delete window.ogb;
-  });
-
-  it("applies Full access from the composer at once, with or without the desktop bridge", () => {
-    for (const bridge of [false, true]) {
-      if (bridge) window.ogb = { approvals: { setMode: vi.fn() } } as unknown as NonNullable<Window["ogb"]>;
-      fixture.dispatch.mockClear();
-      const markup = renderToStaticMarkup(createElement(ChatView, { bot }));
-      expect(fixture.approval?.trustedModesAvailable).toBe(bridge);
-      fixture.approval!.onSelect("full");
-      expect(fixture.dispatch).toHaveBeenCalledExactlyOnceWith({ type: "updateTask", botId: "bot", threadId: "selected", patch: { approvalMode: "full" } });
-      expect(markup).not.toContain('role="alertdialog"');
-      delete window.ogb;
-    }
     fixture.dispatch.mockClear();
-    renderToStaticMarkup(createElement(ChatView, { bot }));
-    fixture.approval!.onSelect("custom");
-    expect(fixture.dispatch).not.toHaveBeenCalled();
+    const markup = renderToStaticMarkup(createElement(ChatView, { bot }));
+    fixture.approval!.onSelect("full");
+    expect(fixture.dispatch).toHaveBeenCalledExactlyOnceWith({ type: "updateTask", botId: "bot", threadId: "selected", patch: { approvalMode: "full" } });
+    expect(markup).not.toContain('role="alertdialog"');
   });
 
   it("explains provider safety errors without offering an ineffective Retry", () => {

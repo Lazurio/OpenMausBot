@@ -9,7 +9,6 @@ import {
   ApiError,
   configStatusFromFrame,
   currentTaskBot,
-  desktopApprovalBridge,
   initialState,
   liveCallFromFrame,
   loadSnapshotBoundary,
@@ -35,7 +34,6 @@ import {
   type Action,
 } from "./store";
 import { LAST_CONVERSATION_KEY } from "@/lib/last-conversation";
-import { cacheDesktopCapabilities, desktopCapabilitiesNow } from "@/lib/desktop";
 import { LAST_BOT_SECTION_KEY } from "@/lib/last-bot-section";
 import { transcriptLookups } from "@/lib/transcript-derivations";
 import { openLiveEvents, type LiveEventSourceLike, type LiveEventsPlatform } from "../lib/live-events";
@@ -88,49 +86,14 @@ describe("partial profile save responses", () => {
   });
 });
 
+// Lazurio overlay (DEV-6673): every level, Full included, goes over the HTTP API; the desktop's private grant
+// channel is removed with upstream's Custom level.
 describe("composer thread approval persistence", () => {
-  it.each(["ask", "edits", "auto", "full", "custom"] as const)("saves %s through the scoped bridge and returns its committed state", async mode => {
+  it.each(["ask", "edits", "auto", "full"] as const)("saves %s over the thread settings route", async mode => {
     const bot = { id: "bot", approvalMode: "ask", tasks: [{ threadId: "thread", approvalMode: mode }] } as BotAnnouncement;
-    const bridge = { setMode: vi.fn().mockResolvedValue(bot) };
-    const request = vi.fn();
-    expect(await persistTaskApproval("bot", "thread", { approvalMode: mode }, bridge, request)).toBe(bot);
-    expect(bridge.setMode).toHaveBeenCalledExactlyOnceWith("bot", mode, { threadId: "thread", threadOnly: true, acknowledgeLocalAuto: false });
-    expect(request).not.toHaveBeenCalled();
-  });
-  it("sends Full over the thread settings route with no bridge and no consent field", async () => {
-    const bot = { id: "bot", approvalMode: "ask", tasks: [{ threadId: "thread", approvalMode: "full" }] } as BotAnnouncement;
     const request = vi.fn().mockResolvedValue({ bot });
-    expect(await persistTaskApproval("bot", "thread", { approvalMode: "full" }, undefined, request)).toBe(bot);
-    expect(request).toHaveBeenCalledExactlyOnceWith("/api/bots/bot/tasks/thread", { method: "PATCH", body: JSON.stringify({ approvalMode: "full" }) });
-  });
-  it("never falls back to HTTP for Custom", async () => {
-    const request = vi.fn();
-    await expect(persistTaskApproval("bot", "thread", { approvalMode: "custom" }, undefined, request)).rejects.toThrow("packaged desktop");
-    expect(request).not.toHaveBeenCalled();
-  });
-  it("uses the desktop bridge only where it works: the packaged app's own window", () => {
-    const approvals = { setMode: vi.fn() };
-    const packaged = (value: boolean) => {
-      const now = desktopCapabilitiesNow();
-      cacheDesktopCapabilities({ ...now, host: { ...now.host, packaged: value } });
-    };
-    window.ogb = { approvals } as unknown as NonNullable<Window["ogb"]>;
-    try {
-      packaged(false);
-      expect(desktopApprovalBridge()).toBeUndefined();
-      packaged(true);
-      expect(desktopApprovalBridge()).toBe(approvals);
-      delete window.ogb;
-      expect(desktopApprovalBridge()).toBeUndefined();
-    } finally {
-      delete window.ogb;
-      packaged(false);
-    }
-  });
-  it("propagates failed bridge grants", async () => {
-    const request = vi.fn();
-    await expect(persistTaskApproval("bot", "thread", { approvalMode: "full" }, { setMode: vi.fn().mockRejectedValue(new Error("gone")) }, request)).rejects.toThrow("gone");
-    expect(request).not.toHaveBeenCalled();
+    expect(await persistTaskApproval("bot", "thread", { approvalMode: mode }, request)).toBe(bot);
+    expect(request).toHaveBeenCalledExactlyOnceWith("/api/bots/bot/tasks/thread", { method: "PATCH", body: JSON.stringify({ approvalMode: mode }) });
   });
 });
 
@@ -360,7 +323,7 @@ describe("Settings opened on the phone pairing", () => {
   });
 });
 
-describe("trusted approval-mode persistence", () => {
+describe("approval-mode persistence", () => {
   const announcement = (approvalMode: Bot["approvalMode"] = "ask") => ({
     id: "bot-1",
     threadId: "thread-1",
@@ -374,44 +337,11 @@ describe("trusted approval-mode persistence", () => {
     approvalMode,
   });
 
-  it("commits ordinary edits before granting Full through the private bridge", async () => {
-    const order: string[] = [];
-    const request = vi.fn(async (_path: string, _init?: RequestInit) => {
-      order.push("http");
-      return { bot: announcement("ask") };
-    });
-    const setMode = vi.fn(async () => {
-      order.push("private");
-      return announcement("full");
-    });
-
-    await expect(persistBotUpdate(
-      "bot-1",
-      { approvalMode: "full", title: "Ops" },
-      new AbortController().signal,
-      request,
-      { setMode },
-    )).resolves.toMatchObject({ approvalMode: "full" });
-
-    expect(order).toEqual(["http", "private"]);
-    expect(JSON.parse(String(request.mock.calls[0]?.[1]?.body))).toEqual({ title: "Ops" });
-    expect(setMode).toHaveBeenCalledWith("bot-1", "full", { acknowledgeLocalAuto: false });
-  });
-
-  it("passes all-threads scope through the private grant when there is one", async () => {
-    const request = vi.fn(async (_path: string, _init?: RequestInit) => ({ bot: announcement("ask") }));
-    const setMode = vi.fn(async () => announcement("full"));
-    await persistBotUpdate("bot-1", { approvalMode: "full", applyToAllThreads: true, title: "Chief" },
-      new AbortController().signal, request, { setMode });
-    expect(JSON.parse(String(request.mock.calls[0]?.[1]?.body))).toEqual({ title: "Chief" });
-    expect(setMode).toHaveBeenCalledWith("bot-1", "full", { acknowledgeLocalAuto: false, allThreads: true });
-  });
-
-  it("sends Full over the bot API with no bridge, all-threads scope included, and no consent field", async () => {
+  it("sends Full over the bot API, all-threads scope included, and no consent field", async () => {
     const request = vi.fn(async (_path: string, _init?: RequestInit) => ({ bot: announcement("full") }));
     await expect(persistBotUpdate("bot-1", { approvalMode: "full", applyToAllThreads: true, title: "Chief" },
-      new AbortController().signal, request, undefined)).resolves.toMatchObject({ approvalMode: "full" });
-    await persistBotUpdate("bot-1", { approvalMode: "full" }, new AbortController().signal, request, undefined);
+      new AbortController().signal, request)).resolves.toMatchObject({ approvalMode: "full" });
+    await persistBotUpdate("bot-1", { approvalMode: "full" }, new AbortController().signal, request);
     expect(request).toHaveBeenCalledTimes(2);
     expect(request.mock.calls.map(([path, init]) => [path, init?.method, JSON.parse(String(init?.body))])).toEqual([
       ["/api/bots/bot-1", "PATCH", { title: "Chief", approvalMode: "full", applyToAllThreads: true }],
@@ -419,174 +349,13 @@ describe("trusted approval-mode persistence", () => {
     ]);
   });
 
-  it("sends the all-threads scope with every level but Custom, the same way", async () => {
+  it("sends the all-threads scope with every level, the same way", async () => {
     const request = vi.fn(async (_path: string, _init?: RequestInit) => ({ bot: announcement("ask") }));
     for (const approvalMode of ["ask", "edits", "auto", "full"] as const) {
-      await persistBotUpdate("bot-1", { approvalMode, applyToAllThreads: true }, new AbortController().signal, request, undefined);
+      await persistBotUpdate("bot-1", { approvalMode, applyToAllThreads: true }, new AbortController().signal, request);
     }
     expect(request.mock.calls.map(([, init]) => JSON.parse(String(init?.body)))).toEqual(
       ["ask", "edits", "auto", "full"].map((approvalMode) => ({ approvalMode, applyToAllThreads: true })));
-  });
-
-  it("leaves a thread's Custom through the private bridge when the level goes to every thread", async () => {
-    const request = vi.fn(async (_path: string, _init?: RequestInit) => ({ bot: announcement("auto") }));
-    const setMode = vi.fn(async () => announcement("auto"));
-    const current = { ...announcement("ask"), tasks: [
-      { threadId: "main", title: "Main", createdAt: 1 },
-      { threadId: "codex-rules", title: "Rules", createdAt: 2, approvalMode: "custom" as const },
-    ] };
-    await persistBotUpdate("bot-1", { approvalMode: "auto", applyToAllThreads: true }, new AbortController().signal, request, { setMode }, current);
-    expect(setMode).toHaveBeenCalledWith("bot-1", "auto", { acknowledgeLocalAuto: false, allThreads: true });
-    expect(request).not.toHaveBeenCalled();
-    await persistBotUpdate("bot-1", { approvalMode: "auto" }, new AbortController().signal, request, { setMode }, current);
-    expect(setMode).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(String(request.mock.calls[0]?.[1]?.body))).toEqual({ approvalMode: "auto" });
-  });
-
-  it("fails closed when Custom has no packaged desktop bridge", async () => {
-    const request = vi.fn(async (_path: string, _init?: RequestInit) => ({ bot: announcement("ask") }));
-    await expect(persistBotUpdate(
-      "bot-1",
-      { approvalMode: "custom" },
-      new AbortController().signal,
-      request,
-      undefined,
-    )).rejects.toThrow("packaged desktop app");
-    expect(request).not.toHaveBeenCalled();
-  });
-
-  it("uses the private bridge to leave Custom instead of the bot-callable HTTP API", async () => {
-    const request = vi.fn(async (_path: string, _init?: RequestInit) => ({ bot: announcement("custom") }));
-    const setMode = vi.fn(async () => announcement("ask"));
-
-    await expect(persistBotUpdate(
-      "bot-1",
-      { approvalMode: "ask" },
-      new AbortController().signal,
-      request,
-      { setMode },
-      announcement("custom"),
-    )).resolves.toMatchObject({ approvalMode: "ask" });
-
-    expect(request).not.toHaveBeenCalled();
-    expect(setMode).toHaveBeenCalledWith("bot-1", "ask", { acknowledgeLocalAuto: false });
-  });
-
-  it("revokes a trusted mode that completes after its save was cancelled", async () => {
-    let finishFull!: (bot: BotAnnouncement) => void;
-    const lateFull = new Promise<BotAnnouncement>((resolve) => {
-      finishFull = resolve;
-    });
-    const calls: string[] = [];
-    const setMode = vi.fn(async (_botId: string, mode: "ask" | "auto" | "full" | "custom") => {
-      calls.push(mode);
-      return mode === "full" ? lateFull : announcement(mode);
-    });
-    const controller = new AbortController();
-    const pending = persistBotUpdate(
-      "bot-1",
-      { approvalMode: "full" },
-      controller.signal,
-      vi.fn(),
-      { setMode },
-      announcement("ask"),
-    );
-    await Promise.resolve();
-
-    controller.abort();
-    finishFull(announcement("full"));
-
-    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
-    expect(calls).toEqual(["full", "ask"]);
-  });
-
-  it("revokes a late Custom-to-Full grant when a newer save supersedes it", async () => {
-    let finishFull!: (bot: BotAnnouncement) => void;
-    const lateFull = new Promise<BotAnnouncement>((resolve) => {
-      finishFull = resolve;
-    });
-    const calls: string[] = [];
-    const setMode = vi.fn(async (_botId: string, mode: "ask" | "auto" | "full" | "custom") => {
-      calls.push(mode);
-      return mode === "full" ? lateFull : announcement(mode);
-    });
-    const controller = new AbortController();
-    const pending = persistBotUpdate(
-      "bot-1",
-      { approvalMode: "full" },
-      controller.signal,
-      vi.fn(),
-      { setMode },
-      announcement("custom"),
-    );
-    await Promise.resolve();
-
-    controller.abort();
-    finishFull(announcement("full"));
-
-    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
-    expect(calls).toEqual(["full", "ask"]);
-  });
-
-  it("leaves Custom before persisting a coalesced non-Codex model switch", async () => {
-    const order: string[] = [];
-    const request = vi.fn(async (_path: string, _init?: RequestInit) => {
-      order.push("http");
-      return {
-        bot: {
-          ...announcement("ask"),
-          modelSelection: { instanceId: "gemini", model: "gemini-3.1-pro" },
-        },
-      };
-    });
-    const setMode = vi.fn(async () => {
-      order.push("private");
-      return announcement("ask");
-    });
-
-    await expect(persistBotUpdate(
-      "bot-1",
-      {
-        approvalMode: "ask",
-        modelSelection: { instanceId: "gemini", model: "gemini-3.1-pro" },
-      },
-      new AbortController().signal,
-      request,
-      { setMode },
-      announcement("custom"),
-    )).resolves.toMatchObject({
-      approvalMode: "ask",
-      modelSelection: { instanceId: "gemini", model: "gemini-3.1-pro" },
-    });
-
-    expect(order).toEqual(["private", "http"]);
-    expect(JSON.parse(String(request.mock.calls[0]?.[1]?.body))).toEqual({
-      modelSelection: { instanceId: "gemini", model: "gemini-3.1-pro" },
-    });
-    expect(setMode).toHaveBeenCalledWith("bot-1", "ask", { acknowledgeLocalAuto: false });
-  });
-
-  it("keeps local-computer consent on an ordinary PATCH coalesced with a private mode", async () => {
-    const request = vi.fn(async (_path: string, _init?: RequestInit) => ({
-    }));
-    const setMode = vi.fn(async () => announcement("full"));
-
-    await persistBotUpdate(
-      "bot-1",
-      {
-        acknowledgeLocalAuto: true,
-        approvalMode: "full",
-      },
-      new AbortController().signal,
-      request,
-      { setMode },
-      announcement("auto"),
-    );
-
-    expect(JSON.parse(String(request.mock.calls[0]?.[1]?.body))).toEqual({
-      acknowledgeLocalAuto: true,
-    });
-    expect(setMode).toHaveBeenCalledWith("bot-1", "full", { acknowledgeLocalAuto: true });
   });
 });
 

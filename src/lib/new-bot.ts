@@ -50,17 +50,15 @@ export function announceNewBot(dispatch: (action: Action) => void, bot: Bot, war
 async function createNewBot(section: string | undefined, bots: readonly Bot[], team: TeamPeople | null, request: typeof api) {
   if (typeof window !== "undefined" && window.ogb?.remoteClient?.active) {
     const { bot } = await request<{ bot: Bot }>("/api/bots", { method: "POST", body: JSON.stringify(section === undefined ? {} : { section }) });
-    return { bot, warnings: [] as string[], startsOnAsk: false };
+    return { bot, warnings: [] as string[] };
   }
   const template = startingTemplate(await request<BotDefaultsAnswer>("/api/bot-defaults"), true);
   template.profile.name = freeName(template.profile.name!, bots);
   if (section !== undefined) template.profile.section = section;
   const draft = new BotCreationDraft(template, () => {}, request);
-  const startsOnAsk = draft.bot.approvalMode === "auto" && draft.bot.computer === "local";
-  if (startsOnAsk) draft.patch({ approvalMode: "ask" });
   const reportsTo = team ? reportsToFor(null, draft.bot.section, bots, team) ?? undefined : undefined;
   try {
-    return { ...await createConfiguredBot(draft, request, undefined, undefined, undefined, reportsTo), startsOnAsk };
+    return await createConfiguredBot(draft, request, undefined, undefined, reportsTo);
   } finally {
     draft.dispose();
   }
@@ -79,6 +77,5 @@ export async function makeNewBot(action: Extract<Action, { type: "newBot" }>, bo
     return;
   }
   announceNewBot(dispatch, made.bot, made.warnings, { preserveSelection: action.preserveSelection, showThreads, source: "blank" });
-  if (made.startsOnAsk) dispatch({ type: "notice", notice: { kind: "note", botName: null, text: t("newBot.startsOnAsk", { name: made.bot.name }) } });
   action.onCreated?.(made.bot);
 }

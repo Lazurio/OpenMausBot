@@ -18,7 +18,7 @@ import {
   type TeamPlanRow,
   type TeamResultRow,
 } from "@/lib/team-bulk-settings";
-import { api, desktopApprovalBridge, persistBotUpdate, useStore } from "@/state/store";
+import { api, persistBotUpdate, useStore } from "@/state/store";
 import { EFFORT_LEVELS, type EffortLevel } from "../../shared/wire";
 import { approvalModeOptions } from "./ApprovalModeSelector";
 import { LocalComputerAutoWarning } from "./LocalComputerAutoWarning";
@@ -85,7 +85,7 @@ export function TeamSettingsDialog({ team, onClose }: { team: string; onClose: (
     setRunning(true);
     setProgress(0);
     const outcome = await applyTeamPlan(plan, async (bot, patch) => {
-      const saved = await persistBotUpdate(bot.id, patch, new AbortController().signal, api, desktopApprovalBridge(), bot);
+      const saved = await persistBotUpdate(bot.id, patch, new AbortController().signal, api);
       dispatch({ type: "botPatched", bot: saved });
     }, { acknowledgeLocalAuto, onProgress: setProgress });
     setResults(outcome);
@@ -141,7 +141,7 @@ export function TeamSettingsDialog({ team, onClose }: { team: string; onClose: (
                     </span>
                   </label>
                 ))}
-                <p className="mt-1 text-[12px] text-ink-secondary">{t("teamSettings.allThreads")} {t("teamSettings.customPerBot")}</p>
+                <p className="mt-1 text-[12px] text-ink-secondary">{t("teamSettings.allThreads")}</p>
               </fieldset>
             ) : (
               <fieldset disabled={running} className="flex flex-col gap-3">

@@ -84,7 +84,8 @@ describe("reviewed Chief team setup", () => {
     expect(card.detail).toContain("Loses peer coordination and every team tool");
     expect(card.detail).toContain("coordinate_bots");
     expect(card.detail).toContain("Loses approval levels: edits.");
-    expect(card.detail).toContain("Gains approval levels: custom.");
+    // Lazurio overlay (DEV-6673): Custom is removed, so Codex gains no level.
+    expect(card.detail).not.toContain("Gains approval levels");
   });
   it("renders nothing extra for a model-only change on the same engine", () => {
     const h = harness({ claude: { driverKind: "claudeAgent", agentsMcp: true } });

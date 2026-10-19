@@ -20,6 +20,8 @@ export const botDefaultModelSchema = z.object({
 
 // Preferences only: consent flags, live grants, bot IDs and execution state can never be replayed as permission grants.
 const withoutRemovedDefaults = (value: unknown) => value && typeof value === "object" && !Array.isArray(value)
+  ? Object.fromEntries(Object.entries(value).filter(([key, item]) => !REMOVED_DEFAULTS.includes(key) &&
+    !(key === "approvalMode" && item === "custom")))
   : value;
 export const botDefaultsProfileSchema = z.preprocess(withoutRemovedDefaults, profilePatchSchema.extend({
   name: z.string().max(100).refine(fitsOnOneLine, "name must fit on one line").optional(),
@@ -28,7 +30,6 @@ export const botDefaultsProfileSchema = z.preprocess(withoutRemovedDefaults, pro
   mascotExpression: z.string().max(60).nullable().optional(),
   modelSelection: botDefaultModelSchema.optional(),
   cwd: z.string().max(4096).nullable().optional(),
-  approvalMode: z.enum(["ask", "auto", "full", "custom"]).optional(),
   alwaysAllow: strings(200, 500).optional(),
   chiefOfStaff: z.boolean().optional(),
   managedSections: strings(100, 60).optional(),
@@ -108,6 +109,7 @@ export function resolveBotCreationDefaults(saved: NewBotDefaults | undefined, bo
     throw Object.assign(new Error("useDefaults must be true or false"), { status: 400 });
   }
   const template = newBotDefaultsSchema.parse(body.useDefaults === false ? {} : saved ?? {});
+  // Lazurio overlay (DEV-6673): a request naming a removed setting is refused; a saved default that does is dropped above.
   const checked = botDefaultsProfileSchema.safeParse(body.settings === undefined ? {} : body.settings);
   if (!checked.success) throw Object.assign(new Error(checked.error.message), { status: 400 });
   const explicit = checked.data;

@@ -85,7 +85,7 @@ describe("t", () => {
   it("ships translated model and trusted-access help for threads", () => {
     for (const [code, pack] of Object.entries(locales)) {
       if (code === "en") continue;
-      for (const key of ["model.threadBusy", "model.chooseThreadHint", "approvalMode.threadTrustedNotice"] as const) {
+      for (const key of ["model.threadBusy", "model.chooseThreadHint"] as const) {
         expect(pack[key], `${code}: ${key}`).toBeTruthy();
         expect(pack[key], `${code}: ${key}`).not.toBe(en[key]);
       }

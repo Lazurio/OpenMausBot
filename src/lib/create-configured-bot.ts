@@ -1,4 +1,4 @@
-import { api, desktopApprovalBridge, persistBotUpdate, persistTaskApproval, type Bot } from "@/state/store";
+import { api, persistBotUpdate, persistTaskApproval, type Bot } from "@/state/store";
 import type { Routine } from "./routines";
 import type { BotCreationDraft } from "./bot-creation-draft";
 import { imageAttachmentFromFile } from "./composer-attachments";
@@ -22,12 +22,11 @@ export async function createConfiguredBot(
   draft: BotCreationDraft,
   request: typeof api = api,
   update: typeof persistBotUpdate = persistBotUpdate,
-  approvals = desktopApprovalBridge(),
   visibility?: BotVisibility,
   reportsTo?: string,
 ): Promise<{ bot: Bot; warnings: string[] }> {
   const template = await preparedBotTemplate(draft);
-  const { chiefOfStaff, managedSections, toolScope, modelSelection, ...profile } = template.profile;
+  const { chiefOfStaff, managedSections, modelSelection, ...profile } = template.profile;
   if (!profile.name?.trim()) throw new Error("Give the bot a name");
   const preset = draft.preset;
   const chosenAi = modelSelection?.instanceId && modelSelection.model ? { modelSelection, requireAvailableModel: true } : {};
@@ -43,16 +42,16 @@ export async function createConfiguredBot(
   const warnings: string[] = [];
   try {
     const patched = await update(bot.id, { ...profile, ...draft.consent }, new AbortController().signal,
-      request, approvals, bot);
+      request);
     bot = { ...bot, ...patched };
-    if (profile.approvalMode === "full" || profile.approvalMode === "custom") {
+    if (profile.approvalMode === "full") {
       if (patched.approvalMode !== profile.approvalMode) {
         throw new Error("The bot's requested approval level was not granted");
       }
       const granted = await persistTaskApproval(bot.id, bot.threadId, {
         approvalMode: profile.approvalMode,
         acknowledgeLocalAuto: draft.consent.acknowledgeLocalAuto === true,
-      }, approvals, request);
+      }, request);
       if (granted.approvalMode !== profile.approvalMode) {
         throw new Error("The initial thread's requested approval level was not granted");
       }

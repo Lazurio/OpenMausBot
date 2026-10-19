@@ -1,4 +1,3 @@
-import { useDesktopCapabilities } from "../DesktopCapabilities";
 import { browserAvailable, builtInBrowserEnabled } from "@/lib/feature-flags";
 import { stateForBot } from "@/lib/mascot";
 import { useStore, type Bot } from "@/state/store";
@@ -43,13 +42,11 @@ export type BotPatch = Partial<
 
 export function useBotSettingsDerived(bot: Bot) {
   const { state, dispatch } = useStore();
-  const { capabilities } = useDesktopCapabilities();
   const patch = (p: BotPatch) => dispatch({ type: "updateBot", botId: bot.id, patch: p });
   const activeState = stateForBot(bot);
   const mascotMotion = state.mascotMotion?.botId === bot.id ? state.mascotMotion : null;
   const engine = state.instances.find((instance) => instance.instanceId === bot.modelSelection.instanceId);
   const approvalMode = approvalModeFor(bot);
-  const trustedModesAvailable = Boolean(window.ogb?.approvals && capabilities.host.packaged);
   const canCoordinate = engine?.capabilities?.agentsMcp === true;
   const canUseBrowser = engine?.capabilities?.browserMcp === true;
   const desktopBrowser = browserAvailable(state.config);
@@ -70,7 +67,6 @@ export function useBotSettingsDerived(bot: Bot) {
     patch,
     engine,
     approvalMode,
-    trustedModesAvailable,
     canCoordinate,
     canUseBrowser,
     desktopBrowser,
