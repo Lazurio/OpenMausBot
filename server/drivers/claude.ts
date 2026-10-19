@@ -1144,13 +1144,6 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
         mcpServers.phone = { ...turn.integrations.phone };
         allowed.push("mcp__phone");
       }
-      if (turn.integrations?.browser) {
-        // Behind tool search, the first browser action costs a ToolSearch model step.
-        mcpServers.browser = turn.preloadBrowserTools
-          ? { ...turn.integrations.browser, alwaysLoad: true }
-          : { ...turn.integrations.browser };
-        allowed.push("mcp__browser");
-      }
       if (turn.integrations?.data) { mcpServers.data = { ...turn.integrations.data }; allowed.push("mcp__data"); }
       if (turn.integrations?.dweb) {
         mcpServers.dweb = {
@@ -1189,7 +1182,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
       }
       mcpServers.ogb = { command: process.execPath, args: [PERM_PROXY_PATH, socketPath], env: { ...NODE_ENV_FLAG }, alwaysLoad: true };
       allowed.push("mcp__ogb");
-      // A guest pre-allows only harness tools; anything else (the browser can open file:) asks.
+      // A guest pre-allows only harness tools; anything else (a mounted tool could open file:) asks.
       if (turn.guestConfined) allowed.splice(0, allowed.length, ...allowed.filter((name) => name === "mcp__ogb" || name === "mcp__agents"));
       // The MCP config carries credentials and argv is readable via `ps`: a 0600 file, removed at settle.
       let mcpConfigPath: string | null = null;
@@ -2067,7 +2060,6 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
           agentsMcp: true,
           computerMcp: true,
           phoneMcp: true,
-          browserMcp: true,
           dataMcp: true,
           images: true,
           nativeImageInput: true,

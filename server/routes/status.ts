@@ -1,7 +1,6 @@
 import { readBotActivity } from "../activity.ts";
 import { activityCsv, activityEntries, parseActivityWhat, readAdminActivityRange } from "../admin-activity.ts";
 import { loadBrand } from "../brand.ts";
-import { browserEngineStatus, ensureChrome, installAgentBrowserBinary, resolveAgentBrowserBinary } from "../browser-engine.ts";
 import { DATA_DIR, EVENTS_DIR, NATIVE_DIR, instanceConfigs, type AppConfig } from "../config.ts";
 import { boundRetentionDays, decisionsCsv, readDecisionRange, readDecisions } from "../decision-log.ts";
 import { editionForMembers, editionStatus, entitled } from "../enterprise.ts";
@@ -12,7 +11,6 @@ import { checkProviderKey, PROVIDER_KEY_KINDS, providerBaseUrl, type ProviderKey
 import type { Store } from "../store.ts";
 import { readThreadEvents } from "../thread-events.ts";
 import { parseUsageRange } from "../usage-ledger.ts";
-import type { ConfigStatus } from "./config.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
 export interface StatusRouteDeps {
@@ -20,16 +18,11 @@ export interface StatusRouteDeps {
   cfg: AppConfig;
   staticDir: string | null;
   adminActivityRecording(): boolean;
-  configStatus(): ConfigStatus;
-  broadcast(payload: Record<string, unknown>): void;
-  browserEngineInstall: { get(): Promise<void> | null; set(install: Promise<void> | null): void };
-  browserEngineInstallError: { set(error: string | null): void };
 }
 
 export function createStatusRoutes(deps: StatusRouteDeps): RouteHandler {
   const {
     store, cfg, staticDir: STATIC_DIR, adminActivityRecording,
-    configStatus, broadcast, browserEngineInstall, browserEngineInstallError,
   } = deps;
   return async ({ req, res, url, path, method, auth, json, readBody }) => {
     let m: RegExpMatchArray | null = null;
@@ -38,30 +31,6 @@ export function createStatusRoutes(deps: StatusRouteDeps): RouteHandler {
       return json(res, 200, { app: "openmausbot", pid: process.pid, static: Boolean(STATIC_DIR), capabilities: {
         guardedMessages: 1, guardedRequests: 1, guardedFullAccess: 1, guardedOnBehalfOf: 1,
       } });
-    }
-    // JSON-only, so a form posted from another local page cannot start the install. One install at a time.
-    if (method === "POST" && path === "/api/browser-engine/install") {
-      const mediaType = String(req.headers["content-type"] ?? "").split(";", 1)[0].trim().toLowerCase();
-      if (mediaType !== "application/json") {
-        return json(res, 415, { error: "content-type must be application/json" });
-      }
-      if (!browserEngineInstall.get()) {
-        const status = browserEngineStatus();
-        if (status.kind === "unavailable" && !status.installable) return json(res, 409, { error: status.reason });
-        browserEngineInstallError.set(null);
-        browserEngineInstall.set((async () => {
-          const binary = resolveAgentBrowserBinary() ?? await installAgentBrowserBinary({ log: (line) => console.log(line) });
-          await ensureChrome(binary, { log: (line) => console.log(line) });
-        })().then(
-          () => { browserEngineInstallError.set(null); },
-          (error: unknown) => { browserEngineInstallError.set(error instanceof Error ? error.message : String(error)); },
-        ).finally(() => {
-          browserEngineInstall.set(null);
-          broadcast({ kind: "config", ...configStatus() });
-        }));
-        broadcast({ kind: "config", ...configStatus() });
-      }
-      return json(res, 202, { installing: true });
     }
     // Admin scope plus the `admin` entitlement; the socket's own permissions decide whether this workspace may drive the agent.
     const fleetRoute = /^\/api\/fleet(?:\/(workspaces(?:\/([a-z0-9-]+)(?:\/(users|suspend|resume))?)?|upgrade))?$/.exec(path);

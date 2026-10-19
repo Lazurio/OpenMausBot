@@ -599,7 +599,6 @@ export const MuseCodeDriver: ProviderDriver<MuseConfig> = {
         sessionModelSwitch: "in-session",
         agentsMcp: true,
         computerMcp: true,
-        browserMcp: true,
         dataMcp: true,
         images: true,
         nativeImageInput: true,

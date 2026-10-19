@@ -646,7 +646,7 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     const dump = join(scratch, "dump-guest.json");
     process.env.FAKE_CLAUDE_DUMP = dump;
     await instance.adapter.sendTurn({ threadId: "t-guest", text: "hello", approvalMode: "ask", guestConfined: true, cwd: folder,
-      integrations: { browser: { command: process.execPath, args: ["fixture-browser"], env: {} } } });
+      integrations: { data: { command: process.execPath, args: ["fixture-data"], env: {} } } });
     await recorder.until((e) => e.type === "turn.completed");
     const seen = JSON.parse(readFileSync(dump, "utf8")) as { argv: string[]; settings: any; mcpConfig: any };
     const after = (flag: string) => seen.argv[seen.argv.indexOf(flag) + 1];
@@ -656,7 +656,7 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     expect(seen.settings.permissions).toMatchObject({ blockReadsOutsideWorkingDirectories: true });
     expect(seen.settings.permissions.deny).toEqual(expect.arrayContaining(["Bash", "PowerShell", "WebFetch"]));
     expect(Object.keys(seen.mcpConfig.mcpServers)).not.toContain("planted");
-    expect(after("--allowedTools").split(",")).not.toContain("mcp__browser");
+    expect(after("--allowedTools").split(",")).not.toContain("mcp__data");
     expect(recorder.events.find((e) => e.type === "turn.completed")).toMatchObject({ ok: true });
   });
 
@@ -1257,15 +1257,15 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     await instance.adapter.sendTurn({
       threadId: "t-surface-resume", text: "Open the test page.",
       resumeCursor: "previous-host-computer-session",
-      system: "Everything you do on screen happens in the built-in browser tab; no host computer tools are mounted.",
-      integrations: { browser: { command: process.execPath, args: ["fixture-browser"], env: {} } },
+      system: "Everything you do happens in this folder; no host computer tools are mounted.",
+      integrations: { data: { command: process.execPath, args: ["fixture-data"], env: {} } },
     });
     await recorder.until((event) => event.type === "turn.completed");
     const seen = JSON.parse(readFileSync(dump, "utf8"));
     expect(seen.argv[seen.argv.indexOf("--system-prompt-snapshot") + 1]).toBe("off");
     expect(seen.argv[seen.argv.indexOf("--resume") + 1]).toBe("previous-host-computer-session");
     expect(seen.systemPrompt).toContain("no host computer tools are mounted");
-    expect(seen.mcpConfig.mcpServers.browser).toBeTruthy();
+    expect(seen.mcpConfig.mcpServers.data).toBeTruthy();
     expect(seen.mcpConfig.mcpServers.computer).toBeUndefined();
   });
 

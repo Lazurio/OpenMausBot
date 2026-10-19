@@ -412,7 +412,6 @@
     "server/automatic-recovery.ts",
     "server/bot-overview.test.ts",
     "server/bot-overview.ts",
-    "server/browser/egress/reddit.ts",
     "server/cloud-home-start.ts",
     "server/cloud-home.test.ts",
     "server/cloud-secrets.ts",

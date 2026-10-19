@@ -12,10 +12,6 @@ export const SCREEN_TOUCHING_TOOLS: ReadonlySet<string> = new Set([
   // built-in browser: the Electron surface's names, from older remote harnesses
   "browser_navigate", "browser_type", "browser_press", "browser_scroll", "browser_hover", "browser_drag",
   "browser_select_option", "browser_back", "browser_forward", "browser_screenshot",
-  // built-in browser: agent-browser's names, and the new browser's
-  "agent_browser_open", "agent_browser_click", "agent_browser_fill", "agent_browser_type", "agent_browser_press",
-  "agent_browser_select", "agent_browser_check", "agent_browser_screenshot", "agent_browser_hover", "agent_browser_upload",
-  "agent_browser_navigate", "agent_browser_drag", "agent_browser_scroll", "agent_browser_tabs", "agent_browser_dialog", "agent_browser_eval",
   // Cua Driver (this computer)
   "double_click", "right_click", "drag", "hotkey", "move_cursor", "launch_app", "bring_to_front", "zoom",
 ]);
@@ -33,7 +29,7 @@ export function screenTouchingTool(toolName: string): boolean {
 }
 
 /** Which surface a screen-touching tool acted on. The computer server's
- * browser_click/fill act inside the desktop, not in agent-browser, so the
+ * browser_click/fill act inside the desktop, not in a browser surface, so the
  * server identity is checked before prefixes are stripped. */
 export function screenSurfaceForTool(toolName: string): "browser" | "computer" {
   const name = toolName.toLowerCase();
@@ -41,7 +37,7 @@ export function screenSurfaceForTool(toolName: string): "browser" | "computer" {
   if (name.startsWith("mcp__browser__") || name.startsWith("browser__")) return "browser";
   const bare = name.replace(TOOL_NAMESPACE, "");
   if (bare === "browser_click" || bare === "browser_fill") return "computer";
-  return bare.startsWith("agent_browser_") || bare.startsWith("browser_") ? "browser" : "computer";
+  return bare.startsWith("browser_") ? "browser" : "computer";
 }
 
 /** Whether a tool belongs to a screen place at all — the built-in browser, a
@@ -53,6 +49,6 @@ export function toolSurfaceKind(toolName: string): "browser" | "computer" | null
   if (name.startsWith("mcp__computer__") || name.startsWith("computer__") || name.startsWith("computer_")) return "computer";
   const bare = name.replace(TOOL_NAMESPACE, "");
   if (bare === "browser_click" || bare === "browser_fill") return "computer";
-  if (bare.startsWith("agent_browser_") || bare.startsWith("browser_")) return "browser";
+  if (bare.startsWith("browser_")) return "browser";
   return SCREEN_TOUCHING_TOOLS.has(bare) ? "computer" : null;
 }

@@ -34,7 +34,6 @@ export interface OverviewFacts {
     | "autoApprove"
     | "approvalMode"
     | "peers"
-    | "browser"
     | "chiefOfStaff"
     | "managedSections"
   >;
@@ -48,8 +47,7 @@ export interface OverviewFacts {
   runs: Array<{ routineId: string; status: string; finishedAt?: number; startedAt?: number; scheduledFor: number }>;
   webhooks: Array<{ name: string; enabled: boolean }>;
   skills: Array<{ name: string; description: string; enabled: boolean }>;
-  engine: { agentsMcp?: boolean; browserMcp?: boolean; computerMcp?: boolean } | null;
-  browserEnabled?: boolean;
+  engine: { agentsMcp?: boolean; computerMcp?: boolean } | null;
   cloudHome?: boolean;
   sectionPeers: number;
   timeZone: string;
@@ -144,7 +142,6 @@ function doesLines(facts: OverviewFacts): string[] {
 function reachesLines(facts: OverviewFacts): string[] {
   const lines: string[] = [];
   lines.push(facts.bot.cwd ? `Works in ${facts.bot.cwd}.` : "Works in its private workspace.");
-  if (facts.browserEnabled && facts.engine?.browserMcp && facts.bot.browser !== false) lines.push("Has the built-in browser.");
   if (facts.engine?.agentsMcp && facts.sectionPeers > 0 && facts.bot.peers?.length !== 0) {
     const scope = facts.bot.chiefOfStaff && facts.bot.managedSections?.length ? "its allowed teams" : "its section";
     lines.push(`Can talk to ${facts.sectionPeers} other bot${facts.sectionPeers === 1 ? "" : "s"} in ${scope}.`);
