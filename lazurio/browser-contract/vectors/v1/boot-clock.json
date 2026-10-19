@@ -1,0 +1,157 @@
+{
+  "schema": "lazurio.browser-vectors.v1",
+  "contract": "boot-clock",
+  "cases": [
+    {
+      "name": "a boot-clock time",
+      "call": "parseBootTime",
+      "args": [
+        {
+          "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+          "at": 1
+        }
+      ],
+      "expect": {
+        "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+        "at": 1
+      }
+    },
+    {
+      "name": "the first second of a boot",
+      "call": "parseBootTime",
+      "args": [
+        {
+          "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+          "at": 0
+        }
+      ],
+      "expect": {
+        "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+        "at": 0
+      }
+    },
+    {
+      "name": "a time with members it does not know",
+      "call": "parseBootTime",
+      "args": [
+        {
+          "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+          "at": 2.5,
+          "later": true
+        }
+      ],
+      "expect": {
+        "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+        "at": 2.5
+      }
+    },
+    {
+      "name": "null",
+      "call": "parseBootTime",
+      "args": [
+        null
+      ],
+      "expect": null
+    },
+    {
+      "name": "no members",
+      "call": "parseBootTime",
+      "args": [
+        {}
+      ],
+      "expect": null
+    },
+    {
+      "name": "a time before the boot",
+      "call": "parseBootTime",
+      "args": [
+        {
+          "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+          "at": -1
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a boot that is no boot id",
+      "call": "parseBootTime",
+      "args": [
+        {
+          "boot": "x",
+          "at": 1
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "a boot id in upper case",
+      "call": "parseBootTime",
+      "args": [
+        {
+          "boot": "6F2C1D0E-1A2B-4C3D-8E4F-5A6B7C8D9E0F",
+          "at": 1
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "seconds as text",
+      "call": "parseBootTime",
+      "args": [
+        {
+          "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+          "at": "1"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "the boot's id and the first number of the uptime",
+      "call": "readBootClock",
+      "args": [
+        "$read"
+      ],
+      "directory": {
+        "proc/sys/kernel/random/boot_id": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f\n",
+        "proc/uptime": "12345.67 54321.00\n"
+      },
+      "expect": {
+        "boot": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+        "at": 12345.67
+      }
+    },
+    {
+      "name": "an uptime that is no number",
+      "call": "readBootClock",
+      "args": [
+        "$read"
+      ],
+      "directory": {
+        "proc/sys/kernel/random/boot_id": "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f\n",
+        "proc/uptime": "x y\n"
+      },
+      "expect": null
+    },
+    {
+      "name": "a boot id that is none",
+      "call": "readBootClock",
+      "args": [
+        "$read"
+      ],
+      "directory": {
+        "proc/sys/kernel/random/boot_id": "not-a-boot\n",
+        "proc/uptime": "1.0 2.0\n"
+      },
+      "expect": null
+    },
+    {
+      "name": "no boot clock: not Linux",
+      "call": "readBootClock",
+      "args": [
+        "$read"
+      ],
+      "directory": {},
+      "expect": null
+    }
+  ]
+}
