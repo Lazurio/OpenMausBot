@@ -2289,9 +2289,6 @@ function cancelDirectTurnDispatch(botId: string, expectedThreadId?: string): Dir
   return claim;
 }
 
-// Lazurio overlay (DEV-6673 M4a): bots work in the Environment browser through their own agent-browser session; the
-// server only keeps each bot's strip of tabs (server/lazurio-environment-browser.ts) and starts no browser of its own.
-const environmentBrowser = startEnvironmentBrowser({ env: process.env, bots: () => store.bots, onChange: (listener) => store.onChange(listener) });
 
 const dataSheets = new DataSheetRegistry({
   broadcast: (frame) => broadcast({ ...frame }),
@@ -2690,6 +2687,9 @@ const store = new Store(
   (selection) => withNewBotEffort(selection, cfg.newBots?.effort, registry.get(selection.instanceId)?.adapter.capabilities.effortLevels),
   (instanceId) => registry.cliTarget(instanceId)?.driverKind,
 );
+// Lazurio overlay (DEV-6673 M4a): bots work in the Environment browser through their own agent-browser session; the
+// server only keeps each bot's strip of tabs (server/lazurio-environment-browser.ts) and starts no browser of its own.
+const environmentBrowser = startEnvironmentBrowser({ env: process.env, bots: () => store.bots, onChange: (listener) => store.onChange(listener) });
 const skillsHost = createSkillsLibraryHost({ store, cfg, appendSkillRequestCard, engineConfig: (instanceId) => providerConfigs()[instanceId] });
 const { listBotSkills, readBotSkillFile } = skillsHost;
 const cloudHealth = CLOUD_HOME ? createCloudHealth({ store, bus, dataDir: DATA_DIR, eventsDir: EVENTS_DIR, version: serverVersion(), image: process.env.OMB_CLOUD_IMAGE,
