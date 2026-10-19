@@ -60,7 +60,6 @@ vi.mock("./AndroidDevicePanel", () => ({
   AndroidDevicePanel: () => null,
   useAndroidUsbDevices: () => ({ devices: fixture.android ? [{ serial: "p1" }] : [] }),
 }));
-vi.mock("./BrowserPanel", () => ({ BrowserPanel: () => createElement("div", null, "BROWSER-PANEL") }));
 vi.mock("./LocalScreenPreview", () => ({ LocalScreenPreview: () => null }));
 vi.mock("./LinuxLocalControl", () => ({ LinuxLocalControl: () => null }));
 vi.mock("./MacLocalControl", () => ({ MacLocalControl: () => null }));
@@ -104,7 +103,6 @@ const engine = (): InstanceInfo => ({
   instanceId: "claude", driverKind: "claudeAgent", displayName: "Claude", access: "subscription",
   snapshot: { state: "available", version: "1", authenticated: true },
   models: { default: "m", options: [{ id: "m", label: "M" }] },
-  capabilities: { computerMcp: true, browserMcp: true },
 } as InstanceInfo);
 
 function makeBot(patch: Partial<Bot> = {}): Bot {
@@ -142,11 +140,9 @@ beforeEach(() => {
   fixture.values = [];
   fixture.index = 0;
   fixture.own = 0;
-  fixture.config = { features: { browser: true }, browserEngine: { kind: "engine" } };
   fixture.instances = [engine()];
   fixture.android = false;
   fixture.dispatch = vi.fn();
-  fixture.api = vi.fn(() => Promise.resolve({ features: { browser: true } }));
   fixture.setAdvancedMode = vi.fn();
   fixture.ownerOrAdmin = null;
   for (const key of Object.keys(fixture.ogb)) delete fixture.ogb[key];
@@ -264,62 +260,6 @@ describe("Computer panel tabs", () => {
     }
   });
 });
-
-describe("Simple Browser tab with the browser off", () => {
-  it("explains and turns on the same installation setting as Settings", async () => {
-    fixture.view.current = "browser";
-    fixture.config = { features: { browser: false }, browserEngine: { kind: "engine" } };
-    const rendered = render(makeBot());
-    expect(rendered.html).toContain("The browser is off");
-    expect(rendered.html).not.toContain("BROWSER-PANEL");
-    (browserSwitch(rendered).props.onClick as () => void)();
-    await vi.waitFor(() => expect(fixture.dispatch).toHaveBeenCalledWith({ type: "configStatus", config: { features: { browser: true } } }));
-    expect(fixture.api).toHaveBeenCalledWith("/api/config", {
-      method: "PATCH",
-      body: JSON.stringify({ features: { browser: true } }),
-    });
-  });
-
-  it("turns on this bot's own browser switch when only that is off", async () => {
-    fixture.view.current = "browser";
-    const rendered = render(makeBot({ browser: false }));
-    expect(browserSwitch(rendered).props.checked).toBe(false);
-    (browserSwitch(rendered).props.onClick as () => void)();
-    await vi.waitFor(() => expect(fixture.dispatch).toHaveBeenCalledWith({ type: "updateBot", botId: "scout", patch: { browser: true } }));
-    expect(fixture.api).not.toHaveBeenCalled();
-  });
-
-  it("says why when this server cannot have a browser", () => {
-    fixture.view.current = "browser";
-    fixture.config = { features: { browser: false }, browserEngine: { kind: "unavailable", reason: "No engine here." } };
-    const rendered = render(makeBot());
-    expect(rendered.html).toContain("No engine here.");
-    expect(browserSwitch(rendered).props.disabled).toBe(true);
-  });
-
-  it("shows the real browser once it is on, under a switch that turns it off for this bot only", () => {
-    fixture.view.current = "browser";
-    const rendered = render(makeBot());
-    expect(rendered.html).toContain("BROWSER-PANEL");
-    expect(browserSwitch(rendered).props.checked).toBe(true);
-    (browserSwitch(rendered).props.onClick as () => void)();
-    expect(fixture.dispatch).toHaveBeenCalledWith({ type: "updateBot", botId: "scout", patch: { browser: false } });
-    expect(fixture.api).not.toHaveBeenCalled();
-  });
-
-  it("keeps the Browser tab and its switch in Advanced mode when the browser is off", () => {
-    fixture.advanced = true;
-    fixture.view.current = "browser";
-    fixture.config = { features: { browser: false }, browserEngine: { kind: "engine" } };
-    const rendered = render(makeBot());
-    expect(rendered.html).toContain("The browser is off");
-    expect(browserSwitch(rendered).props.checked).toBe(false);
-  });
-});
-
-function browserSwitch(rendered: ReturnType<typeof render>) {
-  return rendered.nodes.find((node) => node.props["aria-label"] === "Let Scout use a browser")!;
-}
 
     const rendered = render(makeBot());
     const card = rendered.nodes.find((node) => node.props["data-testid"] === "where-works")!;

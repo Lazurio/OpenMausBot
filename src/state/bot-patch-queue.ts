@@ -29,8 +29,6 @@ export type BotUpdatePatch = Partial<
     | "section"
     | "pinnedMessageId"
     | "chiefOfStaff"
-    | "browser"
-    | "browserProfile"
     | "memoryUpkeep"
     | "cacheKeepWarm"
     | "modelSelection"

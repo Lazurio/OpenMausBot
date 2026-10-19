@@ -110,7 +110,6 @@ const { SettingsPage } = await import("./bot-panel/SettingsPage");
 const { LibraryTab } = await import("./bot-panel/LibraryTab");
 const { ApprovalChip } = await import("./ComposerPlusMenu");
 const { callMode, setCallMode } = await import("@/lib/call-mode");
-const { BrowserLogins } = await import("./bot-panel/browser-logins");
 const { ComputerTab } = await import("./bot-panel/ComputerTab");
 const { PageBody, RoutinesPage, MemoryPage, SkillsPage, FolderPage } = await import("./bot-panel/pages");
 const { PAGES, sectionTarget } = await import("./bot-panel/page-registry");
@@ -177,7 +176,7 @@ const botTab = (bot: Bot) => capture(() => DetailsTab({ bot, derived: derived(),
 const settingsPage = (bot: Bot, editingInstructions = false) =>
   capture(() => SettingsPage({ bot, derived: derived(), onOpen, editingInstructions, onEditInstructions }));
 const library = (bot: Bot) => capture(() => LibraryTab({ bot, onOpen }));
-const computer = (bot: Bot) => capture(() => ComputerTab({ bot, derived: derived(), onOpen }));
+const computer = (bot: Bot) => capture(() => ComputerTab({ bot, onOpen }));
 const find = (rendered: { nodes: Node[] }, attr: string, value: unknown = true) => {
   const found = rendered.nodes.find((node) => node.props[attr] === value);
   if (!found) throw new Error(`no node with ${attr}=${String(value)}`);

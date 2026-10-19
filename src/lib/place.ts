@@ -10,7 +10,4 @@ export function placeOffered(place: Place, config: { cloudHome?: boolean } | nul
   return `place.${place}` as LocaleKey;
 }
 
-  const kind = toolSurfaceKind(toolName);
-  if (kind === "browser") return "browser";
-  return null;
 }

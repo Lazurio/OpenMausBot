@@ -12,11 +12,6 @@ vi.mock("react", async (importOriginal) => {
     return [index in fixture.states ? fixture.states[index] : value, setter];
   } };
 });
-const dispatch = vi.fn();
-vi.mock("@/state/store", async (original) => ({
-  ...await original<typeof import("@/state/store")>(),
-  useStore: () => ({ dispatch }),
-}));
 const answerSignIn = vi.fn();
 const here = { value: true };
 vi.mock("@/lib/sign-in", () => ({ answerSignIn: (...args: unknown[]) => answerSignIn(...args), signInHostIsHere: () => here.value }));
@@ -52,19 +47,21 @@ const settle = async () => { for (let turn = 0; turn < 10; turn++) await Promise
 
 beforeEach(() => {
   vi.stubGlobal("window", {});
-  dispatch.mockReset(); answerSignIn.mockReset().mockResolvedValue(undefined);
   fixture.setters = []; fixture.states = {}; here.value = true;
+  answerSignIn.mockReset().mockResolvedValue(undefined);
 });
 
 describe("SignInRequestCard while it waits", () => {
-  it("leads with the site, quotes the bot's reason, and offers Open, Done and Cancel", () => {
+  it("leads with the site, quotes the bot's reason, says where to sign in, and offers Done and Cancel", () => {
     const html = view();
     expect(html).toContain("Sign in needed");
     expect(html).toMatch(/data-testid="sign-in-site"[^>]*>example\.com</);
     expect(html).toContain("“The report is behind a login.”");
     expect(html).toContain("— Pepper");
-    expect(html).toContain("Pepper’s built-in browser");
-    for (const label of ["Open", "Done", "Cancel"]) expect(html).toContain(label);
+    expect(html).toContain("Sign in in the Environment browser, through the link Pepper sent.");
+    for (const label of ["Done", "Cancel"]) expect(html).toContain(label);
+    expect(html).not.toMatch(/>Open</);
+    expect(html).not.toContain("built-in browser");
     expect(html).toContain("OpenMausBot never sees it.");
     expect(html).not.toContain("<input");
   });
@@ -73,6 +70,7 @@ describe("SignInRequestCard while it waits", () => {
     ["local", "on this computer, in the browser Pepper is using"],
   ])("names the place for %s", (place, words) => {
     expect(view({ place })).toContain(words);
+    expect(button(tree(), "Open")).toBeUndefined();
   });
 
   it("says the host computer, not this one, where this computer is somewhere else", () => {
@@ -80,20 +78,13 @@ describe("SignInRequestCard while it waits", () => {
     expect(view({ place: "local" })).toContain("the computer OpenMausBot runs on");
   });
 
-  it("Open goes to the place the bot works", () => {
-    button(tree(), "Open").props.onClick!();
-    expect(dispatch).toHaveBeenCalledExactlyOnceWith({
-      type: "openSignIn", botId: "pepper", messageId: "card-1", url: "https://example.com/login", site: "example.com", place: "browser",
-    });
   });
 
   it("Open on this computer explains where to sign in instead", () => {
     button(tree({ place: "local" }), "Open").props.onClick!();
-    expect(dispatch).not.toHaveBeenCalled();
     // explained (the second useState) turns on
     expect(fixture.setters[1]).toHaveBeenCalledWith(true);
     fixture.setters = []; fixture.states = { 1: true };
-    expect(view({ place: "local" })).toContain("Not the Browser tab: it keeps its own sign-ins");
   });
 
   });

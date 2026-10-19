@@ -1,5 +1,4 @@
 import { viewerTargetId } from "../../shared/desktop-viewer";
-import { Switch } from "./SettingsPrimitives";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { CalendarClock, Columns2, Box, Check, Cloud, Sparkles, Globe, Hand, Loader2, Maximize2, Monitor, Moon, Power, Settings, X } from "lucide-react";
@@ -11,12 +10,10 @@ import { useDesktopCapabilities } from "./DesktopCapabilities";
 import { RoutinesSection } from "./bot-settings/RoutinesSection";
 import { routineRunLabel, routineRunTone } from "@/lib/routine-display";
 import { AndroidDevicePanel, useAndroidUsbDevices } from "./AndroidDevicePanel";
-import { BrowserPanel } from "./BrowserPanel";
 import { usePanelPage, type PanelPage } from "@/lib/page-open";
 const DataPanel = lazy(() => import("./data/DataPanel").then((module) => ({ default: module.DataPanel })));
 const loadLiveDesktop = () => import("./LiveDesktop").then((module) => ({ default: module.LiveDesktop }));
 const LiveDesktop = lazy(loadLiveDesktop);
-import { browserAvailable, browserUnavailableReason, builtInBrowserEnabled } from "@/lib/feature-flags";
 import { parseComputerHelp, transitionComputerControlLease, type ComputerControlAction } from "@/lib/computer-control";
 import { openProviderDesktop, useComputerTakeover } from "./computer-takeover";
 import { SignInBanner } from "./SignInRequestCard";
@@ -60,9 +57,6 @@ const computerControlSnapshotSchema = z.object({
   const panelTabs = computerPanelTabs({ advanced, androidConnected });
   const panelView = resolveComputerPanelView(storedPanelView, { advanced, androidConnected });
   const panelRef = useComputerPanelEntry(profileBot.id, panelView);
-  const browserAvailableHere = browserAvailable(state.config);
-  const browserEnabled = builtInBrowserEnabled(state.config) && bot.browser !== false
-    && (browserAvailableHere || state.config?.browserEngine?.installable === true);
   const selectPanelView = (view: ComputerPanelView) => {
     setPanelView(view);
     writeComputerPanelView(bot.id, view);
@@ -77,20 +71,6 @@ const computerControlSnapshotSchema = z.object({
     writeComputerPanelView(bot.id, "data");
     dispatch({ type: "dataResultFocusConsumed", requestId: requestedDataResult.requestId });
   }, [bot.id, dispatch, requestedDataResult]);
-
-  const requestedSignIn = state.signInFocus?.botId === bot.id ? state.signInFocus : undefined;
-  const [signInRequest, setSignInRequest] = useState<{ url: string; site: string; nonce: number }>();
-  // A published page's Open (usePageOpener): this bot's browser shows, with the page in a new tab.
-  const [pageRequest, setPageRequest] = useState<PanelPage>();
-  usePanelPage(bot.id, (page) => { selectPanelView("browser"); setPageRequest(page); });
-  useEffect(() => {
-    if (!requestedSignIn || requestedSignIn.consumed) return;
-    const view = requestedSignIn.place === "browser" ? "browser" : "computer";
-    setPanelView(view);
-    writeComputerPanelView(bot.id, view);
-    if (view === "browser") setSignInRequest({ url: requestedSignIn.url, site: requestedSignIn.site, nonce: requestedSignIn.requestId });
-    dispatch({ type: "signInFocusConsumed", requestId: requestedSignIn.requestId });
-  }, [bot.id, dispatch, requestedSignIn]);
 
   useAndroidTabFallback(bot.id, androidStatus, setPanelView);
   const botRoutines = state.routines
@@ -182,8 +162,6 @@ const computerControlSnapshotSchema = z.object({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bot.id]);
 
-  const setNativeBrowserControl = useCallback(async (): Promise<boolean> => true, []);
-
     setControlPending(true);
     setError(null);
     try {
@@ -204,57 +182,11 @@ const computerControlSnapshotSchema = z.object({
     />
   );
 
-  const browserCanTurnOn = browserAvailableHere || state.config?.browserEngine?.installable === true;
-  const [browserTurningOn, setBrowserTurningOn] = useState(false);
-  const turnOnBrowser = async () => {
-    if (browserTurningOn) return;
-    setBrowserTurningOn(true);
-    setError(null);
-    try {
-      if (!builtInBrowserEnabled(state.config)) {
-        const config: ConfigStatus = await api("/api/config", {
-          method: "PATCH",
-          body: JSON.stringify({ features: { browser: true } }),
-        });
-        dispatch({ type: "configStatus", config });
-      }
-      if (profileBot.browser === false) dispatch({ type: "updateBot", botId: profileBot.id, patch: { browser: true } });
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t("settings.experimental.error"));
-    } finally {
-      setBrowserTurningOn(false);
-    }
-  };
-
-  const turnOffBrowser = () => {
-    setError(null);
-    dispatch({ type: "updateBot", botId: profileBot.id, patch: { browser: false } });
-  };
-  const browserSwitchRow = (
-    <div data-testid="browser-switch-row" className="mb-3 flex items-center gap-3 rounded-xl bg-card px-3 py-2.5">
-      <Globe size={15} className="shrink-0 text-ink-secondary" aria-hidden="true" />
-      <div className="min-w-0 flex-1">
-        <div className="text-[13px] font-medium text-ink">{t("computer.browserSwitch.title", { name: bot.name })}</div>
-        {!browserCanTurnOn && <div className="text-[12px] text-ink-secondary">{browserUnavailableReason(state.config)}</div>}
-      </div>
-      <Switch
-        checked={browserEnabled}
-        disabled={browserTurningOn || (!browserEnabled && !browserCanTurnOn)}
-        aria-label={t("computer.browserSwitch.title", { name: bot.name })}
-        onClick={() => (browserEnabled ? turnOffBrowser() : void turnOnBrowser())}
-      />
-    </div>
-  );
-
   const tabClass = (active: boolean) => cn(
     "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-[13px] transition-colors @max-[28rem]/paneltabs:[&>svg]:hidden @max-[22rem]/paneltabs:px-2",
     active ? "bg-raised text-ink shadow-sm" : "text-ink-secondary hover:text-ink",
   );
 
-  const chooseTab = (view: ComputerPanelView) => {
-    if (view === "browser") setError(null);
-    selectPanelView(view);
-  };
 
 
   return (
@@ -326,29 +258,6 @@ const computerControlSnapshotSchema = z.object({
 
       {panelView === "routines" ? (
         <div {...tabPanelProps("routines")} className={cn("min-h-0 flex-1 overflow-y-auto px-4 pb-4", TAB_PANEL_FOCUS)}>
-        </div>
-      ) : panelView === "browser" && browserEnabled ? (
-        <div {...tabPanelProps("browser")} className={cn("flex min-h-0 flex-1 flex-col px-4 pb-4", TAB_PANEL_FOCUS)}>
-          {browserSwitchRow}
-          {signInHelp?.place === "browser" && <div className="-mt-1 mb-3">{signInBanner()}</div>}
-          <BrowserPanel bot={bot} signIn={signInRequest} page={pageRequest} />
-            <div role="alert" className="mt-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-[12px] text-danger">
-            </div>
-          )}
-        </div>
-      ) : panelView === "browser" ? (
-        <div {...tabPanelProps("browser")} className={cn("flex-1 overflow-y-auto px-5 pb-5", TAB_PANEL_FOCUS)} data-testid="browser-off">
-          {browserSwitchRow}
-          <div className="mt-2 flex flex-col items-center gap-3 rounded-xl bg-card px-6 py-8 text-center">
-            <Globe size={22} className="text-ink-secondary" aria-hidden="true" />
-            <div className="text-[14px] font-medium text-ink">{t("computer.browserOff.title")}</div>
-            <p className="text-[12px] leading-5 text-ink-secondary">
-              {browserCanTurnOn ? t("computer.browserOff.body", { name: bot.name }) : browserUnavailableReason(state.config)}
-            </p>
-              <div role="alert" className="w-full rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-[12px] text-danger">
-              </div>
-            )}
-          </div>
         </div>
       ) : panelView === "data" ? (
         <div {...tabPanelProps("data")} className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", TAB_PANEL_FOCUS)}>
@@ -445,13 +354,6 @@ const computerControlSnapshotSchema = z.object({
                   className="mt-1 rounded-lg bg-control px-3 py-1.5 text-[12px] text-ink hover:bg-raised-hover"
                 >
                   {t("computer.openSettings")}
-                </button>
-              )}
-                <button
-                  onClick={() => selectPanelView("browser")}
-                  className="mt-1 rounded-lg bg-control px-3 py-1.5 text-[12px] text-ink hover:bg-raised-hover"
-                >
-                  {t("computer.openBrowserTab")}
                 </button>
               )}
             </div>

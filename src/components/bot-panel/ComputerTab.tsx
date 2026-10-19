@@ -3,19 +3,10 @@ import { writeComputerPanelView, type ComputerPanelView } from "@/lib/computer-p
 import { t } from "@/lib/i18n";
 import { BotAvatar } from "../Avatar";
 import { useDesktopCapabilities } from "../DesktopCapabilities";
-import type { BotPatch, useBotSettingsDerived } from "../bot-settings/useBotSettingsDerived";
 import { useStore, type Bot } from "@/state/store";
 import { useBrowserWords } from "../LazurioBrowser";
 import type { SimplePageId } from "./page-registry";
 import { Card, NavRow } from "./rows";
-
-type Derived = ReturnType<typeof useBotSettingsDerived>;
-interface PlaceOption {
-  value: PlaceChoice;
-  label: string;
-  hint?: string;
-  disabled?: boolean;
-}
 
 
 export function useOpenComputer(bot: Pick<Bot, "id">) {
@@ -28,7 +19,6 @@ export function useOpenComputer(bot: Pick<Bot, "id">) {
 }
 
   const { capabilities } = useDesktopCapabilities();
-  const { browserEnabled } = derived;
   const openPanel = useOpenBrowserPanel(bot);
   const words = useBrowserWords();
 
@@ -63,11 +53,6 @@ export function useOpenComputer(bot: Pick<Bot, "id">) {
         />
       <Card label={t("botPanel.onThisComputer")} anchor="on-computer">
         <NavRow
-          data-panel-page="browser"
-          icon={KeyRound}
-          title={t("settings.sites.title")}
-          value={signedIn ?? undefined}
-          onClick={() => onOpen("browser")}
           data-panel-row="browser"
           icon={Globe}
           title={words.browser}

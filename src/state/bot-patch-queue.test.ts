@@ -122,6 +122,7 @@ describe("bot patch queue", () => {
       onError: vi.fn(),
     });
 
+    queue.enqueue("bot-1", { pinned: false }, bot());
     const flushed = queue.flush("bot-1");
     let settled = false;
     void flushed.then(() => { settled = true; });
@@ -130,6 +131,8 @@ describe("bot patch queue", () => {
     expect(send).toHaveBeenCalledOnce();
     expect(settled).toBe(false);
 
+    request.resolve(bot({ pinned: false }));
+    await expect(flushed).resolves.toMatchObject({ pinned: false });
   });
 
   it("coalesces upload then remove so an older avatar can never resurrect", async () => {

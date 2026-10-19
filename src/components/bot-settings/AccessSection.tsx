@@ -1,4 +1,3 @@
-import { browserUnavailableReason } from "@/lib/feature-flags";
 import { useState } from "react";
 import { FolderOpen } from "lucide-react";
 
@@ -8,7 +7,6 @@ import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { shortPath } from "@/lib/short-path";
 import { useDesktopCapabilities } from "../DesktopCapabilities";
-import { Switch } from "../SettingsPrimitives";
 import { ProposalStatus } from "./ProposalStatus";
 import { inputCls } from "./field";
 import type { useBotSettingsDerived } from "./useBotSettingsDerived";
@@ -111,17 +109,8 @@ export function AccessSection({
   parts?: readonly AccessPart[];
 }) {
   const { draft } = useBotEditor();
-  const {
-    patch,
-    canUseBrowser,
-    desktopBrowser,
-    browserBlockedOnWindows,
-    browserFeature,
-    browserAllowed,
-    browserEnabled,
-  } = derived;
-  const browserInstallable = state.config?.browserEngine?.installable === true;
   const { state } = useStore();
+  const { patch } = derived;
 
   const webhooks = state.webhooks.filter((webhook) => webhook.botId === bot.id);
   const alwaysAllow = bot.alwaysAllow ?? [];
@@ -130,42 +119,6 @@ export function AccessSection({
   return (
     <div className="flex flex-col gap-4">
       {shows("folder") && <WorkingFolder bot={bot} />}
-
-      {shows("browser") && <div className="rounded-xl bg-card p-4">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <div className="text-[15px] font-medium text-ink">{t("botAccess.browser.title")}</div>
-            <div className="mt-0.5 text-[13px] text-ink-secondary">
-              {!desktopBrowser
-                ? browserBlockedOnWindows && !browserInstallable
-                  ? t("botAccess.browser.windowsUnavailable")
-                  : browserUnavailableReason(state.config)
-                : !browserFeature
-                  ? t("botAccess.browser.disabledInSettings")
-                  : !canUseBrowser
-                    ? t("botAccess.browser.modelUnsupported")
-                    : bot.computer === "off"
-                      ? t("botAccess.browser.off")
-                      : browserEnabled
-                        ? t("botAccess.browser.enabled")
-                        : t("botAccess.browser.disabled")}
-            </div>
-            <ProposalStatus bot={bot} kind="owner" />
-          </div>
-          <Switch
-            aria-label={t("botAccess.browser.allow")}
-            onClick={() => patch({ browser: !browserAllowed })}
-            className="disabled:cursor-not-allowed"
-          />
-        </div>
-        {!draft && (
-          <RecordStepsRow
-            on={bot.recordBrowserSteps === true}
-            myChrome={state.config?.browserEngine?.myChrome === true && (state.config?.browserProfiles ?? []).some((profile) => profile.id === bot.browserProfile && profile.browser === "chrome")}
-            onChange={(recordBrowserSteps) => patch({ recordBrowserSteps })}
-          />
-        )}
-      </div>}
 
       {!draft && shows("webhooks") && <div className="rounded-xl bg-card p-4">
         <div className="text-[15px] font-medium text-ink">{t("botAccess.webhooks.title")}</div>

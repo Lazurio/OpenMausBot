@@ -18,7 +18,6 @@ import { ActivitySection } from "./ActivitySection";
 import { useOwnerOrAdmin } from "@/lib/use-owner-or-admin";
 import { currentPhonePairingTarget } from "@/lib/phone-pairing";
 import { CustomDomainSettings } from "./CustomDomainSettings";
-import { BuiltInBrowserRow } from "./BrowserSettingsRows";
 import { RemoteComputerSection } from "./RemoteComputerSection";
 import { ConnectedWorkspacesSettings } from "./ConnectedWorkspacesSettings";
 import { OrganizationSettings } from "./OrganizationSettings";

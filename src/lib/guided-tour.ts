@@ -5,7 +5,6 @@ export type TourStepId =
   | "tour.composer"
   | "tour.model"
   | "tour.computer"
-  | "tour.computer-browser"
   | "tour.tools"
   | "tour.automations"
   | "tour.automations-page"
@@ -37,7 +36,6 @@ export const TOUR_STEPS: TourStep[] = [
   { id: "tour.composer", anchor: "composer", placement: "above" },
   { id: "tour.model", anchor: "model", placement: "below" },
   { id: "tour.computer", anchor: "computer", placement: "below", onExit: "openComputer" },
-  { id: "tour.computer-browser", anchor: "computer-browser", fallbackAnchor: "computer-tabs", skipIfMissing: true, placement: "below", onEnter: "openComputer", onExit: "closeComputer" },
   { id: "tour.tools", anchor: "tools", skipIfMissing: true, placement: "right", onExit: "openTools" },
   { id: "tour.automations", anchor: "nav-automations", skipIfMissing: true, placement: "right", onEnter: "openTools", onExit: "openAutomations" },
   { id: "tour.automations-page", anchor: "automations-page", skipIfMissing: true, placement: "below", onEnter: "openAutomations", onExit: "backToChat" },

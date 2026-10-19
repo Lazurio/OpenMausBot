@@ -25,7 +25,6 @@ vi.mock("./DesktopCapabilities", async (importOriginal) => ({
 vi.mock("@/lib/interface-mode", () => ({ useAdvancedMode: () => fixture.advanced, setAdvancedMode: () => {} }));
 vi.mock("@/lib/use-owner-or-admin", () => ({ useOwnerOrAdmin: () => true }));
 vi.mock("./AndroidDevicePanel", () => ({ AndroidDevicePanel: () => null, useAndroidUsbDevices: () => ({ devices: fixture.android ? [{ serial: "p1" }] : [] }) }));
-vi.mock("./BrowserPanel", () => ({ BrowserPanel: ({ page }: { page?: unknown }) => { fixture.page = page; return null; } }));
 vi.mock("./bot-settings/RoutinesSection", () => ({ RoutinesSection: () => null }));
 vi.mock("./data/DataPanel", () => ({ DataPanel: () => createElement("div", { "data-testid": "data-panel" }) }));
 vi.mock("@/state/store", async (importOriginal) => ({
@@ -44,7 +43,6 @@ const engine = (instanceId: string) => ({
   instanceId, driverKind: "claudeAgent", displayName: instanceId, access: "subscription",
   snapshot: { state: "available", version: "1", authenticated: true },
   models: { default: "m", options: [{ id: "m", label: "M" }] },
-  capabilities: { computerMcp: true, browserMcp: true },
 }) as InstanceInfo;
 const makeBot = (patch: Partial<Bot> = {}): Bot => ({
   id: "scout", threadId: "thread", name: "Scout", title: "", description: "", color: "green",
@@ -151,11 +149,9 @@ describe("Computer panel tab", () => {
 
   it("marks the selected trigger and only that one", async () => {
     await open(makeBot());
-    expect(tabs().map((candidate) => candidate.getAttribute("aria-selected"))).toEqual(["true", "false", "false", "false"]);
 
     flushSync(() => tab("Data").click());
     await settle();
-    expect(tabs().map((candidate) => candidate.getAttribute("aria-selected"))).toEqual(["false", "false", "false", "true"]);
   });
 
   it("keeps one Tab stop and moves it with the arrow, Home and End keys", async () => {

@@ -14,7 +14,7 @@ export type PageId =
   | "settings" | "where"
   | "setup" | "model" | "instructions" | "approvals" | "always" | "routines"
   | "memory" | "skills"
-  | "browser" | "folder" | "android"
+  | "folder" | "android"
   | "voice" | "blurb" | "team" | "chiefteams" | "webhooks" | "visibility" | "slack"
   | "overview" | "prompt" | "history";
 

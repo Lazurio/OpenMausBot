@@ -13,7 +13,6 @@ const MASCOT: Record<TourStep["id"], MausState> = {
   "tour.composer": "happy",
   "tour.model": "curious",
   "tour.computer": "working",
-  "tour.computer-browser": "curious",
   "tour.tools": "curious",
   "tour.automations": "happy",
   "tour.automations-page": "drowsy",

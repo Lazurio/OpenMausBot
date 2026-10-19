@@ -44,13 +44,6 @@ describe("experimental feature flags", () => {
     for (const bad of ["", "2", "101", "4.5", "-5", "ten"]) expect(parseSkillReviewSteps(bad)).toBeNull();
   });
 
-  it("keeps the experimental browser off until explicitly enabled", () => {
-    expect(builtInBrowserEnabled(null)).toBe(false);
-    expect(builtInBrowserEnabled({})).toBe(false);
-    expect(builtInBrowserEnabled({ features: { browser: false } })).toBe(false);
-    expect(builtInBrowserEnabled({ features: { browser: true } })).toBe(true);
-  });
-
   it("hides tool-call chips by default", () => {
     expect(showToolCallsEnabled(null)).toBe(false);
     expect(showToolCallsEnabled({})).toBe(false);

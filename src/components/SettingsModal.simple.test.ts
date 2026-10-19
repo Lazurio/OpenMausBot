@@ -10,6 +10,7 @@ import { SIMPLE_ADVANCED_ONLY } from "./SettingsSimplePages";
 const fixture = vi.hoisted(() => ({
   section: "general" as AppSettingsSection,
   advancedMode: false,
+  config: {} as Record<string, unknown>,
   api: vi.fn(),
   dispatch: vi.fn(),
   switches: [] as ComponentProps<typeof Switch>[],
@@ -80,6 +81,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   fixture.section = "general";
   fixture.advancedMode = false;
+  fixture.config = {};
   fixture.switches = [];
   fixture.ownerOrAdmin = null;
   fixture.updater = null;
@@ -236,7 +238,6 @@ describe("Settings in Simple mode", () => {
     expect(pages(html)).toEqual(["general", "computer"]);
     expect(currentPage(html)).toBe("computer");
     expect(blocks(html)).toEqual(["companion", "elsewhere", "remote", "desktopWorkspaces"]);
-    expect(html).not.toContain('aria-label="Enable the built-in browser"');
     fixture.section = "appearance";
     const general = render();
     expect(currentPage(general)).toBe("general");
@@ -316,26 +317,11 @@ describe("Settings in Advanced mode", () => {
 });
 
 describe("the built-in browser switch", () => {
-    if (advanced) {
-      expect(html.indexOf('aria-label="Enable the built-in browser"')).toBeLessThan(html.indexOf("MARKER:computer;"));
-    } else {
-      expect(html.indexOf("MARKER:computer;")).toBeLessThan(html.indexOf('aria-label="Enable the built-in browser"'));
-    }
-    const toggle = browserSwitch()!;
-    expect(toggle.checked).toBe(false);
-    toggle.onClick!({} as never);
-    await vi.waitFor(() => expect(fixture.dispatch).toHaveBeenCalledWith({ type: "configStatus", config: {} }));
-    expect(fixture.api).toHaveBeenCalledWith("/api/config", {
-      method: "PATCH",
-      body: JSON.stringify({ features: { browser: true } }),
-    });
-  it("is no longer on Experimental, which keeps skill drafting", () => {
+  it("keeps skill drafting on Experimental, with no new-browser switch", () => {
     fixture.advancedMode = true;
     fixture.section = "experimental";
     const html = render();
-    expect(html).not.toContain('aria-label="Enable the built-in browser"');
     expect(html).toContain("Bots may write their own skills");
-    expect(browserSwitch()).toBeUndefined();
-  });
+    expect(html).not.toContain("browser");
   });
 });

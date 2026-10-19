@@ -18,7 +18,6 @@ import { SkillReviewDialog, useManagedSkills, type ManagedSkill } from "../bot-s
 import { useBotApps, type BotApp } from "../bot-settings/useBotApps";
 import type { useBotSettingsDerived } from "../bot-settings/useBotSettingsDerived";
 import { RoutineList } from "../routines/RoutineList";
-import { BrowserLogins } from "./browser-logins";
 import { useOpenComputer, WherePage } from "./ComputerTab";
 import { SettingsPage } from "./SettingsPage";
 import { memoryNotes, withMemoryNote, withoutMemoryNote } from "./memory-notes";
