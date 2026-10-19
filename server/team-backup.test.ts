@@ -166,7 +166,8 @@ describe("additive portable team backups", () => {
     expect(importedChief.soul).toBe(chief.soul);
     expect(importedChief.soulHash).toBe(soulHash(chief.soul!));
     expect(readFileSync(soulFile(importedChief.id), "utf8")).toBe(chief.soul);
-    expect(importedChief).toMatchObject({ section: "Engineering 2", chiefOfStaff: true, description: chief.description, browser: false, resumeCursors: {}, playbooks: chief.playbooks });
+    expect(importedChief).toMatchObject({ section: "Engineering 2", chiefOfStaff: true, description: chief.description, resumeCursors: {}, playbooks: chief.playbooks });
+    expect(importedChief).not.toHaveProperty("browser");
     expect(approvalModeFor(importedChief)).toBe("full");
     expect(result.bots.find((bot) => bot.name === "Ava 2")).toMatchObject({ section: "Operations 2", chiefOfStaff: true });
     expect(result.bots.find((bot) => bot.name === "Archived 2")).toMatchObject({ hidden: true });
@@ -219,6 +220,7 @@ describe("additive portable team backups", () => {
     const imported = importTeamBackup(store, routines, older, selection()).bots.find((bot) => bot.name === "Mira 2")!;
     expect(imported).not.toHaveProperty("connectorTools");
     expect(imported).not.toHaveProperty("composio");
+    expect(imported).not.toHaveProperty("browser");
   });
 
   it("keeps first-message title markers armed-once through backup and restore", () => {
@@ -308,6 +310,7 @@ describe("additive portable team backups", () => {
     expect(approvalModeFor(imported)).toBe("full");
     expect(imported).not.toHaveProperty("computer");
     expect(imported).not.toHaveProperty("composio");
+    expect(imported).not.toHaveProperty("browser");
     expect(JSON.stringify(parseTeamBackup(backup))).not.toMatch(/live-approval|secret-session|\/etc\/passwd|approvalMode/);
   });
 

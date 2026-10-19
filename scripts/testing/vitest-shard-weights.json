@@ -33,7 +33,6 @@
   "server/bot-setup.e2e.test.ts": 4,
   "server/bot-visibility.e2e.test.ts": 1,
   "server/bot-wire-privacy.e2e.test.ts": 11,
-  "server/browser-runtime.test.ts": 7,
   "server/card-answerers.e2e.test.ts": 1,
   "server/chat-followups-restart.test.ts": 11,
   "server/checkpoints-perf.test.ts": 63,
