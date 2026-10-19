@@ -373,7 +373,8 @@ describe("archive / delete confirmation", () => {
 
     expect(copy.title).toContain("Willow");
     expect(copy.body).toMatch(/permanently/i);
-    expect(copy.body).toMatch(/files, memory, and browser sign-ins/i);
+    expect(copy.body).toMatch(/files and memory/i);
+    expect(copy.body).not.toMatch(/browser/i);
     expect(copy.body).not.toMatch(/computer/i);
     expect(copy.tone).toBe("danger");
   });

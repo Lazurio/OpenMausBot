@@ -1,4 +1,4 @@
-import { Folder, Globe, KeyRound, Monitor, Smartphone, Table } from "lucide-react";
+import { Folder, Monitor, Smartphone, Table } from "lucide-react";
 
 import { writeComputerPanelView, type ComputerPanelView } from "@/lib/computer-panel-view";
 import { t } from "@/lib/i18n";
@@ -7,11 +7,8 @@ import { useStore, type Bot } from "@/state/store";
 import { BotAvatar } from "../Avatar";
 import { useDesktopCapabilities } from "../DesktopCapabilities";
 import { screenFramePreview } from "../ScreenFrame";
-import type { useBotSettingsDerived } from "../bot-settings/useBotSettingsDerived";
 import type { PageId } from "./page-registry";
 import { Card, LinkRow, NavRow } from "./rows";
-
-type Derived = ReturnType<typeof useBotSettingsDerived>;
 
 export function useOpenComputer(bot: Pick<Bot, "id">) {
   const { dispatch } = useStore();
@@ -22,10 +19,9 @@ export function useOpenComputer(bot: Pick<Bot, "id">) {
   };
 }
 
-export function ComputerTab({ bot, derived, onOpen }: { bot: Bot; derived: Derived; onOpen: (page: PageId) => void }) {
+export function ComputerTab({ bot, onOpen }: { bot: Bot; onOpen: (page: PageId) => void }) {
   const { capabilities } = useDesktopCapabilities();
   const openComputer = useOpenComputer(bot);
-  const { browserEnabled } = derived;
 
   const screen = [...bot.messages].reverse().find((message) => message.kind === "screen" && (message.hasImage || message.png));
   const screenSrc = screen ? screenFramePreview({ threadId: bot.threadId, messageId: screen.id }, screen.mime).src : null;
@@ -56,20 +52,6 @@ export function ComputerTab({ bot, derived, onOpen }: { bot: Bot; derived: Deriv
       <div className="mt-[7px] text-center text-[12px] text-ink-tertiary">{t("computer.screenOf", { name: bot.name })}</div>
 
       <Card label={t("botPanel.onThisComputer")} anchor="on-computer">
-        <NavRow
-          data-panel-page="browser"
-          icon={Globe}
-          title={t("place.browser")}
-          hint={t(browserEnabled ? "botPanel.browserOn" : "botPanel.browserOff")}
-          onClick={() => onOpen("browser")}
-        />
-        <NavRow
-          data-panel-page="logins"
-          icon={KeyRound}
-          title={t("botSettings.simple.logins")}
-          hint={t("botPanel.loginsHint", { name: bot.name })}
-          onClick={() => onOpen("browser")}
-        />
         <NavRow
           data-panel-page="folder"
           icon={Folder}

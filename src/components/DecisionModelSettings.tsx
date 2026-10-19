@@ -51,7 +51,7 @@ export function deciderFailureText(result: { reason: string; status?: number }, 
   return key ? t(key) : t("decider.error.other");
 }
 
-const COMING_SOON: LocaleKey[] = ["decider.jobs.browserClicks", "decider.jobs.toolSelection", "decider.jobs.placement"];
+const COMING_SOON: LocaleKey[] = ["decider.jobs.toolSelection", "decider.jobs.placement"];
 
 export function DecisionModelSettings() {
   const { state, dispatch } = useStore();

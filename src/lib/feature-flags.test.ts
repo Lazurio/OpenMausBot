@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { builtInBrowserEnabled, llmThreadTitlesEnabled, parseSkillReviewSteps, roomMemoryCaptureEnabled, routinesInConversationEnabled, shareLearnedSkillsMode, showToolCallsEnabled, skillAuthoringEnabled, skillReviewEnabled, skillReviewSteps, skillReviewUnavailableEngines } from "./feature-flags";
+import { llmThreadTitlesEnabled, parseSkillReviewSteps, roomMemoryCaptureEnabled, routinesInConversationEnabled, shareLearnedSkillsMode, showToolCallsEnabled, skillAuthoringEnabled, skillReviewEnabled, skillReviewSteps, skillReviewUnavailableEngines } from "./feature-flags";
 
 describe("experimental feature flags", () => {
   it("keeps skill authoring on by default, before and after the config arrives", () => {
@@ -42,13 +42,6 @@ describe("experimental feature flags", () => {
     expect(skillReviewSteps({ features: { skillReviewSteps: 500 } })).toBe(100);
     expect(parseSkillReviewSteps(" 12 ")).toBe(12);
     for (const bad of ["", "2", "101", "4.5", "-5", "ten"]) expect(parseSkillReviewSteps(bad)).toBeNull();
-  });
-
-  it("keeps the experimental browser off until explicitly enabled", () => {
-    expect(builtInBrowserEnabled(null)).toBe(false);
-    expect(builtInBrowserEnabled({})).toBe(false);
-    expect(builtInBrowserEnabled({ features: { browser: false } })).toBe(false);
-    expect(builtInBrowserEnabled({ features: { browser: true } })).toBe(true);
   });
 
   it("hides tool-call chips by default", () => {

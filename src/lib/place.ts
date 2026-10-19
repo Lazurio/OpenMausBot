@@ -14,10 +14,7 @@ export function placeLabelKey(place: Place): LocaleKey {
   return `place.${place}` as LocaleKey;
 }
 
-/** Browser tools act in the built-in browser and computer tools on this computer's own screen. */
+/** Computer tools act on this computer's own screen. */
 export function toolPlace(toolName: string): Place | null {
-  const kind = toolSurfaceKind(toolName);
-  if (kind === "browser") return "browser";
-  if (kind === "computer") return "local";
-  return null;
+  return toolSurfaceKind(toolName) === "computer" ? "local" : null;
 }

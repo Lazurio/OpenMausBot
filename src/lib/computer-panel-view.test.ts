@@ -3,25 +3,26 @@ import { describe, expect, it, vi } from "vitest";
 import { readComputerPanelView, resolveComputerPanelView, writeComputerPanelView } from "./computer-panel-view";
 
 describe("computer panel view persistence", () => {
-  it("restores the browser for the same bot after the expanded workspace closes", () => {
+  it("restores the Files tab for the same bot after the expanded workspace closes", () => {
     const values = new Map<string, string>();
     const storage = {
       getItem: (key: string) => values.get(key) ?? null,
       setItem: (key: string, value: string) => values.set(key, value),
     };
 
-    writeComputerPanelView("sprout", "browser", storage);
+    writeComputerPanelView("sprout", "files", storage);
 
-    expect(readComputerPanelView("sprout", storage)).toBe("browser");
+    expect(readComputerPanelView("sprout", storage)).toBe("files");
     expect(readComputerPanelView("another-bot", storage)).toBe("computer");
   });
 
   it("falls back safely for stale values or blocked storage", () => {
     expect(readComputerPanelView("sprout", { getItem: () => "unknown" })).toBe("computer");
+    expect(readComputerPanelView("sprout", { getItem: () => "browser" })).toBe("computer");
     expect(readComputerPanelView("sprout", { getItem: () => { throw new Error("blocked"); } })).toBe("computer");
 
     const setItem = vi.fn(() => { throw new Error("blocked"); });
-    expect(() => writeComputerPanelView("sprout", "browser", { setItem })).not.toThrow();
+    expect(() => writeComputerPanelView("sprout", "files", { setItem })).not.toThrow();
   });
 
   it("remembers a bot's routines tab without changing another bot's view", () => {
@@ -53,7 +54,7 @@ describe("computer panel view availability", () => {
   });
 
   it("keeps a view whose trigger is on the row", () => {
-    for (const view of ["computer", "browser", "data"] as const) {
+    for (const view of ["computer", "data"] as const) {
       expect(resolveComputerPanelView(view, { advanced: true, androidConnected: true })).toBe(view);
       expect(resolveComputerPanelView(view, { advanced: false, androidConnected: false })).toBe(view);
     }
