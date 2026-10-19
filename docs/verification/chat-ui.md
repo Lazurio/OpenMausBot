@@ -3,7 +3,7 @@
 The `ui` group of `control-omb` drives the real React renderer — the same
 `<App/>` the desktop shell loads, mounted by `scripts/testing/threads-preview.tsx`
 — in a headless Chrome through the agent-browser binary the harness pins
-(`server/browser-engine-release.ts`, implementation in
+(`scripts/testing/ui-agent-browser.ts`, implementation in
 `scripts/testing/control-omb-ui.ts`). Everything it touches is disposable: the
 fake-engine fixture from `launch`, a Vite preview of the app, and one browser
 session whose `HOME` is the fixture's data directory. The user's app on port
@@ -19,7 +19,7 @@ node --experimental-strip-types scripts/control-omb.ts ui launch \
 Run it in the foreground so Ctrl-C reaches it. On first use it downloads the
 pinned agent-browser release (size and SHA-256 verified) and its Chrome for
 Testing into `.omb-scratch/verify-tools` (gitignored); later launches reuse
-them. `OMB_AGENT_BROWSER_PATH` and `AGENT_BROWSER_EXECUTABLE_PATH` take
+them. `OMB_UI_AGENT_BROWSER_PATH` and `AGENT_BROWSER_EXECUTABLE_PATH` take
 precedence when set. The launcher then starts the fixture, pins its language
 to English (`PATCH /api/config`), creates Pepper through the same `new-bot`
 path as [Chat turns](chat-turns.md), mounts the preview, opens it in a headless
@@ -246,8 +246,8 @@ fills the composer without sending — all in a Chromium page, through
 accessibility names, with no mouse coordinates.
 
 Not proven: the Electron shell (menus, preload bridge, screen capture,
-dictation), a real provider, Settings, sidebar drag-and-drop, the VM modal, the
-browser panel and updater UI, and anything `Show threads` gates (that toggle is
+dictation), a real provider, Settings, sidebar drag-and-drop, the VM modal,
+updater UI, and anything `Show threads` gates (that toggle is
 renderer localStorage, outside `ui flag`). `AGENT_BROWSER_HEADLESS=1` is set
 for consistency with the harness, but agent-browser 0.37.0 is headless by
 default and reads `AGENT_BROWSER_HEADED` to opt out.

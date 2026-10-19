@@ -130,7 +130,6 @@ into the renderer bundle; the served UI keeps using relative paths.
 | Connected apps / custom MCP | ✅ |
 | Computer use (cloud/container) | ✅ server-side already |
 | Web UI from any browser | ✅ served by the server |
-| Built-in browser panel | ❌ local-only for now |
 | Dictation, host-desktop control | ❌ local-only |
 | "Open in editor" for server paths | ❌ paths shown are the server's |
 
