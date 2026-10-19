@@ -53,16 +53,9 @@ export function isApprovalMode(value: unknown): value is ApprovalMode {
 /** The level a bot or conversation runs at until a person picks one: Full
  * access, as in t3code (its DEFAULT_RUNTIME_MODE). Each provider maps it to
  * its own most permissive mode; a real question or a missing credential
- * still reaches a person. */
+ * still reaches a person. Lazurio overlay (DEV-6673): on every server,
+ * hosted workspaces included; nothing lowers it for a person. */
 export const DEFAULT_APPROVAL_MODE: ApprovalMode = "full";
-
-let defaultApprovalMode: ApprovalMode = DEFAULT_APPROVAL_MODE;
-
-/** On a shared company workspace Full access comes only from the operator's
- * own policy, so its server makes Ask the default once, at startup. */
-export function setDefaultApprovalMode(mode: ApprovalMode): void {
-  defaultApprovalMode = mode;
-}
 
 /** An unset level runs at the default, the pre-approvalMode Auto bit reads as
  * safe Auto, and an unknown persisted value fails closed to Ask. */
@@ -80,7 +73,7 @@ export function approvalModeFor(bot: {
   if (grant && !otherThread) return "ask";
   if (isApprovalMode(bot.approvalMode)) return bot.approvalMode;
   if (bot.autoApprove === true) return "auto";
-  return bot.approvalMode === undefined ? defaultApprovalMode : "ask";
+  return bot.approvalMode === undefined ? DEFAULT_APPROVAL_MODE : "ask";
 }
 
 /** A private late-grant recovery may revoke an elevated mode even after a

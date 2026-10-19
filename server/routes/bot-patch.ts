@@ -35,9 +35,6 @@ export interface BotPatchRouteDeps {
   cacheKeepWarm: Pick<CacheKeepWarm, "refresh">;
   hostedModels: ReturnType<typeof hostedModelPolicy>;
   supportsApprovalMode: ReturnType<typeof createApprovalModeSupport>;
-  /** Full access comes only from the workspace policy. */
-  hostedWorkspace: boolean;
-  hostedFullAccessRefusal: string;
   desktopManaged: boolean;
   maxWorkspaceBots: number;
   broadcast(payload: Record<string, unknown>): void;
@@ -57,7 +54,7 @@ export interface BotPatchRouteDeps {
 export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
   const {
     store, cfg, registry, sessions, browserRuntime, browserLive, memoryUpkeep, cacheKeepWarm, hostedModels, supportsApprovalMode,
-    hostedWorkspace: HOSTED_WORKSPACE, hostedFullAccessRefusal: HOSTED_FULL_ACCESS_REFUSAL, desktopManaged: DESKTOP_MANAGED, maxWorkspaceBots: MAX_WORKSPACE_BOTS,
+    desktopManaged: DESKTOP_MANAGED, maxWorkspaceBots: MAX_WORKSPACE_BOTS,
     broadcast, wireBot, publicGroupState, audienceChanged, storedAvatarExists, requestedTaskBot, threadBusy, activeGroupTurnForBot,
     checkedModelSelection, engineSwitchNeedsAsk, currentBrowserSession,
     forgetTemporaryBrowser,
@@ -319,10 +316,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
         return json(res, 403, {
           error: "This approval-level change can only be made from the packaged desktop app",
         });
-      }
-      if (HOSTED_WORKSPACE && requestedApprovalMode === "full" &&
-        (currentApprovalMode !== "full" || body.applyToAllThreads === true)) {
-        return json(res, 403, { error: HOSTED_FULL_ACCESS_REFUSAL });
       }
       if (body.applyToAllThreads !== undefined) {
         if (typeof body.applyToAllThreads !== "boolean") return json(res, 400, { error: "applyToAllThreads must be true or false" });
