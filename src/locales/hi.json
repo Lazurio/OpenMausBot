@@ -1194,8 +1194,6 @@
   "computer.android.agentNote": "एजेंट नियंत्रण इसी अधिकृत USB कनेक्शन का उपयोग करता है। फ़ोन पर साथी ऐप, खाता, Tailscale या वायरलेस पेयरिंग की ज़रूरत नहीं।",
   "computer.android.harnessNote": "जुड़ने के बाद, किसी भी संगत Maus से कहें कि वह कोई Android ऐप खोले या आपके फ़ोन पर कोई काम पूरा करे। फ़ोन से जुड़े अनुरोधों के लिए साथ आई Phone Harness स्किल अपने आप लोड होती है।",
   "computer.android.step2": "“फ़ोन के बारे में” में {buildNumber} पर सात बार टैप करके डेवलपर विकल्प चालू करें, फिर {usbDebugging} चालू करें।",
-  "engineSetup.chatgpt.description": "OpenMausBot में योग्य AI अनुरोधों के लिए अपने ChatGPT प्लान का इस्तेमाल करें। यह MausBot Cloud और API बिलिंग से अलग है।",
-  "engineSetup.chatgpt.welcomeBody": "OpenMausBot में योग्य AI अनुरोध आपके ChatGPT प्लान का इस्तेमाल करते हैं। इस्तेमाल और पहुँच को ChatGPT सेटिंग्स में प्रबंधित करें। आपका ChatGPT प्लान MausBot Cloud से अलग है।",
   "engineSetup.grok.notInstalled": "आपकी grok.com सदस्यता वाला Grok यहाँ इंस्टॉल नहीं है। इसकी जगह xAI API कुंजी इस्तेमाल करें।",
   "remote.serverPairing.title": "फ़ोन या दूसरा कंप्यूटर जोड़ें",
   "remote.serverPairing.subtitle": "एक बार का कोड बनाएँ, फिर OpenMausBot ऐप से स्कैन करें या लिंक ब्राउज़र में खोलें। कोड एक बार चलते हैं और पाँच मिनट में समाप्त हो जाते हैं।",

@@ -3,7 +3,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Bot, InstanceInfo } from "@/state/store";
 import { EnginesSettings } from "./EnginesSettings";
-import { accountActions } from "./EngineAccounts";
 import { AntigravityFreeSpace, formatDiskSize } from "./AntigravityFreeSpace";
 
 const fixture = vi.hoisted(() => ({ instances: [] as InstanceInfo[], bots: [] as Bot[] }));
@@ -12,50 +11,6 @@ vi.mock("@/state/store", async (importOriginal) => ({
   useStore: () => ({ state: fixture, refreshInstances: async () => {}, refreshModels: async () => {} }),
 }));
 afterEach(() => vi.unstubAllGlobals());
-
-function render(authenticated: boolean, options: { email?: string; signOut?: boolean; assigned?: boolean } = {}): string {
-  vi.stubGlobal("window", {});
-  vi.stubGlobal("navigator", { userAgent: "Linux" });
-  fixture.instances = [{
-    instanceId: "codex",
-    driverKind: "codexAgent",
-    displayName: "Codex",
-    cliDefault: "codex",
-    models: { default: "model", options: [] },
-    install: { signInCommand: "codex login" },
-  }];
-  fixture.bots = options.assigned ? [{ modelSelection: { instanceId: "codex" } } as Bot] : [];
-  return renderToStaticMarkup(createElement(EnginesSettings));
-}
-
-describe("Settings → Engines → ChatGPT accounts", () => {
-  it("lists a signed-out account with one Sign in button", () => {
-    const html = render(false);
-    expect(html).toContain('data-account="codex" data-account-state="signedOut"');
-    expect(html).toContain("Not signed in");
-    expect(html.match(/<button[^>]*>Sign in<\/button>/g)).toHaveLength(1);
-    expect(html).not.toContain("Provider icon");
-    expect(html).not.toContain("Check account");
-  });
-
-  it("shows a signed-in account by its email and offers nothing to replace it", () => {
-    const html = render(true, { email: "ada@example.test", signOut: true });
-    expect(html).toContain('data-account-state="signedIn"');
-    expect(html).toContain("ada@example.test");
-    expect(html).not.toMatch(/<button[^>]*>Sign in<\/button>/);
-    expect(render(true)).toContain(">Signed in<");
-  });
-
-  it("offers sign-out only for a signed-in account the server can sign out, and removal only for added accounts", () => {
-    const account = (instanceId: string, authenticated: boolean, signOut: boolean): InstanceInfo => ({
-      instanceId, driverKind: "codex", displayName: "Plan", snapshot: { state: "available", authenticated, chatgptPlan: true },
-      models: { default: "gpt", options: [] }, authentication: { method: "browser-pkce", signOut },
-    });
-    fixture.instances = [{ ...account("chatgpt-work", true, false), cliDefault: "codex" }];
-    fixture.bots = [];
-    expect(renderToStaticMarkup(createElement(EnginesSettings))).toContain(">Remove<");
-  });
-});
 
 describe("Settings → Engines → Grok", () => {
   function renderGrok(authenticated: boolean): string {
@@ -80,39 +35,10 @@ describe("Settings → Engines → Grok", () => {
 });
 
 describe("Settings → Engines → setup cards", () => {
-  it.each([true, false])("offers exactly one way to add an account, inside its provider card (authenticated: %s)", (authenticated) => {
+  it.each([true, false])("offers no way to add an account to any engine (authenticated: %s)", (authenticated) => {
     vi.stubGlobal("window", {});
     vi.stubGlobal("navigator", { userAgent: "Linux" });
     fixture.bots = [];
-    const claude: InstanceInfo = {
-      instanceId: "claude", driverKind: "claudeAgent", displayName: "Claude", cliDefault: "claude",
-      snapshot: { state: "available", authenticated }, models: { default: "sonnet", options: [] },
-    };
-    const chatgpt: InstanceInfo = {
-      instanceId: "chatgpt", driverKind: "codex", displayName: "ChatGPT", cliDefault: "codex",
-      snapshot: { state: "available", authenticated, chatgptPlan: true }, models: { default: "gpt", options: [] },
-    };
-    for (const [instance, label, other] of [
-      [{ instanceId: "antigravity", driverKind: "antigravityAgent", displayName: "Antigravity", cliDefault: "agy_acp_server", snapshot: { state: "available", authenticated }, models: { default: "gemini", options: [] } } as InstanceInfo, "Add Google account", "Add another ChatGPT account"],
-    ] as const) {
-      fixture.instances = [instance];
-      const html = renderToStaticMarkup(createElement(EnginesSettings));
-      expect(html.split(label)).toHaveLength(2);
-      expect(html.indexOf(label)).toBeGreaterThan(html.indexOf(`data-engine-card="${instance.instanceId}"`));
-      expect(html.indexOf(label)).toBeLessThan(html.lastIndexOf("</details>"));
-      expect(html).not.toContain(other);
-      expect(html).not.toContain("Provider icon");
-      fixture.instances = [{ ...instance, readOnly: true }];
-      expect(renderToStaticMarkup(createElement(EnginesSettings))).not.toContain(label);
-    }
-    fixture.instances = [{ ...claude, access: "custom" }, {
-      ...chatgpt, snapshot: { ...chatgpt.snapshot, authenticated: false, authenticationUnavailableReason: "Not supported on this server" },
-    }];
-    const unsupported = renderToStaticMarkup(createElement(EnginesSettings));
-    expect(unsupported).not.toContain("Add another Claude account");
-    expect(unsupported).not.toContain("Add another ChatGPT account");
-    expect(unsupported).toContain("Not supported on this server");
-    expect(unsupported).not.toMatch(/<button[^>]*>Sign in<\/button>/);
   });
 
   it("shows the actual Google account email with an honest fallback", () => {
@@ -127,6 +53,13 @@ describe("Settings → Engines → setup cards", () => {
     expect(renderToStaticMarkup(createElement(EnginesSettings))).not.toContain("account email unavailable");
   });
 
+    fixture.instances = [
+      { instanceId: "claude", driverKind: "claudeAgent", displayName: "Claude", cliDefault: "claude", snapshot: { state: "available", authenticated }, models: { default: "sonnet", options: [] } },
+      { instanceId: "codex", driverKind: "codex", displayName: "Codex", cliDefault: "codex", snapshot: { state: "available", authenticated }, models: { default: "gpt", options: [] } },
+    ];
+    const html = renderToStaticMarkup(createElement(EnginesSettings));
+    expect(html).not.toMatch(/Add another|Add Google account|data-accounts/);
+    expect(html.match(/data-engine-card=/g)).toHaveLength(2);
   });
 
   it("shows every Company provider as read-only while preserving personal controls", () => {

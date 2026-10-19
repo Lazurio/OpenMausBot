@@ -329,17 +329,17 @@ describe("ModelPicker trigger", () => {
 
 describe("OpenAI sign-ins in the rail", () => {
   const codex: InstanceInfo = { ...engine(), instanceId: "codex", driverKind: "codex", displayName: "Codex" };
-  const plan: InstanceInfo = { ...engine(), instanceId: "chatgpt", driverKind: "codex", displayName: "ChatGPT plan" };
+  const plan: InstanceInfo = { ...engine(), instanceId: "codex-work", driverKind: "codex", displayName: "Codex work" };
   const apiKey: InstanceInfo = { ...engine(), instanceId: "openai", driverKind: "openai-compat", displayName: "OpenAI", access: "api" };
 
-  it("folds Codex and the ChatGPT plan into one OpenAI button, apart from the API-key OpenAI", () => {
+  it("folds every Codex account into one OpenAI button, apart from the API-key OpenAI", () => {
     const markup = renderToStaticMarkup(createElement(ModelEngineRail, {
       instances: [codex, plan, apiKey], selectedInstance: plan, onSelect: () => {},
     }));
     expect(markup.match(/aria-label="OpenAI"/g)).toHaveLength(2);
     expect(markup).toContain('aria-label="OpenAI" aria-pressed="true"');
     expect(markup).not.toContain('aria-label="Codex"');
-    expect(markup).not.toContain('aria-label="ChatGPT plan"');
+    expect(markup).not.toContain('aria-label="Codex work"');
     expect(markup.match(/data-rail-key-badge/g)).toHaveLength(1);
   });
 

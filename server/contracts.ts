@@ -276,8 +276,6 @@ export type CacheWarmPingResult =
 export type SteerOutcome = "steered" | "refused" | "indeterminate";
 
 export interface ProviderSnapshot {
-  /** Separate, explicitly authorized ChatGPT-plan billing (not Codex login). */
-  chatgptPlan?: boolean;
   /** Ready only through OpenCode's free no-login models (no login, subscription or key of the person's own): a backup that
    * ranks last for a new bot's default and never counts as "an AI already works" in the welcome. */
   freeFallback?: boolean;
@@ -431,7 +429,6 @@ export interface ProviderInstance {
   /** Optional first-party runtime installation and account setup. */
   readonly installRuntime?: () => Promise<void>;
   readonly startAuthentication?: () => Promise<ProviderAuthenticationStart>;
-  readonly authenticationMethod?: "browser-pkce";
   readonly getAuthentication?: (flowId: string) => Promise<ProviderAuthenticationStatus>;
   readonly completeAuthentication?: (flowId: string, callbackUrl: string) => Promise<void>;
   readonly cancelAuthentication?: () => Promise<void>;

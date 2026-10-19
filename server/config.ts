@@ -1141,7 +1141,6 @@ export function instanceConfigs(cfg: AppConfig): InstanceConfigMap {
     cursor: { driver: "cursorAgent" },
     claude: { driver: "claudeAgent" },
     codex: { driver: "codex" },
-    chatgpt: { driver: "codex", displayName: "ChatGPT plan", config: { authMode: "chatgpt-plan" } },
     antigravity: { driver: "antigravityAgent" },
     opencodeGo: { driver: "opencodeGo" },
     openaiCompat: { driver: "openai-compat" },
@@ -1164,7 +1163,6 @@ export function instanceConfigs(cfg: AppConfig): InstanceConfigMap {
     pi: { driver: "piAgent" },
   } as const;
   const PRODUCT_FLEET_ADDITIONS = {
-    chatgpt: { driver: "codex", displayName: "ChatGPT plan", config: { authMode: "chatgpt-plan" } },
     cursor: { driver: "cursorAgent" },
     openaiCompat: { driver: "openai-compat" },
     mistral: { driver: "mistral" },
@@ -1191,10 +1189,6 @@ export function instanceConfigs(cfg: AppConfig): InstanceConfigMap {
     if (!saved || saved.driver !== builtIn.driver) continue;
     const savedConfig = typeof saved.config === "object" && saved.config !== null && !Array.isArray(saved.config) ? saved.config : {};
     map[id] = { ...builtIn, ...saved, config: { ...(builtIn.config as object | undefined), ...savedConfig } };
-  }
-  if (map.chatgpt?.driver === "codex" && !(map.chatgpt.config as { cli?: unknown } | undefined)?.cli) {
-    const cli = (map.codex?.config as { cli?: unknown } | undefined)?.cli;
-    if (typeof cli === "string" && cli) map.chatgpt = { ...map.chatgpt, config: { ...map.chatgpt.config as object, cli } };
   }
   for (const [id, sourceEntry] of Object.entries(map)) {
     // Copy: writing into the caller's persisted entry would freeze the workspace URL into it.

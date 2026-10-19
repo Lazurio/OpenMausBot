@@ -7,7 +7,6 @@ import { cn } from "@/lib/cn";
 import { useMenuMotion } from "./MenuMotion";
 import { t } from "@/lib/i18n";
 import { ApiKeyEngineManage, EngineSetup, EngineUpdateNotice, EngineWarningNotice, isApiKeyEngine } from "./EngineSetup";
-import { AccountsCard, AddAccount, accountGroupOf, accountsReady, type AccountGroup } from "./EngineAccounts";
 import { AntigravityFreeSpace } from "./AntigravityFreeSpace";
 import { CacheKeepWarmSettings } from "./CacheKeepWarmSettings";
 import { launchpadSignsIn } from "./LazurioEngineSignIn";
@@ -318,7 +317,6 @@ function EngineRow({ instance, bare = false }: { instance: InstanceInfo; bare?: 
       {instance.driverKind === "antigravityAgent" && (
         <div className="mt-3 space-y-3">
           {instance.snapshot.authenticated && <p className="break-words text-[12px] text-ink-secondary">{instance.snapshot.account?.email ?? t("engineSetup.antigravity.emailUnavailable")}</p>}
-          <AddAccount label={t("engineSetup.antigravity.addAccount")} endpoint="/api/instances/antigravity-accounts" extra={{ sourceInstanceId: instance.instanceId }} onAdded={() => {}} />
           {instance.instanceId.startsWith("antigravity-") && <RemoveAntigravityAccount instance={instance} />}
         </div>
       )}
@@ -387,17 +385,6 @@ function SimpleEngines({ rows, isReady, renderEngine, more }: {
 export function EnginesSettings({ simple = false, more }: { simple?: boolean; more?: { id: string; open: boolean; onToggle: () => void } }) {
   const { state } = useStore();
   const listed = state.instances.filter((i) => i.readOnly || i.cli !== undefined || i.cliDefault !== undefined || i.snapshot.state === "unavailable" || isApiKeyEngine(i));
-  // A provider's accounts share one card, which takes the place of its first account.
-  const groups = new Map<AccountGroup, InstanceInfo[]>();
-  for (const instance of listed) {
-    const group = accountGroupOf(instance);
-    if (group) groups.set(group, [...groups.get(group) ?? [], instance]);
-  }
-  const groupOf = (instance: InstanceInfo) => {
-    const group = accountGroupOf(instance);
-    return group && groups.get(group)?.[0] === instance ? group : null;
-  };
-  const rows = listed.filter((instance) => !accountGroupOf(instance) || groupOf(instance));
   const isReady = (instance: InstanceInfo) => engineReady(instance);
   const renderEngine = (instance: InstanceInfo, bare = false) => <EngineRow instance={instance} bare={bare} />;
 

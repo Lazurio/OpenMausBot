@@ -267,7 +267,6 @@
     "server/cline-engine.e2e.test.ts": 3,
     "server/cloud-computer-lazy.e2e.test.ts": 21,
     "server/cloud-guest-shell.e2e.test.ts": 25,
-    "server/cloud-personal.e2e.test.ts": 23,
     "server/cloud-routine-level.e2e.test.ts": 17,
     "server/cloud-sharing.e2e.test.ts": 11,
     "server/codex-review.e2e.test.ts": 5,

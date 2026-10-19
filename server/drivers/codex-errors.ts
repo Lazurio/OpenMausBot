@@ -3,8 +3,8 @@ import { hostTimeZone } from "../turn-clock.ts";
 import { USAGE_LIMIT } from "./retry.ts";
 import { CODEX_USAGE_LIMIT_REACHED } from "../../shared/codex-usage-limit.ts";
 
-/** How a Codex turn reaches OpenAI: OpenMausBot's ChatGPT plan, Codex's own sign-in, or any other provider. */
-export type CodexRoute = "plan" | "own" | "other";
+/** How a Codex turn reaches OpenAI: Codex's own sign-in, or any other provider. */
+export type CodexRoute = "own" | "other";
 
 // codex-cli 0.160.1 holding no login sends no Authorization header and gets this 401.
 export const CODEX_MISSING_CREDENTIALS = /missing bearer or basic authentication/i;
@@ -59,15 +59,10 @@ export function codexLimitFacts(raw: string, route: CodexRoute): { limitResetsAt
 }
 
 export function codexUserError(value: string, route: CodexRoute, codexErrorInfo?: unknown): string {
-  if (route === "plan" && value.includes("subscription_sharing_usage_limit_exceeded")) {
-    return "subscription_sharing_usage_limit_exceeded: Your ChatGPT plan usage limit was reached. Manage usage in ChatGPT Settings, or explicitly choose another provider.";
-  }
   if (route === "own" && (codexErrorInfo === "usageLimitExceeded" || USAGE_LIMIT.test(value))) return codexLimitMessage(value);
   if (route === "own" && CODEX_MISSING_CREDENTIALS.test(value)) return codexNotSignedIn();
   if (value.includes("provider_not_configured")) {
-    return route === "plan"
-      ? "provider_not_configured: ChatGPT has not enabled this model for the selected account. Refresh models or reconnect ChatGPT plan in Settings. API billing will not be used."
-      : "provider_not_configured: This Codex account cannot use the selected route. For the new ChatGPT plan models, choose ChatGPT plan in Settings → Engines and Continue with ChatGPT, then select a model from that account.";
+    return "provider_not_configured: This Codex account cannot use the selected model. Refresh models and choose one listed for this account, or switch this bot to another engine.";
   }
   return value.slice(0, 400);
 }

@@ -29,7 +29,7 @@ import {
   openBot,
 } from "@/state/store";
 import { EngineSetup } from "./EngineSetup";
-import { CHATGPT_USAGE_URL, ManageUsageLink } from "./ChatGptPlanStatus";
+import { openExternalLink } from "@/lib/app-links";
 import { CODEX_USAGE_URL, codexUsageLimitReached } from "../../shared/codex-usage-limit";
 import { ClaudeUpdatePrompt } from "./ClaudeUpdatePrompt";
 import { MacCuaRecoveryActions } from "./MacCuaRecoveryActions";
@@ -198,7 +198,7 @@ export function ErrorRow({
         {macCuaReason &&
           <MacCuaRecoveryActions reason={message} />}
         {usageUrl ? (
-          <ManageUsageLink href={usageUrl} className="ui-button ui-button-md mt-2 border-transparent bg-ink text-app hover:brightness-110" />
+          <a href={usageUrl} target="_blank" rel="noopener noreferrer" className="ui-button ui-button-md mt-2 border-transparent bg-ink text-app hover:brightness-110" onClick={(event) => { if (window.ogb?.openExternal) { event.preventDefault(); void openExternalLink(usageUrl); } }}>{t("chat.error.manageUsage")}</a>
         ) : claudeUpdateInstance ? (
           <ClaudeUpdatePrompt instance={claudeUpdateInstance} onRetry={onRetry} />
         ) : isProviderSafetyBlock(message) ? (

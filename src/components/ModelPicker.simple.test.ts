@@ -599,9 +599,9 @@ describe("the model picker in Simple mode", () => {
   });
 
   it("asks a provider with nothing to list to check again", async () => {
-    const plan: InstanceInfo = {
-      ...engine("chatgpt", "codex", "ChatGPT plan", "subscription", []),
-      snapshot: { state: "available", version: "1.0.0", authenticated: true, chatgptPlan: true },
+    const work: InstanceInfo = {
+      ...engine("codex-work", "codex", "Codex work", "subscription", []),
+      snapshot: { state: "available", version: "1.0.0", authenticated: true },
     };
     fixture.instances = [claude(), work];
     const opened = open(bot(undefined, "codex-work", "gpt-5.6"));
@@ -633,10 +633,10 @@ describe("the model picker in Simple mode", () => {
     await vi.waitFor(() => expect(provider(menu(render(forBot).html))).toContain("Check again"));
   });
 
-    const plan: InstanceInfo = {
-      ...engine("chatgpt", "codex", "ChatGPT plan", "subscription", [{ id: "gpt-5.6-plan", label: "GPT-5.6 (plan)" }]),
-      snapshot: { state: "available", version: "1.0.0", authenticated: true, chatgptPlan: true },
   it("lists each Codex account under OpenAI", () => {
+    const work: InstanceInfo = {
+      ...engine("codex-work", "codex", "Codex work", "subscription", [{ id: "gpt-5.6-work", label: "GPT-5.6 (work)" }]),
+      snapshot: { state: "available", version: "1.0.0", authenticated: true },
     };
     fixture.instances = [claude(), codex, work];
     const opened = open(bot());

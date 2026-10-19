@@ -492,15 +492,11 @@ export function EngineSetup({
   const installCommand = installCommandFor(install);
   const signInCommand = install?.signInCommand;
   const signInOnly = intent === "cloud" && needsSignIn(instance);
-  const browserSignIn = signInOnly && instance.authentication?.method === "browser-pkce";
   const command = signInOnly ? signInCommand : installCommand;
   const title = signInOnly
     ? t("engineSetup.signInTitle", { name: instance.displayName })
     : t("engineSetup.setupTitle", { name: instance.displayName });
   const description = descriptionOverride ?? (signInOnly
-    ? browserSignIn
-      ? t("engineSetup.chatgpt.description")
-      : install?.managed
       ? t("engineSetup.managedSignIn")
       : t("engineSetup.terminalSignInCheck")
     : intent === "inject"

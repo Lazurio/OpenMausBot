@@ -1201,8 +1201,6 @@
   "computer.android.agentNote": "Die Agentensteuerung nutzt genau diese autorisierte USB-Verbindung. Keine Begleit-App auf dem Handy, kein Konto, kein Tailscale und keine drahtlose Kopplung nötig.",
   "computer.android.harnessNote": "Sobald das Handy verbunden ist, bitte einen kompatiblen Maus, eine Android-App zu öffnen oder eine Aufgabe darauf zu erledigen. Der mitgelieferte Phone-Harness-Skill lädt bei Handy-Anfragen automatisch.",
   "computer.android.step2": "Tippe unter „Über das Telefon“ siebenmal auf {buildNumber}, um die Entwickleroptionen zu aktivieren. Schalte anschließend {usbDebugging} ein.",
-  "engineSetup.chatgpt.description": "Nutze deinen ChatGPT-Tarif für geeignete KI-Anfragen in OpenMausBot. Das ist getrennt von MausBot Cloud und der API-Abrechnung.",
-  "engineSetup.chatgpt.welcomeBody": "Geeignete KI-Anfragen in OpenMausBot nutzen deinen ChatGPT-Tarif. Nutzung und Zugriff verwaltest du in den ChatGPT-Einstellungen. Dein ChatGPT-Tarif ist getrennt von MausBot Cloud.",
   "engineSetup.grok.notInstalled": "Grok mit deinem grok.com-Abo ist hier nicht installiert. Nutze stattdessen einen xAI-API-Schlüssel.",
   "remote.serverPairing.title": "Ein Telefon oder einen weiteren Computer koppeln",
   "remote.serverPairing.subtitle": "Erstelle einen einmaligen Code und scanne ihn mit der OpenMausBot-App oder öffne den Link im Browser. Codes gelten einmal und laufen nach fünf Minuten ab.",
