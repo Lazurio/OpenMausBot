@@ -315,12 +315,9 @@ export interface Bot {
   managedSections?: string[];
   peers?: string[];
   fallback?: Array<{ instanceId: string; model: string }>;
-  browser?: boolean;
-  recordBrowserSteps?: boolean;
   memoryUpkeep?: boolean;
   cacheKeepWarm?: boolean | null;
   helperModel?: boolean;
-  browserProfile?: string | null;
   visibility?: BotVisibility;
   installedPackage?: InstalledPackageMetadata;
   messages: Message[];
@@ -405,13 +402,13 @@ export function visibleMessages(bot: Pick<Bot, "messages" | "activeLeafId">): Me
   return path.reverse();
 }
 
-import type { BrowserEngineSummary, BrowserProfile, ConfigStatus, ManagedPolicySummary } from "./config-status";
-export type { BrowserEngineSummary, BrowserProfile, ConfigStatus, ManagedPolicySummary };
+import type { ConfigStatus, ManagedPolicySummary } from "./config-status";
+export type { ConfigStatus, ManagedPolicySummary };
 
 // A section left out here is wiped from state.config whenever a config frame lands.
 export type ConfigStatusFrame = Pick<
   ConfigStatus,
-  "xai" | "mistral" | "cerebras" | "groq" | "meta" | "anthropic" | "openai" | "openrouter" | "openaiCompat" | "fleet" | "rooms" | "mcp" | "threads" | "automaticRecovery" | "cacheKeepWarm" | "opencodeGo" | "tts" | "decider" | "imageGen" | "live" | "profile" | "language" | "features" | "onboarding" | "browserEngine" | "browserProfiles" | "edition" | "budgets" | "billing" | "managedPolicy" | "cloudHome"
+  "xai" | "mistral" | "cerebras" | "groq" | "meta" | "anthropic" | "openai" | "openrouter" | "openaiCompat" | "fleet" | "rooms" | "mcp" | "threads" | "automaticRecovery" | "cacheKeepWarm" | "opencodeGo" | "tts" | "decider" | "imageGen" | "live" | "profile" | "language" | "features" | "onboarding" | "edition" | "budgets" | "billing" | "managedPolicy" | "cloudHome"
 >;
 
 export function configStatusFromFrame(frame: ConfigStatusFrame): ConfigStatus {
@@ -440,8 +437,6 @@ export function configStatusFromFrame(frame: ConfigStatusFrame): ConfigStatus {
     language: frame.language,
     features: frame.features,
     onboarding: frame.onboarding,
-    browserEngine: frame.browserEngine,
-    browserProfiles: frame.browserProfiles,
     edition: frame.edition,
     budgets: frame.budgets,
     billing: frame.billing,
@@ -490,7 +485,6 @@ export interface InstanceInfo {
   capabilities?: {
     computerMcp?: boolean;
     agentsMcp?: boolean;
-    browserMcp?: boolean;
     images?: boolean;
     effortLevels?: readonly EffortLevel[];
     modelVariants?: boolean;
@@ -595,7 +589,6 @@ export interface AppState {
   dataSheets: Record<string, DataSheet>;
   dataTables: Record<string, DataTable[]>;
   dataResultFocus: { botId: string; id: string; requestId: number; consumed: boolean } | null;
-  signInFocus: { botId: string; messageId: string; url: string; site: string; place: import("../../shared/wire").Surface; requestId: number; consumed: boolean } | null;
   dataView: import("@/lib/composer-attachments").DataViewContext | null;
   focusMessage: { threadId: string; messageId: string; matchText?: string; nonce: number; consumed: boolean } | null;
   unreadDivider: { threadId: string; messageId: string } | null;
@@ -828,8 +821,6 @@ export type Action =
   | { type: "toggleComputer"; open?: boolean }
   | { type: "openDataResult"; botId: string; cardId: string }
   | { type: "dataResultFocusConsumed"; requestId: number }
-  | { type: "openSignIn"; botId: string; messageId: string; url: string; site: string; place: import("../../shared/wire").Surface }
-  | { type: "signInFocusConsumed"; requestId: number }
   | { type: "toggleInspector"; open?: boolean }
   | { type: "toggleActivity"; open?: boolean }
   | { type: "focusMessage"; threadId: string; messageId: string; matchText?: string }
@@ -1238,7 +1229,7 @@ export function reducer(state: AppState, action: Action): AppState {
       if ((switchedThread || (before.awaitingThreadSnapshot && action.bot.threadId === before.threadId)) &&
           Array.isArray(action.bot.messages)) {
         // The slim deletion broadcast can beat the full snapshot; later duplicate snapshots must not overwrite newer messages.
-        return reducer(switching, { type: "taskSwitched", bot: { ...before, ...action.bot, section: action.bot.section, messages: action.bot.messages, browserProfile: action.bot.browserProfile } });
+        return reducer(switching, { type: "taskSwitched", bot: { ...before, ...action.bot, section: action.bot.section, messages: action.bot.messages } });
       }
       const patched = updateBot(switching, action.bot.id, (b) => ({
         ...b,
@@ -1247,7 +1238,6 @@ export function reducer(state: AppState, action: Action): AppState {
         activeLeafId: switchedThread ? null : b.activeLeafId,
         awaitingThreadSnapshot: switchedThread || b.awaitingThreadSnapshot,
         // Complete frames omit cleared optional fields; copy them so the spread cannot keep stale values.
-        browserProfile: action.bot.browserProfile,
         section: action.bot.section,
         tasks: action.bot.tasks ? mergeTaskStamps(b.tasks, action.bot.tasks) : b.tasks,
         // Old approvals must never be sent to the replacement thread while its transcript loads.
@@ -1503,15 +1493,6 @@ export function reducer(state: AppState, action: Action): AppState {
     case "dataResultFocusConsumed":
       return state.dataResultFocus?.requestId === action.requestId
         ? { ...state, dataResultFocus: { ...state.dataResultFocus, consumed: true } } : state;
-    case "openSignIn": {
-      if (!state.bots.some((bot) => bot.id === action.botId)) return state;
-      const selected = reducer(reducer(state, { type: "select", id: action.botId }), { type: "toggleComputer", open: true });
-      const { type: _, ...request } = action;
-      return { ...selected, signInFocus: { ...request, requestId: (state.signInFocus?.requestId ?? 0) + 1, consumed: false } };
-    }
-    case "signInFocusConsumed":
-      return state.signInFocus?.requestId === action.requestId
-        ? { ...state, signInFocus: { ...state.signInFocus, consumed: true } } : state;
     case "toggleComputer": {
       const open = action.open ?? !state.computerOpen;
       return {
@@ -1956,7 +1937,6 @@ export const initialState: AppState = {
   dataSheets: {},
   dataTables: {},
   dataResultFocus: null,
-  signInFocus: null,
   dataView: null,
   focusMessage: null,
   unreadDivider: null,

@@ -170,7 +170,7 @@ export function BotPanel({ bot, derived, slackUrl = null, headerClassName, linke
             <div role="tabpanel">
               {tab === "details" && <DetailsTab bot={bot} derived={derived} overview={overview.overview} onOpen={openPage} />}
               {tab === "library" && <LibraryTab bot={bot} onOpen={openPage} />}
-              {tab === "computer" && <ComputerTab bot={bot} derived={derived} onOpen={openPage} />}
+              {tab === "computer" && <ComputerTab bot={bot} onOpen={openPage} />}
               {tab === "settings" && (
                 <SettingsTab bot={bot} derived={derived} slackUrl={slackUrl} query={query} onQuery={setQuery} onOpen={openPage} onGo={go} />
               )}

@@ -15,7 +15,7 @@ export const TAB_LABEL: Record<PanelTab, LocaleKey> = {
 export type PageId =
   | "setup" | "model" | "instructions" | "approvals" | "always" | "routines"
   | "memory" | "skills"
-  | "browser" | "folder" | "android"
+  | "folder" | "android"
   | "voice" | "blurb" | "team" | "chiefteams" | "webhooks" | "visibility" | "slack"
   | "overview" | "prompt" | "history";
 
@@ -34,7 +34,6 @@ export const PAGES: Record<PageId, PageMeta> = {
   routines: { title: "botSettings.simple.routines", home: "details", where: "botPanel.where.routines", keywords: "schedule routines cron tasks run logs" },
   memory: { title: "botSettings.simple.memory", home: "library", where: "botPanel.where.memories", keywords: "memory notes remember obsidian upkeep tidy topic daily logs undo" },
   skills: { title: "botSettings.simple.skills", home: "library", where: "botPanel.where.skills", keywords: "skills import command learned procedures organization library teach" },
-  browser: { title: "place.browser", home: "computer", where: "computer.tab.computer", keywords: "browser logins sign in record steps profile sign out" },
   folder: { title: "computer.files.folder", home: "computer", where: "computer.tab.computer", keywords: "working folder directory cwd files" },
   android: { title: "botPanel.page.android", home: "computer", where: "computer.tab.computer", keywords: "android phone usb device" },
   voice: { title: "botPanel.page.voice", home: "settings", where: "botPanel.where.profile", keywords: "voice speak read aloud elevenlabs fish chatterbox grok voice notes alerts notifications" },

@@ -108,8 +108,8 @@ describe("DecisionModelSettings", () => {
 
   it("lists the coming-soon jobs with no switch", () => {
     const view = render();
-    for (const label of ["Browser clicks", "Tool selection", "Where work runs"]) expect(view.html).toContain(label);
-    expect(view.html.match(/Coming soon/g)).toHaveLength(3);
+    for (const label of ["Tool selection", "Where work runs"]) expect(view.html).toContain(label);
+    expect(view.html.match(/Coming soon/g)).toHaveLength(2);
     expect(view.switches).toHaveLength(2);
   });
 

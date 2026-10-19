@@ -1,16 +1,14 @@
-import { Switch } from "./SettingsPrimitives";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import {
   CalendarClock,
-  Globe,
   Hand,
   Loader2,
   Monitor,
   Settings,
   X,
 } from "lucide-react";
-import { api, currentTaskBot, useStore, type Bot, type ConfigStatus } from "@/state/store";
+import { api, currentTaskBot, useStore, type Bot } from "@/state/store";
 import { useAdvancedMode } from "@/lib/interface-mode";
 import { ComputerFilesPane } from "./ComputerFilesPane";
 import { placeOffered } from "@/lib/place";
@@ -21,9 +19,7 @@ import { useDesktopCapabilities } from "./DesktopCapabilities";
 import { RoutinesSection } from "./bot-settings/RoutinesSection";
 import { routineRunLabel, routineRunTone } from "@/lib/routine-display";
 import { AndroidDevicePanel, useAndroidUsbDevices } from "./AndroidDevicePanel";
-import { BrowserPanel } from "./BrowserPanel";
 const DataPanel = lazy(() => import("./data/DataPanel").then((module) => ({ default: module.DataPanel })));
-import { browserAvailable, browserUnavailableReason, builtInBrowserEnabled } from "@/lib/feature-flags";
 import { parseComputerHelp, transitionComputerControlLease, type ComputerControlAction } from "@/lib/computer-control";
 import { SignInBanner } from "./SignInRequestCard";
 import { LocalScreenPreview } from "./LocalScreenPreview";
@@ -131,9 +127,6 @@ export function ComputerPanel({ bot: profileBot }: { bot: Bot }) {
   const androidConnected = androidStatus.devices.length > 0;
   const panelTabs = computerPanelTabs({ advanced, androidConnected });
   const panelView = resolveComputerPanelView(storedPanelView, { advanced, androidConnected });
-  const browserAvailableHere = browserAvailable(state.config);
-  const browserEnabled = builtInBrowserEnabled(state.config) && bot.browser !== false
-    && (browserAvailableHere || state.config?.browserEngine?.installable === true);
   const selectPanelView = (view: ComputerPanelView) => {
     setPanelView(view);
     writeComputerPanelView(bot.id, view);
@@ -154,17 +147,6 @@ export function ComputerPanel({ bot: profileBot }: { bot: Bot }) {
     writeComputerPanelView(bot.id, "data");
     dispatch({ type: "dataResultFocusConsumed", requestId: requestedDataResult.requestId });
   }, [bot.id, dispatch, requestedDataResult]);
-
-  const requestedSignIn = state.signInFocus?.botId === bot.id ? state.signInFocus : undefined;
-  const [signInRequest, setSignInRequest] = useState<{ url: string; site: string; nonce: number }>();
-  useEffect(() => {
-    if (!requestedSignIn || requestedSignIn.consumed) return;
-    const view = requestedSignIn.place === "browser" ? "browser" : "computer";
-    setPanelView(view);
-    writeComputerPanelView(bot.id, view);
-    if (view === "browser") setSignInRequest({ url: requestedSignIn.url, site: requestedSignIn.site, nonce: requestedSignIn.requestId });
-    dispatch({ type: "signInFocusConsumed", requestId: requestedSignIn.requestId });
-  }, [bot.id, dispatch, requestedSignIn]);
 
   useAndroidTabFallback(bot.id, androidStatus, setPanelView);
   const botRoutines = state.routines
@@ -238,71 +220,20 @@ export function ComputerPanel({ bot: profileBot }: { bot: Bot }) {
     return snap;
   }, [bot.id, dispatch]);
 
-  const setNativeBrowserControl = useCallback(async (): Promise<boolean> => true, []);
-
   const releaseControl = useCallback(async () => {
     setControlPending(true);
     setError(null);
     try {
-      // Security: every computer surface must gate Electron's direct browser host; the server hold is bot-wide, and a
-      // shell-capable agent could otherwise bypass the server proxy while the person drives.
-      await transitionComputerControlLease({
-        action: "release",
-        syncNativeBrowser: panelView !== "browser",
-        requestControl,
-        setNativeBrowserControl,
-      });
+      await transitionComputerControlLease({ action: "release", requestControl });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setControlPending(false);
     }
-  }, [panelView, requestControl, setNativeBrowserControl]);
+  }, [requestControl]);
 
   const signInBanner = () => signInHelp && (
     <SignInBanner help={signInHelp} askerName={signInAsker} onError={setError} />
-  );
-
-  const browserCanTurnOn = browserAvailableHere || state.config?.browserEngine?.installable === true;
-  const [browserTurningOn, setBrowserTurningOn] = useState(false);
-  const turnOnBrowser = async () => {
-    if (browserTurningOn) return;
-    setBrowserTurningOn(true);
-    setError(null);
-    try {
-      if (!builtInBrowserEnabled(state.config)) {
-        const config: ConfigStatus = await api("/api/config", {
-          method: "PATCH",
-          body: JSON.stringify({ features: { browser: true } }),
-        });
-        dispatch({ type: "configStatus", config });
-      }
-      if (profileBot.browser === false) dispatch({ type: "updateBot", botId: profileBot.id, patch: { browser: true } });
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : t("settings.experimental.error"));
-    } finally {
-      setBrowserTurningOn(false);
-    }
-  };
-
-  const turnOffBrowser = () => {
-    setError(null);
-    dispatch({ type: "updateBot", botId: profileBot.id, patch: { browser: false } });
-  };
-  const browserSwitchRow = (
-    <div data-testid="browser-switch-row" className="mb-3 flex items-center gap-3 rounded-xl bg-card px-3 py-2.5">
-      <Globe size={15} className="shrink-0 text-ink-secondary" aria-hidden="true" />
-      <div className="min-w-0 flex-1">
-        <div className="text-[13px] font-medium text-ink">{t("computer.browserSwitch.title", { name: bot.name })}</div>
-        {!browserCanTurnOn && <div className="text-[11.5px] text-ink-secondary">{browserUnavailableReason(state.config)}</div>}
-      </div>
-      <Switch
-        checked={browserEnabled}
-        disabled={browserTurningOn || (!browserEnabled && !browserCanTurnOn)}
-        aria-label={t("computer.browserSwitch.title", { name: bot.name })}
-        onClick={() => (browserEnabled ? turnOffBrowser() : void turnOnBrowser())}
-      />
-    </div>
   );
 
   const tabClass = (active: boolean) => cn(
@@ -310,14 +241,11 @@ export function ComputerPanel({ bot: profileBot }: { bot: Bot }) {
     active ? "bg-raised text-ink shadow-sm" : "text-ink-secondary hover:text-ink",
   );
 
-  const chooseTab = (view: ComputerPanelView) => {
-    if (view === "browser") setError(null);
-    selectPanelView(view);
-  };
+  const chooseTab = selectPanelView;
 
   const frameSrc = localReady && !isLinux ? localFrame : null;
-  const unavailableLine = !localOffered ? t("place.view.browser.line")
-    : localSelectable || !localDisabledReason ? t("computer.phase.localUnavailable") : localDisabledReason;
+  const unavailableLine = !localOffered || localSelectable || !localDisabledReason
+    ? t("computer.phase.localUnavailable") : localDisabledReason;
 
   return (
     <aside
@@ -383,33 +311,6 @@ export function ComputerPanel({ bot: profileBot }: { bot: Bot }) {
         <div {...tabPanelProps("routines")} className={cn("min-h-0 flex-1 overflow-y-auto px-4 pb-4", TAB_PANEL_FOCUS)}>
           <RoutinesSection key={bot.id} bot={bot} routines={botRoutines} runs={state.routineRuns} />
         </div>
-      ) : panelView === "browser" && browserEnabled ? (
-        <div {...tabPanelProps("browser")} className={cn("flex min-h-0 flex-1 flex-col px-4 pb-4", TAB_PANEL_FOCUS)}>
-          {browserSwitchRow}
-          {signInHelp?.place === "browser" && <div className="-mt-1 mb-3">{signInBanner()}</div>}
-          <BrowserPanel bot={bot} signIn={signInRequest} />
-          {error && (
-            <div role="alert" className="mt-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-[12px] text-danger">
-              {error}
-            </div>
-          )}
-        </div>
-      ) : panelView === "browser" ? (
-        <div {...tabPanelProps("browser")} className={cn("flex-1 overflow-y-auto px-5 pb-5", TAB_PANEL_FOCUS)} data-testid="browser-off">
-          {browserSwitchRow}
-          <div className="mt-2 flex flex-col items-center gap-3 rounded-xl bg-card px-6 py-8 text-center">
-            <Globe size={22} className="text-ink-secondary" aria-hidden="true" />
-            <div className="text-[14px] font-medium text-ink">{t("computer.browserOff.title")}</div>
-            <p className="text-[12px] leading-5 text-ink-secondary">
-              {browserCanTurnOn ? t("computer.browserOff.body", { name: bot.name }) : browserUnavailableReason(state.config)}
-            </p>
-            {error && (
-              <div role="alert" className="w-full rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-[12px] text-danger">
-                {error}
-              </div>
-            )}
-          </div>
-        </div>
       ) : panelView === "data" ? (
         <div {...tabPanelProps("data")} className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", TAB_PANEL_FOCUS)}>
           <Suspense fallback={<div className="flex flex-1 items-center justify-center text-[13px] text-ink-secondary" role="status">{t("data.loading")}</div>}>
@@ -455,14 +356,6 @@ export function ComputerPanel({ bot: profileBot }: { bot: Bot }) {
                   {t("computer.openSettings")}
                 </button>
               )}
-              {capabilitiesReady && !localReady && browserEnabled && (
-                <button
-                  onClick={() => selectPanelView("browser")}
-                  className="mt-1 rounded-lg bg-control px-3 py-1.5 text-[12px] text-ink hover:bg-raised-hover"
-                >
-                  {t("computer.openBrowserTab")}
-                </button>
-              )}
             </div>
           )}
         </div>
@@ -473,7 +366,7 @@ export function ComputerPanel({ bot: profileBot }: { bot: Bot }) {
           </div>
         )}
 
-        {signInHelp && signInHelp.place !== "browser" && signInBanner()}
+        {signInBanner()}
         {control.held && (
           <div className="mt-3 rounded-xl border border-accent/25 bg-accent/10 p-4">
             <div className="text-[13px] leading-relaxed text-ink">{t("computer.youHaveWheel")}</div>

@@ -41,14 +41,11 @@ describe("guided tour", () => {
   });
 
   it("rebuilds the scene on enter so a reload mid-tour resumes cleanly", () => {
-    expect(step("tour.computer-browser").onEnter).toBe("openComputer");
-    expect(step("tour.computer-browser").fallbackAnchor).toBe("computer-tabs");
     expect(step("tour.automations-page").onEnter).toBe("openAutomations");
   });
 
   it("closes everything it opened and returns to the chat", () => {
     expect(step("tour.computer").onExit).toBe("openComputer");
-    expect(step("tour.computer-browser").onExit).toBe("closeComputer");
     expect(step("tour.automations-page").onExit).toBe("backToChat");
   });
 
@@ -69,7 +66,7 @@ describe("guided tour", () => {
     const simple = tourSteps(false);
     expect(simple.map((s) => s.id)).toEqual(TOUR_STEPS.map((s) => s.id));
     expect(simple.map((s) => s.anchor)).toEqual([
-      "composer", "bot-pill", "bot-pill", "computer-browser", "tools", "nav-automations", "automations-page", "composer",
+      "composer", "bot-pill", "bot-pill", "tools", "nav-automations", "automations-page", "composer",
     ]);
     // Simple's header renders neither "model" nor "computer"; a step that needs them would wait forever.
     for (const s of simple) expect(["model", "computer"]).not.toContain(s.anchor);
@@ -78,9 +75,8 @@ describe("guided tour", () => {
       expect(simpleStep.skipIfMissing, id).toBe(true);
       expect((en as Record<string, string>)[simpleStep.copy!], id).toBeTruthy();
     }
-    // The computer step still opens the Computer panel for the next step, as its Advanced button did.
+    // The computer step still opens the Computer panel, as its Advanced button did.
     expect(simple.find((s) => s.id === "tour.computer")!.onExit).toBe("openComputer");
-    expect(simple.find((s) => s.id === "tour.computer-browser")!.onEnter).toBe("openComputer");
   });
 
   it("resumes at the same step and number in either mode", () => {

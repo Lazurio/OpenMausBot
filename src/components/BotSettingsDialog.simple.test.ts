@@ -86,7 +86,6 @@ const { LibraryTab } = await import("./bot-panel/LibraryTab");
 const { ComputerTab } = await import("./bot-panel/ComputerTab");
 const { SettingsTab } = await import("./bot-panel/SettingsTab");
 const { PageBody, SetupPage } = await import("./bot-panel/pages");
-const { BrowserLogins } = await import("./bot-panel/apps-and-logins");
 const { botLibraryItems, memoryEntries } = await import("./bot-panel/library-items");
 const { PAGES, sectionTarget } = await import("./bot-panel/page-registry");
 const { openBotSettings } = await import("./bot-panel/panel-link");
@@ -156,7 +155,7 @@ const panel = (bot: Bot, linkedSection: BotSettingsSection | null = null, slackU
 const dialog = (bot: Bot) => capture(() => BotSettingsDialog({ bot }));
 const details = (bot: Bot, overview: BotOverview | null = null) => capture(() => DetailsTab({ bot, derived: derived(), overview, onOpen }));
 const library = (bot: Bot) => capture(() => LibraryTab({ bot, onOpen }));
-const computer = (bot: Bot) => capture(() => ComputerTab({ bot, derived: derived(), onOpen }));
+const computer = (bot: Bot) => capture(() => ComputerTab({ bot, onOpen }));
 const settings = (bot: Bot, query = "", slackUrl: string | null = null) =>
   capture(() => SettingsTab({ bot, derived: derived(), slackUrl, query, onQuery: vi.fn(), onOpen, onGo }));
 const find = (rendered: { nodes: Node[] }, attr: string, value: unknown = true) => {
@@ -209,7 +208,6 @@ beforeEach(() => {
   fixture.derived = {
     patch, approvalMode: "ask", engine: { driverKind: "claudeAgent" }, trustedModesAvailable: false, activeState: "idle",
     botRoutines: [], canCoordinate: true, sectionName: "General", mascotMotion: null,
-    browserEnabled: true,
   };
 });
 
@@ -623,39 +621,6 @@ describe("the Details tab", () => {
   });
 });
 
-describe("the browser logins", () => {
-  const logins = (bot: Bot, onOpenBrowser = vi.fn(), browserEnabled = true) =>
-    capture(() => BrowserLogins({ bot, browserEnabled, onOpenBrowser }));
-
-  it("lists the sites the bot's own browser is signed in to, and explains the browsers it cannot list", async () => {
-    const { SignedInSites } = await import("./SignedInSites");
-    expect(logins(makeBot()).nodes.some((node) => node.type === SignedInSites)).toBe(false);
-    fixture.ownerOrAdmin = true;
-    const own = logins(makeBot());
-    expect(ofType(own, SignedInSites)!.props).toMatchObject({ bare: true, target: { bot: "scout" }, sharedBy: ["Scout"], disabled: false });
-    expect(own.html).toContain("Sign in once in Scout&#x27;s browser and it stays signed in.");
-
-    fixture.storeState = {
-      ...fixture.storeState,
-      config: { browserProfiles: [{ id: "team", name: "Team" }] },
-      bots: [makeBot({ browserProfile: "team" }), makeBot({ id: "nova", name: "Nova", browserProfile: "team" })],
-    };
-    expect(ofType(logins(makeBot({ browserProfile: "team" })), SignedInSites)!.props.sharedBy).toEqual(["Scout", "Nova"]);
-    const temporary = logins(makeBot({ browserProfile: "guest" }));
-    expect(ofType(temporary, SignedInSites)).toBeUndefined();
-    expect(temporary.html).toContain("Temporary sessions keep logins only while this server is running");
-    const off = logins(makeBot(), vi.fn(), false);
-    expect(ofType(off, SignedInSites)).toBeUndefined();
-    expect(off.html).toContain("Scout&#x27;s browser is off.");
-  });
-
-  it("opens the bot's browser from Add login", () => {
-    const onOpenBrowser = vi.fn();
-    click(find(logins(makeBot(), onOpenBrowser), "data-panel-action", "add-login"));
-    expect(onOpenBrowser).toHaveBeenCalled();
-  });
-});
-
 describe("the Computer tab", () => {
   it("offers no choice of where the bot works", () => {
     const rendered = computer(makeBot());
@@ -663,12 +628,10 @@ describe("the Computer tab", () => {
     expect(rendered.html).not.toContain("data-place-choice");
   });
 
-  it("leads to the browser and folder pages, and opens the full view on a tab", () => {
+  it("leads to the folder page, and opens the full view on a tab", () => {
     const rendered = computer(makeBot());
-    click(find(rendered, "data-panel-page", "browser"));
-    expect(onOpen).toHaveBeenLastCalledWith("browser");
-    click(find(rendered, "data-panel-page", "logins"));
-    expect(onOpen).toHaveBeenLastCalledWith("browser");
+    expect(has(rendered, "data-panel-page", "browser")).toBe(false);
+    expect(has(rendered, "data-panel-page", "logins")).toBe(false);
     click(find(rendered, "data-panel-page", "folder"));
     expect(onOpen).toHaveBeenLastCalledWith("folder");
     expect(has(rendered, "data-panel-page", "android")).toBe(false);
