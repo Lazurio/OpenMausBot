@@ -8,10 +8,10 @@ const INDEX = readFileSync(new URL("../../server/index.ts", import.meta.url), "u
 const EXACT: Record<string, number> = {
   // Internal harness routes have no server/routes module yet; moving them out is the follow-up that lowers this.
   // Every PR that moves routes into server/routes lowers these to the counts this test prints.
-  'path === "/': 88,
+  'path === "/': 86,
   "path.match(": 22,
   "path.startsWith(": 7,
-  ".exec(path)": 7,
+  ".exec(path)": 6,
   ".test(path)": 0,
   ".includes(path)": 2,
 };
