@@ -32,7 +32,7 @@ it("shares New bot defaults as a preset, imports it, and creates bots from file 
     expect(await ok("GET", "/api/bot-presets")).toEqual({ presets: [] });
     await ok("PATCH", "/api/config", { newBotDefaults: {
       profile: { name: "Sky", title: "Support", soul: "Be kind. The portal password=Presets-Fixture-77 stays private.\n", color: "blue",
-        approvalMode: "auto", browser: true, alwaysAllow: ["Bash(*)"], parkDirectMessages: true },
+        approvalMode: "auto", alwaysAllow: ["Bash(*)"], parkDirectMessages: true },
       memory: { "MEMORY.md": "- Customers first.\n", "memory/tone.md": "Warm.\n" },
       skills: [{ name: "follow-up", description: "follow-up steps.", source: "fixture", text: skill("follow-up"), enabled: true, warnings: [] }],
       routines: [{ name: "Daily", prompt: "Check the inbox.", schedule: { type: "daily", time: "09:00", weekdays: [1] } }],
