@@ -151,6 +151,7 @@ jobs:
           # Lazurio ships the open-source edition: upstream's enterprise/
           # folder (OpenMausBot Enterprise License, no redistribution or
           # hosting for third parties) is deleted as a whole, never changed.
+          removed_upstream_enterprise="$(git diff --name-only --no-renames --diff-filter=D "$UPSTREAM_SHA..HEAD" -- enterprise/)"
           if [ -n "$(git ls-files -- enterprise)" ]; then
             echo "enterprise/ must not be in the Lazurio distribution" >&2
             exit 1
@@ -168,6 +169,8 @@ jobs:
               exit 1
             fi
           done
+          # Rename detection stays off: a new overlay file similar to a deleted upstream one would be read as its rename.
+          unexpected="$(git diff --name-only --no-renames --diff-filter=MDRT "$UPSTREAM_SHA..HEAD" |
             grep -vxF -f <(printf '%s\n' "${allowed_upstream_changes[@]}" $removed_upstream_enterprise $removed_by_lazurio $changed_by_removals) || true)"
           if [ -n "$unexpected" ]; then
             echo "Fork overlay changed upstream files outside allowed_upstream_changes:" >&2
