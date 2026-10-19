@@ -2816,8 +2816,6 @@
   "engines.resetting": "リセット中…",
   "engines.setCli": "CLI を設定…",
   "engines.claudeUpdated": "Claude を更新しました — {version}",
-  "engines.account.signInHint": "OpenMausBot が動いているコンピューターのターミナルで、このコマンドをそのまま実行し、Claude CLI のサインインを完了してから「アカウントを確認」をクリックしてください。OpenMausBot をリモートで開いている場合は、このデバイスではなくそちらで実行してください。",
-  "engines.account.powershell": "このコマンドには PowerShell を使ってください。",
   "engines.none": "モデルプロバイダーのアプリはまだ検出されていません。",
   "engines.footer": "「CLI を設定」で、モデルプロバイダーに特定の実行ファイル（特定バージョン、ラッパースクリプト、絶対パス）を指定します。変更は、選択したプロバイダーが待機中のときのみ保存されます。他のプロバイダーは動き続けます。",
   "engines.freeSpace.title": "残存ファイル",

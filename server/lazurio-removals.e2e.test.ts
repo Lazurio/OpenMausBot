@@ -62,4 +62,10 @@ describe("a Lazurio server", () => {
     expect(result.body.error).toMatch(/^box /);
   });
 
+  it("refuses a Claude configuration directory of MausBot's own: bots use the computer's one Claude login", async () => {
+    const result = await call("PATCH", "/api/instances/claude", { configDir: join(fixture.info.dataDir, "providers", "claude-fixture") });
+    expect(result.status).toBe(400);
+    const saved = JSON.parse(readFileSync(join(fixture.info.dataDir, "config.json"), "utf8")) as { instances?: Record<string, { config?: object }> };
+    expect(saved.instances?.claude?.config ?? {}).not.toHaveProperty("configDir");
+  });
 });

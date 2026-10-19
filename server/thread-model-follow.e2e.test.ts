@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
@@ -45,10 +45,8 @@ async function withEngines(check: (fixture: Fixture) => Promise<void>) {
     } };
     delete config.instances[SPARE];
     if (engines.spare !== "missing") {
-      const configDir = join(dataDir, "spare-claude");
-      mkdirSync(configDir, { recursive: true });
       config.instances[SPARE] = {
-        driver: "claudeAgent", displayName: "Spare Claude", config: { cli: FAKE_CLI, configDir },
+        driver: "claudeAgent", displayName: "Spare Claude", config: { cli: FAKE_CLI },
         ...(engines.spare === "disabled" ? { enabled: false } : {}),
         environment: { FAKE_CLAUDE_PROMPTS: promptFile(SPARE), ...(engines.spare === "signed-out" ? signedOut : {}) },
       };

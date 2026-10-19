@@ -501,7 +501,6 @@ export interface InstanceInfo {
   cli?: string;
   cliDefault?: string;
   cliCandidates?: string[];
-  claudeAccount?: { configDir: string; signInCommand: string; signInShell: "powershell" | "sh"; isDefault: boolean };
   freeUpSpace?: boolean;
 }
 

@@ -350,8 +350,6 @@ export function ModelPicker({
   const openaiAccounts = pickerInstances.filter((instance) => signInFamily(instance) === "openai");
   const openaiRailInstance = openaiAccounts.find((instance) => instance.instanceId === lastOpenaiIdRef.current)
     ?? openaiAccounts.find((instance) => instance.instanceId === selection.instanceId) ?? openaiAccounts[0];
-  const multipleClaudeAccounts = state.instances.filter(isClaudeAccount).length > 1;
-  const showActiveAccount = (multipleClaudeAccounts && isClaudeAccount(active)) || Boolean(active?.snapshot.chatgptPlan);
   const claudeRailInstance = claudeAccounts.find((instance) => instance.instanceId === lastClaudeIdRef.current)
     ?? claudeAccounts.find((instance) => instance.instanceId === selection.instanceId) ?? claudeAccounts[0];
   const railInstance =
@@ -895,10 +893,6 @@ export function ModelPicker({
               ) : blocked ? (
                 <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 pt-1">
                   <EngineSetup instance={railInstance} intent={pane === "custom" ? "inject" : "cloud"} quiet={!advanced} />
-                  {railInstance.claudeAccount && needsSignIn(railInstance) && pane !== "custom" && (
-                    <p className="mt-2 px-1.5 text-[12px] leading-4 text-ink-tertiary">
-                      {railInstance.claudeAccount.signInShell === "powershell" && `${t("engines.account.powershell")} `}
-                      {t("engines.account.signInHint")}
                   <p className="mt-2 text-center text-[12px] leading-4 text-ink-tertiary">
                     {pane === "main" && official.length > 0
                       ? official.length === 1

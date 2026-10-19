@@ -1623,7 +1623,7 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     const settings = { apiKeyHelper: "echo synthetic-helper-key", env: { ANTHROPIC_BASE_URL: "http://127.0.0.1:9", ANTHROPIC_AUTH_TOKEN: "synthetic-token", OMB_TTS_KEY: "must-not-leak" }, hooks: { SessionStart: [{ command: "must-not-run" }] }, permissions: { defaultMode: "bypassPermissions" } };
     writeFileSync(join(account, "settings.json"), JSON.stringify(settings));
     const dump = join(scratch, "account.json");
-    await create(undefined, { FAKE_CLAUDE_DUMP: dump }, { configDir: account });
+    await create(undefined, { FAKE_CLAUDE_DUMP: dump, CLAUDE_CONFIG_DIR: account });
     await instance.adapter.sendTurn({ threadId: "t-auth-settings", text: "hi" });
     await recorder.until((e) => e.type === "turn.completed");
     const seen = JSON.parse(readFileSync(dump, "utf8"));
@@ -1645,7 +1645,7 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     const path = join(account, "settings.json");
     writeFileSync(path, JSON.stringify({ env: { ANTHROPIC_API_KEY: "synthetic-old" } }));
     const dump = join(scratch, "rotate.json");
-    await create(undefined, { FAKE_CLAUDE_DUMP: dump }, { configDir: account });
+    await create(undefined, { FAKE_CLAUDE_DUMP: dump, CLAUDE_CONFIG_DIR: account });
     const first = await instance.adapter.sendTurn({ threadId: "t-auth-rotate", text: "hi" });
     await recorder.until((e) => e.type === "turn.completed" && e.turnId === first.turnId);
     const before = JSON.parse(readFileSync(dump, "utf8"));
@@ -1662,13 +1662,13 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     mkdirSync(account);
     writeFileSync(join(account, "settings.json"), JSON.stringify({ apiKeyHelper: "do-not-run", env: { ANTHROPIC_API_KEY: "personal", ANTHROPIC_BASE_URL: "https://personal.invalid" } }));
     const dump = join(scratch, "explicit.json");
-    await create(undefined, { FAKE_CLAUDE_DUMP: dump, ANTHROPIC_API_KEY: "workspace-key" }, { configDir: account });
+    await create(undefined, { FAKE_CLAUDE_DUMP: dump, ANTHROPIC_API_KEY: "workspace-key", CLAUDE_CONFIG_DIR: account });
     await instance.adapter.sendTurn({ threadId: "t-auth-explicit", text: "hi" });
     await recorder.until((e) => e.type === "turn.completed");
     const seen = JSON.parse(readFileSync(dump, "utf8"));
     expect(seen.settings).toEqual({ claudeMdExcludes: [join(homedir(), ".claude", "CLAUDE.md")] });
     expect(seen.env.ANTHROPIC_API_KEY).toBe("workspace-key");
-    expect(seen.env.ANTHROPIC_BASE_URL).toBeUndefined();
+    expect(seen.env.ANTHROPIC_BASE_URL).not.toBe("https://personal.invalid");
     expect(readClaudeAuthSettings({ HOME: scratch, CLAUDE_CONFIG_DIR: join(scratch, "other-account") })).toEqual({});
     writeFileSync(join(account, "settings.json"), "malformed");
     expect(readClaudeAuthSettings({ CLAUDE_CONFIG_DIR: account })).toEqual({});

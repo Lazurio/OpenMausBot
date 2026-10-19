@@ -7,13 +7,10 @@ import type { LocaleKey } from "@/locales";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ChatGptPlanStatus } from "./ChatGptPlanStatus";
 import { EngineCard, engineReady, providerName, type EngineCardSummary } from "./EngineLibrary";
-import { CommandRow, EngineSetup, EngineUpdateNotice, EngineWarningNotice } from "./EngineSetup";
 
 /** Providers whose accounts are listed together on one card, each signed in on its own. */
-export type AccountGroup = "claude" | "chatgpt";
 
 export function accountGroupOf(instance: InstanceInfo): AccountGroup | null {
-  if (instance.driverKind === "claudeAgent") return "claude";
     ? "chatgpt" : null;
 }
 
@@ -25,15 +22,12 @@ function accountState(instance: InstanceInfo): AccountState {
 }
 
 const COPY: Record<AccountGroup, Record<"title" | "add" | "removeBody", LocaleKey>> = {
-  claude: { title: "accounts.claude", add: "accounts.addClaude", removeBody: "accounts.removeBodyClaude" },
   chatgpt: { title: "accounts.chatgpt", add: "accounts.addChatgpt", removeBody: "accounts.removeBodyChatgpt" },
 };
 
 /** What an account's menu offers. Only accounts added here can be removed; each provider's first account stays. */
-export function accountActions(group: AccountGroup, instance: InstanceInfo): { signOut: boolean; remove: boolean } {
   return {
     signOut: accountState(instance) === "signedIn" && instance.authentication?.signOut === true && instance.snapshot.account?.method !== "api-key",
-    remove: group === "claude" ? instance.instanceId !== "claude" && instance.claudeAccount?.isDefault !== true : instance.instanceId.startsWith("chatgpt-"),
   };
 }
 
@@ -65,7 +59,6 @@ function AccountMenu({ group, instance, onRename }: { group: AccountGroup; insta
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { signOut: canSignOut, remove: canRemove } = accountActions(group, instance);
   const usedBy = state.bots.filter((bot) => bot.modelSelection.instanceId === instance.instanceId).length;
 
   useEffect(() => {
@@ -242,17 +235,14 @@ function AccountRow({ group, instance, signingIn, onSignIn, onSignInDone }: {
 }
 
 /** Names a new account and hands its id back, so the caller can start its sign-in at once. */
-export function AddAccount({ label, endpoint, extra, folder: offerFolder = false, onAdded }: {
   label: string;
   endpoint: string;
   extra?: Record<string, unknown>;
-  folder?: boolean;
   onAdded: (instanceId: string) => void;
 }) {
   const { dispatch } = useStore();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [folder, setFolder] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -261,12 +251,10 @@ export function AddAccount({ label, endpoint, extra, folder: offerFolder = false
     setSaving(true);
     setError(null);
     try {
-      const body = { displayName: name.trim(), ...extra, ...(offerFolder && folder.trim() ? { configDir: folder.trim() } : {}) };
       const created = await api(endpoint, { method: "POST", body: JSON.stringify(body) });
       if (Array.isArray(created.instances)) dispatch({ type: "instances", instances: created.instances });
       setOpen(false);
       setName("");
-      setFolder("");
       if (typeof created.instanceId === "string") onAdded(created.instanceId);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -289,15 +277,6 @@ export function AddAccount({ label, endpoint, extra, folder: offerFolder = false
         <input value={name} onChange={(event) => setName(event.target.value)} placeholder={t("accounts.namePlaceholder")} maxLength={80} autoFocus required disabled={saving}
           className="rounded-lg border border-hairline/40 bg-inset px-3 py-2 text-[13px] font-normal text-ink outline-none focus:border-accent-border disabled:opacity-50" />
       </label>
-      {offerFolder && (
-        <details className="text-[12px] text-ink-secondary">
-          <summary className="cursor-pointer select-none hover:text-ink">{t("accounts.folderToggle")}</summary>
-          <input value={folder} onChange={(event) => setFolder(event.target.value)} placeholder="~/.claude-work" maxLength={4096} spellCheck={false} disabled={saving}
-            aria-label={t("accounts.folderToggle")}
-            className="mt-2 w-full rounded-lg border border-hairline/40 bg-inset px-3 py-2 font-mono text-[12px] text-ink outline-none focus:border-accent-border disabled:opacity-50" />
-          <p className="mt-1 leading-relaxed">{t("accounts.folderHint")}</p>
-        </details>
-      )}
       {error && <p role="alert" className="text-[12px] text-danger">{error}</p>}
       <div className="flex justify-end gap-2">
         <button type="button" onClick={() => { setOpen(false); setError(null); }} disabled={saving} className="rounded-lg px-3 py-1.5 text-[12px] text-ink-secondary hover:bg-control disabled:opacity-50">{t("common.cancel")}</button>
@@ -330,7 +309,6 @@ export function AccountsCard({ group, accounts, advanced, bare = false }: { grou
                 onSignInDone={() => setSigningIn((current) => current === instance.instanceId ? null : current)} />
             ))}
           </ul>
-          {!primary.snapshot.authenticationUnavailableReason && <AddAccount label={t(COPY[group].add)} endpoint={`/api/instances/${group}-accounts`} folder={group === "claude"} onAdded={setSigningIn} />}
         </div>
       )}
       {primary.snapshot.update && <EngineUpdateNotice update={primary.snapshot.update} instance={primary} className="mt-3" quiet />}

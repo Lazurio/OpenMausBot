@@ -1,2 +1,75 @@
+{
+  "area": "Own sign-ins: added Claude accounts",
+  "why": "Bots use the Environment's one Claude login (~/.claude, `claude auth login` from the Launchpad's Environment settings); MausBot keeps no Claude accounts of its own, each with a configuration directory under its data folder (issue #35).",
+  "files": [
+    "server/claude-account-api.test.ts",
+    "server/claude-accounts.test.ts",
+    "server/claude-accounts.ts"
+  ],
+  "forbidden": [
+    "/api/instances/claude-accounts",
+    "newClaudeAccount",
+    "assertSeparateClaudeAccount",
+    "createClaudeAccountSchema",
+    "claudeAccountInfo",
+    "configuredAccountDirectory",
+    "CLAUDE_ACCOUNT_ENV_KEYS",
+    "claudeAccount?",
+    "claudeAccount.",
+    "multipleClaudeAccounts",
+    "accounts.addClaude",
+    "accounts.removeBodyClaude",
+    "accounts.folderToggle",
+    "accounts.folderHint",
+    "engines.account.signInHint",
+    "engines.account.powershell",
+    "Add another Claude account",
+    "Use an existing Claude folder",
+    "Multiple Claude accounts",
+    "Named Claude accounts"
+  ],
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/api/instances/claude-accounts",
+      "body": {
+        "displayName": "x"
+      }
+    }
+  ],
+  "changes": [
+    "apps/docs/content/docs/providers/index.mdx",
+    "docs/verification/bot-continuity.md",
+    "docs/verification/engines-ui.md",
+    "docs/verification/engines.md",
+    "scripts/verify-claude-auth-settings.ts",
+    "scripts/verify-engines-ui.ts",
+    "server/config.ts",
     "server/drivers/claude-accounts.test.ts",
+    "server/drivers/claude.test.ts",
+    "server/drivers/claude.ts",
+    "server/harness/registry.test.ts",
+    "server/plan-usage.test.ts",
+    "server/plan-usage.ts",
+    "server/routes/instances.ts",
+    "server/routine-recovery.test.ts",
+    "server/tested-ai.e2e.test.ts",
+    "server/thread-model-follow.e2e.test.ts",
+    "server/trust-controls.e2e.test.ts",
+    "src/components/EnginesSettings.test.ts",
+    "src/components/ModelPicker.simple.test.ts",
+    "src/components/ModelPicker.test.ts",
+    "src/components/ModelPicker.tsx",
+    "src/locales/en.json",
+    "src/locales/es.json",
+    "src/locales/ja.json",
+    "src/locales/pt-br.json",
+    "src/locales/source-hashes.json",
+    "src/locales/tr.json",
+    "src/locales/uk.json",
+    "src/locales/vi.json",
+    "src/locales/zh-tw.json",
+    "src/locales/zh.json",
     "src/state/store.tsx"
+  ]
+}

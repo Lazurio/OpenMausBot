@@ -40,13 +40,11 @@ const instances: InstanceInfo[] = [
   install: { command: { darwin: "echo 'Isolated preview — no installation'", linux: "echo 'Isolated preview — no installation'", win32: "echo Isolated preview — no installation" } },
 }));
 instances[0].snapshot.account = { email: "personal@example.test" };
-instances[0].claudeAccount = { configDir: "", isDefault: true, signInCommand: "echo 'Preview only'", signInShell: "sh" };
 instances[1].snapshot.account = { email: "work@example.test" };
 instances[4].install = { managed: { label: "Install Antigravity", downloadBytes: 200_000_000 } };
 instances[5].install!.server = { package: "kimi-fixture" };
 instances[3].install!.server = { package: "opencode-fixture" };
 instances[3].snapshot.update = { title: "OpenCode update available", message: "A sample update for this isolated preview.", command: "echo 'Preview only'" };
-instances.push({ ...instances[0], instanceId: "claude-local", displayName: "Claude · Local", access: "custom", claudeAccount: undefined, snapshot: { state: "available", authenticated: false } });
 const chatgptPlan: InstanceInfo = {
   instanceId: "chatgpt", driverKind: "codex", displayName: "ChatGPT plan", cliDefault: "codex", access: "subscription",
   snapshot: { state: "available", authenticated: false, chatgptPlan: true },
@@ -54,6 +52,7 @@ const chatgptPlan: InstanceInfo = {
   install: { docsUrl: "https://developers.openai.com/siwc/token-sharing-open-source" },
 };
 instances.push(chatgptPlan);
+instances.push({ ...instances[0], instanceId: "claude-local", displayName: "Claude · Local", access: "custom", snapshot: { state: "available", authenticated: false } });
 instances.push({
   instanceId: "cline", driverKind: "clineAgent", displayName: "Cline", cliDefault: "cline",
   snapshot: { state: "available", authenticated: true, version: "3.0.70" },

@@ -1408,8 +1408,6 @@
   "engines.resetting": "正在重置…",
   "engines.setCli": "设置命令行…",
   "engines.claudeUpdated": "Claude 已更新——{version}",
-  "engines.account.signInHint": "请在运行 OpenMausBot 的电脑终端中运行这条完整指令，完成 Claude CLI 登录后，再点击“检查账户”。若你是以远程方式查看 OpenMausBot，请在那里运行，而不是这台设备。",
-  "engines.account.powershell": "这道指令请使用 PowerShell 运行。",
   "engines.none": "尚未检测到模型提供方应用。",
   "engines.footer": "“设置 CLI”可将模型提供方指向特定的可执行文件——特定版本的构建、包装脚本或绝对路径。只有在所选提供方闲置时才会保存变更，其他提供方会继续运行。",
   "engines.library.custom": "自备模型",

@@ -51,12 +51,12 @@ import { approvalHeldNote, approvalHeldReason, autoVerdict, deliverFullAccessApp
 import { bindSafetyFloor, denyAtSafetyFloor, heldAtSafetyFloor, safetyFloorOn } from "./safety-floor-gate.ts";
 import { CommandAllowlistStore, commandAllowlistCandidate } from "./command-allowlist.ts";
 import type { CommandAllowlistCandidate, CommandAllowlistResponse } from "../shared/command-allowlist.ts";
-import { claudeAccountInfo } from "./claude-accounts.ts";
 import {
   BrowserCleanupCoordinator,
   requireBrowserCleanupAcknowledged,
   type BrowserCleanupWireRequest,
 } from "./browser-lifecycle-cleanup.ts";
+import { claudeSignInCommand } from "./claude-sign-in.ts";
 import * as checkpoints from "./checkpoints.ts";
 import { commandReceipt } from "./commands.ts";
 import { buildTurnDigest, coverageForDriver, digestPromptLine, renderDigest, toolEvidence } from "./digest.ts";
@@ -10494,8 +10494,8 @@ async function describeInstances() {
       return { ...described, ...policy, authentication: undefined, install: { ...instance.install, signInCommand: undefined } };
     }
     try {
-      const claudeAccount = claudeAccountInfo(instance.instanceId, entry, instance.cli ?? instance.cliDefault ?? "claude");
-      return { ...described, ...policy, claudeAccount, install: { ...instance.install, signInCommand: claudeAccount.signInCommand } };
+      const signInCommand = claudeSignInCommand(instance.cli ?? instance.cliDefault ?? "claude", { ...process.env, ...entry.environment });
+      return { ...described, ...policy, install: { ...instance.install, signInCommand } };
     } catch {
       return { ...described, ...policy, install: { ...instance.install, signInCommand: undefined } };
     }

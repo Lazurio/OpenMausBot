@@ -315,18 +315,15 @@ describe("ModelPicker trigger", () => {
     expect(markup).not.toContain("data-model-account-compact");
   });
 
-  it("visibly identifies the selected account when Claude has multiple instances", () => {
+  it("names no Claude account on the trigger, even with a second Claude engine", () => {
     fixture.instances = [
-      { ...engine(), instanceId: "claude-personal", driverKind: "claudeAgent", displayName: "Personal" },
-      { ...engine(), instanceId: "claude-work", driverKind: "claudeAgent", displayName: "Work" },
+      { ...engine(), instanceId: "claude", driverKind: "claudeAgent", displayName: "Claude" },
+      { ...engine(), instanceId: "spare", driverKind: "claudeAgent", displayName: "Spare" },
     ];
     const markup = renderToStaticMarkup(createElement(ModelPicker, {
-      bot: { ...bot(), modelSelection: { instanceId: "claude-work", model: "gpt-5.6" } },
+      bot: { ...bot(), modelSelection: { instanceId: "spare", model: "gpt-5.6" } },
     }));
-    expect(markup).toMatch(/<span data-model-account[^>]*>Work · <\/span>/);
-    expect(markup).not.toMatch(/<span data-model-account[^>]*>Personal/);
-    expect(markup).toMatch(/<span data-model-account-compact="true" class="hidden max-w-20 truncate @max-4xl\/chathead:inline">Work<\/span><span class="[^"]*@max-4xl\/chathead:hidden"/);
-    expect(markup).not.toContain("@max-4xl/chathead:size-[30px]");
+    expect(markup).not.toContain("data-model-account");
   });
 });
 

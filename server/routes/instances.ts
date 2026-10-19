@@ -1,12 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { providerIconError } from "../../shared/provider-icon.ts";
-import {
-  assertSeparateClaudeAccount,
-  configuredAccountDirectory,
-  createClaudeAccountSchema,
-  instanceSettingsSchema,
-  newClaudeAccount,
-} from "../claude-accounts.ts";
 import { updateClaudeCli } from "../claude-update.ts";
 import { persistableInstanceConfigs, saveConfig, withInstanceCli, type AppConfig } from "../config.ts";
 import { addEndpoint, addEndpointSchema, isAddedEndpoint, withEndpointUrls } from "../openai-compat-endpoints.ts";
@@ -93,7 +86,6 @@ export function createInstanceRoutes(deps: InstanceRouteDeps): RouteHandler {
 
     if (method === "POST" && path === "/api/instances/chatgpt-accounts") {
       if (!String(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) return json(res, 415, { error: "content-type must be application/json" });
-      const parsed = createClaudeAccountSchema.pick({ displayName: true }).safeParse(await readBody(req, 8192));
       if (!parsed.success) return json(res, 400, { error: "Enter an account name (up to 80 characters)." });
       if (providerConfigBusy.get()) return json(res, 409, { error: "provider settings are already being updated" });
       providerConfigBusy.set(true);
@@ -122,21 +114,6 @@ export function createInstanceRoutes(deps: InstanceRouteDeps): RouteHandler {
         if ("error" in added) return json(res, 400, { error: added.error });
         await persistProviderInstance(added.instanceId, instances);
         return json(res, 201, { instanceId: added.instanceId, instances: await describeInstances() });
-      } finally { providerConfigBusy.set(false); }
-    }
-
-    if (method === "POST" && path === "/api/instances/claude-accounts") {
-      if (!String(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) {
-        return json(res, 415, { error: "content-type must be application/json" });
-      }
-      const parsed = createClaudeAccountSchema.safeParse(await readBody(req, 8192));
-      if (!parsed.success) return json(res, 400, { error: "Enter an account name (up to 80 characters) and an optional configuration directory." });
-      if (providerConfigBusy.get()) return json(res, 409, { error: "provider settings are already being updated" });
-      providerConfigBusy.set(true);
-      try {
-        const { instanceId, instances } = newClaudeAccount(cfg, parsed.data);
-        await persistProviderInstance(instanceId, instances);
-        return json(res, 201, { instanceId, instances: await describeInstances() });
       } finally { providerConfigBusy.set(false); }
     }
 
@@ -286,7 +263,6 @@ export function createInstanceRoutes(deps: InstanceRouteDeps): RouteHandler {
         return json(res, 415, { error: "content-type must be application/json" });
       }
       const parsed = instanceSettingsSchema.safeParse(await readBody(req, 16384));
-      if (!parsed.success) return json(res, 400, { error: "Supply a valid CLI path, account name, configuration directory or boolean tools setting." });
       const body = parsed.data;
       const instanceId = instancePatch[1];
       if (providerConfigBusy.get()) return json(res, 409, { error: "provider settings are already being updated" });
@@ -300,8 +276,6 @@ export function createInstanceRoutes(deps: InstanceRouteDeps): RouteHandler {
         const instances = persistableInstanceConfigs(result.config);
         if (!result.ok || !Object.hasOwn(instances, instanceId)) return json(res, 404, { error: `unknown instance "${instanceId}"` });
         const entry = instances[instanceId];
-        if ((body.configDir !== undefined && entry.driver !== "claudeAgent") || (body.displayName !== undefined && !["claudeAgent", "codex"].includes(entry.driver))) {
-          return json(res, 400, { error: "Account settings are available for Claude and ChatGPT accounts only." });
         }
         if (body.tools !== undefined) {
           if (!["openai-compat", "grok", "minimax", "mistral", "cerebras", "groq", "meta"].includes(entry.driver)) {
@@ -310,17 +284,6 @@ export function createInstanceRoutes(deps: InstanceRouteDeps): RouteHandler {
           entry.config = { ...entry.config as Record<string, unknown>, tools: body.tools };
         }
         if (body.displayName !== undefined) entry.displayName = body.displayName;
-        if (body.configDir !== undefined) {
-          let previousDir: string | undefined;
-          try { previousDir = configuredAccountDirectory(entry); } catch { }
-          entry.config = { ...entry.config as Record<string, unknown>, configDir: body.configDir };
-          if (previousDir !== configuredAccountDirectory(entry)) {
-            const used = store.bots.some((bot) => bot.modelSelection.instanceId === instanceId || bot.fallback?.some(candidate => candidate.instanceId === instanceId) || store.tasks(bot.id).some((task) =>
-              task.modelSelection?.instanceId === instanceId || task.resumeCursors[instanceId] || task.lastInstanceId === instanceId));
-            if (used) return json(res, 409, { error: "This account is used by bots or conversation history. Add another account and select it for the bot instead." });
-            assertSeparateClaudeAccount(instances, instanceId, entry);
-          }
-        }
         await persistProviderInstance(instanceId, instances);
         return json(res, 200, { instances: await describeInstances() });
       } finally {

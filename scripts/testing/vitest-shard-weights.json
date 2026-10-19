@@ -252,7 +252,6 @@
     "server/bot-setup.e2e.test.ts": 3,
     "server/bot-visibility.e2e.test.ts": 8,
     "server/bot-wire-privacy.e2e.test.ts": 10,
-    "server/browser-runtime.test.ts": 16,
     "server/bulk-delete-tasks.e2e.test.ts": 3,
     "server/cancelled-turn.e2e.test.ts": 5,
     "server/card-answerers.e2e.test.ts": 10,
