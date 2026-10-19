@@ -2,14 +2,15 @@
 // against the real file layout the Platform's hub reads (holder files, agent-browser's bindings)
 // in a scratch runtime directory, with the Platform's `lazurio` CLI faked.
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { holderSchema, isStrip, stripAppOf } from "../lazurio/browser-contract/pure.js";
+import { holderFileText, holderSchema, isStrip, liveTabsText, stripAppOf } from "../lazurio/browser-contract/pure.js";
 import {
   BROWSER_CONTRACT_RELEASE,
+  MAX_BOT_TABS,
   botBrowserSession,
   environmentBrowserPrompt,
   startEnvironmentBrowser,
@@ -203,6 +204,44 @@ describe("the bots' strips", () => {
     expect(await start(() => ({ code: 0, stdout: "not json" })).declared()).toBe(false);
     await browser?.stop();
     expect(await start(() => ({ code: -1, stdout: "" })).declared()).toBe(false);
+  });
+
+  const BOOT = "8e1c8f0e-6c3b-4b39-9d3e-1f2a3b4c5d6e";
+  const id = (n: number) => n.toString(16).toUpperCase().padStart(32, "0");
+
+  it("holds a tab its full strip refused once a slot frees, on a later reconciliation", async () => {
+    const session = botBrowserSession(BOT_A);
+    const old = Array.from({ length: MAX_BOT_TABS }, (_, n) => id(n + 1));
+    await mkdir(holders(), { recursive: true });
+    await writeFile(join(holders(), `${session}.json`), holderFileText(session, "Researcher", old.map((tab) => ({ id: tab, recordedAt: { boot: BOOT, at: 50 } })), BROWSER_CONTRACT_RELEASE));
+    await bind(session, TAB_C);
+    const strips = start();
+    await strips.sync();
+    // Full: the new tab is refused and the file is left as it was.
+    expect((await holderOf(session)).tabs).toEqual(old);
+    // The hub's list no longer has the first tab, taken after it was recorded: a slot frees.
+    await writeFile(join(runtime, "lazurio-browser", "tabs.json"), liveTabsText(old.slice(1), { boot: BOOT, at: 200 }));
+    await strips.sync();
+    const tabs = (await holderOf(session)).tabs;
+    expect(tabs).toHaveLength(MAX_BOT_TABS);
+    expect(tabs).not.toContain(old[0]);
+    expect(tabs.at(-1)).toBe(TAB_C);
+  });
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)("holds a tab again after a failed write, once the file can be written", async () => {
+    const session = botBrowserSession(BOT_A);
+    await mkdir(holders(), { recursive: true });
+    await bind(session, TAB_A);
+    await chmod(holders(), 0o500);
+    const strips = start();
+    try {
+      await strips.sync();
+      expect(existsSync(join(holders(), `${session}.json`))).toBe(false);
+    } finally {
+      await chmod(holders(), 0o700);
+    }
+    await strips.sync();
+    expect((await holderOf(session)).tabs).toEqual([TAB_A]);
   });
 
   it("does nothing where there is no runtime directory", async () => {

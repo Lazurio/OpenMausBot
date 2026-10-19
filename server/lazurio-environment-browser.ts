@@ -185,6 +185,8 @@ export function startEnvironmentBrowser(seams: EnvironmentBrowserSeams): Environ
   /** What this process knows of each live bot's strip, and the tab each session was bound to at the last reading. */
   const held = new Map<string, string[]>();
   const lastBinding = new Map<string, string>();
+  /** The last refusal logged for each strip, so a full strip is said once, not on every beat. */
+  const refusals = new Map<string, string>();
 
   const fileOf = (bot: StripBot, directory: string) => ({
     directory,
@@ -237,23 +239,37 @@ export function startEnvironmentBrowser(seams: EnvironmentBrowserSeams): Environ
       await rm(join(directory, `${session}.json`), { force: true }).catch(() => log(`${session}.json could not be removed`));
       if (running.has(session)) await done(session);
       lastBinding.delete(session);
+      refusals.delete(session);
     }
     for (const id of held.keys()) if (!live.has(botBrowserSession(id))) held.delete(id);
 
     // Every live bot's strip: a tab its session newly bound is recorded, and the file is
     // reconciled with the hub's list of live tabs (changeHolderFile does both, and writes only a change).
+    // A binding counts as seen only once the strip holds its tab: a refused or failed write is tried again
+    // on the next reconciliation (a full strip that a released tab frees, a file that can be written again).
     for (const [session, bot] of live) {
       const target = boundTo.get(session);
-      const fresh = target !== undefined && lastBinding.get(session) !== target && !(held.get(bot.id) ?? []).includes(target);
-      if (target !== undefined) lastBinding.set(session, target);
+      const known = target !== undefined && (held.get(bot.id) ?? []).includes(target);
+      if (known) lastBinding.set(session, target);
+      const fresh = target !== undefined && !known && lastBinding.get(session) !== target;
       if (!fresh && !files.includes(`${session}.json`) && !held.has(bot.id)) continue;
-      const result = await changeHolderFile(fileOf(bot, directory), { hold: fresh ? [target] : [] }, await now());
-      if (result.kind === "refused") {
-        log(`${session}.json ${result.reason === "full" ? `holds ${MAX_BOT_TABS} tabs already` : "cannot be read, so it is left as it is"}`);
+      let result: Awaited<ReturnType<typeof changeHolderFile>>;
+      try {
+        result = await changeHolderFile(fileOf(bot, directory), { hold: fresh ? [target] : [] }, await now());
+      } catch (error) {
+        log(`${session}.json could not be written: ${error instanceof Error ? error.message : String(error)}`);
         continue;
       }
+      if (result.kind === "refused") {
+        const reason = result.reason === "full" ? `holds ${MAX_BOT_TABS} tabs already` : "cannot be read, so it is left as it is";
+        if (refusals.get(session) !== reason) log(`${session}.json ${reason}`);
+        refusals.set(session, reason);
+        continue;
+      }
+      refusals.delete(session);
       if (result.tabs.length) held.set(bot.id, result.tabs.map((tab) => tab.id));
       else held.delete(bot.id);
+      if (fresh && result.tabs.some((tab) => tab.id === target)) lastBinding.set(session, target);
     }
   };
 
