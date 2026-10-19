@@ -121,40 +121,28 @@ reviewed bot creation and continuation, and refusal to reuse an initial handoff
 after a failed resumed turn or failed coordination root. All providers are
 isolated fakes.
 
-## Dedicated shared-workspace operator policy
+## Full and Ask tasks on a shared workspace
 
-An operator who explicitly authorizes Full access in a dedicated company
-workspace can provision `OMB_SHARED_WORKSPACE_FULL_ACCESS=1` at server startup.
-It is active only with a fully validated HTTPS `OMB_ADMIN_URL`,
-`OMB_PUBLIC_URL`, workspace slug `OMB_ADMIN_WORKSPACE`,
-`OMB_ADMIN_MEMBERSHIP=portal`, a loaded hosted-access hook and a live `admin`
-entitlement. `OMB_DESKTOP_PARENT=1` disallows it. HTTP settings cannot toggle it.
-
-Only while that policy is active does authenticated health advertise
-`capabilities.sharedWorkspaceFullAccess: 1`. A trusted loopback caller may then
-create **a new task** with `POST /api/bots/:botId/tasks` and
-`approvalMode: "full"`, provided its provider supports Full. Remote sessions,
-including administrators, cannot use this grant route. This policy trusts
-local processes in that dedicated workspace; it must not be enabled on a
-personal desktop or a workspace where local tools must not create Full tasks.
+A hosted company workspace runs every bot at Full access, like any other
+server (Lazurio overlay, DEV-6673): no operator flag turns it on. A caller
+that may open a thread may create **a new task** with
+`POST /api/bots/:botId/tasks` and `approvalMode: "full"` or `"ask"`.
 
 Explicit `approvalMode: "ask"` creates a fresh Ask task with no automatic or
 remembered grants even when the bot default is elevated. Both explicit modes
 clear those inherited grants in the task's first durable write. Existing
-tasks, bot defaults and the desktop confirmation path are unchanged. Removing
-the operator flag prevents new HTTP Full grants; it does not silently downgrade
-already-authorized tasks. Use a new thread when changing an external request's
-permission policy, never upgrade an old queued request or silently patch a
-shared task.
+tasks and bot defaults are unchanged. Use a new thread when changing an
+external request's permission policy, never upgrade an old queued request or
+silently patch a shared task.
 
-Run the operator-policy and Full/Ask workflow checks:
+Run the Full/Ask workflow checks:
 
 ```sh
-pnpm exec vitest run server/enterprise.test.ts server/hosted-access.test.ts server/full-access-workflows.e2e.test.ts server/store.test.ts
+pnpm exec vitest run server/enterprise.test.ts server/lazurio-full-access.e2e.test.ts server/full-access-workflows.e2e.test.ts server/store.test.ts
 ```
 
-The hosted-access tests exercise the real hosted authorization route with an
-isolated portal/license fixture. The Full workflow exercises exact Full/Ask
+The Lazurio full-access test restarts a fixture server as a hosted workspace
+and checks its bot and new threads run at Full. The Full workflow exercises exact Full/Ask
 guarded sends, bot creation, delegated continuations, and restart while awaiting
 a teammate, using only fake providers. Neither contacts a real portal or model.
 
