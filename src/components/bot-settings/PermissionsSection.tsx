@@ -1,4 +1,3 @@
-// LocalComputerAutoWarning remembers its bot, so a bot switch while it is up never applies the choice to the new bot.
 import { useState } from "react";
 import { Crown } from "lucide-react";
 
@@ -9,7 +8,6 @@ import { useStore, type Bot } from "@/state/store";
 import type { ApprovalMode } from "../../../shared/approval-mode";
 import { ApprovalModeSelector } from "../ApprovalModeSelector";
 import { CommandAllowlistDialog } from "../CommandAllowlistDialog";
-import { LocalComputerAutoWarning } from "../LocalComputerAutoWarning";
 import { Switch } from "../SettingsPrimitives";
 import { ManagedTeamsSettings } from "./ManagedTeamsSettings";
 import { ProposalStatus } from "./ProposalStatus";
@@ -31,7 +29,6 @@ export function PermissionsSection({
   const { state, dispatch } = useStore();
   const ownerOrAdmin = useOwnerOrAdmin();
   const { draft } = useBotEditor();
-  const [localAutoWarning, setLocalAutoWarning] = useState<string | null>(null);
   const [commandAllowlistTarget, setCommandAllowlistTarget] = useState<{ botId: string; botName: string } | null>(null);
   const shows = (part: PermissionsPart) => !parts || parts.includes(part);
   const applyFullEverywhere = () =>
@@ -40,10 +37,6 @@ export function PermissionsSection({
     if (bot.busy || mode === approvalMode) return;
     if (mode === "full") {
       applyFullEverywhere();
-      return;
-    }
-    if (mode === "auto") {
-      setLocalAutoWarning(bot.id);
       return;
     }
     patch({ approvalMode: mode });
@@ -157,16 +150,6 @@ export function PermissionsSection({
         {...commandAllowlistTarget}
         onClose={() => setCommandAllowlistTarget(null)}
       />}
-      <LocalComputerAutoWarning
-        open={localAutoWarning !== null}
-        onCancel={() => setLocalAutoWarning(null)}
-        onConfirm={() => {
-          const target = localAutoWarning;
-          setLocalAutoWarning(null);
-          if (!target) return;
-          dispatch({ type: "updateBot", botId: target, patch: { approvalMode: "auto", acknowledgeLocalAuto: true } });
-        }}
-      />
     </div>
   );
 }

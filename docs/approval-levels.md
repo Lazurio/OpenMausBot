@@ -50,8 +50,9 @@ is skipped and the summary gives the reason. A skipped bot is not changed
 later: once its turn ends, run the team change again or set that bot in its
 own settings. A level reaches each bot and every one of its threads, the same
 way for every level, so a thread opened with New thread moves too; a bot is
-"already set" only when all of its threads are. Choosing Auto for a bot on
-this computer shows the same warning as its own settings. Model changes keep
+"already set" only when all of its threads are. No level, Auto or Full
+included, asks for a confirmation first: the one a person picks applies.
+Model changes keep
 each bot on its own engine and move the threads that use the bot's model; a
 thread with a model of its own keeps it, including the one open on screen
 (the bot's own settings, by contrast, move that thread with the bot).

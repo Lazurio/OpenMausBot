@@ -93,7 +93,6 @@ const { openBotSettings } = await import("./bot-panel/panel-link");
 const { PageHeader, SwitchRow } = await import("./bot-panel/rows");
 const { ChatMoreMenu } = await import("./ChatMoreMenu");
 const { SoulField } = await import("./SoulField");
-const { LocalComputerAutoWarning } = await import("./LocalComputerAutoWarning");
 const { ModelPicker } = await import("./ModelPicker");
 const { ThreadModelsLine } = await import("./ThreadModelsLine");
 const { ModelSection } = await import("./bot-settings/ModelSection");
@@ -549,7 +548,7 @@ describe("the Details tab", () => {
     acts.onChange("ask");
     expect(patch).not.toHaveBeenCalled();
     acts.onChange("auto");
-    expect(patch).not.toHaveBeenCalled();
+    expect(patch).toHaveBeenLastCalledWith({ approvalMode: "auto" });
     acts.onChange("full");
     expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "updateBot", botId: "scout", patch: { approvalMode: "full", applyToAllThreads: true } });
     click(find(rendered, "data-panel-link", "approvals"));
@@ -573,14 +572,11 @@ describe("the Details tab", () => {
     expect(patch).not.toHaveBeenCalled();
   });
 
-  it("warns before Decide for me, since every bot works on this computer", () => {
+  // Lazurio overlay (DEV-6673): no warning gate before Auto; picking it applies it.
+  it("applies Decide for me at once, without a warning", () => {
     const bot = makeBot();
     segment(details(bot), "data-approval-choice").onChange("auto");
-    expect(patch).not.toHaveBeenCalled();
-    const warning = ofType(details(bot), LocalComputerAutoWarning)!;
-    expect(warning.props.open).toBe(true);
-    (warning.props.onConfirm as () => void)();
-    expect(fixture.dispatch).toHaveBeenLastCalledWith({ type: "updateBot", botId: "scout", patch: { approvalMode: "auto", acknowledgeLocalAuto: true } });
+    expect(patch).toHaveBeenLastCalledWith({ approvalMode: "auto" });
   });
 
   it("lists routines with a switch each, and creates, logs and opens schedules", () => {

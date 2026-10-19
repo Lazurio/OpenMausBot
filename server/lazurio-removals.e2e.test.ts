@@ -2,7 +2,7 @@
 // removes from the code answer no request any more. The routes come from the
 // removal manifests in lazurio/removals/ (scripts/lazurio-removals.node-test.mjs
 // checks the files and strings); `:bot` stands for the first-run bot's id. A write that names a removed
-// setting is refused as a whole, and the server-side Auto warning gate stays on the paths the removals touched.
+// setting is refused as a whole.
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -72,30 +72,5 @@ describe("a Lazurio server", () => {
     expect(result.status).toBe(400);
     const saved = JSON.parse(readFileSync(join(fixture.info.dataDir, "config.json"), "utf8")) as { instances?: Record<string, { config?: object }> };
     expect(saved.instances?.claude?.config ?? {}).not.toHaveProperty("configDir");
-  });
-
-  it("refuses Auto over the API without the warning's acknowledgement, on creation and on a switch", async () => {
-    const refused = /requires confirming the warning first \(acknowledgeLocalAuto\)/;
-    const created = await call("POST", "/api/bots", { name: "Auto unconfirmed", settings: { approvalMode: "auto" } });
-    expect(created.status).toBe(400);
-    expect(created.body.error).toMatch(refused);
-    const confirmed = await call("POST", "/api/bots", { name: "Auto confirmed", settings: { approvalMode: "auto" }, acknowledgeLocalAuto: true });
-    expect(confirmed.status, JSON.stringify(confirmed.body)).toBe(201);
-
-    const bot = await call("POST", "/api/bots", { name: "Switches to Auto", settings: { approvalMode: "ask" } });
-    expect(bot.status).toBe(201);
-    const id = bot.body.bot.id as string;
-    const patched = await call("PATCH", `/api/bots/${id}`, { approvalMode: "auto" });
-    expect(patched.status).toBe(400);
-    expect(patched.body.error).toMatch(refused);
-
-    const listed = (await call("GET", "/api/bots?messages=0")).body.bots.find((row: { id: string }) => row.id === id);
-    const threadId = (listed.tasks?.[0]?.threadId ?? listed.threadId) as string;
-    const thread = await call("PATCH", `/api/bots/${id}/tasks/${threadId}`, { approvalMode: "auto" });
-    expect(thread.status).toBe(400);
-    expect(thread.body.error).toMatch(refused);
-
-    const acknowledged = await call("PATCH", `/api/bots/${id}`, { approvalMode: "auto", acknowledgeLocalAuto: true });
-    expect(acknowledged.status, JSON.stringify(acknowledged.body)).toBe(200);
   });
 });

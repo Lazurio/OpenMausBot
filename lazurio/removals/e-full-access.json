@@ -8,6 +8,7 @@
     "scripts/testing/approval-ui-smoke.cjs",
     "scripts/testing/model-switch-ui-smoke.cjs",
     "server/drivers/codex-approval-config.ts",
+    "src/components/LocalComputerAutoWarning.tsx",
     "src/testing/thread-approvals.tsx"
   ],
   "forbidden": [
@@ -31,7 +32,12 @@
     "approvalMode.customLocalOnly",
     "Custom (config.toml)",
     "bot.approvalGrant",
-    "approvalGrant?:"
+    "approvalGrant?:",
+    "LocalComputerAutoWarning",
+    "LOCAL_COMPUTER_AUTO_WARNING",
+    "planNeedsLocalAutoConsent",
+    "Allow Auto mode on this computer",
+    "requires confirming the warning"
   ],
   "routes": [],
   "changes": [

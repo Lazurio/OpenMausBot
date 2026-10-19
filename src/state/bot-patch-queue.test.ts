@@ -318,29 +318,6 @@ describe("bot patch queue", () => {
     for (const overlay of overlays) expect(overlay).not.toHaveProperty("threadId");
   });
 
-  it("carries acknowledgeLocalAuto to the wire but never into a state overlay", async () => {
-    const sent: BotUpdatePatch[] = [];
-    const overlays: BotUpdatePatch[] = [];
-    const queue = createBotPatchQueue({
-      send: async (_botId, patch) => {
-        sent.push(patch);
-        return bot();
-      },
-      reconcile: async () => bot(),
-      onAuthoritative: (_bot, overlay) => overlays.push(overlay),
-      onError: vi.fn(),
-    });
-
-    queue.enqueue("bot-1", { browser: true, acknowledgeLocalAuto: true }, bot());
-    queue.enqueue("bot-1", { title: "Ops" }, bot());
-    expect(queue.overlayFor("bot-1")).toEqual({ browser: true, title: "Ops" });
-    await vi.advanceTimersByTimeAsync(400);
-    await queue.flush("bot-1");
-
-    expect(sent).toEqual([{ browser: true, acknowledgeLocalAuto: true, title: "Ops" }]);
-    for (const overlay of overlays) expect(overlay).not.toHaveProperty("acknowledgeLocalAuto");
-  });
-
   it("keeps the all-threads scope out of optimistic bot state", async () => {
     const sent: BotUpdatePatch[] = [];
     const overlays: BotUpdatePatch[] = [];

@@ -132,7 +132,7 @@ await import(${JSON.stringify(pathToFileURL(join(SERVER_DIR, "testing", "fake-cl
   before.chatOnly = await pair(["client"]);
   const newBot = async (name: string) => {
     const bot = (await api("POST", "/api/bots", { token: before.device, body: { name, modelSelection: { instanceId: "held", model: "claude-sonnet-5" } } })).body.bot;
-    expect((await api("PATCH", `/api/bots/${bot.id}`, { token: before.device, body: { cwd: project(), approvalMode: "auto", acknowledgeLocalAuto: true } })).status).toBe(200);
+    expect((await api("PATCH", `/api/bots/${bot.id}`, { token: before.device, body: { cwd: project(), approvalMode: "auto" } })).status).toBe(200);
     return bot as { id: string; threadId: string };
   };
   before.bot = await newBot("Site bot");
@@ -418,7 +418,7 @@ it("routines fail closed: one from before with no proof runs confined; one the o
     { name: "Templated", prompt: "Check the site.", schedule: { type: "interval", everyMinutes: 60, anchorAt: Date.now() + 3_600_000 }, enabled: false },
   ] } } })).status).toBe(200);
   const templated = (await api("POST", "/api/bots", { token: owner, body: { name: "Templated bot", modelSelection: { instanceId: "held", model: "claude-sonnet-5" } } })).body.bot;
-  expect((await api("PATCH", `/api/bots/${templated.id}`, { token: owner, body: { cwd: project(), approvalMode: "auto", acknowledgeLocalAuto: true } })).status).toBe(200);
+  expect((await api("PATCH", `/api/bots/${templated.id}`, { token: owner, body: { cwd: project(), approvalMode: "auto" } })).status).toBe(200);
   const routineId = (await api("GET", "/api/routines", { token: owner })).body.routines.find((candidate: any) => candidate.botId === templated.id).id;
   const made = await turn(async () => expect((await api("POST", `/api/routines/${routineId}/run`, { token: owner })).status).toBe(201));
   expect(made).toMatchObject({ mode: "auto", restricted: false });

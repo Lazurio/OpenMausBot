@@ -6,7 +6,6 @@ import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import {
   applyTeamPlan,
-  planNeedsLocalAutoConsent,
   planTeamChange,
   TEAM_APPROVAL_MODES,
   teamBots,
@@ -21,7 +20,6 @@ import {
 import { api, persistBotUpdate, useStore } from "@/state/store";
 import { EFFORT_LEVELS, type EffortLevel } from "../../shared/wire";
 import { approvalModeOptions } from "./ApprovalModeSelector";
-import { LocalComputerAutoWarning } from "./LocalComputerAutoWarning";
 import { effortLabel } from "./ModelPicker";
 import { Select } from "./Select";
 
@@ -57,7 +55,6 @@ export function TeamSettingsDialog({ team, onClose }: { team: string; onClose: (
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<TeamResultRow[] | null>(null);
-  const [consent, setConsent] = useState(false);
   const dialog = useRef<HTMLDivElement>(null);
 
   const bots = useMemo(() => teamBots(state.bots, team), [state.bots, team]);
@@ -80,21 +77,18 @@ export function TeamSettingsDialog({ team, onClose }: { team: string; onClose: (
     return () => { if (opener?.isConnected) opener.focus(); };
   }, []);
 
-  const run = async (acknowledgeLocalAuto: boolean) => {
+  const run = async () => {
     if (running || !applying) return;
     setRunning(true);
     setProgress(0);
     const outcome = await applyTeamPlan(plan, async (bot, patch) => {
       const saved = await persistBotUpdate(bot.id, patch, new AbortController().signal, api);
       dispatch({ type: "botPatched", bot: saved });
-    }, { acknowledgeLocalAuto, onProgress: setProgress });
+    }, { onProgress: setProgress });
     setResults(outcome);
     setRunning(false);
   };
-  const apply = () => {
-    if (planNeedsLocalAutoConsent(plan)) setConsent(true);
-    else void run(false);
-  };
+  const apply = () => { void run(); };
   const close = () => { if (!running) onClose(); };
   const counts = results ? teamResultCounts(results) : null;
   const tabClass = (active: boolean) => cn("flex-1 rounded-md px-2.5 py-1.5 text-[13px] font-medium",
@@ -106,7 +100,7 @@ export function TeamSettingsDialog({ team, onClose }: { team: string; onClose: (
     }}>
       <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby="team-settings-title" data-testid="team-settings-dialog"
         className="max-h-[90vh] w-full max-w-[460px] overflow-y-auto rounded-2xl border border-hairline/50 bg-panel p-5 text-ink shadow-2xl"
-        onKeyDown={(event) => { if (event.key === "Escape" && !consent) { event.stopPropagation(); close(); } }}>
+        onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); close(); } }}>
         <div className="mb-2 flex items-center justify-between gap-3">
           <h2 id="team-settings-title" className="text-[17px] font-semibold">{t("teamSettings.title", { name: team || t("teamSettings.general") })}</h2>
           <button type="button" aria-label={t("teamSettings.close")} disabled={running} onClick={close} className="rounded-lg p-1.5 text-ink-secondary hover:bg-raised"><X size={18} /></button>
@@ -178,11 +172,6 @@ export function TeamSettingsDialog({ team, onClose }: { team: string; onClose: (
           </>
         )}
       </div>
-      <LocalComputerAutoWarning
-        open={consent}
-        onCancel={() => setConsent(false)}
-        onConfirm={() => { setConsent(false); void run(true); }}
-      />
     </div>, document.body,
   );
 }
