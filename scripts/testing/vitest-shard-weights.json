@@ -60,7 +60,6 @@
   "server/drivers/acp/acp.test.ts": 42,
   "server/drivers/acp/opencode-go.test.ts": 12,
   "server/drivers/agents-catalog-wire.test.ts": 6,
-  "server/drivers/antigravity.test.ts": 16,
   "server/drivers/chat-mcp-tools.test.ts": 15,
   "server/drivers/claude.test.ts": 69,
   "server/drivers/codex.test.ts": 69,

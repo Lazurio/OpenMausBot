@@ -1,0 +1,136 @@
+{
+  "area": "Own sign-ins: Antigravity",
+  "why": "Engines use the Environment's own logins from the Lazurio Launchpad's Environment settings, which have no Antigravity sign-in; Antigravity authenticates only through MausBot's own Google sign-in into a runtime MausBot downloads itself, so the engine is removed.",
+  "files": [
+    "server/drivers/antigravity.ts",
+    "server/drivers/antigravity.test.ts",
+    "server/drivers/antigravity-acp.ts",
+    "server/drivers/antigravity-lifecycle.test.ts",
+    "server/drivers/antigravity-account.ts",
+    "server/drivers/antigravity-account.test.ts",
+    "server/drivers/antigravity-release.ts",
+    "server/drivers/antigravity-runtime.ts",
+    "server/drivers/antigravity-runtime.test.ts",
+    "server/drivers/antigravity-temp.ts",
+    "server/drivers/antigravity-temp.test.ts",
+    "server/routes/antigravity-accounts.ts",
+    "server/antigravity-account-api.test.ts",
+    "server/routes/antigravity-leftovers.ts",
+    "server/routes/antigravity-leftovers.test.ts",
+    "server/testing/fake-agy-cli.ts",
+    "src/components/AntigravityFreeSpace.tsx",
+    "apps/docs/content/docs/providers/antigravity.mdx"
+  ],
+  "forbidden": [
+    "antigravity-accounts",
+    "antigravity-account",
+    "AntigravityAuthController",
+    "AntigravityDriver",
+    "acp_token.json",
+    "providers/antigravity",
+    "antigravity-acp",
+    "antigravity-runtime",
+    "antigravity-temp",
+    "installAntigravityRuntime",
+    "agy_acp_server",
+    "agy-extensions",
+    "AGY_ACP",
+    "Install official Antigravity",
+    "Sign in with Google",
+    "signInGoogle",
+    "openGoogleAgain",
+    "ManagedEngineSetup",
+    "engineSetup.managed",
+    "engineSetup.antigravity",
+    "Add Google account",
+    "antigravity-leftovers",
+    "leftover-files",
+    "freeUpSpace",
+    "AntigravityFreeSpace",
+    "engines.freeSpace"
+  ],
+  "routes": [
+    {
+      "method": "POST",
+      "path": "/api/instances/antigravity-accounts",
+      "body": {
+        "displayName": "x",
+        "sourceInstanceId": "antigravity"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/instances/antigravity/auth/start"
+    },
+    {
+      "method": "POST",
+      "path": "/api/instances/antigravity/auth/complete",
+      "body": {
+        "flowId": "x",
+        "callbackUrl": "http://127.0.0.1/?code=x"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/instances/antigravity/install"
+    },
+    {
+      "method": "GET",
+      "path": "/api/instances/antigravity/leftover-files"
+    },
+    {
+      "method": "POST",
+      "path": "/api/instances/antigravity/leftover-files/remove"
+    }
+  ],
+  "changes": [
+    "apps/docs/content/docs/getting-started/configuration.mdx",
+    "apps/docs/content/docs/providers/index.mdx",
+    "apps/docs/content/docs/providers/meta.json",
+    "apps/docs/content/docs/providers/model-providers.mdx",
+    "docs/agents-tool-bridge.md",
+    "docs/approval-levels.md",
+    "docs/memory.md",
+    "docs/tool-selection.md",
+    "docs/verification/chat-turns.md",
+    "docs/verification/engines-ui.md",
+    "docs/verification/full-access.md",
+    "docs/verification/provider-recovery.md",
+    "electron-builder.yml",
+    "scripts/smoke-approval-modes.cjs",
+    "scripts/testing/vitest-shard-weights.json",
+    "scripts/verify-engines-ui.ts",
+    "server/comms.test.ts",
+    "server/config.ts",
+    "server/contracts.ts",
+    "server/drivers/acp/gemini.ts",
+    "server/drivers/builtIn.ts",
+    "server/engine-install.ts",
+    "server/harness/registry.test.ts",
+    "server/harness/registry.ts",
+    "server/index.ts",
+    "server/runtime/capabilities.test.ts",
+    "server/runtime/capabilities.ts",
+    "shared/tool-scope-support.ts",
+    "src/components/EngineSetup.test.ts",
+    "src/components/EngineSetup.tsx",
+    "src/components/EnginesSettings.test.ts",
+    "src/components/EnginesSettings.tsx",
+    "src/lib/analytics-allowlist.ts",
+    "src/lib/built-in-instances.ts",
+    "src/locales/de.json",
+    "src/locales/en.json",
+    "src/locales/es.json",
+    "src/locales/fr.json",
+    "src/locales/hi.json",
+    "src/locales/ja.json",
+    "src/locales/pt-br.json",
+    "src/locales/source-hashes.json",
+    "src/locales/tr.json",
+    "src/locales/uk.json",
+    "src/locales/vi.json",
+    "src/locales/zh-tw.json",
+    "src/locales/zh.json",
+    "src/state/store.tsx"
+  ]
+}

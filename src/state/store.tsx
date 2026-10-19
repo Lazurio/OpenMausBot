@@ -461,7 +461,6 @@ export interface EngineInstall {
   docsUrl?: string;
   signInCommand?: string;
   needsNode?: boolean;
-  managed?: { label: string; downloadBytes: number };
   server?: { package: string };
   settings?: "connections";
 }
@@ -511,7 +510,6 @@ export interface InstanceInfo {
   cli?: string;
   cliDefault?: string;
   cliCandidates?: string[];
-  freeUpSpace?: boolean;
 }
 
 export type AppSettingsSection =

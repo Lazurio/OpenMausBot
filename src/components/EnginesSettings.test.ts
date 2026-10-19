@@ -3,7 +3,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Bot, InstanceInfo } from "@/state/store";
 import { EnginesSettings } from "./EnginesSettings";
-import { AntigravityFreeSpace, formatDiskSize } from "./AntigravityFreeSpace";
 
 const fixture = vi.hoisted(() => ({ instances: [] as InstanceInfo[], bots: [] as Bot[] }));
 vi.mock("@/state/store", async (importOriginal) => ({
@@ -46,18 +45,6 @@ describe("Settings → Engines → setup cards", () => {
     const html = renderToStaticMarkup(createElement(EnginesSettings));
     expect(html).not.toMatch(/Add another|Add Google account|data-accounts/);
     expect(html.match(/data-engine-card=/g)).toHaveLength(2);
-  });
-
-  it("shows the actual Google account email with an honest fallback", () => {
-    vi.stubGlobal("window", {});
-    fixture.bots = [];
-    const instance: InstanceInfo = { instanceId: "google-work", driverKind: "antigravityAgent", displayName: "Work", cliDefault: "agy_acp_server", snapshot: { state: "available", authenticated: true, account: { email: "work@example.test" } }, models: { default: "gemini", options: [] } };
-    fixture.instances = [instance];
-    expect(renderToStaticMarkup(createElement(EnginesSettings))).toContain("work@example.test");
-    delete instance.snapshot.account;
-    expect(renderToStaticMarkup(createElement(EnginesSettings))).toContain("account email unavailable");
-    instance.snapshot.authenticated = false;
-    expect(renderToStaticMarkup(createElement(EnginesSettings))).not.toContain("account email unavailable");
   });
 
   it("shows every Company provider as read-only while preserving personal controls", () => {
@@ -118,23 +105,6 @@ describe("Settings → Engines → setup cards", () => {
     expect(renderToStaticMarkup(createElement(EnginesSettings))).not.toContain("data-engine-warning-notice");
   });
 
-  it("exposes managed Antigravity setup and keeps custom engines free of cloud sign-in", () => {
-    vi.stubGlobal("window", {});
-    vi.stubGlobal("navigator", { userAgent: "Linux" });
-    fixture.bots = [];
-    fixture.instances = [{
-      instanceId: "agy", displayName: "Antigravity", driverKind: "antigravityAgent", cliDefault: "agy",
-      snapshot: { state: "available", authenticated: false }, models: { default: "model", options: [] },
-      install: { managed: { label: "Install Antigravity", downloadBytes: 10 } },
-    }];
-    const html = renderToStaticMarkup(createElement(EnginesSettings));
-    expect(html).toContain("Sign in with Google");
-    expect(html).toContain("Set up");
-    expect(html).toContain("CLI path and updates");
-    fixture.instances[0].access = "custom";
-    expect(renderToStaticMarkup(createElement(EnginesSettings))).not.toContain("Sign in with Google");
-  });
-
   it("keeps an API-key engine listed after its key is saved and links to changing the key", () => {
     vi.stubGlobal("window", {});
     vi.stubGlobal("navigator", { userAgent: "Linux" });
@@ -165,54 +135,6 @@ describe("Settings → Engines → setup cards", () => {
     vi.stubGlobal("window", {});
     fixture.instances = [{ ...openai({ state: "available", authenticated: true, version: null }), managed: { organizationId: "org", organizationName: "Acme" } }];
     expect(renderToStaticMarkup(createElement(EnginesSettings))).not.toContain("Change key");
-  });
-});
-
-describe("Settings → Engines → Antigravity → Free up space", () => {
-  const antigravity = (freeUpSpace?: boolean): InstanceInfo => ({
-    instanceId: "agy", displayName: "Antigravity", driverKind: "antigravityAgent", cliDefault: "agy",
-    snapshot: { state: "available", authenticated: true }, models: { default: "model", options: [] },
-    ...(freeUpSpace ? { freeUpSpace } : {}),
-  });
-
-  it("appears only where the server says the engine leaves files behind (Antigravity on Windows)", () => {
-    vi.stubGlobal("window", {});
-    vi.stubGlobal("navigator", { userAgent: "Linux" });
-    fixture.bots = [];
-    fixture.instances = [antigravity(true)];
-    const html = renderToStaticMarkup(createElement(EnginesSettings));
-    expect(html).toContain("Leftover files");
-    expect(html).toContain("Free up space");
-    expect(html).toContain("Nothing is deleted until you confirm.");
-    fixture.instances = [antigravity()];
-    expect(renderToStaticMarkup(createElement(EnginesSettings))).not.toContain("Free up space");
-  });
-
-  it("says how much it found before offering to delete", () => {
-    const found = renderToStaticMarkup(createElement(AntigravityFreeSpace, {
-      instance: antigravity(true), initial: { kind: "found", bytes: 2.5 * 1024 ** 3, complete: true },
-    }));
-    expect(found).toContain("Found 2.5 GB of leftover files.");
-    expect(found).toContain("Delete them");
-    expect(found).toContain("Cancel");
-    const partial = renderToStaticMarkup(createElement(AntigravityFreeSpace, {
-      instance: antigravity(true), initial: { kind: "found", bytes: 340 * 1024 ** 2, complete: false },
-    }));
-    expect(partial).toContain("Found at least 340 MB of leftover files.");
-  });
-
-  it("reports what it freed and what it had to leave", () => {
-    const done = renderToStaticMarkup(createElement(AntigravityFreeSpace, {
-      instance: antigravity(true), initial: { kind: "done", freedBytes: 1.26 * 1024 ** 3, remaining: 1 },
-    }));
-    expect(done).toContain("Freed 1.3 GB.");
-    expect(done).toContain("Some files are still in use and were left alone.");
-    const nothing = renderToStaticMarkup(createElement(AntigravityFreeSpace, {
-      instance: antigravity(true), initial: { kind: "done", freedBytes: 0, remaining: 2 },
-    }));
-    expect(nothing).not.toContain("Freed");
-    expect(nothing).toContain("Some files are still in use and were left alone.");
-    expect(formatDiskSize(10)).toBe("less than 1 MB");
   });
 });
 

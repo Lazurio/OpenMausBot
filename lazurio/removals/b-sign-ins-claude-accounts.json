@@ -55,7 +55,6 @@
     "server/index.ts",
     "server/plan-usage.test.ts",
     "server/plan-usage.ts",
-    "server/routes/antigravity-accounts.ts",
     "server/routes/instances.ts",
     "server/routine-recovery.test.ts",
     "server/thread-model-follow.e2e.test.ts",
