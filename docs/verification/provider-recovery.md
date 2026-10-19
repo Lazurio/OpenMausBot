@@ -75,7 +75,6 @@ pnpm exec electron scripts/smoke-approval-modes.cjs --ui
 ```
 
 The real server runs under Electron's private utility-process channel with
-fake Claude, Codex, Grok and Antigravity providers. Assertions cover:
 
 - Changing a bot's default to Full leaves existing Ask threads unchanged.
 - Explicitly applying that approved default changes only the selected thread.

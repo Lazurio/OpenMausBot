@@ -1,5 +1,4 @@
 import type { AnyProviderDriver } from "../contracts.ts";
-import { AntigravityDriver } from "./antigravity.ts";
 import { ClaudeDriver } from "./claude.ts";
 import { CodexDriver } from "./codex.ts";
 import { GrokDriver } from "./grok.ts";
@@ -39,7 +38,6 @@ export const BUILT_IN_DRIVERS: readonly AnyProviderDriver[] = [
   OpenAICompatDriver,
   ClaudeDriver,
   CodexDriver,
-  AntigravityDriver,
   MinimaxDriver,
   MistralDriver,
   CerebrasDriver,

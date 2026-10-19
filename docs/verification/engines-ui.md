@@ -8,7 +8,7 @@ node --experimental-strip-types scripts/verify-engines-ui.ts
 
 Open its printed `previewUrl`. The bottom toolbar switches between the real
 Settings modal and onboarding, applies the app's Midnight/Atelier skins, and
-toggles a synthetic Antigravity connection. **Onboarding preview** opens the
+toggles a synthetic Droid connection. **Onboarding preview** opens the
 welcome flow directly at the engines beat. Provider install, sign-in, path-save, and
 account-management requests are rejected by fixture-only middleware; no real
 provider login or user configuration is involved. A rejected setup request is
@@ -27,23 +27,22 @@ recreating a removed fixture directory.
    Both retain provider marks and the selected skin's colors. At 390px,
    Settings cards become one column; no horizontal page overflow; onboarding Continue
    and Settings Close remain reachable while the engine list scrolls.
-2. Expand Antigravity in Settings, expand **CLI path and updates**, choose
+2. Expand Droid in Settings, expand **CLI path and updates**, choose
    **Set CLI…**, and enter `/preview/keep-this-draft`. Click **Toggle sample
    connection**. Its card moves into Ready while staying expanded and retaining
    that unsaved path. Collapse/reopen the card; the draft must remain.
-3. In onboarding, toggle the sample connection. Group counts and Antigravity's
+3. In onboarding, toggle the sample connection. Group counts and Droid's
    status change immediately without reopening onboarding or changing focus.
    `Claude · Local` remains Ready despite having no cloud login.
-4. With Antigravity needing setup, click **Sign in with Google**. The synthetic
-   error appears and the button becomes enabled again. Settings must remain
-   closable. Real Google browser, callback and account flows are deliberately
-   not exercised by this fixture.
+4. Expand Codex and Claude and expand the advanced CLI disclosure to reach path,
    reset and update controls. Tab to a card and press Enter/Space; its native
    disclosure must work with a visible focus indicator.
-6. Expand Kimi to find **Install Kimi on this server**, and OpenCode to find
+5. Expand Kimi to find **Install Kimi on this server**, and OpenCode to find
    **Update OpenCode on this server**. Click each and confirm the fixture error
    appears with its button usable again. Terminal commands remain under
    **Prefer a terminal?**. These clicks never perform a real installation.
+6. Confirm that no card offers to add another account: every engine uses the
+   Environment's one login. Provider-icon editing controls should not appear in read-only
    managed cards. Repeat at a 390px viewport.
 7. Expand Codex, choose **Google Gemini** under **Provider icon**, and reload.
    The selected icon should persist while sibling instances keep their icons.
@@ -78,12 +77,6 @@ pnpm build
 Interrupt the foreground launcher to stop only its owned child and remove its
 temporary data. Keep the printed server log as evidence. Restore any temporary
 browser viewport override after responsive checks. This recipe does not prove
-
-The Antigravity HTTP fixture creates two independent accounts, rejects invalid
-and non-admin requests, switches a bot's model account, and restarts its isolated
-server to verify persistence. Identity tests mock Google's token and userinfo
-responses and cover caching, credential replacement and lookup failures. Neither
-uses a real Google account or proves live Google consent or quota behavior.
 real provider installations or sign-ins.
 
 Stopping during unfinished Vite dependency transforms can still report exit 13

@@ -21,7 +21,6 @@ const ENGINES: Readonly<Record<string, EngineRow>> = {
   claudeAgent: { resume: true },
   codex: { resume: true },
   piAgent: { resume: true },
-  antigravityAgent: { resume: true },
   grokAgent: { resume: true },
   geminiAgent: { resume: true },
   kimiAgent: { resume: true },

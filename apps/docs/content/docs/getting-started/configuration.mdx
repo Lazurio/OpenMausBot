@@ -68,10 +68,10 @@ A bot on the Claude engine gets its integrations (agents, phone), its own projec
 
 ### ACP session reuse
 
-Every ACP engine (Antigravity, Grok, Gemini CLI, Kimi, Droid, Cursor, OpenCode,
+Every ACP engine (Grok, Gemini CLI, Kimi, Droid, Cursor, OpenCode,
 Qwen, Hermes, custom ACP CLIs) keeps one agent process alive per conversation
 thread and reuses it across turns, so the ACP handshake — which can take tens of
-seconds for a heavy runtime like Antigravity — is paid once per thread instead of
+seconds for a heavy runtime — is paid once per thread instead of
 once per message. The process is closed after 10 minutes of quiet, and sooner on a
 spawn-contract change (different model flags, working directory, or approval
 level), a crash, or app shutdown; the next turn then resumes the

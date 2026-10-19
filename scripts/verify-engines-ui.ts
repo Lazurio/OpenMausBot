@@ -24,9 +24,8 @@ const instances: InstanceInfo[] = [
   ["codex", "codex", "Codex", true, "0.122.0"],
   ["grok", "grokAgent", "Grok", true, "grok"],
   ["opencode", "opencodeGo", "OpenCode", true, "1.18.25"],
-  ["antigravity", "antigravityAgent", "Antigravity", false, "0.1.0"],
+  ["droid", "droidAgent", "Droid", false, "0.1.0"],
   ["kimi", "kimiAgent", "Kimi", false, ""],
-  ["droid", "droidAgent", "Droid", false, ""],
   ["cursor", "cursorAgent", "Cursor", false, ""],
   ["hermes", "hermesAgent", "Hermes", false, ""],
   ["qwen", "qwenAgent", "Qwen", false, ""],
@@ -41,7 +40,6 @@ const instances: InstanceInfo[] = [
 }));
 instances[0].snapshot.account = { email: "personal@example.test" };
 instances[1].snapshot.account = { email: "work@example.test" };
-instances[4].install = { managed: { label: "Install Antigravity", downloadBytes: 200_000_000 } };
 instances[5].install!.server = { package: "kimi-fixture" };
 instances[3].install!.server = { package: "opencode-fixture" };
 instances[3].snapshot.update = { title: "OpenCode update available", message: "A sample update for this isolated preview.", command: "echo 'Preview only'" };
@@ -94,9 +92,7 @@ try {
         }
         if (path === "/__fixture/connect" && req.method === "POST") {
           instances[4].snapshot.authenticated = !instances[4].snapshot.authenticated;
-          instances[4].snapshot.account = instances[4].snapshot.authenticated ? { email: "google@example.test", method: "login" } : undefined;
-          return json({ ok: true });
-        }
+          instances[4].snapshot.account = instances[4].snapshot.authenticated ? { email: "droid@example.test", method: "login" } : undefined;
           return json({ ok: true });
         }
         if (path === "/api/cli-candidates") return json({ candidates: ["/preview/bin/claude"] });

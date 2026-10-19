@@ -309,7 +309,7 @@ export class ProviderRegistry {
   async installRuntime(instanceId: InstanceId): Promise<boolean> {
     const entry = this.byId.get(instanceId);
     if (!entry) return false;
-    // A failed install changes the status too: Antigravity reports the failure as its reason.
+    // A failed install changes the status too.
     try {
       if (entry.live?.installRuntime) {
         await entry.live.installRuntime();

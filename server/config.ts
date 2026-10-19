@@ -24,6 +24,7 @@ import { deciderConfigSchema, type DeciderConfig } from "./decider/config.ts";
 import { browserEngineConfigSchema, isValidCdpTarget, type BrowserEngineConfig } from "./browser/config.ts";
 import { roomContextSettings } from "./room-context-settings.ts";
 import { removedConfigKey } from "./lazurio-removed-config.ts";
+import { withoutRemovedEngines } from "./lazurio-removed-engines.ts";
 
 const optionalText = z.string().optional();
 const LEGACY_BROWSER_PROFILE_ID = /^[A-Za-z0-9_-]{1,40}$/;
@@ -1141,7 +1142,6 @@ export function instanceConfigs(cfg: AppConfig): InstanceConfigMap {
     cursor: { driver: "cursorAgent" },
     claude: { driver: "claudeAgent" },
     codex: { driver: "codex" },
-    antigravity: { driver: "antigravityAgent" },
     opencodeGo: { driver: "opencodeGo" },
     openaiCompat: { driver: "openai-compat" },
     mistral: { driver: "mistral" },
@@ -1175,6 +1175,7 @@ export function instanceConfigs(cfg: AppConfig): InstanceConfigMap {
     ...CUSTOM_ONLY,
   } as const;
   const configured = cfg.instances && Object.keys(cfg.instances).length ? cfg.instances : null;
+  const map: InstanceConfigMap = withoutRemovedEngines(withoutClaudeAccounts(withoutComputerEngine(configured ? { ...configured } : { ...DEFAULT_FLEET })));
   if (
     configured &&
     (Object.hasOwn(configured, "claude") || Object.hasOwn(configured, "grok") || Object.hasOwn(configured, "codex"))

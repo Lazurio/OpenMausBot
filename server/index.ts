@@ -132,7 +132,6 @@ import {
   roomMemoryCaptureEnabled,
   tidyHour,
   builtInBrowserEnabled,
-  persistableInstanceConfigs,
   type AppConfig,
   DATA_DIR, EVENTS_DIR,
   onConfigSaved,
@@ -513,12 +512,9 @@ import { createTaskRoutes } from "./routes/tasks.ts";
 import { createTeamRoutes } from "./routes/teams.ts";
 import { createThreadModelRoutes } from "./routes/thread-models.ts";
 import { createUndoRoutes } from "./routes/undo.ts";
-import { createAntigravityLeftoverRoutes } from "./routes/antigravity-leftovers.ts";
-import { createAntigravityAccountRoutes } from "./routes/antigravity-accounts.ts";
 import { createConfigRoutes } from "./routes/config.ts";
 import { createInstanceRoutes } from "./routes/instances.ts";
 import { createStatusRoutes } from "./routes/status.ts";
-import { findAntigravityLeftovers, removeAntigravityLeftovers } from "./drivers/antigravity-temp.ts";
 import { createLiveRoutes } from "./routes/live.ts";
 import { createLazurioGithubIntake } from "./routes/github-intake.ts";
 import { createNotificationRoutes } from "./routes/notifications.ts";
@@ -981,7 +977,7 @@ function canManageCommandAllowlist(auth: RequestAuth): boolean {
 }
 
 const COMMAND_ALLOWLIST_DRIVERS = new Set([
-  "claudeAgent", "codex", "antigravityAgent", "grokAgent", "opencodeGo", "kimiAgent",
+  "claudeAgent", "codex", "grokAgent", "opencodeGo", "kimiAgent",
   "droidAgent", "cursorAgent", "qwenAgent", "geminiAgent", "hermesAgent", "customAcp",
 ]);
 
@@ -10487,8 +10483,6 @@ async function describeInstances() {
       ...described, ...policy, readOnly: true, managed: managedDesktop.info(instance.instanceId),
       install: undefined, authentication: undefined, cli: undefined, cliCandidates: [],
     };
-      // Windows keeps what Antigravity's runtime unpacked whenever it is stopped by force.
-    if (instance.driverKind === "antigravityAgent" && process.platform === "win32") return { ...described, ...policy, freeUpSpace: true };
     if (entry?.driver !== "claudeAgent") return { ...described, ...policy };
     if (instance.instanceId === CLAUDE_API_INSTANCE) {
       return { ...described, ...policy, authentication: undefined, install: { ...instance.install, signInCommand: undefined } };
@@ -10920,22 +10914,6 @@ ROUTES.push(createThreadModelRoutes({
 ROUTES.push(createUndoRoutes({
   refusal: (auth, threadId, requestId) => cardAnswerRefusal(auth, threadId, requestId, "allow"),
   undo: (auth, res, threadId, requestId) => withDecisionActor(decisionActorFor(auth), () => undoAppliedChange(res, threadId, requestId)),
-}));
-ROUTES.push(createAntigravityLeftoverRoutes({
-  hosted: Boolean(hostedModels),
-  isAntigravity: (instanceId) => registry.get(instanceId)?.driverKind === "antigravityAgent",
-  find: () => findAntigravityLeftovers(),
-  remove: () => removeAntigravityLeftovers(),
-}));
-ROUTES.push(createAntigravityAccountRoutes({
-  instances: () => persistableInstanceConfigs(cfg),
-  persist: persistProviderInstance,
-  describe: describeInstances,
-  exclusive: (work) => {
-    if (providerConfigBusy) return null;
-    providerConfigBusy = true;
-    return work().finally(() => { providerConfigBusy = false; });
-  },
 }));
 ROUTES.push(createConfigRoutes({
   store, cfg, registry, sessions, browserCleanup, browserLive, browserRuntime, usedBrowserSessions, decider,

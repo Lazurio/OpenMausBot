@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { createHash, randomUUID } from "node:crypto";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -190,29 +190,6 @@ describe("routine comms e2e on the job runtime (fake ACP fleet)", () => {
     chmodSync(FAKE_CLI, 0o755);
     home = mkdtempSync(join(tmpdir(), "omb-comms-test-"));
     gateFile = join(home, "helper-gate");
-    const antigravityDirectory = join(home, "fake-antigravity");
-    const antigravityCli = join(antigravityDirectory, "agy_acp_server.ts");
-    const antigravityHarness = join(
-      antigravityDirectory,
-      process.platform === "win32" ? "localharness_external.exe" : "localharness_external",
-    );
-    mkdirSync(antigravityDirectory, { recursive: true });
-    copyFileSync(FAKE_CLI, antigravityCli);
-    copyFileSync(FAKE_CLI, antigravityHarness);
-    if (process.platform !== "win32") {
-      chmodSync(antigravityCli, 0o755);
-      chmodSync(antigravityHarness, 0o755);
-    }
-    const antigravityProfile = join(
-      home,
-      ".openmausbot",
-      "providers",
-      "antigravity",
-      createHash("sha256").update("geminiAsker").digest("hex"),
-      "antigravity-acp",
-    );
-    mkdirSync(antigravityProfile, { recursive: true });
-    writeFileSync(join(antigravityProfile, "acp_token.json"), "{}\n");
     compat = createServer(async (req, res) => {
       for await (const _ of req) {}
       if (req.url?.endsWith("/models")) {
@@ -259,18 +236,6 @@ describe("routine comms e2e on the job runtime (fake ACP fleet)", () => {
             driver: "grokAgent",
             environment: { FAKE_ACP_MODE: "mcp-tools" },
             config: { cli: FAKE_CLI, fullAuto: true },
-          },
-          // Antigravity uses Google's official ACP server. This instance
-          // proves its session-scoped MCP mount reaches the same agents proxy.
-          geminiAsker: {
-            driver: "antigravityAgent",
-            environment: {
-              FAKE_ACP_MODE: "ask-peer",
-              FAKE_ACP_AUTH_METHOD: "oauth-personal",
-              FAKE_ACP_MODELS: "gemini-3.8-flash-high",
-              FAKE_ACP_MODES: "default,yolo",
-            },
-            config: { cli: antigravityCli, fullAuto: true },
           },
           // Hermes shape: keeps the first agents proxy it is offered for the life of the process
           poolLister: {
@@ -454,45 +419,6 @@ describe("routine comms e2e on the job runtime (fake ACP fleet)", () => {
       expect(envelope).toContain("ping from fake");
       expect((await bot(helper.id)).busy).toBeFalsy();
       expect(assignments(helper.id, asker.id)[0]).toMatchObject({ status: "completed", result: "hello from fake acp" });
-    },
-    60_000,
-  );
-
-  it(
-    "lets a Gemini Antigravity bot call a peer through the temporary agents MCP mount",
-    async () => {
-      // A unique section makes list_bots deterministic even though this
-      // suite deliberately keeps earlier bots around to exercise the real
-      // persisted fleet. Only these two teammates can see one another.
-      const section = "Gemini agents MCP e2e";
-      // One-word names: the fake's resume branch reads `What @<name> said:`
-      // up to the next space (fake-acp-cli.ts).
-      const helper = await named("GeminiHelper", { section, modelSelection: HELPER });
-      const asker = await named("Gemini Asker", { section, modelSelection: { instanceId: "geminiAsker", model: "gemini-3.8-flash-high" } });
-
-      const send = await startRoutine(asker.id, "Ask the other bot for a status check.");
-      expect(send.status).toBe(201);
-
-      let askerBot: any;
-      let helperBot: any;
-      await waitUntil(async () => {
-        askerBot = await bot(asker.id);
-        helperBot = await bot(helper.id);
-        const asked = askerBot.messages.some((m: any) => m.kind === "text" && m.role === "bot" && m.text?.startsWith("peer says:") && m.text.includes('"requestId"'));
-        const woke = lastText(askerBot.messages)?.text === WOKE_WITH_RESULT;
-        return asked && woke && !askerBot.busy && !helperBot.busy;
-      }, 45_000, "Gemini never got its peer reply");
-
-      expect(chip(askerBot.messages, "GeminiHelper replied")?.tool.output).toBe("hello from fake acp");
-      const [consult] = assignments(helper.id, asker.id);
-      expect(consult).toMatchObject({ mode: "consult", status: "completed", result: "hello from fake acp" });
-      const work = await threadMessages(consult.threadId);
-      const inbound = work.find((m: any) => m.roomRequest?.id === consult.id && m.roomRequest.phase === "request");
-      expect(inbound.from?.botId).toBe(asker.id);
-      expect(inbound.text).toContain("ping from fake");
-      expect(work.some((m: any) => m.role === "bot" && m.kind === "text" && m.text?.includes("hello from fake acp"))).toBe(true);
-
-      expect(existsSync(join(home, ".gemini", "config", "mcp_config.json"))).toBe(false);
     },
     60_000,
   );

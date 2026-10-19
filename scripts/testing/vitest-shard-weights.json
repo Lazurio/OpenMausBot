@@ -265,7 +265,6 @@
     "server/cli-stop.e2e.test.ts": 18,
     "server/cli.test.ts": 14,
     "server/cline-engine.e2e.test.ts": 3,
-    "server/cloud-computer-lazy.e2e.test.ts": 21,
     "server/cloud-guest-shell.e2e.test.ts": 25,
     "server/cloud-routine-level.e2e.test.ts": 17,
     "server/cloud-sharing.e2e.test.ts": 11,
