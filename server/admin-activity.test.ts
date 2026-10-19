@@ -40,19 +40,19 @@ const BOSS = { kind: "session" as const, sessionId: "s1", label: "Boss's laptop"
 
 describe("what a row records", () => {
   it("names the paths that changed, never a secret's value", () => {
-    const before = { anthropic: { key: "sk-ant-old-secret-value-1234567890" }, features: { browser: true }, profile: { name: "A" } };
-    const after = { anthropic: { key: "sk-ant-new-secret-value-0987654321" }, features: { browser: false }, profile: { name: "A" }, decisions: { retentionDays: 365 } };
-    expect(changedPaths(before, after)).toEqual(["anthropic.key", "decisions.retentionDays", "features.browser"]);
+    const before = { anthropic: { key: "sk-ant-old-secret-value-1234567890" }, features: { showToolCalls: true }, profile: { name: "A" } };
+    const after = { anthropic: { key: "sk-ant-new-secret-value-0987654321" }, features: { showToolCalls: false }, profile: { name: "A" }, decisions: { retentionDays: 365 } };
+    expect(changedPaths(before, after)).toEqual(["anthropic.key", "decisions.retentionDays", "features.showToolCalls"]);
     const rows = configChangeRows(before, after);
     expect(rows.map((row) => [row.category, row.action, row.changed])).toEqual([
       ["engine", "engine.update", ["anthropic.key"]],
-      ["config", "config.update", ["decisions.retentionDays", "features.browser"]],
+      ["config", "config.update", ["decisions.retentionDays", "features.showToolCalls"]],
     ]);
     const engine = auditValues(rows[0]!.after!);
     expect(engine).toEqual({ "anthropic.key": "[hidden]" });
     expect(JSON.stringify(auditValues(rows[0]!.before!))).not.toContain("sk-ant");
-    expect(auditValues(rows[1]!.after!)).toEqual({ "decisions.retentionDays": 365, "features.browser": false });
-    expect(auditValues(rows[1]!.before!)).toEqual({ "decisions.retentionDays": null, "features.browser": true });
+    expect(auditValues(rows[1]!.after!)).toEqual({ "decisions.retentionDays": 365, "features.showToolCalls": false });
+    expect(auditValues(rows[1]!.before!)).toEqual({ "decisions.retentionDays": null, "features.showToolCalls": true });
   });
 
   it("files people and budgets under their own heading, and hides environment values and tokens", () => {
@@ -116,6 +116,10 @@ describe("what a row records", () => {
   });
 
   it("compares only the fields a request named", () => {
+    const before = botAuditSnapshot({ approvalMode: "ask", helperModel: true });
+    const after = botAuditSnapshot({ approvalMode: "auto", helperModel: false });
+    expect(botChangeRows({ id: "b" }, before, after, ["helperModel"]).map((row) => row.changed)).toEqual([["helperModel"]]);
+    expect(botChangeRows({ id: "b" }, before, after).map((row) => row.changed)).toEqual([["approvalMode", "helperModel"]]);
   });
 
   it("follows a bot's helper-model switch: putting a bot back on the helper decides where its text may go", () => {

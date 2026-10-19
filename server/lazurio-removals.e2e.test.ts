@@ -52,6 +52,9 @@ describe("a Lazurio server", () => {
   it("refuses a config write that names only a removed setting", async () => {
     for (const patch of [{ box: { token: "box_fixture" } }, { vps: { sshAlias: "fixture" } }, { localVm: { mode: "shared" } },
       { composio: { apiKey: "fixture" } }, { mcpServers: {} }, { features: { sharedComputers: true } },
+      { newBotDefaults: { profile: { computer: "local" } } },
+      { browserEngine: { engine: "chrome" } }, { browserProfiles: [] }, { features: { browser: true } },
+      { newBotDefaults: { profile: { browserProfile: "work" } } }]) {
       const result = await call("PUT", "/api/config", patch);
       expect(result.status, JSON.stringify(patch)).toBe(400);
       expect(result.body.error).toMatch(/removed/);
@@ -59,8 +62,11 @@ describe("a Lazurio server", () => {
   });
 
   it("refuses a mixed config write as a whole: the valid part is not saved either", async () => {
+    const before = (await call("GET", "/api/config")).body.features?.showToolCalls;
+    const result = await call("PUT", "/api/config", { box: { token: "box_fixture" }, features: { showToolCalls: before !== true } });
     expect(result.status).toBe(400);
     expect(result.body.error).toMatch(/^box /);
+    expect((await call("GET", "/api/config")).body.features?.showToolCalls).toBe(before);
   });
 
   it("refuses a Claude configuration directory of MausBot's own: bots use the computer's one Claude login", async () => {

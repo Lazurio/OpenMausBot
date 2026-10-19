@@ -4,11 +4,9 @@
 // bare (`click`).
 
 /** Tools whose completion can change what a screen shows. A bot on a
- * computer is illustrated only after one of these; the built-in browser's
  * read-only calls (snapshot, read, get_text, waits) stay out by the same rule. */
 export const SCREEN_TOUCHING_TOOLS: ReadonlySet<string> = new Set([
   "screenshot", "click", "type_text", "press_key", "key_press", "scroll", "computer_batch", "open_url", "browser_click", "browser_fill",
-  // built-in browser: the Electron surface's names, from older remote harnesses
   "browser_navigate", "browser_type", "browser_press", "browser_scroll", "browser_hover", "browser_drag",
   "browser_select_option", "browser_back", "browser_forward", "browser_screenshot",
   "double_click", "right_click", "drag", "hotkey", "move_cursor", "launch_app", "bring_to_front", "zoom",
@@ -36,7 +34,6 @@ export function screenSurfaceForTool(toolName: string): "browser" | "computer" {
   if (bare === "browser_click" || bare === "browser_fill") return "computer";
 }
 
-/** Whether a tool belongs to a screen place at all — the built-in browser, a
  * computer, or neither (shell, files, teammates, memory). Unlike
  * screenSurfaceForTool this never guesses "computer" for an unrelated tool. */
 export function toolSurfaceKind(toolName: string): "browser" | "computer" | null {

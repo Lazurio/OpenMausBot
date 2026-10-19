@@ -209,6 +209,7 @@ posixOnly("admin activity log", () => {
     // machine has made (and finished) a change of their own to the same thing.
     const slowBot = slowRequest("PATCH", `/api/bots/${bot.id}`, { parkDirectMessages: true }, BOSS);
     await new Promise((r) => setTimeout(r, 300));
+    expect((await api("PATCH", `/api/bots/${bot.id}`, { helperModel: false })).status).toBe(200);
     slowBot.release();
     expect((await slowBot.response).status).toBe(200);
     const slowConfig = slowRequest("PUT", "/api/config", { profile: { name: "Race desk" } }, BOSS);
@@ -221,6 +222,7 @@ posixOnly("admin activity log", () => {
     const botRows = rows.filter((entry) => entry.action === "bot.update" && entry.target?.id === bot.id);
     expect(botRows.map((entry) => [entry.who, entry.changed]).sort()).toEqual([
       [BOSS, ["parkDirectMessages"]],
+      ["This computer", ["helperModel"]],
     ].sort());
     const configRows = rows.filter((entry) => entry.action === "config.update" &&
       (JSON.stringify(entry.after).includes("Race desk") || JSON.stringify(entry.after).includes("365")));

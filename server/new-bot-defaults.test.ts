@@ -49,6 +49,7 @@ describe("new-bot templates", () => {
     expect(newBotDefaultsSchema.parse({ profile }).profile).toEqual({ notifications: false });
     // Lazurio overlay (DEV-6673 M3): only a write that names one is refused, alone or beside valid settings.
     expect(() => parseConfigPatch({ newBotDefaults: { profile: { computer: "off", cloudBackend: "made-up" } } })).toThrow(/removed/);
+    expect(() => parseConfigPatch({ box: { token: "box_fixture" }, features: { showToolCalls: false } })).toThrow(/^box /);
   });
 
   it("never permits memory paths to escape the new bot's memory folder", () => {

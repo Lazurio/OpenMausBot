@@ -994,7 +994,7 @@ describe("agents-proxy MCP surface", () => {
   it("asks for a sign-in with only the site and the bot's reason, and ends the turn", async () => {
     const res = await callTool("request_sign_in", { site: " https://example.com/login ", reason: "The report is behind a login." });
     expect(res.result.isError).toBeFalsy();
-    expect(res.result.content[0].text).toContain("The person was asked to sign in to example.com on your built-in browser.");
+    expect(res.result.content[0].text).toContain("The person was asked to sign in to example.com on the Environment browser, in your own tab.");
     expect(res.result.content[0].text).toContain("Your turn ends now");
     expect(res.result.content[0].text).toContain("resumes you when they finish or decline");
     expect(res.result.content[0].text).toContain("Never ask for the password or a code in chat");

@@ -17,6 +17,8 @@ afterEach(async () => {
 });
 
 it("starts the next scheduled run of a routine whose sign-in nobody answered, and stops the old wait", async () => {
+  // The person signs in on the Environment browser, which a stand-in Platform CLI declares.
+  fixture = await launchVerificationServer({ ...process.env, OMB_TEST_ENVIRONMENT_BROWSER: "1" });
   const { url, dataDir, logPath } = fixture.info;
   const raw = async (method: string, path: string, body?: unknown, token?: string) => {
     const response = await fetch(url + path, {
@@ -47,7 +49,6 @@ it("starts the next scheduled run of a routine whose sign-in nobody answered, an
     `await import(${JSON.stringify(pathToFileURL(join(process.cwd(), "server/testing/fake-claude-cli.ts")).href)});`,
   ].join("\n"), { mode: 0o700 });
   await api("PATCH", "/api/instances/claude", { cli: wrapper });
-  await api("PATCH", "/api/config", { features: { browser: true } });
   const { routine } = await api("POST", "/api/routines", {
     name: "Morning check", prompt: "Sign in to the site and check the dashboard.", botId: bot.id,
     schedule: { type: "cron", expression: "30 7 * * 1-5", timeZone: "Europe/London" },
