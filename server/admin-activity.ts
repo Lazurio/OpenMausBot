@@ -222,7 +222,7 @@ export function configChangeRows(before: unknown, after: unknown): Array<Omit<Ad
 
 /** What a bot may do, where, and who may see it; display fields (colour, unread, pins) are not audited. */
 export const BOT_AUDIT_FIELDS = [
-  "approvalMode", "autoApprove", "alwaysAllow", "peers", "approvePeerComms",
+  "approvalMode", "autoApprove", "alwaysAllow", "peers",
   "cwd", "browser", "browserProfile", "chiefOfStaff", "managedSections", "section",
   "parkDirectMessages", "hidden", "modelSelection", "helperModel", "visibility",
 ] as const;

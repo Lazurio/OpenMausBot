@@ -127,11 +127,6 @@ const botPeers = async (botId: string) => {
   return state.bots.find((bot: { id: string }) => bot.id === botId)?.peers;
 };
 
-const botMessages = async (botId: string): Promise<any[]> => {
-  const state = (await api("GET", "/api/bots")).body;
-  return state.bots.find((bot: { id: string }) => bot.id === botId)?.messages ?? [];
-};
-
 /** /api/internal/coordinate-bots refuses a source thread with no task, so the bot runs one turn first. */
 const warmUp = async (botId: string) => {
   expect((await api("POST", `/api/bots/${botId}/messages`, { text: "Warm up" })).status).toBe(202);
@@ -341,61 +336,6 @@ describe("peer allow-list", () => {
     }
   }, 40_000);
 
-  it("re-checks the allow-list after the approval card, not just before it", async () => {
-    await hideSeededBot();
-    // On the dump fixture: the real per-turn comms token is only readable from a bot's MCP config.
-    const asker = await createBot("Iris", "asker");
-    const helper = await createBot("Hedge", "plain");
-
-    try {
-      rmSync(askerDump, { force: true });
-      await warmUp(asker.id);
-      await expect.poll(() => readDump(askerDump)()?.mcpConfig, { timeout: 10_000 }).toBeTruthy();
-      const providerToken = String(readDump(askerDump)()!.mcpConfig?.mcpServers?.agents?.env?.OMB_COMMS_TOKEN ?? "");
-      expect(providerToken).toMatch(/^[a-f0-9]{48}$/);
-      const token = await mintCapability(asker.id, asker.threadId);
-      expect((await api("PATCH", `/api/bots/${asker.id}`, { approvePeerComms: true, approvalMode: "ask" })).status).toBe(200);
-
-      // parks inside requestPeerApproval until the card below is answered
-      const parked = api(
-        "POST",
-        "/api/internal/coordinate-bots",
-        { botIds: [helper.id], message: "Hedge, a quick one", consult: true },
-        { authorization: `Bearer ${token}` },
-      );
-
-      const askCard = async () =>
-        (await botMessages(asker.id)).find(
-          (message) => message.kind === "options" && message.card?.tool === "ask_bot",
-        )?.card;
-      await expect.poll(async () => (await askCard())?.requestId, { timeout: 15_000 }).toBeTruthy();
-      const card = (await askCard())!;
-
-      expect((await api("PATCH", `/api/bots/${asker.id}`, { peers: [] })).status).toBe(200);
-      const allowed = await api("POST", `/api/bots/${asker.id}/respond`, {
-        requestId: card.requestId,
-        behavior: "allow",
-      });
-      expect(allowed.status).toBe(200);
-
-      const outcome = await parked;
-      expect(outcome.status, JSON.stringify(outcome.body)).toBe(409);
-      expect(String(outcome.body.error)).toContain(REFUSED);
-      expect(outcome.body.receipts).toEqual([expect.objectContaining({ botId: helper.id, outcome: "failed", detail: expect.stringContaining(REFUSED) })]);
-      expect(
-        (await botMessages(helper.id)).some(
-          (message) => message.role === "user" && message.kind === "text",
-        ),
-      ).toBe(false);
-      expect(await botBusy(helper.id)).toBeFalsy();
-    } finally {
-      for (const bot of [asker, helper]) {
-        await api("POST", `/api/bots/${bot.id}/interrupt`, {}).catch(() => undefined);
-        await api("DELETE", `/api/bots/${bot.id}`).catch(() => undefined);
-      }
-    }
-  }, 60_000);
-
   it("refuses to loosen a bot from a bare loopback call while any bot is working", async () => {
     // A bot's own shell can PATCH loopback mid-turn, so an originless, session-less PATCH may loosen a bot only while every bot is idle.
     await hideSeededBot();
@@ -408,14 +348,13 @@ describe("peer allow-list", () => {
     const browser = async (path: string, body: unknown) => api("PATCH", path, body, { origin: base });
 
     try {
-      expect((await api("PATCH", `/api/bots/${bound.id}`, { peers: [peer.id], approvePeerComms: true, section: "Ops" })).status).toBe(200);
+      expect((await api("PATCH", `/api/bots/${bound.id}`, { peers: [peer.id], section: "Ops" })).status).toBe(200);
       expect((await api("POST", `/api/bots/${held.id}/messages`, { text: "hold the line" })).status).toBe(202);
       await expect.poll(async () => (await botState(held.id))?.busy, { timeout: 20_000 }).toBe(true);
 
       const attempts: Array<Record<string, unknown>> = [
         { peers: [peer.id, other.id], acknowledgePeerScope: true },
         { peers: null, acknowledgePeerScope: true },
-        { approvePeerComms: false },
         { section: "Finance" },
         { alwaysAllow: ["Bash", "Bash:curl"] },
       ];
@@ -431,7 +370,7 @@ describe("peer allow-list", () => {
         expect(refused.status).toBe(409);
         expect(String(refused.body.error)).toContain("paired Full-access session");
       }
-      expect(await botState(bound.id)).toMatchObject({ peers: [peer.id], approvePeerComms: true, section: "Ops" });
+      expect(await botState(bound.id)).toMatchObject({ peers: [peer.id], section: "Ops" });
       expect((await api("PATCH", `/api/bots/${bound.id}`, { peers: [] })).status).toBe(200);
       expect((await api("PATCH", `/api/bots/${bound.id}`, { name: "Ivy renamed" })).status).toBe(200);
       expect((await browser(`/api/bots/${bound.id}`, { peers: [peer.id], acknowledgePeerScope: true })).status).toBe(200);

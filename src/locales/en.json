@@ -2249,8 +2249,6 @@
   "botPanel.chiefHint": "The primary contact for the {team} team",
   "botPanel.chiefTeamsHint": "Other teams it may coordinate",
   "botPanel.chiefFirst": "Turn on Chief of Staff first.",
-  "botPanel.askBeforePeers": "Ask me before contacting other bots",
-  "botPanel.peersNeedEngine": "This model cannot contact other bots",
   "botPanel.toolsHint": "Narrow the tools offered",
   "botPanel.webhooksHint": "Inbound triggers",
   "botPanel.alwaysHint": "Tools it no longer asks about",

@@ -32,7 +32,7 @@ of a real provider's planning quality or authentication.
 - Immediate tool results say the change was applied. No unanswered review
   card or extra setup continuation appears, and new specialists start at the
   default level, Full access.
-- Real peer coordination succeeds with `approvePeerComms` enabled. Its one
+- Real peer coordination succeeds without a person's approval. Its one
   downstream summary is expected; unrelated setup continuations are not.
 - An explicit Ask sibling retains four pending reviews even though the bot
   default is Full. Conversely, an explicit Full thread applies its profile

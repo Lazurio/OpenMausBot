@@ -14,7 +14,7 @@ import { ProposalStatus } from "./ProposalStatus";
 import type { useBotSettingsDerived } from "./useBotSettingsDerived";
 import { useBotEditor } from "./BotEditorContext";
 
-export type PermissionsPart = "chief" | "peers" | "approval";
+export type PermissionsPart = "chief" | "approval";
 
 export function PermissionsSection({
   bot,
@@ -92,26 +92,6 @@ export function PermissionsSection({
           onSave={managedSections => patch({ managedSections, acknowledgePeerScope: true })}
         />}
         {bot.chiefOfStaff && <ProposalStatus bot={bot} kind="owner" />}
-      </div>}
-
-      {shows("peers") && <div className="flex items-center justify-between gap-4 rounded-xl bg-card p-4">
-        <div>
-          <div className="text-[15px] font-medium text-ink">Ask me before contacting other bots</div>
-          <div className="mt-0.5 text-[13px] text-ink-secondary">
-            {bot.approvePeerComms
-              ? "This bot will stop and ask before it reaches out to another bot."
-              : "Let this bot talk to teammates on its own, without a confirmation step."}
-          </div>
-          <ProposalStatus bot={bot} kind="owner" />
-        </div>
-        <Switch
-          checked={Boolean(bot.approvePeerComms)}
-          aria-label="Ask me before contacting other bots"
-          disabled={!bot.approvePeerComms && !canCoordinate}
-          onClick={() => patch({ approvePeerComms: !bot.approvePeerComms })}
-          title={!bot.approvePeerComms && !canCoordinate ? "This model cannot contact other bots" : undefined}
-          className="disabled:cursor-not-allowed"
-        />
       </div>}
 
       {shows("approval") && <div className="rounded-xl bg-card p-4">

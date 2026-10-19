@@ -7,7 +7,6 @@ import { parseToolScope, toolScopeWidens } from "../shared/tool-scope.ts";
 import { ensureSections, readSections, changeEmptySection } from "./section-context.ts";
 import { removeBotFolder, soulFile, soulHash, writeSoulMirror } from "./bot-folder.ts";
 import type { BotProfilePatch } from "./bot-profile.ts";
-import { peerAllowKey, type PeerAction } from "./peer-approval-key.ts";
 import { DATA_DIR, EVENTS_DIR, NATIVE_DIR, loadBrowserProfileIdAliases } from "./config.ts";
 import * as mdb from "./message-db.ts";
 import { forgetBotMemoryJournal, journalFile } from "./memory-journal.ts";
@@ -503,9 +502,9 @@ export class Store {
       }
       // Lazurio overlay (DEV-6673): the desktop's two-phase approval grant is removed with Custom; a saved
       // marker is dropped, and a saved Custom level above (and on a thread) drops too, so the bot follows Full.
-      if (Object.hasOwn(b, "approvalGrant")) {
-        delete (b as unknown as Record<string, unknown>).approvalGrant;
-        botsMigrated = true;
+      // So is the switch that made a bot ask a person before contacting another bot.
+      for (const removed of ["approvalGrant", "approvePeerComms"]) {
+        if (Object.hasOwn(b, removed)) { delete (b as unknown as Record<string, unknown>)[removed]; botsMigrated = true; }
       }
       const avatar = botAvatarProfile(b);
       if (b.avatarUrl !== undefined && avatar.avatarUrl !== b.avatarUrl) {
@@ -552,23 +551,6 @@ export class Store {
       b.chiefOfStaff = false;
       delete b.managedSections;
       botsMigrated = true;
-    }
-    // A legacy ask_bot:@Name grant converts only when the name is unique; an ambiguous one stays inert.
-    for (const b of this.bots) {
-      if (!b.alwaysAllow?.length) continue;
-      let changed = false;
-      const migrated = b.alwaysAllow.map((key) => {
-        const match = key.match(/^(ask_bot|delegate_bot):@(.+)$/);
-        if (!match) return key;
-        const candidates = this.bots.filter((candidate) => candidate.name === match[2]);
-        if (candidates.length !== 1) return key;
-        changed = true;
-        return peerAllowKey(match[1] as PeerAction, candidates[0]!.id);
-      });
-      if (changed) {
-        b.alwaysAllow = [...new Set(migrated)];
-        botsMigrated = true;
-      }
     }
     // Recover only app-issued provider-tool grants into bot defaults, never task/session grants such as shell commands.
     for (const b of this.bots) {
@@ -1528,7 +1510,7 @@ export class Store {
         next = { id: operation.botId, threadId: operation.threadId, name: operation.fields.name,
           title: "", description: "", soul: "", notifications: true, color: COLORS[nextBots.length % COLORS.length], unread: false,
           resumeCursors: {}, createdAt, ...operation.fields, ...newBotCwd(operation.fields.cwd), modelSelection,
-          autoApprove: false, approvePeerComms: false,
+          autoApprove: false,
           // A restricted Chief never creates a bot everyone sees.
           ...(chief.visibility && chief.visibility !== "everyone" ? { visibility: structuredClone(chief.visibility) } : {}),
           tasks: [{ threadId: operation.threadId, title: UNTITLED_THREAD, createdAt, updatedAt: createdAt, resumeCursors: {},

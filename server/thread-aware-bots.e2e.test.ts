@@ -461,29 +461,6 @@ describe("coordinate_bots on a teammate", () => {
     }
   }, 60_000);
 
-  it("waits for the person's approval card and creates no recipient work when denied", async () => {
-    const pm = await createBot("Pam", "gated");
-    const qa = await createBot("Quinn", "gated");
-    try {
-      const originalConversation = await messages(qa.threadId);
-      expect((await api("PATCH", `/api/bots/${pm.id}`, { approvePeerComms: true, approvalMode: "ask" })).status).toBe(200);
-      const token = await heldTurn(pm, "Hand it to QA.");
-      const pending = api("POST", "/api/internal/coordinate-bots", { botIds: [qa.id], message: "Test it." }, token);
-      await expect.poll(async () => (await messages(pm.threadId)).some((message) => message.card?.tool === "delegate_bot"), { timeout: 15_000 }).toBe(true);
-      const card = (await messages(pm.threadId)).find((message) => message.card?.tool === "delegate_bot");
-      expect((await botState(qa.id)).tasks).toHaveLength(1);
-      expect(await messages(qa.threadId)).toEqual(originalConversation);
-      expect((await api("POST", `/api/bots/${pm.id}/respond`, { threadId: pm.threadId, requestId: card.card.requestId, behavior: "deny" })).status).toBe(200);
-      expect(await pending).toMatchObject({ status: 403, body: { error: "Denied by user; no work sent." } });
-      expect((await botState(qa.id)).tasks).toHaveLength(1);
-      expect(await messages(qa.threadId)).toEqual(originalConversation);
-      release(pm.threadId);
-      await expect.poll(async () => (await botState(pm.id)).busy, { timeout: 15_000 }).toBe(false);
-    } finally {
-      await cleanup([pm.id, qa.id]);
-    }
-  }, 60_000);
-
   it("reports a deleted queued destination without falling back to the recipient's own conversation", async () => {
     const pm = await createBot("Pam", "gated");
     const qa = await createBot("Quinn", "gated");
