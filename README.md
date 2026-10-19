@@ -71,7 +71,7 @@ already have:
   custom CLI binary (a versioned build or wrapper) in **Settings → Engines**.
 - **Local first.** One small harness server on `127.0.0.1` owns every agent process. Transcripts, keys, and
   events live in `~/.openmausbot`, not a cloud.
-- **Agents with hands.** Each bot works on this computer: its shell and files, the built-in browser, and—where the
+- **Agents with hands.** Each bot works on this computer: its shell and files and—where the
   platform safety boundary is currently certified—its screen, plus any CLI tool installed on it. Host control is
   available on macOS and Ubuntu Xorg after explicit opt-in. Ubuntu Wayland host control remains disabled while
   issue #345 is resolved.
