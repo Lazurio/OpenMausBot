@@ -23,10 +23,9 @@ async function doctorOnce(ctx: VerbContext): Promise<VerbOutcome> {
   const instances: Rec[] = Array.isArray(models?.instances) ? models.instances : [];
   const availableEngines = instances.filter((instance) => instance.snapshot?.state === "available").map((instance) => instance.instanceId);
   const quietly = <T>(read: Promise<T>) => read.catch(() => null);
-  const [server, session, config] = await Promise.all([
+  const [server, session] = await Promise.all([
     quietly(client.json<Rec>("/.well-known/openmausbot/environment")),
     quietly(client.json<Rec>("/api/auth/session")),
-    quietly(client.json<Rec>("/api/config")),
   ]);
   const problems: string[] = [];
   const warnings: string[] = [];
@@ -38,8 +37,6 @@ async function doctorOnce(ctx: VerbContext): Promise<VerbOutcome> {
   if (session?.kind === "session" && typeof session.expiresAt === "number" && session.expiresAt - Date.now() < 14 * DAY) {
     warnings.push(`this session expires in ${Math.max(0, Math.floor((session.expiresAt - Date.now()) / DAY))} days: get a new one with openmausbot connect`);
   }
-  const browser = config?.browserEngine ?? null;
-  if (browser && browser.kind !== "engine") warnings.push(`bots have no built-in browser here: ${browser.reason ?? "not installed"}${browser.installable ? " (install it with `openmausbot browser install`)" : ""}`);
   const ok = isOmb && !tooOld && availableEngines.length > 0;
   const who = !session ? "unknown" : session.kind === "loopback"
     ? `this computer${session.trust === "service" ? " (as a local service, not the owner)" : " (the owner)"}`
@@ -50,14 +47,13 @@ async function doctorOnce(ctx: VerbContext): Promise<VerbOutcome> {
       server: server ? { version: server.version, label: server.label, environmentId: server.environmentId, capabilities: server.capabilities } : null,
       session: session ? { kind: session.kind, ...(session.label !== undefined ? { label: session.label } : {}), scopes: session.scopes,
         ...(session.expiresAt !== undefined ? { expiresAt: session.expiresAt } : {}), ...(session.trust ? { trust: session.trust } : {}) } : null,
-      browser, problems, warnings,
+      problems, warnings,
     },
     exitCode: ok ? EXIT.done : isOmb && !tooOld ? EXIT.failed : EXIT.unreachable,
     human: [
       `${server ? `OpenMausBot ${server.version} ("${server.label}")` : "OpenMausBot"} at ${client.baseUrl}: ${ok ? "ready" : "not ready"}`,
       `You are: ${who}`,
       `Engines available: ${availableEngines.length ? availableEngines.join(", ") : "none"}`,
-      ...(browser ? [`Bots' browser: ${browser.kind === "engine" ? `installed${browser.version ? ` (${browser.version})` : ""}` : "not available"}`] : []),
       ...problems.map((line) => `problem: ${line}`),
       ...warnings.map((line) => `warning: ${line}`),
     ],

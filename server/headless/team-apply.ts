@@ -75,13 +75,6 @@ export function botPatch(desired: DesiredBot, echo: Rec, team: string | undefine
     changes.push(`approval ${APPROVAL_LABEL[approval]} → ${APPROVAL_LABEL[desired.approval]}`);
   }
   if (desired.cwd && echo.cwd !== desired.cwd) { patch.cwd = desired.cwd; changes.push(`folder ${echo.cwd ?? "default"} → ${desired.cwd}`); }
-  if (desired.browser) {
-    if ((echo.browser !== false) !== desired.browser.enabled) { patch.browser = desired.browser.enabled; changes.push(`browser ${desired.browser.enabled ? "on" : "off"}`); }
-    if (desired.browser.profile !== undefined && echo.browserProfile !== desired.browser.profile) {
-      patch.browserProfile = desired.browser.profile;
-      changes.push(`browser profile ${echo.browserProfile ?? "its own"} → ${desired.browser.profile}`);
-    }
-  }
   return { patch, changes };
 }
 
@@ -396,7 +389,6 @@ export async function teamExportVerb(ctx: VerbContext): Promise<VerbOutcome> {
     }
     entry.approval = approvalModeFor(bot);
     if (bot.cwd) entry.cwd = bot.cwd;
-    if (bot.browser === false || bot.browserProfile) entry.browser = { enabled: bot.browser !== false, ...(bot.browserProfile ? { profile: bot.browserProfile } : {}) };
     const listing: Rec[] = (await client.json<Rec>(`/api/bots/${enc(bot.id)}/skills`)).skills ?? [];
     if (listing.length) entry.skills = [];
     for (const skill of listing) {

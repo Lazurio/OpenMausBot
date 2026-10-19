@@ -6,8 +6,8 @@
 import type { Surface } from "./wire.ts";
 
 /** Where the login has to happen: the place the asking turn worked in.
- * The built-in browser keeps its own sign-ins, apart from any computer's
- * browser, so a login made anywhere else would not reach the bot. */
+ * In the Environment browser the person signs in in the bot's own tab,
+ * through the link the bot sent; its sign-ins are the Environment's. */
 export type SignInPlace = Surface;
 
 /** The site as a page address and the host shown on the card. A bare
