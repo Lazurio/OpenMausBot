@@ -11,37 +11,12 @@ describe("screenTouchingTool", () => {
     expect(screenTouchingTool("mcp__browser__browser_navigate")).toBe(true);
   });
 
-  it("counts agent-browser's tools, which the engine swap left out", () => {
-    expect(screenTouchingTool("mcp__browser__agent_browser_open")).toBe(true);
-    expect(screenTouchingTool("agent_browser_click")).toBe(true);
-    expect(screenTouchingTool("agent_browser_fill")).toBe(true);
-    expect(screenTouchingTool("agent_browser_type")).toBe(true);
-    expect(screenTouchingTool("agent_browser_press")).toBe(true);
-    expect(screenTouchingTool("agent_browser_select")).toBe(true);
-    expect(screenTouchingTool("agent_browser_check")).toBe(true);
-    expect(screenTouchingTool("agent_browser_screenshot")).toBe(true);
-  });
-
-  it("still leaves agent-browser's read-only tools and waits out", () => {
-    expect(screenTouchingTool("agent_browser_snapshot")).toBe(false);
-    expect(screenTouchingTool("agent_browser_read")).toBe(false);
-    expect(screenTouchingTool("agent_browser_get_text")).toBe(false);
-    expect(screenTouchingTool("agent_browser_wait_for_text")).toBe(false);
-    expect(screenTouchingTool("agent_browser_wait_for_load")).toBe(false);
-  });
-
   it("takes the server__tool spelling the desktop's own cards use", () => {
-    // A browser turn's approval card reads `browser__agent_browser_open`: the server segment without Claude's `mcp` prefix.
-    expect(screenTouchingTool("browser__agent_browser_open")).toBe(true);
-    expect(screenTouchingTool("browser__agent_browser_screenshot")).toBe(true);
-    expect(screenSurfaceForTool("browser__agent_browser_open")).toBe("browser");
     expect(screenTouchingTool("computer__screenshot")).toBe(true);
     expect(screenSurfaceForTool("computer__screenshot")).toBe("computer");
   });
 
   it("keeps read-only tools out whatever prefix they arrive with", () => {
-    expect(screenTouchingTool("browser__agent_browser_snapshot")).toBe(false);
-    expect(screenTouchingTool("browser__agent_browser_read")).toBe(false);
     expect(screenTouchingTool("computer__computer_status")).toBe(false);
   });
 
@@ -51,9 +26,6 @@ describe("screenTouchingTool", () => {
       for (const prefix of [`mcp__${namespace}__`, `${namespace}__`]) {
         expect(screenTouchingTool(`${prefix}screenshot`)).toBe(true);
         expect(screenSurfaceForTool(`${prefix}screenshot`)).toBe("computer");
-        expect(screenTouchingTool(`${prefix}agent_browser_open`)).toBe(true);
-        expect(screenSurfaceForTool(`${prefix}agent_browser_open`)).toBe("browser");
-        for (const tool of ["computer_exec", "computer_status", "agent_browser_snapshot", "wait_for"])
           expect(screenTouchingTool(`${prefix}${tool}`)).toBe(false);
       }
     },
@@ -126,8 +98,6 @@ describe("settledFrameIsNews", () => {
 
 describe("screenSurfaceForTool", () => {
   it("sends browser tools to the browser, whichever surface names them", () => {
-    expect(screenSurfaceForTool("agent_browser_open")).toBe("browser");
-    expect(screenSurfaceForTool("mcp__browser__agent_browser_click")).toBe("browser");
     expect(screenSurfaceForTool("browser_navigate")).toBe("browser");
   });
 
@@ -148,6 +118,5 @@ describe("screenSurfaceForTool", () => {
   });
 
   it("keeps a browsed page from being illustrated with an idle desktop", () => {
-    expect(screenSurfaceForTool("agent_browser_open")).not.toBe(screenSurfaceForTool("launch_app"));
   });
 });

@@ -659,17 +659,3 @@ it("T12 a turn the watchdog stops after it posted a credential card fails as sta
   expect(provided.body).toEqual({ provided: true, resumed: false });
   await answerStartsNothing(f, job);
 }, { fake: STALL_CLOCK, browser: true }), hostTimeout(60_000));
-
-it("T12 a turn the watchdog stops after it posted a sign-in card fails as stalled and stops the card", () => scenario(async (f) => {
-  f.script(f.clive.id, { key: "C0", match: ["T12S-JOB"], steps: [{ tool: "request_sign_in", arguments: { site: "https://example.com/dashboard", reason: "The dashboard is behind a login." } }],
-    gateFile: f.gate("c0"), reply: "T12S-LATE: never shown." });
-  const job = f.clive.activeTaskId;
-  await f.say(f.clive.id, job, "T12S-JOB: check my example.com dashboard.");
-  await expect.poll(async () => (await f.messages(job)).find((message: { kind: string }) => message.kind === "signin")?.id, { timeout: 30_000 }).toBeTruthy();
-  const card = (await f.messages(job)).find((message: { kind: string }) => message.kind === "signin");
-  await stallOverCards(f, job, [card.id]);
-  const done = await f.api("POST", `/api/bots/${f.clive.id}/sign-in-cards/${card.id}/done`, { threadId: job });
-  expect(done.status, JSON.stringify(done.body)).toBe(200);
-  expect(done.body).toEqual({ done: true, resumed: false });
-  await answerStartsNothing(f, job);
-}, { fake: STALL_CLOCK }), hostTimeout(60_000));

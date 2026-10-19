@@ -158,10 +158,10 @@ describe("skills library store", () => {
   });
 
   it("parseStoredConfig keeps features.skillsLibrary while stripping genuinely unknown keys", () => {
-    const stored = config.parseStoredConfig({ features: { skillsLibrary: true, browser: true } });
-    expect(stored).toEqual({ features: { skillsLibrary: true, browser: true } });
+    const stored = config.parseStoredConfig({ features: { skillsLibrary: true, showToolCalls: true } });
+    expect(stored).toEqual({ features: { skillsLibrary: true, showToolCalls: true } });
     expect(library.skillsLibraryEnabled(stored)).toBe(true);
-    expect(library.skillsLibraryEnabled(config.parseStoredConfig({ features: { browser: true } }))).toBe(false);
+    expect(library.skillsLibraryEnabled(config.parseStoredConfig({ features: { showToolCalls: true } }))).toBe(false);
     expect(config.parseStoredConfig({ features: { skillsLibrary: true, teleport: true } })).toEqual({
       features: { skillsLibrary: true },
     });

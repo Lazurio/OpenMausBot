@@ -5,10 +5,7 @@ import { isMausColor, MAUS_COLOR_NAMES, type WireBot, type WireGroup } from "../
 import { validateBotCwd } from "../bot-cwd.ts";
 import { parseBotProfilePatch } from "../bot-profile.ts";
 import { parseVisibility } from "../bot-visibility.ts";
-import type { BrowserLive } from "../browser-live.ts";
-import type { BrowserRuntime } from "../browser-runtime.ts";
 import type { CacheKeepWarm } from "../cache-keepwarm.ts";
-import { isValidSshAlias, type AppConfig } from "../config.ts";
 import type { ModelSelection } from "../contracts.ts";
 import type { createApprovalModeSupport } from "../harness-capabilities.ts";
 import type { ProviderRegistry } from "../harness/registry.ts";
@@ -24,10 +21,7 @@ import { PASS, type RouteHandler } from "./table.ts";
 
 export interface BotPatchRouteDeps {
   store: Store;
-  cfg: AppConfig;
   registry: Pick<ProviderRegistry, "get">;
-  browserRuntime: Pick<BrowserRuntime, "heldBy">;
-  browserLive: Pick<BrowserLive, "closeForBot">;
   memoryUpkeep: Pick<MemoryUpkeep, "dropBot">;
   cacheKeepWarm: Pick<CacheKeepWarm, "refresh">;
   hostedModels: ReturnType<typeof hostedModelPolicy>;
@@ -43,14 +37,14 @@ export interface BotPatchRouteDeps {
   threadBusy(botId: string, threadId: string): boolean;
   activeGroupTurnForBot(botId: string): { group: GroupRecord; threadId: string } | null;
   checkedModelSelection(raw: unknown, current?: { selection: ModelSelection; busy: boolean }, requireAvailableModel?: boolean): ModelSelectionCheck;
-  currentBrowserSession(botId: string, profile: string | undefined): string;
-  forgetTemporaryBrowser(botId: string): Promise<void>;
 }
 
 export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
   const {
+    store, registry, memoryUpkeep, cacheKeepWarm, hostedModels, supportsApprovalMode,
     desktopManaged: DESKTOP_MANAGED, maxWorkspaceBots: MAX_WORKSPACE_BOTS,
     broadcast, wireBot, publicGroupState, audienceChanged, storedAvatarExists, requestedTaskBot, threadBusy, activeGroupTurnForBot,
+    checkedModelSelection,
   } = deps;
   const pinnedClientThread = pinnedClientThreadGuard(store);
   return async ({ req, res, path, method, auth, json, readBody }) => {
@@ -96,8 +90,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
       if (body.requireAvailableModel !== undefined && typeof body.requireAvailableModel !== "boolean") {
         return json(res, 400, { error: "requireAvailableModel must be true or false" });
       }
-      const beforeBrowserProfile = existingBot?.browserProfile;
-      const beforeBrowserEnabled = existingBot?.browser;
       // Codex and Grok accept any effort string, so this is the only gate on it; an unresolved
       // instance declares no levels and is let through (startTurn refuses an unavailable instance).
       if (body.keepThreadModels !== undefined) {
@@ -204,37 +196,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
       if (body.helperModel !== undefined) {
         if (typeof body.helperModel !== "boolean") return json(res, 400, { error: "helperModel must be true or false" });
         patch.helperModel = body.helperModel;
-      }
-      if (body.browser !== undefined) {
-        if (typeof body.browser !== "boolean") return json(res, 400, { error: "browser must be true or false" });
-        if (existingBot?.busy && body.browser !== (existingBot.browser !== false)) {
-          return json(res, 409, { error: "stop this bot's turn before changing its browser access" });
-        }
-        patch.browser = body.browser;
-      }
-      if (body.recordBrowserSteps !== undefined) {
-        if (typeof body.recordBrowserSteps !== "boolean") return json(res, 400, { error: "recordBrowserSteps must be true or false" });
-        patch.recordBrowserSteps = body.recordBrowserSteps;
-      }
-      // null/"" = the bot's own session.
-      if (body.browserProfile !== undefined) {
-        const requestedProfile = body.browserProfile === null || body.browserProfile === ""
-          ? undefined
-          : body.browserProfile;
-        if (existingBot?.busy && requestedProfile !== existingBot.browserProfile) {
-          return json(res, 409, { error: "stop this bot's turn before changing its browser profile" });
-        }
-        if (existingBot && requestedProfile !== existingBot.browserProfile &&
-            browserRuntime.heldBy(currentBrowserSession(existingBot.id, existingBot.browserProfile))) {
-          return json(res, 409, { error: "Release browser control before changing its profile." });
-        }
-        if (requestedProfile === undefined) patch.browserProfile = undefined;
-        else if (
-          typeof requestedProfile === "string" &&
-          (requestedProfile === "guest" || (cfg.browserProfiles ?? []).some((profile) => profile.id === requestedProfile))
-        ) {
-          patch.browserProfile = requestedProfile;
-        } else return json(res, 400, { error: "browserProfile must name an existing browser profile" });
       }
       if (body.chiefOfStaff !== undefined && typeof body.chiefOfStaff !== "boolean") {
         return json(res, 400, { error: "chiefOfStaff must be true or false" });
@@ -393,11 +354,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
           if (!groupChecked.ok) return json(res, groupChecked.status, { error: groupChecked.error });
         }
       }
-      if (freshBrowserBot && body.browserProfile !== undefined &&
-          patch.browserProfile !== freshBrowserBot.browserProfile &&
-          (freshBrowserBot.busy || browserRuntime.heldBy(currentBrowserSession(freshBrowserBot.id, freshBrowserBot.browserProfile)))) {
-        return json(res, 409, { error: "Stop the bot and release browser control before changing its profile." });
-      }
       if (profile.patch.soul !== undefined) {
       // Runtime fields keep their fail-closed order; only the profile fields commit atomically.
         const runtimePatch = { ...patch };
@@ -413,12 +369,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
       if (body.cacheKeepWarm !== undefined) cacheKeepWarm.refresh();
       if (normalizedSelection && movedTask) store.patchTask(bot.id, movedTask.threadId, { modelSelection: undefined,
         ...hostedModels?.resetTask(movedTask.modelSelection, normalizedSelection) });
-      if (existingBot && (bot.browserProfile !== beforeBrowserProfile || bot.browser !== beforeBrowserEnabled)) {
-        browserLive.closeForBot(bot.id);
-        if (beforeBrowserProfile === "guest" && (bot.browserProfile !== "guest" || bot.browser === false)) {
-          void forgetTemporaryBrowser(bot.id).catch((error) => console.warn("temporary browser cleanup failed", error));
-        }
-      }
       const chiefChanges =
         body.chiefOfStaff === true || chiefMovedSections
           ? store.setChiefOfStaff(bot.id)

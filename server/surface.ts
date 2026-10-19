@@ -12,7 +12,6 @@ export type ComputerWant = "cloud" | "vm" | "local" | "off" | undefined;
 
 export interface MountedSurfaces {
   computer: Surface | null;
-  browser: boolean;
 }
 
 export function surfaceLabel(surface: Surface): string {
@@ -20,7 +19,6 @@ export function surfaceLabel(surface: Surface): string {
     case "local":
       return "this computer";
     case "browser":
-      return "the built-in browser";
   }
 }
 
@@ -34,7 +32,6 @@ const YOUR_COMPUTER_ALONE =
   ` Everything you do on screen happens on this computer, which is the person's own: their screen, their apps and the browsers they are signed in to; there is no built-in browser of yours this turn. ${WEB_WORK_ORDER} web search and fetching pages, a cloud computer if select_computer offers one, a connected app.${YOUR_COMPUTER_LAST} If you need the user to sign in, tell them it is on this computer.`;
 
 const RESTATE_SENTENCE =
-  " Before your first action on a screen or page in a task, say in one short sentence where you are working, using that same name.";
 
 const SURFACE_AUTHORITY =
 
@@ -69,8 +66,6 @@ export function surfacePrompt(
   else if (!opts.note && !opts.canSelect) {
     text = ` No computer or built-in browser tools are mounted this turn. You cannot open apps, click, or inspect a screen through OpenMausBot. If asked for screen work, ${reportBack ? REPORT_BACK : "explain this and ask the user to choose where this conversation works in the Screen panel"}; do not claim to have opened or checked it.`;
   }
-  }
-  if (computer || mounted.browser) text += " For online research, use the selected OpenMausBot browser when a search service is unavailable. A failed tool proves only that this attempt failed, not that every browser is unavailable. Inspect the current page after navigation; report a sign-in page, redirect or error as such. A completed model turn is not proof that the user's task succeeded.";
   if (opts.cloudHome) for (const [desktop, cloudHome] of CLOUD_HOME_WORDING) text = text.replace(desktop, cloudHome);
   return text + (opts.note ?? "");
 }

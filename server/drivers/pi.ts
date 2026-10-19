@@ -1040,7 +1040,6 @@ export const PiDriver: ProviderDriver<PiConfig> = {
           agentsMcp: true,
           computerMcp: true,
           phoneMcp: true,
-          browserMcp: true,
           localComputerMcp: true,
           dataMcp: true,
           images: true,

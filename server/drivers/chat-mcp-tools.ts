@@ -219,25 +219,11 @@ function boundedText(value: string): string {
   return `${bytes.subarray(0, end).toString()}\n[MCP result truncated at 50KB; request less output.]`;
 }
 
-/** Smaller models fill optional fields with "" instead of omitting them; for these a blank means omitted. */
-const BUILT_IN_BROWSER_BLANK_MEANS_OMITTED: Record<string, readonly string[]> = {
-  agent_browser_read: ["url"],
-};
-
-function omitBlankDefaults(builtInBrowser: boolean, tool: string, args: unknown) {
-  if (!builtInBrowser || !object(args)) return;
-  for (const field of BUILT_IN_BROWSER_BLANK_MEANS_OMITTED[tool] ?? []) {
-    const value = args[field];
-    if (typeof value === "string" && !value.trim()) delete args[field];
-  }
-}
-
 /** Under `schemaProfile` the model reads each tool's schema fitted to its provider; calls are still checked against the full one. */
 export async function mountChatTools(integrations: SendTurnInput["integrations"], signal: AbortSignal, computerUse = false, callTimeoutMs: number = DEFAULT_CALL_MS,
   schemaProfile?: ToolSchemaProfile): Promise<ChatToolSession> {
   const servers: Array<[string, Server]> = [];
   if (computerUse && integrations?.localComputer && eligible("computer")) servers.push(["computer", integrations.localComputer]);
-  if (computerUse && integrations?.browser && eligible("browser")) servers.push(["browser", integrations.browser]);
   if (integrations?.agents) servers.push(["agents", integrations.agents]);
   if (integrations?.data) servers.push(["data", integrations.data]);
   if (servers.length > 32) throw new Error("MCP server count exceeds the 32-server limit");
@@ -274,7 +260,6 @@ export async function mountChatTools(integrations: SendTurnInput["integrations"]
     }));
     for (const mount of mounts) {
       if (signal.aborted || closed) throw aborted();
-      const { name: server, client, launch, builtInBrowser, agents, hostComputer, tools } = mount.value;
       if (mount.status === "rejected") throw mount.reason;
       const staged: Array<{ tool: RegisteredTool; definition: ChatToolDefinition }> = [];
       {
@@ -316,7 +301,6 @@ export async function mountChatTools(integrations: SendTurnInput["integrations"]
     if (closed || signal.aborted) throw new ChatToolSessionError("MCP session closed");
     const tool = registered.get(name);
     if (!tool) throw new Error("The requested tool was not advertised for this turn");
-    omitBlankDefaults(tool.builtInBrowser, tool.name, args);
     if (!object(args) || !tool.schema(args)) throw new Error("Tool arguments do not match the advertised input schema; use its required fields and types");
   };
   const view = (name: string, args: Record<string, unknown>): ChatToolCallView => {

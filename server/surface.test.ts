@@ -104,16 +104,7 @@ describe("resolveSurface", () => {
 });
 
 describe("surfacePrompt", () => {
-  it("names both surfaces and splits the work when both are mounted", () => {
-    expect(text).toMatch(/Two surfaces are mounted/);
-    expect(text).toMatch(/Web tasks → the built-in browser/);
-    expect(text).toMatch(/Pick one surface for a task and stay on it/);
-  });
-
-  it("names only the computer when it is the only surface", () => {
-    expect(text).toMatch(/no separate built-in browser/);
     expect(text).toMatch(/say in one short sentence where you are working/);
-    expect(text).not.toMatch(/Two surfaces/);
   });
 
   it("on the person's own computer, sends web work to the bot's own browser first and their screen last", () => {
@@ -140,14 +131,8 @@ describe("surfacePrompt", () => {
     expect(text).toMatch(/say in one short sentence where you are working/);
   });
 
-    expect(surfacePrompt({ computer: null, browser: false })).toContain("No computer or built-in browser tools are mounted");
-    expect(surfacePrompt({ computer: null, browser: false }, { note: " NOTE." })).toBe(" NOTE.");
-  });
-
-    const text = surfacePrompt({ computer: place === "browser" ? null : place, browser: place === "browser" });
     expect(text).toContain("verify its result before claiming success");
     expect(text).toContain("Announcing an action is not performing it");
-    expect(text).toContain("use OpenMausBot's mounted browser/computer tools first");
     expect(text).toContain("Do not substitute the provider's own desktop");
   });
 

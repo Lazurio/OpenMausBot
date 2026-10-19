@@ -126,6 +126,7 @@ beforeAll(async () => {
   writeFileSync(join(home, ".openmausbot", "config.json"), JSON.stringify({
     instances: { fixture: { driver: "remote-session-test-shadow" } },
     profile: { name: "Security fixture", email: "private@example.invalid" },
+    // A config.json from before VPS computers and own browser profiles were removed still loads.
     vps: { sshAlias: "fixture-private-host" },
     browserProfiles: [{ id: "fixture", name: "Fixture browser", partitionId: "fixture-private-partition" }],
   }));
@@ -502,14 +503,14 @@ describe("pairing", () => {
     function expectClientConfig(config: any) {
       expect(config.opencodeGo).toEqual({ configured: false, providerKeys: [] });
       expect(config.profile).toEqual({ name: "Updated fixture", email: "" });
-      expect(config.browserProfiles).toEqual([{ id: "fixture", name: "Fixture browser" }]);
       expect(config).not.toHaveProperty("vps");
+      expect(config).not.toHaveProperty("browserProfiles");
     }
     function expectAdminConfig(config: any) {
       expect(config.opencodeGo).toEqual({ configured: false, providerKeys: ["VENICE_API_KEY"] });
       expect(config.profile).toEqual({ name: "Updated fixture", email: "updated-private@example.invalid", aboutMe: "" });
-      expect(config.browserProfiles).toEqual([{ id: "fixture", name: "Fixture browser", partitionId: "fixture-private-partition" }]);
       expect(config).not.toHaveProperty("vps");
+      expect(config).not.toHaveProperty("browserProfiles");
     }
     try {
       // Connect the client first, so a mutation of the shared payload would also corrupt the live event and replay buffer.

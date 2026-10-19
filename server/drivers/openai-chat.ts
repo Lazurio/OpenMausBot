@@ -527,7 +527,6 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
   const sendTurn = async (turn: SendTurnInput) => {
     if (!options.apiKey) throw new Error(options.missingKeyError);
     if (active.has(turn.threadId)) throw new Error("a turn is already running on this thread");
-    if (options.computerUse && (turn.images?.length || turn.integrations?.localComputer || turn.integrations?.browser)) assertImageTransport(options.apiUrl);
 
     const turnId = newId();
     const abort = new AbortController();
@@ -910,8 +909,6 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     adapter: {
       provider: options.driverKind,
       capabilities: { ...(options.computerUse ? { computerMcp: options.tools !== false,
-        localComputerMcp: options.tools !== false,
-        browserMcp: options.tools !== false, nativeImageInput: true, images: true } : {}),
         sessionModelSwitch: "in-session", agentsMcp: options.tools !== false,
         dataMcp: options.tools !== false,
         queueing: true,

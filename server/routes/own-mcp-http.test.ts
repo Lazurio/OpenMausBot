@@ -23,10 +23,10 @@ beforeAll(async () => {
     const body = req.method === "POST" ? await readBody(req) : undefined;
     internalCalls.push({ path: `${url.pathname}${url.search}`, authorization: req.headers.authorization, body });
     if (req.headers.authorization !== "Bearer turn-capability") return json(res, 401, { error: "unauthorized" });
-    if (url.pathname === "/api/internal/browser/mcp") {
+    if (url.pathname === "/api/internal/data/mcp") {
       const call = body as { method: string; params?: { name?: string } };
       return json(res, 200, { result: call.method === "tools/list"
-        ? { tools: [{ name: "agent_browser_open", inputSchema: { type: "object" } }] }
+        ? { tools: [{ name: "data_query", inputSchema: { type: "object" } }] }
         : { content: [{ type: "text", text: `ran ${call.params?.name}` }] } });
     }
     if (url.pathname === "/api/internal/agents") return json(res, 200, { bots: [{ id: "w1", name: "W1", model: "m" }] });
@@ -44,26 +44,26 @@ const agentsHeaders = (settings: Record<string, string>) => ({ authorization: "B
   [AGENTS_ENV_HEADER]: Buffer.from(JSON.stringify(settings)).toString("base64url") });
 
 describe("OpenMausBot's own MCP servers over HTTP", () => {
-  it("answers a browser session the way its stdio proxy does, with the turn's capability on every call", async () => {
-    const init = await post("browser", { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {} } });
+  it("answers a data session the way its stdio proxy does, with the turn's capability on every call", async () => {
+    const init = await post("data", { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {} } });
     expect(init.status).toBe(200);
-    expect(await init.json()).toMatchObject({ id: 1, result: { protocolVersion: "2025-06-18", serverInfo: { name: "openmausbot-browser" } } });
-    const notice = await post("browser", { jsonrpc: "2.0", method: "notifications/initialized" });
+    expect(await init.json()).toMatchObject({ id: 1, result: { protocolVersion: "2025-06-18", serverInfo: { name: "openmausbot-data" } } });
+    const notice = await post("data", { jsonrpc: "2.0", method: "notifications/initialized" });
     expect([notice.status, await notice.text()]).toEqual([202, ""]);
-    expect(await (await post("browser", { jsonrpc: "2.0", id: 2, method: "tools/list" })).json())
-      .toEqual({ jsonrpc: "2.0", id: 2, result: { tools: [{ name: "agent_browser_open", inputSchema: { type: "object" } }] } });
-    const batch = await (await post("browser", [{ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "agent_browser_open", arguments: {} } },
+    expect(await (await post("data", { jsonrpc: "2.0", id: 2, method: "tools/list" })).json())
+      .toEqual({ jsonrpc: "2.0", id: 2, result: { tools: [{ name: "data_query", inputSchema: { type: "object" } }] } });
+    const batch = await (await post("data", [{ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "data_query", arguments: {} } },
       { jsonrpc: "2.0", id: 4, method: "ping" }])).json();
-    expect(batch).toEqual([{ jsonrpc: "2.0", id: 3, result: { content: [{ type: "text", text: "ran agent_browser_open" }] } }, { jsonrpc: "2.0", id: 4, result: {} }]);
-    expect(internalCalls.filter((call) => call.path === "/api/internal/browser/mcp").every((call) => call.authorization === "Bearer turn-capability")).toBe(true);
+    expect(batch).toEqual([{ jsonrpc: "2.0", id: 3, result: { content: [{ type: "text", text: "ran data_query" }] } }, { jsonrpc: "2.0", id: 4, result: {} }]);
+    expect(internalCalls.filter((call) => call.path === "/api/internal/data/mcp").every((call) => call.authorization === "Bearer turn-capability")).toBe(true);
   });
 
   it("refuses without a capability, passes a wrong one to the endpoint that refuses it, and offers no stream or unknown server", async () => {
-    expect((await post("browser", { jsonrpc: "2.0", id: 1, method: "tools/list" }, {})).status).toBe(401);
-    const wrong = await (await post("browser", { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "agent_browser_open" } },
+    expect((await post("data", { jsonrpc: "2.0", id: 1, method: "tools/list" }, {})).status).toBe(401);
+    const wrong = await (await post("data", { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "data_query" } },
       { authorization: "Bearer stolen" })).json();
     expect(wrong).toMatchObject({ id: 1, result: { isError: true } });
-    expect((await fetch(`${base}${OWN_MCP_HTTP_PATH}browser`, { headers: { authorization: "Bearer turn-capability" } })).status).toBe(405);
+    expect((await fetch(`${base}${OWN_MCP_HTTP_PATH}data`, { headers: { authorization: "Bearer turn-capability" } })).status).toBe(405);
     expect((await post("shell", { jsonrpc: "2.0", id: 1, method: "tools/list" })).status).toBe(404);
   });
 
@@ -86,7 +86,7 @@ describe("OpenMausBot's own MCP servers over HTTP", () => {
   });
 
   it("lists no more of a server's tools than the turn's tool limit allows", async () => {
-    const limited = await (await post("browser", { jsonrpc: "2.0", id: 5, method: "tools/list" },
+    const limited = await (await post("data", { jsonrpc: "2.0", id: 5, method: "tools/list" },
       { authorization: "Bearer turn-capability", [TOOL_LIMIT_HEADER]: "0" })).json();
     expect(limited).toEqual({ jsonrpc: "2.0", id: 5, result: { tools: [] } });
     const agents = async (settings: Record<string, string>) =>

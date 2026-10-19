@@ -6,11 +6,11 @@ export type BotDefaultsProfile = Partial<Pick<WireBot,
   "name" | "title" | "description" | "soul" | "notifications" | "avatarUrl" | "avatarCrop" |
   "mascotBody" | "color" | "voice" | "speakReplies" | "section" | "modelSelection" |
   "approvalMode" | "alwaysAllow" | "chiefOfStaff" |
+  "managedSections"
 >> & {
   mascotExpression?: string | null;
   cwd?: string | null;
   peers?: string[] | null;
-  browserProfile?: string | null;
   parkDirectMessages?: boolean;
   helperModel?: boolean;
 };

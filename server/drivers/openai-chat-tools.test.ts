@@ -456,8 +456,6 @@ describe("optional built-in question compatibility", () => {
 
 describe("OpenAI-compatible computer images", () => {
   const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jBv0AAAAASUVORK5CYII=";
-  it.each(["localComputer", "browser"] as const)("delivers %s screenshots after tool results and preserves approval", async (source) => {
-    const prefix = source === "browser" ? "browser" : "computer";
     const f = await fixture((_body, response, round) => {
       if (round === 1) sse(response, [chunk({ tool_calls: [{ ...toolCall(), function: { ...toolCall().function, name: `${prefix}_write` } }] }, "tool_calls")]);
       else answer(response, "Inspected the fixture screenshot.");
@@ -481,15 +479,12 @@ describe("OpenAI-compatible computer images", () => {
       { type: "text", text: "Screenshot result from tool call call_write:" },
       { type: "image_url", image_url: { url: `data:image/png;base64,${png}` } },
     ] });
-    expect(f.instance.adapter.capabilities).toMatchObject({ computerMcp: true, localComputerMcp: true, browserMcp: true, nativeImageInput: true });
   });
 
   it.each([
     ["gpt-oss-120b", false],
     ["qwen-3.8-27b", true],
-  ] as const)("Cerebras %s keeps the browser and receives screenshots only if it can see images", async (model, sees) => {
     const f = await fixture((_body, response, round) => {
-      if (round === 1) sse(response, [chunk({ tool_calls: [{ ...toolCall(), function: { ...toolCall().function, name: "browser_write" } }] }, "tool_calls")]);
       else answer(response, "Read the page.");
     }, "cerebras");
     writeFileSync(join(f.directory, "mcp.mjs"), MCP_SCRIPT.replace(
@@ -498,11 +493,9 @@ describe("OpenAI-compatible computer images", () => {
     ));
     const imagePath = join(f.directory, "input.png");
     writeFileSync(imagePath, Buffer.from(png, "base64"));
-    await f.start({ model, integrations: { browser }, images: [{ path: imagePath, mime: "image/png", bytes: Buffer.from(png, "base64").length }] });
     await f.decide();
     expect(await f.completed()).toMatchObject({ ok: true });
     expect(f.effects()).toHaveLength(1);
-    expect(f.instance.adapter.capabilities).toMatchObject({ browserMcp: true });
     const sent = JSON.stringify(f.requests);
     expect(sent.includes("image_url")).toBe(sees);
     const toolMessage = f.requests[1].messages.find((message) => message.role === "tool");

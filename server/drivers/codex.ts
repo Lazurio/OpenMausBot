@@ -555,9 +555,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         }
         if (turn.integrations?.localComputer) {
         }
-        if (turn.integrations?.browser) {
-          mountSelected("browser", "browser", turn.integrations.browser);
-        }
           mount("agents", turn.integrations.agents, "approve");
         }
         if (turn.integrations?.data) mount("data", turn.integrations.data);
@@ -1479,7 +1476,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         localComputerMcp: true,
         agentsMcp: true,
         phoneMcp: true,
-        browserMcp: true,
         dataMcp: true,
         images: true,
         nativeImageInput: true,

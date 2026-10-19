@@ -86,7 +86,6 @@ export const SIGN_IN_PROMPT =
 
 const COMPUTER_PARAGRAPH: Record<ComputerPromptKind, string> = {
   local:
-    " You can act on the user's computer through the computer tools. Discover the target app/window and inspect its state first. Prefer window-targeted accessibility actions with background delivery so the user can keep working in another app; do not bring OpenMausBot or another app to the front just to inspect it. Use the dedicated browser tools for browser work when available, keeping the user's intended browser profile/account, and OpenMausBot's configuration/proposal tools for supported bot setup rather than clicking through this app. Full-desktop input, app activation, and foreground delivery can move the real cursor, change focus, or switch desktops: use them only when the user asked for foreground control or agrees after background control reports it cannot perform the action. Do not silently retry a background refusal as foreground input, including through shell scripts, AppleScript/System Events, or another automation tool. If a background action unexpectedly changes focus, report it and stop that route rather than continuing to interrupt the user. Never promise that arbitrary desktop actions can run in the background.",
 };
 
 export function computerPrompt(kind: ComputerPromptKind | null): string {

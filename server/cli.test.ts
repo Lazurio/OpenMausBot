@@ -48,11 +48,9 @@ describe("openmausbot command line", () => {
     expect(parseArgs(["serve", "--tunnel"], {})).toMatchObject({ command: "serve", tunnel: true });
     expect(parseArgs(["setup", "--data-dir", "/tmp/cli-setup"], {})).toMatchObject({ command: "setup", dataDir: resolve("/tmp/cli-setup") });
     expect(parseArgs(["start", "--port", "8125", "--no-pair"], {})).toMatchObject({ command: "start", port: 8125, pair: false });
-    expect(parseArgs(["browser", "install", "--with-deps"], {})).toMatchObject({ command: "browser", browserAction: "install", withDeps: true });
-    expect(parseArgs(["browser", "status"], {})).toMatchObject({ command: "browser", browserAction: "status" });
-    expect(parseArgs(["browser"], {})).toEqual({ error: "browser needs an action: install or status" });
     expect(parseArgs(["login"], {})).toEqual({ error: 'unknown command "login"' });
     expect(parseArgs(["logout"], {})).toEqual({ error: 'unknown command "logout"' });
+    expect(parseArgs(["browser", "install"], {})).toEqual({ error: 'unknown command "browser"' });
     expect(parseArgs(["serve", "--tailscale", "--tunnel"], {})).toEqual({ error: "choose one of --tailscale (your tailnet) and --tunnel (a public address)" });
     expect(parseArgs(["access", "add", "her@example.test", "--chat-only"], {})).toMatchObject({ command: "access", accessAction: "add", email: "her@example.test", chatOnly: true });
     expect(parseArgs(["access", "list"], {})).toMatchObject({ command: "access", accessAction: "list" });

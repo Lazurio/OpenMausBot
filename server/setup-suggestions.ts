@@ -266,6 +266,7 @@ export function suggestionBasis(bot: BotRecord, place: { bots: readonly BotRecor
   };
 }
 
+type EngineCapabilities = Partial<Pick<ProviderAdapter["capabilities"], "agentsMcp">>;
 
 /** The server's side of the card's writer, read as each bot is made. */
 export interface SetupSuggestionsHost extends Pick<SetupSuggestionsDeps, "withinBudget" | "writer" | "log"> {
@@ -276,7 +277,7 @@ export interface SetupSuggestionsHost extends Pick<SetupSuggestionsDeps, "within
   /** The app's language code ("en", "pt-BR"). */
   languageCode(): string;
   engine(bot: BotRecord): EngineCapabilities | undefined;
-  /** The built-in browser is on here. */
+  /** The Environment browser is declared here (server/lazurio-environment-browser.ts). */
   browserOn(): boolean;
 }
 
@@ -289,7 +290,7 @@ export function setupSuggestionsFor(host: SetupSuggestionsHost) {
     withinBudget: host.withinBudget,
     writer: host.writer,
     facts: (bot) => suggestionBasis(bot, { bots: host.store.bots, shared: host.shared(), aboutMe: host.config().profile?.aboutMe,
-      languageCode: host.languageCode(), canBrowse: host.engine(bot)?.browserMcp === true && host.browserOn() && bot.browser !== false }),
+      languageCode: host.languageCode(), canBrowse: host.browserOn() }),
     apps: () => null,
     ...(host.log ? { log: host.log } : {}),
   });

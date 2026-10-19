@@ -5,9 +5,8 @@ import { createHash } from "node:crypto";
 import { readdirSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
-import type { Audience } from "../audience.ts";
+import { type Audience, audienceMember, audienceRoom } from "../audience.ts";
 import { under } from "../bot-box/plan.ts";
-import { audienceBrowserSuffix } from "../browser/audience.ts";
 
 export const ENGINE_HOMES_DIR = "engine-homes";
 /** Unmatched engine state from before the split; nothing serves it, no box binds it, and it is deleted after HELD_DAYS. */
@@ -15,9 +14,11 @@ export const HELD_DIR = ".held";
 export const HELD_DAYS = 30;
 const MOVED_FOLDERS = ".omb-folders";
 
-/** `team`, `room-<16 hex>` or `member-<16 hex>`: the browsers' keys, short enough for a socket path inside the home. */
+/** `team`, `room-<16 hex>` or `member-<16 hex>`, short enough for a socket path inside the home. */
 export function audienceHomeKey(audience: Audience): string {
-  return audience === "team" ? "team" : audienceBrowserSuffix(audience).slice(2);
+  if (audience === "team") return "team";
+  const room = audienceRoom(audience);
+  return `${room !== null ? "room" : "member"}-${createHash("sha256").update(room ?? audienceMember(audience)!).digest("hex").slice(0, 16)}`;
 }
 
 export function engineHomesRoot(dataDir: string): string {

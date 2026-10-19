@@ -1,6 +1,6 @@
 // When a person leaves a Team Cloud (an admin removes them, or they leave), what was theirs alone goes with them: their
 // private chats with every bot (messages, notifications, the files only those chats used), their memory layers, their
-// engine home (its transcripts), their "About you", their own connections, their own browsers, and every session and
+// engine home (its transcripts), their "About you", their own connections, and every session and
 // phone of theirs. Nothing of it is handed to an admin. The Admin tells this machine with a signed request
 // (`POST /api/cloud/team/member-left`, cloud-signed.ts).
 //
@@ -9,7 +9,7 @@
 import { readdirSync, rmSync } from "node:fs";
 import { basename, join } from "node:path";
 
-import { memberAudience, type Audience } from "../audience.ts";
+import { memberAudience } from "../audience.ts";
 import { audienceHome } from "../engine-homes/layout.ts";
 import { forgetBotMemoryJournal, journalFile } from "../memory-journal.ts";
 import { deleteBotMemoryFiles } from "../message-db.ts";
@@ -37,10 +37,9 @@ export interface TeamMemberLeftDeps {
   /** Conversations whose messages still name this text (message-db.ts threadsReferencing). */
   threadsReferencing(fragment: string): readonly string[];
   deleteAttachment(name: string): void;
-  eraseBrowsers(audience: Audience): Promise<boolean>;
 }
 
-export type TeamMemberLeftResult = { chats: number; layers: number; sessions: number; files: number; browsers: boolean };
+export type TeamMemberLeftResult = { chats: number; layers: number; sessions: number; files: number };
 
 export function createTeamMemberLeft(deps: TeamMemberLeftDeps): (email: string) => Promise<TeamMemberLeftResult> {
   const workspaces = join(deps.dataDir, "workspaces");
@@ -81,7 +80,6 @@ export function createTeamMemberLeft(deps: TeamMemberLeftDeps): (email: string) 
     }
     rmSync(join(deps.dataDir, "people", person), { recursive: true, force: true });
     rmSync(audienceHome(deps.dataDir, memberAudience(person)), { recursive: true, force: true });
-    const browsers = await deps.eraseBrowsers(memberAudience(person)).catch(() => false);
-    return { chats, layers, sessions, files: removed, browsers };
+    return { chats, layers, sessions, files: removed };
   };
 }

@@ -1,14 +1,5 @@
-import { browserEngineStatus, browserSessionId } from "../browser-engine.ts";
-import { browserEngineKind } from "../browser/config.ts";
-import type { BrowserCleanupCoordinator, BrowserCleanupRequest } from "../browser-lifecycle-cleanup.ts";
-import { finalizeBrowserCleanupMutation, requireBrowserCleanupAcknowledged } from "../browser-lifecycle-cleanup.ts";
-import type { BrowserLive } from "../browser-live.ts";
-import type { BrowserRuntime } from "../browser-runtime.ts";
 import { CLOUD_PERSONAL_REFUSAL } from "../cloud-owner.ts";
 import {
-  browserProfilePartitionTarget,
-  browserProfileReplacementConflict,
-  builtInBrowserEnabled,
   changedInstanceIds,
   engineLaunches,
   loadConfig,
@@ -46,13 +37,6 @@ export interface ConfigRouteDeps {
   cfg: AppConfig;
   registry: Pick<ProviderRegistry, "get" | "forgetSnapshots">;
   sessions: Pick<SessionRegistry, "revalidateEmailSessions">;
-  browserCleanup: Pick<BrowserCleanupCoordinator, "hasPendingProfile" | "prepare" | "abort" | "commit" | "ensure">;
-  browserLive: Pick<BrowserLive, "closeAll" | "closeForSession">;
-  browserRuntime: Pick<BrowserRuntime, "heldBy">;
-  usedBrowserSessions: Pick<Map<string, { command: string; env: Record<string, string> }>, "get" | "delete">;
-  closeBrowser(session: string, spec: { command: string; env: Record<string, string> }): Promise<boolean>;
-  /** After browserEngine.engine changed: closes the viewers and the browsers the other engine ran. */
-  browserEngineSwitched(): void;
   decider: Pick<Decider, "testKey">;
   hostedModels: boolean;
   cloudHome: boolean;
@@ -60,7 +44,6 @@ export interface ConfigRouteDeps {
   providerConfigBusy: BusyFlag;
   checkedModelSelection(raw: unknown, current?: { selection: ModelSelection; busy: boolean }, requireAvailableModel?: boolean): ModelSelectionCheck;
   policyModelRefusal(instance: { instanceId: string; driverKind: string }): string | undefined;
-  browserSessionSpec(binaryPath: string, session: string, profile: string | undefined): { command: string; env: Record<string, string> };
   configStatus(): ConfigStatus;
   /** What this caller is shown: a client sees configured-or-not only; on a Team Cloud the profile is the caller's own. */
   configForAccess(status: ConfigStatus, auth: RequestAuth): unknown;
@@ -76,7 +59,8 @@ export interface ConfigRouteDeps {
 
 export function createConfigRoutes(deps: ConfigRouteDeps): RouteHandler {
   const {
-    store, cfg, registry, sessions, browserCleanup, browserLive, browserRuntime, usedBrowserSessions, decider,
+    store, cfg, registry, sessions, decider, hostedModels, cloudHome: CLOUD_HOME, providerConfigs,
+    providerConfigBusy, checkedModelSelection, policyModelRefusal, configStatus,
     configForAccess, resyncOpenCodeProviderKeys, revokeEngineCapabilities, reloadProviders, broadcast, drainQueuedSends, ownProfile,
   } = deps;
   return async ({ req, res, url, path, method, auth, json, readBody }) => {
@@ -138,61 +122,6 @@ export function createConfigRoutes(deps: ConfigRouteDeps): RouteHandler {
         patch.tts = { ...patch.tts, voice: "" };
       }
       if (providerConfigBusy.get()) return json(res, 409, { error: "provider settings are already being updated" });
-      if (patch.browserProfiles !== undefined && body.expectedBrowserProfiles !== undefined) {
-        const current = (cfg.browserProfiles ?? []).map(({ id, name, browser }) => ({ id, name, ...(browser ? { browser } : {}) }));
-        if (JSON.stringify(body.expectedBrowserProfiles) !== JSON.stringify(current)) {
-          return json(res, 409, { error: "Browser profiles changed in another window. Review the refreshed list and try again." });
-        }
-      }
-      const disablingBuiltInBrowser = patch.features?.browser === false && builtInBrowserEnabled(cfg);
-      const switchingBrowserEngine = patch.browserEngine?.engine !== undefined && patch.browserEngine.engine !== browserEngineKind(cfg);
-      const removedBrowserProfileIds = patch.browserProfiles === undefined
-        ? []
-        : (cfg.browserProfiles ?? [])
-            .map((profile) => profile.id)
-            .filter((id) => !patch.browserProfiles!.some((profile) => profile.id === id));
-      const browserChoiceChanged = (patch.browserProfiles ?? []).filter((profile) => {
-        const current = cfg.browserProfiles?.find((candidate) => candidate.id === profile.id);
-        return current !== undefined && (current.browser ?? null) !== (profile.browser ?? null);
-      }).map((profile) => profile.id);
-      const profileControlConflict = () => removedBrowserProfileIds.some((id) => {
-        const target = browserProfilePartitionTarget(cfg, id);
-        return target && browserRuntime.heldBy(browserSessionId("", target.partitionId));
-      });
-      if (profileControlConflict()) return json(res, 409, { error: "Release browser control before deleting its profile." });
-      if (browserChoiceChanged.some((id) => {
-        const target = browserProfilePartitionTarget(cfg, id);
-        return target && browserRuntime.heldBy(browserSessionId("", target.partitionId));
-      })) return json(res, 409, { error: "Release browser control before changing its browser." });
-      if (patch.browserProfiles !== undefined) {
-        const currentProfiles = new Map((cfg.browserProfiles ?? []).map((profile) => [profile.id, profile]));
-        const nextProfiles = patch.browserProfiles.map((profile) => {
-          const partitionId = currentProfiles.get(profile.id)?.partitionId;
-          return partitionId ? { ...profile, partitionId } : profile;
-        });
-        const routingConflict = browserProfileReplacementConflict(cfg.browserProfiles ?? [], nextProfiles);
-        if (routingConflict) return json(res, 409, { error: routingConflict });
-        const currentIds = new Set((cfg.browserProfiles ?? []).map((profile) => profile.id));
-        const pendingReuse = patch.browserProfiles.find(
-          (profile) => !currentIds.has(profile.id) && browserCleanup.hasPendingProfile(profile.id),
-        );
-        if (pendingReuse) {
-          return json(res, 409, {
-            error: `the previous “${pendingReuse.name}” browser session is still being erased — wait before reusing it`,
-          });
-        }
-      }
-      if (patch.browserProfiles !== undefined) {
-        const retained = new Set(patch.browserProfiles.map((profile) => profile.id));
-        const activeReference = store.bots.find(
-          (bot) => bot.busy && bot.browserProfile && bot.browserProfile !== "guest" && !retained.has(bot.browserProfile),
-        );
-        if (activeReference) {
-          return json(res, 409, {
-            error: `stop ${activeReference.name}'s turn before removing its browser profile`,
-          });
-        }
-      }
       providerConfigBusy.set(true);
       try {
 
@@ -214,55 +143,16 @@ export function createConfigRoutes(deps: ConfigRouteDeps): RouteHandler {
           return json(res, 400, { error, code: "decider_rejected" });
         }
       }
-      if (patch.browserProfiles !== undefined) {
-        // Revalidated: the awaits above let a turn claim a profile. No awaits from here through the save.
-        const retained = new Set(patch.browserProfiles.map((profile) => profile.id));
-        const activeReference = store.bots.find(
-          (bot) => bot.busy && bot.browserProfile && bot.browserProfile !== "guest" && !retained.has(bot.browserProfile),
-        );
-        if (activeReference) {
-          return json(res, 409, {
-            error: `stop ${activeReference.name}'s turn before removing its browser profile`,
-          });
-        }
-        const switching = store.bots.find((bot) => bot.busy && bot.browserProfile && browserChoiceChanged.includes(bot.browserProfile));
-        if (switching) return json(res, 409, { error: `stop ${switching.name}'s turn before changing its browser` });
-      }
-      const browsing = switchingBrowserEngine ? store.bots.find((bot) => bot.busy && bot.browser !== false) : undefined;
-      if (browsing) return json(res, 409, { error: `stop ${browsing.name}'s turn before switching the browser` });
       // Only the named keys change; merged with no await before the save.
       if (patch.opencodeGo?.providerKeys) {
         const merged = mergeOpenCodeProviderKeys(cfg, patch.opencodeGo.providerKeys);
         if (!merged.ok) return json(res, 400, { error: merged.error });
         patch.opencodeGo = { ...patch.opencodeGo, providerKeys: merged.keys };
       }
-      const browserCleanupRequests: BrowserCleanupRequest[] = [];
-      if (profileControlConflict()) return json(res, 409, { error: "Release browser control before deleting its profile." });
-      try {
-        for (const profileId of removedBrowserProfileIds) {
-          const target = browserProfilePartitionTarget(cfg, profileId);
-          if (!target) throw new Error(`browser profile cleanup target “${profileId}” is unavailable`);
-          browserCleanupRequests.push(
-            browserCleanup.prepare("profile", target.profileId, target.partitionId),
-          );
-        }
-      } catch (error) {
-        for (const request of browserCleanupRequests) browserCleanup.abort(request);
-        throw error;
-      }
       const resetKeys = PROVIDER_KEY_KINDS.flatMap((kind) => {
         const next = patch[kind]?.key;
         return next === undefined ? [] : [cfg[kind]?.key, next];
       });
-      const engineForSwitch = browserEngineStatus();
-      const browsersToClose = browserChoiceChanged.flatMap((id) => {
-        const target = browserProfilePartitionTarget(cfg, id);
-        if (!target) return [];
-        const session = browserSessionId("", target.partitionId);
-        const spec = usedBrowserSessions.get(session) ?? (engineForSwitch.kind === "ready" ? browserSessionSpec(engineForSwitch.binaryPath, session, id) : null);
-        return spec ? [{ session, spec }] : [];
-      });
-      let configWriteCommitted = false;
       const enginesBefore = engineLaunches(providerConfigs());
       const externalSecretStorage = url.searchParams.get("secretStorage") === "external";
       // Before the provider commit, so a failed write never leaves a foreign voice id to speak.
@@ -292,34 +182,19 @@ export function createConfigRoutes(deps: ConfigRouteDeps): RouteHandler {
       for (const key of resetKeys) if (key) forgetKey(key);
       // A saved key reaches an engine through the environment its status read uses, often with no reload.
       registry.forgetSnapshots();
-      let browserReferenceCleanupError: unknown = null;
       if (patch.signIn !== undefined) {
         sessions.revalidateEmailSessions();
         resyncOpenCodeProviderKeys();
       }
-      if (disablingBuiltInBrowser) browserLive.closeAll();
-      if (switchingBrowserEngine) browserEngineSwitched();
-      for (const request of browserCleanupRequests) {
-        if (request.kind === "profile") browserLive.closeForSession(browserSessionId("", request.partitionId));
-      }
-      for (const { session, spec } of browsersToClose) {
-        browserLive.closeForSession(session);
-        usedBrowserSessions.delete(session);
-        void closeBrowser(session, spec).then((closed) => {
-          if (!closed) console.warn(`browser ${session}: could not close it after its browser changed; the next turn may still use the old one`);
-        });
-      }
-      if (patch.browserProfiles !== undefined) {
-        const retained = new Set(patch.browserProfiles.map((profile) => profile.id));
+      const changedEngines = new Set(changedInstanceIds(enginesBefore, engineLaunches(providerConfigs())));
+      // Revoked before any await: a changed engine's old children are invalid at once.
+      revokeEngineCapabilities(changedEngines);
+      let reloadError: unknown = null;
+      if (changedEngines.size > 0) {
         try {
-          for (const bot of store.bots) {
-            if (bot.browserProfile && bot.browserProfile !== "guest" && !retained.has(bot.browserProfile)) {
-              store.patchBot(bot.id, { browserProfile: undefined });
-            }
-          }
+          await reloadProviders(enginesBefore);
         } catch (error) {
-          // Config is already durable: this failure must not skip revocation and reload below.
-          browserReferenceCleanupError = error;
+          reloadError = error;
         }
       }
       const status = configStatus();

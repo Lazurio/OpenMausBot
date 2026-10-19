@@ -110,19 +110,6 @@ describe("Chat MCP session", () => {
     const pid = f.read().pid;
     await session.close();
     expect(alive(pid)).toBe(false);
-  });
-
-  it.each([
-    ["browser", true],
-  ] as const)("drops a blank url for agent_browser_read only on the built-in browser (%s)", async (mountAs, dropped) => {
-    const readSchema = { type: "object", properties: { url: { type: "string" } }, additionalProperties: false };
-    const f = fixture(`if (message.method === "tools/list") { reply(message, {tools:[{name:"agent_browser_read",description:"Omit url to read the active tab.",inputSchema:schema}]}); continue; }`, readSchema);
-    sessions.push(session);
-    const name = session.definitions[0]!.function.name;
-    await session.execute(name, { url: " " }, f.controller.signal);
-    await session.execute(name, { url: "https://example.com" }, f.controller.signal);
-    const calls = f.read().calls.filter((call) => call.method === "tools/call").map((call) => call.params?.arguments);
-    expect(calls).toEqual([dropped ? {} : { url: " " }, { url: "https://example.com" }]);
     await expect(session.execute("data_write", { value: "again" }, f.controller.signal)).rejects.toThrow("closed");
   });
 

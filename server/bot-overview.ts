@@ -34,7 +34,6 @@ export interface OverviewFacts {
     | "autoApprove"
     | "approvalMode"
     | "peers"
-    | "browser"
     | "chiefOfStaff"
     | "managedSections"
   >;
@@ -48,7 +47,6 @@ export interface OverviewFacts {
   runs: Array<{ routineId: string; status: string; finishedAt?: number; startedAt?: number; scheduledFor: number }>;
   webhooks: Array<{ name: string; enabled: boolean }>;
   skills: Array<{ name: string; description: string; enabled: boolean }>;
-  browserEnabled?: boolean;
   cloudHome?: boolean;
   sectionPeers: number;
   timeZone: string;

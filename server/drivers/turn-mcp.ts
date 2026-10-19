@@ -24,7 +24,6 @@ export function turnStdioMcpServers(turn: SendTurnInput, options: { schemaProfil
     if (server) servers.push({ name, command: server.command, args: server.args, env: server.env ?? {} });
   };
   add("agents", turn.integrations?.agents);
-  add("browser", turn.integrations?.browser);
   add("data", turn.integrations?.data);
   add("computer", turn.integrations?.localComputer);
   const fitted = schemaProfile

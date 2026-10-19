@@ -1,3 +1,4 @@
+// Lazurio overlay (DEV-6673 M3 and M4a, issue #35): settings of features removed from Lazurio's distribution.
 // A saved config.json that still has them loads and drops them (the config schema strips unknown keys);
 // a write that names one (PUT /api/config) is refused as a whole, never half-applied.
 import type { JsonValue } from "./schema.ts";
@@ -9,6 +10,9 @@ const REMOVED_CONFIG_KEYS: ReadonlyArray<readonly string[]> = [
   ["newBotDefaults", "profile", "approvePeerComms"],
   // DEV-6673, LAZURIO.md principle 3: every bot gets the Environment's tools; there is no per-bot tool selection.
   ["newBotDefaults", "profile", "toolScope"],
+  // DEV-6673 M4a: MausBot's own browser; bots work in the Environment browser.
+  ["browserEngine"], ["browserProfiles"], ["features", "browser"],
+  ...["browser", "browserProfile"].map((key) => ["newBotDefaults", "profile", key]),
   // LAZURIO.md principle 3: no research key of MausBot's own.
   ["treg"],
 ];

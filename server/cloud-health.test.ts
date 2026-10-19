@@ -32,7 +32,7 @@ function world(overrides: Partial<CloudHealthDeps> = {}) {
   const health = createCloudHealth({
     store, bus, dataDir: DATA_DIR, eventsDir: EVENTS_DIR, version: "0.1.120", image: `registry.fly.io/omb-cloud-home@sha256:${"b".repeat(64)}`,
     engines: () => [{ instanceId: "claude", driverKind: "claudeAgent", snapshot: { state: "available", authenticated: true, version: "2.1.300" } }],
-    connectors: () => null, browser: () => ({ available: true, installing: false, interrupted: 0 }), now, ...overrides,
+    connectors: () => null, now, ...overrides,
   });
   const bot = store.createBot({ name: "Tallyspoon Ops" });
   const emit = (threadId: string, event: { type: string } & Record<string, unknown>, provider = "codex") => {

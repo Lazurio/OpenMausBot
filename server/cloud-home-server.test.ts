@@ -340,8 +340,9 @@ it("records when a bot's turn first finished here, once, in the Cloud's own sett
   expect(await first()).toBe(recorded);
 });
 
+it("tells its bots they cannot see the person's computer", async () => {
   const status = await api("GET", "/api/config");
-  expect(status.body).toMatchObject({ cloudHome: true, features: { browser: true } });
+  expect(status.body).toMatchObject({ cloudHome: true });
   writeFileSync(join(home, "hang"), "");
   const created = await api("POST", "/api/bots", { body: {
     name: "Desk fixture", modelSelection: { instanceId: "claude", model: "claude-sonnet-5" }, requireAvailableModel: true,
