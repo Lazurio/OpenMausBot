@@ -96,6 +96,24 @@ NodeTest.test("the archive ships the Steward team file an Environment imports (i
   NodeAssert.match(script, /JSON\.parse\(require\("node:fs"\)\.readFileSync\(process\.argv\[1\], "utf8"\)\)' "\$pkg\/lazurio\/teams\/steward\.openmaus\.json"/);
 });
 
+NodeTest.test("the archive ships the browser contract's MIT licence and NOTICE beside the bundle that inlines it", async () => {
+  // server/lazurio-environment-browser.ts imports lazurio/browser-contract/, which the server bundle inlines.
+  NodeAssert.match(await read("server/lazurio-environment-browser.ts"), /from "\.\.\/lazurio\/browser-contract\/node\.js"/);
+  NodeAssert.match(await read("lazurio/browser-contract/LICENSE"), /^MIT License/);
+  NodeAssert.match(await read("lazurio/browser-contract/NOTICE"), /MIT License instead/);
+  // Copied into the generated package and listed in its files between the upstream build and npm pack.
+  const build = script.indexOf("node scripts/build-npm-package.mjs");
+  const copy = script.indexOf("cp lazurio/browser-contract/LICENSE lazurio/browser-contract/NOTICE release/npm/LICENSES/lazurio-browser-contract/");
+  const files = script.indexOf('pkg.files.push("LICENSES")');
+  const pack = script.indexOf("npm pack --silent");
+  NodeAssert.ok(build > 0 && build < copy && copy < files && files < pack, "notices copied and listed after the build, before npm pack");
+  // The smoke test requires both inside the package, byte for byte, and the contract in the bundle.
+  NodeAssert.match(script, /for required in [^;]*LICENSES\/lazurio-browser-contract\/LICENSE LICENSES\/lazurio-browser-contract\/NOTICE; do/);
+  NodeAssert.match(script, /for notice in LICENSE NOTICE; do\n {2}cmp -s "\$pkg\/LICENSES\/lazurio-browser-contract\/\$notice" "lazurio\/browser-contract\/\$notice" \|\|/);
+  NodeAssert.match(script, /grep -q "lazurio\.browser-holder\.v1" "\$pkg\/dist-server\/index\.js" \|\|/);
+  NodeAssert.match(script, /grep -q '"LICENSES"' "\$pkg\/package\.json" \|\|/);
+});
+
 NodeTest.test("the archive never packs the enterprise layer", () => {
   // Neither place core loads the layer from (server/enterprise.ts), checked
   // after npm pack, and the packaged server must report the open-source edition.
