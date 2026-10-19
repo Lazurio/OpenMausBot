@@ -251,7 +251,6 @@ export function FailedTurnRow({ tool, engine, onRetry, botId, threadId }: {
   return (
     <ErrorRow
       message={cause}
-      headline={signedOut ? t("chat.error.signedOut", { name: signedOut.displayName }) : plainErrorLine(cause)}
       onRetry={onRetry}
       action={resume}
       setupInstance={tool.setup ? engine : undefined}

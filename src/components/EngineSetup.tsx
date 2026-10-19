@@ -486,6 +486,7 @@ export function EngineSetup({
   quiet?: boolean;
 }) {
   const { state } = useStore();
+  const lazurio = useLazurioSignIn(); // Lazurio overlay (DEV-6673)
   const cloudHome = state.config?.cloudHome === true;
   const install = instance.install;
   const installCommand = installCommandFor(install);
@@ -514,6 +515,9 @@ export function EngineSetup({
 
   if (apiKeySetup(instance)) {
     return <ApiKeyEngineSetup instance={instance} className={className} unframed={unframed} />;
+  }
+
+    return <LazurioEngineSignIn signIn={lazurio} instance={instance} className={className} unframed={unframed} />;
   }
 
   if (intent === "cloud" && grokKeyInstead(instance, cloudHome)) {
