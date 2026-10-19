@@ -49,6 +49,34 @@ connected apps, computers and sign-ins are removed from the code
 ([below](#what-the-overlay-removes)). Narrower access than the Environment's
 means a separate Environment.
 
+### Engine sign-in
+
+**Decided on 2026-10-19 (the Organization Admin): as in Lazurio's T3 Code.**
+Every engine uses the Environment's own CLI login (`~/.codex`, `~/.claude`,
+…), which the person connects in the Environment settings of the
+Environment's Launchpad (Getting started, `/settings/start`). MausBot keeps
+no sign-in of its own: it only reads each engine's login status. When an
+engine is signed out, its card says that the account is connected in the
+Environment settings and offers two things: **Otevřít Nastavení Prostředí**,
+a link to Getting started of the current Environment's Launchpad opened in a
+new tab (as T3 Code's "Open Getting started"), and **Zkontrolovat znovu**,
+which reads the machine login again. It shows no terminal command and starts
+no device, OAuth or pasted-code flow. The chat's line for a turn an engine
+refused signed out says the same.
+
+The Launchpad's address and the person's language come from the shell's
+document, `lazurio.shell.v1` at `/.lazurio/shell.json` on this origin: the
+current Environment's `apps.apps` and `locale` (Czech unless the profile is
+English). This is the one thing MausBot reads of the shell's data. Outside
+Lazurio the shell's script does not run, so `<html>` carries no
+`data-lazurio-theme`, nothing is read and upstream's card, with the
+engine's own sign-in command, stays. The Lazurio side is one module,
+`src/components/LazurioEngineSignIn.tsx`, with one hook in
+`src/components/EngineSetup.tsx` and one in `src/components/ChatView.tsx`;
+`src/components/LazurioEngineSignIn.test.ts` covers Codex and Claude under
+the shell, the English profile, an unreadable document and the card outside
+Lazurio.
+
 ## What the overlay adds
 
 - **The open-source edition.** Upstream's `enterprise/` folder is removed
@@ -105,10 +133,17 @@ signed-in accounts, and integrations come from the Environment.
   "Also use my Claude Code MCP servers", the person's own setup); Codex bots
   read `~/.codex/config.toml`.
 - **Own sign-ins**: saved logins (`fill_login`), 1Password and the in-app
-  Claude, Codex and Grok sign-in flows. Engines use the computer's own logins
-  (`codex login`, `claude auth login`, done in the Environment's settings) and
-  MausBot only reads their status. The ChatGPT plan and Antigravity engines
-  keep their sign-in, their only way to authenticate.
+  Claude, Codex and Grok sign-in flows, the ChatGPT plan engine with its own
+  OpenAI sign-in (the Codex engine already reads the Environment's ChatGPT
+  login), the Antigravity engine with its own Google sign-in and runtime (the
+  Launchpad has no Antigravity sign-in), and added Claude accounts with their
+  own configuration folders, and with them the server's sign-in sessions and
+  the `/api/instances/:id/auth/*` routes. Engines use the computer's own
+  logins (`codex login`, `claude auth login`, done in the Environment
+  settings) and MausBot only reads their status
+  ([above](#engine-sign-in)). A saved `config.json` that still has a removed
+  engine or account loads and drops it; a bot that used one shows its engine
+  unavailable until another is picked.
 - **Own computers**: Local VMs (Cua containers), the Boat cloud computer, VPS
   computers, lent, shared and team computers, "Works on" and
   `select_computer`. Bots work on the host and in the browser.
@@ -148,8 +183,10 @@ Shadow DOM (`<lazurio-rail>`, `<lazurio-column-head>`, `<lazurio-buddy>`)
 defined by `/.lazurio/shell.js`, which the Environment's Launchpad serves on
 this origin behind the Environment's gateway, with its data in
 `/.lazurio/shell.json` (LazurioPlatform decision F36). MausBot knows nothing
-of Lazurio's data and fetches nothing itself, so a new rail, a new picker or
-new data needs no release of this fork.
+of Lazurio's data and fetches nothing itself, apart from the Launchpad's
+address and the language for a signed-out engine's card
+([Engine sign-in](#engine-sign-in)), so a new rail, a new picker or new data
+needs no release of this fork.
 
 The slot is two upstream files, each its own line in
 `allowed_upstream_changes`:
