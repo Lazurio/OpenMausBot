@@ -178,6 +178,30 @@ describe("no gate before a level a person picks", () => {
     expect(await state()).toEqual(before);
   });
 
+  it("offers Auto-accept edits at creation and as a new-bot default, where the bot's engine runs it", async () => {
+    const instances = (await call("GET", "/api/instances")).body.instances as Array<{ instanceId: string; models: { default: string } }>;
+    const model = (instanceId: string) => ({ instanceId, model: instances.find((item) => item.instanceId === instanceId)!.models.default });
+    const count = async () => ((await call("GET", "/api/bots?messages=0")).body.bots as unknown[]).length;
+
+    const claude = await call("POST", "/api/bots", { name: "Edits on Claude", modelSelection: model("claude"), settings: { approvalMode: "edits" } });
+    expect(claude.status, JSON.stringify(claude.body)).toBe(201);
+    expect(claude.body.bot.approvalMode).toBe("edits");
+
+    const before = await count();
+    const codex = await call("POST", "/api/bots", { name: "Edits on Codex", modelSelection: model("codex"), settings: { approvalMode: "edits" } });
+    expect(codex.status, JSON.stringify(codex.body)).toBe(400);
+    expect(codex.body.error).toMatch(/does not support the selected approval level/);
+    expect(await count()).toBe(before);
+
+    const defaults = await call("PUT", "/api/config", { newBotDefaults: { profile: { approvalMode: "edits" } } });
+    expect(defaults.status, JSON.stringify(defaults.body)).toBe(200);
+    const fromDefault = await call("POST", "/api/bots", { name: "Default edits", modelSelection: model("claude") });
+    expect(fromDefault.status, JSON.stringify(fromDefault.body)).toBe(201);
+    expect(fromDefault.body.bot.approvalMode).toBe("edits");
+    const refused = await call("POST", "/api/bots", { name: "Default edits on Codex", modelSelection: model("codex") });
+    expect(refused.status, JSON.stringify(refused.body)).toBe(400);
+    expect((await call("PUT", "/api/config", { newBotDefaults: { profile: {} } })).status).toBe(200);
+  });
 });
 
 describe("bots contact each other without a person's approval", () => {
