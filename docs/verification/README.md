@@ -75,7 +75,7 @@ Use only mapped, tested commands:
 - [Cline engine and native loopback qualification](cline.md)
 - [Claude coordination and turn-scoped tools](claude-tool-lifecycle.md)
 - [Codex bot instructions](codex-instructions.md)
-- [Codex browser routing and native search](codex-browser-routing.md)
+- [Codex native search](codex-native-search.md)
 - [Codex helper event isolation](codex-helpers.md)
 - [Qwen model route selection](qwen-models.md)
 - [Team backups](team-backups.md)
@@ -100,8 +100,8 @@ Use only mapped, tested commands:
 `control-omb ui` ([Chat UI, driven headlessly](chat-ui.md)) drives the real
 renderer in a headless Chrome by accessible name, so composer sends, transcript
 rows, tool chips and server feature flags are provable from the command line.
-Other renderer-only behavior—Settings, sidebar drag-and-drop, the VM modal, the
-built-in browser panel, and updater UI—is still not proven by the harness. Use
+Other renderer-only behavior—Settings, sidebar drag-and-drop, the VM modal and
+updater UI—is still not proven by the harness. Use
 the relevant Electron/package smoke test and state that limitation. Add a map
 entry only after the shared control surface can really drive it.
 
@@ -135,14 +135,6 @@ The [external runtimes recipe](external-runtime.md) proves a bot's standing
 comms capability from `external-runtimes.json` against a disposable server and
 the fake engine: scope, on-demand token reads, `coordinate_bots` roots polled
 through `assignment_status`, and immediate dispatch to a free teammate.
-
-The [live browser fixture](browser-live.md) mounts the real Browser panel with
-an explicitly selected native engine and Chrome in a disposable home, covering
-watching, takeover, input, and profile switching.
-
-The [page health and recorded browser steps check](browser-steps.md) drives the
-real engine against a fixture page with failing requests and page errors, and
-reads the recorded steps back through the server.
 
 The [local computer launch regression](local-computer-launch.md) starts the
 host CUA gate through real Electron in a disposable home, without opening the

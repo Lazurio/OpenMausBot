@@ -88,7 +88,6 @@ entry:
   `model` as a custom option either way.
 - OpenAI-compatible instances support structured tools and image input. With a
   model that accepts both, the harness can mount the approved host, Local VM,
-  VPS, Boat cloud or built-in browser tools and return their screenshots to the model.
   The existing platform, computer-selection and approval checks still apply.
   Boat turns retain the selected API model in direct chats, rooms and cloud
   routines, as they do for every engine with computer tools.
