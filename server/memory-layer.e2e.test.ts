@@ -101,7 +101,7 @@ it("recalls, captures, suggests, forgets and tidies a bot's memory", async () =>
     await api(`/api/bots/${bot.id}`, "PATCH", { memoryUpkeep: true });
     await turn(bot.id, bot.threadId, "Just so you know, I'm vegetarian and I have exams this weekend. The account balance is -10. I love Irani cafes.");
     expect((await memoryFile(bot.id)).text).not.toContain("The person is vegetarian");
-    await api(`/api/bots/${bot.id}`, "PATCH", { memoryUpkeep: false, browser: "invalid" }, 400);
+    await api(`/api/bots/${bot.id}`, "PATCH", { memoryUpkeep: false, helperModel: "invalid" }, 400);
     expect(await api(`/api/bots/${bot.id}/memory/upkeep`)).toMatchObject({ enabled: true });
     await expect.poll(async () => (await memoryFile(bot.id)).text, { timeout: 20_000 }).toContain("The person is vegetarian");
     await api("/api/config", "PUT", { memory: { captureQuietMs: 1_000 } });

@@ -81,7 +81,7 @@ describe("the agents tool bridge switch", () => {
 
   it("is a saved setting like the other feature flags: kept by a patch and by the stored file, a boolean only", () => {
     expect(parseConfigPatch({ features: { agentsToolBridge: true } })).toEqual({ features: { agentsToolBridge: true } });
-    expect(parseStoredConfig({ features: { agentsToolBridge: true, browser: true } })).toEqual({ features: { agentsToolBridge: true, browser: true } });
+    expect(parseStoredConfig({ features: { agentsToolBridge: true, showToolCalls: true } })).toEqual({ features: { agentsToolBridge: true, showToolCalls: true } });
     expect(agentsToolBridgeEnabled(parseStoredConfig({ features: { agentsToolBridge: true } }), {})).toBe(true);
     expect(() => parseConfigPatch({ features: { agentsToolBridge: "yes" } })).toThrow("features.agentsToolBridge");
     // the other flags are still read beside it, and an unknown one still drops
