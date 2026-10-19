@@ -105,11 +105,11 @@ builds them.
 
 **Today against the principles (2026-10-19).**
 - **Done:** removed MausBot's own computers, integrations, sign-ins, Cloud
-  and telemetry (1, 3 and 8); engine sign-in through the Launchpad (3); the
-  Folder as every bot's start (6).
-- **Not yet:** a hosted server (`HOSTED_WORKSPACE`) makes Ask the default,
-  and bots have five approval levels, peer-contact approval and the Auto
-  warning gate (2). Bots run their own `agent-browser` daemons with their own
+  and telemetry (1, 3 and 8); engine sign-in through the Launchpad (3); every
+  bot at Full on every server, with T3 Code's four levels and no gate before
+  Full, before Auto or before contacting another bot (2,
+  [Access levels](#access-levels)); the Folder as every bot's start (6).
+- **Not yet:** bots run their own `agent-browser` daemons with their own
   headless Chrome, and MausBot shows its own live view in the "Computer"
   panel (4). There is no Computer Use on the Environment desktop (5) and no
   report to Chat (7).
@@ -173,6 +173,25 @@ stays. The Lazurio side is one module,
 the shell, the English profile, a foreign Launchpad origin, a mismatched
 `current`, a redirected or foreign-origin document, an unreadable document,
 Cursor keeping upstream's card, and the card outside Lazurio.
+
+### Access levels
+
+**Decided on 2026-10-19 (the Organization Admin; root decision 0172 with its
+addendum of 2026-10-19).** Every bot runs at **Full access** by default, as
+Lazurio's T3 Code runs `full-access`, on every server, a hosted company
+workspace included, and nothing turns it on, lowers it or asks first. A
+person may choose to supervise a bot or a conversation with the levels of
+T3 Code: Ask for approval (`approval-required`), Auto-accept edits
+(`auto-accept-edits`) and Approve for me (`auto`); nothing chooses one for
+them. Bots contact, delegate to and post in rooms without a person's
+approval. Real questions a bot needs answered, and missing sign-ins, still
+reach a person, and under a supervised level OpenMausBot's own proposals
+(profile, routine, team setup, skill) keep their review cards. Full access is
+not consent to publish: merges, releases and writes to connected apps keep
+their own gates (the Steward team's rules, GitHub rights and branch rules).
+Narrower rights mean a separate Environment. What upstream had beyond this
+is removed ([below](#what-the-overlay-removes)), and
+`server/lazurio-full-access.e2e.test.ts` checks it on a real server.
 
 ## What the overlay adds
 
@@ -262,17 +281,26 @@ signed-in accounts, and integrations come from the Environment.
   to and syncing with Cloud, and the OpenMausBot account sign-in
   (`openmausbot login`). The cloud-home server mode itself, upstream's own
   hosting, stays for now: it is woven into owner and guest checks.
+- **Gates before full access**: a hosted workspace's Ask default and its
+  refusal of Full without the operator flag `OMB_SHARED_WORKSPACE_FULL_ACCESS`;
+  the Custom (`config.toml`) level with the desktop's private two-phase grant
+  (Electron's approval coordinator, its IPC channel and the server's grant
+  journal); the warning before Auto (`acknowledgeLocalAuto`); and the
+  per-bot switch that made a bot ask a person before contacting another bot
+  (`approvePeerComms`) with its approval cards. A saved Custom level, grant
+  marker or switch loads and drops; a write that names one, or the removed
+  confirmation, is refused with 400 ([Access levels](#access-levels)).
 - **Telemetry to upstream**: upstream's PostHog analytics and the welcome
   tour's name and e-mail form. `src/lib/analytics.ts` keeps upstream's
   function names as no-ops, so nothing is collected, stored or sent.
 
 A write that names a removed setting (`PUT /api/config` with `box`, `vps`,
 `localVm`, `composio`, `mcpServers`, `features.sharedComputers` or a removed
-new-bot default) is refused with 400 as a whole, never half-applied; a saved
-`config.json` that still has one loads and drops it. Upstream's server-side
-warning gate for Auto on this computer (`acknowledgeLocalAuto`) stays on every
-path upstream has it, and now covers every bot, since every bot works on this
-computer; principle 2 removes it.
+new-bot default, `approvePeerComms` and the Custom level included) is refused
+with 400 as a whole, never half-applied; a saved `config.json` that still has
+one loads and drops it. So is a bot or thread write that names
+`acknowledgeLocalAuto`, `approvePeerComms` or the Custom level
+(`server/lazurio-removed-config.ts`).
 
 Each area has a manifest in [`lazurio/removals/`](lazurio/removals): the
 upstream files it deletes and changes (CI allows exactly those), the strings
