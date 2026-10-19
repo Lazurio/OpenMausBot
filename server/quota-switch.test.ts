@@ -297,7 +297,7 @@ describe("quota-switch card", () => {
         engine("bare", "codex", "No team tools", { adapter: { capabilities: caps({ images: true }) } }),
         // an API model has no working folder (supportsWorkspaceFiles)
         engine("api", "openai-compat", "API model", { adapter: { capabilities: caps({ agentsMcp: true, images: true }) } }),
-        engine("codex", "codex", "Codex", { adapter: { capabilities: caps({ agentsMcp: true, images: true, browserMcp: true }) } }),
+        engine("codex", "codex", "Codex", { adapter: { capabilities: caps({ agentsMcp: true, images: true }) } }),
       ];
       expect((await failed())!.card!.options).toEqual(["Codex", NOT_NOW]);
     });

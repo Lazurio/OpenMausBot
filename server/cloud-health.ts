@@ -234,7 +234,6 @@ export interface CloudHealthDeps {
   image: string | undefined;
   /** Null when connected apps are not set up here. */
   connectors: () => Promise<Record<string, { connected: boolean; pending?: boolean }>> | null;
-  browser: () => { available: boolean; installing: boolean; interrupted: number };
   now?: () => number;
 }
 
@@ -267,11 +266,10 @@ export function createCloudHealth(deps: CloudHealthDeps) {
     noteRoutineRun: ledger.noteRoutineRun,
     report(after: string | null | undefined) {
       const read = ledger.read(after);
-      const memory = memoryBytes(), browser = deps.browser();
+      const memory = memoryBytes();
       const base = {
         v: 1 as const, version, image, bootedAt: ledger.bootedAt, at: now(),
         turns: read.turns, routines: read.routines, engines: engines(), connectors: connectorState(),
-        browser: { available: browser.available, installing: browser.installing, interrupted: browser.interrupted },
         system: { ...memory, rssBytes: process.memoryUsage.rss(), load1: loadavg()[0] ?? 0, cpus: availableParallelism(), disk: diskBytes(deps.dataDir), eventLogWritable: writable(deps.eventsDir) },
       };
       let budget = CLOUD_HEALTH_MAX_BYTES - JSON.stringify({ ...base, cursor: ledger.cursor(read.seq), truncated: true, incidents: [] }).length;

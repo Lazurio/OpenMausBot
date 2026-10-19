@@ -335,7 +335,6 @@
     "server/bot-overview.test.ts",
     "server/bot-overview.ts",
     "server/branching.test.ts",
-    "server/browser-shutdown.e2e.test.ts",
     "server/chief-level-delegation.e2e.test.ts",
     "server/cloud-guest-shell.e2e.test.ts",
     "server/cloud-health.test.ts",

@@ -599,9 +599,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         if (turn.integrations?.localComputer) {
           mount("computer", turn.integrations.localComputer);
         }
-        if (turn.integrations?.browser) {
-          mount("browser", turn.integrations.browser);
-        }
         if (turn.integrations?.data) mount("data", turn.integrations.data);
         if (turn.integrations?.phone) {
           const bridge = turn.integrations.phone;
@@ -1522,7 +1519,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         localComputerMcp: true,
         agentsMcp: true,
         phoneMcp: true,
-        browserMcp: true,
         dataMcp: true,
         images: true,
         nativeImageInput: true,

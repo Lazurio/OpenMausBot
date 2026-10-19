@@ -71,9 +71,6 @@ export function createBotCreateRoutes(deps: BotCreateRouteDeps): RouteHandler {
       if (settings.avatarUrl && !storedAvatarExists(settings.avatarUrl)) {
         return json(res, 400, { error: "avatarUrl must reference an existing stored image" });
       }
-      if (settings.browserProfile && settings.browserProfile !== "guest" && !(cfg.browserProfiles ?? []).some(profile => profile.id === settings.browserProfile)) {
-        return json(res, 400, { error: "browserProfile must name an existing browser profile" });
-      }
       if (settings.managedSections?.length) {
         if (!settings.chiefOfStaff || settings.managedSections.some(name => name !== "" && !store.sections.includes(name))) {
           return json(res, 400, { error: "Only a Chief may manage existing additional teams" });
@@ -140,7 +137,6 @@ export function createBotCreateRoutes(deps: BotCreateRouteDeps): RouteHandler {
           // the bot (OMB_DEFAULT_BOT_CWD); an explicit empty one still clears it.
           cwd: settings.cwd === undefined ? bot.cwd : checkedCwd.cwd ?? undefined,
           peers: ordinary.peers ?? undefined,
-          browserProfile: ordinary.browserProfile || undefined,
           autoApprove: ordinary.approvalMode === "auto",
         });
         const presetSkills = new Set(preset?.preset.skills ?? []);

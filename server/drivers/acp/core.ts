@@ -1919,7 +1919,6 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
             sessionModelSwitch: "unsupported",
             agentsMcp: true,
             computerMcp: true,
-            browserMcp: true,
             dataMcp: true,
             images: support.images !== false,
             nativeImageInput: support.images === true,

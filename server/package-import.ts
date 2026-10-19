@@ -273,8 +273,6 @@ function runImport(source: ImportSource, options: PackageImportOptions, deps: Pa
         : undefined;
       // No approval level: an imported bot starts at the defaults.
       store.patchBot(created.id, {
-        // The publisher's choice, with no card: recording only keeps evidence in this workspace.
-        ...(agent?.recordBrowserSteps === true ? { recordBrowserSteps: true } : {}),
         ...(playbooks.length ? { playbooks } : {}),
         ...(installed ? { installedPackage: installed } : {}),
         ...avatar,

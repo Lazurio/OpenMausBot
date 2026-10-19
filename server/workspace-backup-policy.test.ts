@@ -18,8 +18,8 @@ describe("workspace backup data boundary", () => {
       signIn: { admins: ["source@example.com"] }, customDomain: "source.example", vps: { sshAlias: "source" },
       cliStartup: { access: "public-url", publicUrl: "https://source.example" },
     };
-    const portable = portableWorkspaceConfig({ ...connections, language: "ja", features: { browser: true }, profile: { name: "Example" } });
-    expect(portable).toEqual({ profile: { name: "Example" }, language: "ja", features: { browser: true } });
+    const portable = portableWorkspaceConfig({ ...connections, language: "ja", features: { showToolCalls: true }, profile: { name: "Example" } });
+    expect(portable).toEqual({ profile: { name: "Example" }, language: "ja", features: { showToolCalls: true } });
     const restored = restoredWorkspaceConfig(portable, { ...connections, language: "en", budgets: { monthlyUsd: 12 } });
     expect(restored).toEqual({ ...connections, ...portable });
     expect(restored.instances).toBe(connections.instances);

@@ -512,7 +512,6 @@ export function createTeamPackageExport(input: TeamExportInput): TeamExportResul
       description: bot.description || undefined,
       ...(bot.soul ? { soul: bot.soul } : {}),
       appearance,
-      ...(bot.recordBrowserSteps === true ? { recordBrowserSteps: true } : {}),
     };
     const assignedPlaybooks = agentPlaybooks.get(bot.id);
     if (assignedPlaybooks?.length) agent.playbooks = assignedPlaybooks;
