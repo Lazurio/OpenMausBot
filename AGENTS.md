@@ -1,5 +1,13 @@
 # OpenMausBot agent notes
 
+> **Lazurio distribution.** This is `Lazurio/OpenMausBot`, Lazurio's fork
+> (Lazurio MausBot, the Automate app of a Lazurio Environment). Before you
+> change behaviour, read [`LAZURIO.md`](LAZURIO.md): how Lazurio shapes MausBot
+> (one Environment is one computer, Full access for every bot, shared
+> sign-ins, bots in their own tabs of the Environment browser) and the fork
+> contract for branches, releases and the overlay. Where the notes below
+> assume otherwise, `LAZURIO.md` wins.
+
 Before claiming a server or conversation change works, follow
 [`docs/verification/README.md`](docs/verification/README.md). Always launch an
 isolated fixture; never verify mutations against the user's live app or data.

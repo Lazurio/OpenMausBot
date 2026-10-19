@@ -6,6 +6,13 @@ runtime for the bot teams of Lazurio Environments (Lazurio decision 0169;
 plans DEV-6632 and DEV-6673 in the Human and Machine Mission Control). It
 follows the `Lazurio/t3code` model:
 
+- **Upstream's core, shaped by Lazurio's model.** Bots, roles, teams,
+  planning, routines and chat stay upstream's, with upstream's look and
+  branding, built without `enterprise/` (below). Where upstream assumes
+  something Lazurio's model contradicts (a computer, browser, sign-in or
+  access level per bot), the overlay changes it and removes upstream's way
+  from the code ([principles](#how-lazurio-shapes-mausbot)). Anything that
+  could live upstream is written to be proposed upstream.
 - **Exact upstream base.** `main` is an exact upstream stable tag
   (`vX.Y.Z`) plus a short, meaningful Lazurio overlay of linear commits. It
   never follows upstream `main`, and never contains a merge commit.
@@ -23,6 +30,73 @@ follows the `Lazurio/t3code` model:
   `lazurio-*` workflows run.
 - **Rebase merges only** into `main`; every change to an upstream file is
   listed in `allowed_upstream_changes` of `lazurio-fork-ci.yml`.
+
+## How Lazurio shapes MausBot
+
+Read this before you change behaviour here. MausBot is one of the three apps
+of a Lazurio Environment: Chat (Lazurio's T3 Code), Apps (the Launchpad) and
+Automate (MausBot). The Environment, not MausBot, owns the computer, its
+programs, the browser, the sign-ins and the integrations. Where upstream
+assumes otherwise, the overlay follows these principles. They come from the
+root decisions of `HumanAndMachines/Lazurio` (`manual/decision-register.md`:
+0162, 0169, 0172 with its addendum of 2026-10-19, 0181, 0191 with points 34
+and 41–43, 0195, 0209) and `manual/environment-browser.md`; plan DEV-6673
+builds them.
+
+1. **One Environment is one computer.** Bots, T3 Code threads, other agents
+   and Buddy work in the same Environment: the same files, programs, browser
+   and sign-ins. A bot is to MausBot what a thread is to T3 Code, a way to
+   run an agent there, never a computer of its own: no VMs, cloud computers,
+   lent, shared or team computers, and no sandbox per bot.
+2. **Full access by default, for every bot.** Every bot runs at Full, as
+   T3 Code runs `full-access`, without anyone turning it on: no default Ask,
+   no approval before contacting another bot, no warning gate before Full.
+   A person may choose to supervise a piece of work, as T3 Code allows;
+   nothing chooses it for them. Narrower rights mean a separate Environment.
+   Full access is not consent to publish: merges, releases and writes to
+   connected apps keep their own gates.
+3. **Access is shared, never split per bot.** Wherever the Environment is
+   signed in, every bot reaches: the Environment browser, the tools and
+   Integrations of the Launchpad Settings (an app's own tool, Executor,
+   Composio) and the CLI logins (`gh`, `codex`, `claude`). MausBot has no app
+   switches, MCP registries, keys, saved logins or accounts per bot, and holds
+   no credentials of its own. Engines use the Environment's CLI logins; a
+   signed-out engine links to the Launchpad Settings
+   ([Engine sign-in](#engine-sign-in)). AI accounts come from there too
+   (the Organization's AI pool, 0181 and 0209).
+4. **One browser; a bot works in its own tabs.** The Environment has one
+   browser (one Chromium with one profile, DevTools on `127.0.0.1:9222`).
+   A bot opens its own tabs in it through Lazurio's `agent-browser`, as a T3
+   Code thread does, with the session `bot-<id>`. The bot's strip holds its
+   and works in it at the same time as the bot, in MausBot's right panel,
+   through the Platform's view (`browser.<…>/t/<id>`) and New tab: the same
+   view as in T3 Code and the Launchpad, from the Platform's vendored browser
+   contract. MausBot builds no browser, viewer, profile manager, egress proxy
+   or `agent-browser` configuration of its own.
+5. **Programs run on the Environment's screen.** Programs installed in the
+6. **Everything starts in the Lazurio Folder.** Bots start in the Folder,
+   read its `AGENTS.md` and guides, and create worktrees as those guides say.
+7. **Results reach people through Chat.** A bot hands a result worth
+   reporting to a T3 Code thread, which tells the person (Lazurio/LazurioPlatform#182).
+   T3 Code agents, and later Buddy, create and manage bots through MausBot's
+   CLI and MCP.
+8. **Remove, don't hide.** What contradicts these principles leaves the
+   code, the API, the CLI, the agents' tools, the UI and the documentation,
+   so no agent finds it; the manifests in `lazurio/removals/` keep it gone
+   ([below](#what-the-overlay-removes)). No compatibility or migration code:
+   MausBot does not run on customer Environments yet.
+9. **Like Lazurio's T3 Code wherever both do the same thing.** The right
+   panel, the model picker, engine sign-in, access level and the words people
+   read follow Lazurio's T3 Code rather than upstream MausBot (0191 point 34).
+   To people a Lazurio Environment is "Prostředí", a browser tab is "karta",
+   and Czech addresses them formally (vykání).
+10. **A fork that rebuilds.** The overlay stays a short linear patch stack on
+    an exact upstream tag, Lazurio-only code lives in Lazurio-named modules,
+    and each change says which principle it serves.
+
+
+Until a gap is closed the sections below describe the code as it is; plan
+DEV-6673 tracks each gap.
 
 ## In a Lazurio Environment
 
