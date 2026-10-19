@@ -22,10 +22,8 @@ Passing candidate results below do **not** mean those fixes are in the published
 | Pairing and bot creation through the web UI | Passed; two bots persisted through candidate updates. |
 | Real subscription-backed chat | Codex 0.153.4, `gpt-6-astra`, returned the requested `Hetzner chat works.` |
 | Automatic routine | Two actual scheduled five-minute runs completed with `Scheduled Hetzner run works.`; the routine was then paused. |
-| Fresh browser opt-in and UI installation | Passed after the opt-in fix; agent-browser 0.36.0 and Chrome 152.0.7977.82 installed as the service user. |
-| Real bot browser tools | Initial run failed with Ubuntu's `No usable sandbox`. After the documented exact-path AppArmor setup and MCP environment fix, open, get-title, and screenshot succeeded. The captured PNG was visually inspected and showed Example Domain. |
 | Full VPS reboot | Different kernel boot ID; enabled service and tunnel recovered automatically, without manual start or pairing. Existing bots and chat remained visible. |
-| Post-reboot provider and sandbox | A new real turn returned `Reboot recovery works.`; Codex stayed signed in. Headless Chrome launched with the global user-namespace restriction still set to 1. |
+| Post-reboot provider | A new real turn returned `Reboot recovery works.`; Codex stayed signed in. |
 | Paused schedule after reboot | One routine remained disabled, with its two previous runs intact. |
 | Offline app-data backup and restore | Passed exact file hashes/modes, JSON records, and SQLite integrity; see scope below. |
 
@@ -36,33 +34,19 @@ systemctl is-enabled openmausbot.service: enabled
 systemctl is-active openmausbot.service: active
 NRestarts=0
 codex login status: Logged in using ChatGPT
-kernel.apparmor_restrict_unprivileged_userns = 1
 control-omb doctor: ok=true, packaged=true, availableEngines=[codex]
 ```
 
-The browser received approval for only the requested public-page navigation and
-screenshot. No website sign-in, permanent tool approval, `--no-sandbox`, or
-global AppArmor relaxation was used. Chrome was copied to a versioned,
-root-owned directory before that exact executable was allowlisted.
-
 ## Corrections identified by the run
 
-- Missing engine installation must not prevent the user from opting into the
-  browser and reaching its one-click installer. Execution still requires the
-  installed engine; unsupported hosts remain disabled.
-- Forward `AGENT_BROWSER_EXECUTABLE_PATH` explicitly to the browser MCP process.
-  Some engine clients filter the inherited environment. Forward only the
-  required variables, not arbitrary parent secrets or browser flags.
 - Return 400 for malformed request URLs before routing, without crashing the
   server. Verified on an isolated Linux fixture directly and through a raw
   loopback reverse proxy; health remained 200 after each request.
 - Apply the same non-admin config projection to REST, live SSE, and replayed
   SSE. Synthetic private fields stayed filtered for clients and visible to the
   administrator; event IDs and the owner's stored config remained intact.
-- Document service-user installation and separate engine/browser credential
-  locations, deterministic systemd installs/updates, stopped SQLite backups,
-  and Ubuntu 24.04 sandbox setup. A root browser install does not populate the
-  unprivileged service user's browser cache.
+- Document service-user installation and separate engine credential
+  locations, deterministic systemd installs/updates, and stopped SQLite backups.
 
 ## Backup scope
 
@@ -74,15 +58,14 @@ one paused routine, and two routine runs at snapshot time.
 
 The restored copy was **not booted** and its credentials were not used. This
 proves offline application-data restoration, not a whole-machine migration,
-external workspaces, browser-login restoration, or provider reauthentication
+external workspaces or provider reauthentication
 on another machine. No private backup was transferred off the VPS. The exact
 temporary archive and restored copy were removed after comparison.
 
 ## Local regression checks
 
-87 targeted tests passed across ten files: browser opt-in, Computer panel,
-browser MCP environment, CLI, request auth/remote sessions, resumable server
-events, and SSE/thread/live-event helpers. The remaining 190 tests in the
+87 targeted tests passed across ten files, among them CLI, request auth/remote
+sessions, resumable server events, and SSE/thread/live-event helpers. The remaining 190 tests in the
 filtered server suite were not run. TypeScript and diff checks passed. The
 three changed public documentation pages compiled as MDX and their shell
 examples passed syntax checks; this was not a full documentation-site build.
@@ -90,8 +73,7 @@ examples passed syntax checks; this was not a full documentation-site build.
 ## Limits and follow-up
 
 Not verified in this run: Docker/Caddy, Tailscale, Linux ARM64, Windows/macOS
-installers, other provider accounts, signed-in browser-session persistence,
-bot-deletion browser-state cleanup, VM computer control, load/capacity limits,
+installers, other provider accounts, VM computer control, load/capacity limits,
 or a running restored installation. No multi-tenant security certification is
 implied by the targeted auth checks.
 
@@ -99,12 +81,6 @@ A bot-settings close observation remained inconclusive: automation still saw
 the dialog after a close action although a disposable diagnostic fixture's
 reducer/render saw `settingsOpen: false`. Foreground/committed-render confirmation
 was unavailable. No speculative production close-state change was made.
-
-Desktop bundling was outside this VPS run. The subsequent
-[desktop browser packaging change](../browser-packaging.md) includes Chromium
-Headless Shell and separate native package checks; do not read this VPS report
-as verification of those installers. This run used the self-hosted browser
-installation flow, not the new desktop bundle.
 
 ## Cleanup
 
