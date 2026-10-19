@@ -1,7 +1,7 @@
 // The Thinking readout counts from the server's turn-start stamp (for a group,
 // its speaker's claim), not from when the conversation was last selected.
 // Needs the pinned agent-browser binary: runs when one resolves (tools
-// directory, OMB_AGENT_BROWSER_PATH or PATH) or OMB_UI_E2E=1 asks for the
+// directory, OMB_UI_AGENT_BROWSER_PATH or PATH) or OMB_UI_E2E=1 asks for the
 // verified download; otherwise skipped.
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -10,7 +10,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 
-import { resolveAgentBrowserBinary } from "../../server/browser-engine.ts";
+import { resolveAgentBrowserBinary } from "./ui-agent-browser.ts";
 import { removeTempDir, waitForExit } from "../../server/testing/cleanup.ts";
 import { runControlOmb } from "../control-omb.ts";
 import { UI_TOOLS_DIR } from "./control-omb-ui.ts";
@@ -22,7 +22,7 @@ const forced = process.env.OMB_UI_E2E === "1";
 const binary = resolveAgentBrowserBinary({ dataDir: UI_TOOLS_DIR, env: process.env });
 const enabled = forced || Boolean(binary);
 if (!enabled) {
-  console.log(`skipping thinking-timer ui e2e: no agent-browser binary resolves (looked in ${UI_TOOLS_DIR}, OMB_AGENT_BROWSER_PATH and PATH); set OMB_UI_E2E=1 to install the pinned release`);
+  console.log(`skipping thinking-timer ui e2e: no agent-browser binary resolves (looked in ${UI_TOOLS_DIR}, OMB_UI_AGENT_BROWSER_PATH and PATH); set OMB_UI_E2E=1 to install the pinned release`);
 }
 const run = enabled ? it : it.skip;
 // A cold run downloads the binary and Chrome; a warm one launches in seconds.

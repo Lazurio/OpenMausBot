@@ -1,15 +1,15 @@
 // Real model picker and chat transport against disposable provider CLIs.
 import { expect, it } from "vitest";
-import { closeBrowserSession } from "../../server/browser-engine.ts";
 import { launchVerificationServer, runControlOmb } from "../control-omb.ts";
 import { agentBrowser, ensureUiBrowser, sessionEnv } from "./control-omb-ui.ts";
 import { mountPreview } from "./preview-fixture.ts";
+import { closeBrowserSession } from "./ui-agent-browser.ts";
 
 const enabled = process.env.OMB_UI_E2E === "1";
 
 (enabled ? it : it.skip)("selects the configured Cline model in both picker modes and sends a specialist turn", async () => {
   const tools = await ensureUiBrowser();
-  const fixture = await launchVerificationServer({}, undefined, undefined, undefined, undefined, undefined, ["cline"]);
+  const fixture = await launchVerificationServer({}, undefined, undefined, true, undefined, undefined, ["cline"]);
   let preview: Awaited<ReturnType<typeof mountPreview>> | undefined;
   const env = sessionEnv({ home: fixture.info.dataDir, session: `omb-cline-ui-${new URL(fixture.info.url).port}`, chrome: tools.chrome });
   const browser = (...args: string[]) => agentBrowser(tools.binary, env, args);
