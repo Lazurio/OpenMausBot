@@ -175,6 +175,9 @@
     "server/drivers/openai-chat.ts",
     "server/drivers/pi.ts",
     "server/drivers/turn-mcp.ts",
+    "server/harness-mcp-proxy.test.ts",
+    "server/harness-mcp-proxy.ts",
+    "server/harness-mcp-token.ts",
     "server/harness/registry.ts",
     "server/headless/commands.ts",
     "server/headless/team-apply.test.ts",
@@ -242,7 +245,9 @@
     "createBrowserHost",
     "Has the built-in browser",
     "chrome-headless-shell",
-    "My Chrome"
+    "My Chrome",
+    "OMB_MCP_TOKEN_BROWSER",
+    "harness-mcp-proxy browser"
   ],
   "routes": [
     {
