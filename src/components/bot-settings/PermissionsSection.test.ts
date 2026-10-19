@@ -86,10 +86,10 @@ describe("Full access in bot settings", () => {
 });
 
 describe("PermissionsSection parts", () => {
-  it("leaves Chief of Staff and peer checks out of a page that asks only for approvals", () => {
+  it("leaves Chief of Staff out of a page that asks only for approvals, and never offers peer checks", () => {
     const derived = {
       patch: vi.fn(), engine: { instanceId: "claude", driverKind: "claudeAgent", displayName: "Claude" },
-      canCoordinate: true, approvalMode: "ask", trustedModesAvailable: false, sectionName: "General", currentChief: undefined,
+      canCoordinate: true, approvalMode: "ask", sectionName: "General", currentChief: undefined,
     } as unknown as Derived;
     flushSync(() => root.render(createElement(BotEditorStore, {
       value: { state: { ...initialState, bots: [base] }, dispatch,
@@ -102,6 +102,6 @@ describe("PermissionsSection parts", () => {
     expect(host.textContent).not.toContain("Ask me before contacting other bots");
     render(base);
     expect(host.textContent).toContain("Chief of Staff");
-    expect(host.textContent).toContain("Ask me before contacting other bots");
+    expect(host.textContent).not.toContain("Ask me before contacting other bots");
   });
 });

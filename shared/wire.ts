@@ -300,7 +300,6 @@ export interface WireBot {
   /** Owner-selected additional teams this Chief may coordinate. */
   managedSections?: string[];
   /** Pause for human approval before this bot talks to a peer. */
-  approvePeerComms?: boolean;
   /** Bot ids this bot is allowed to contact. */
   peers?: string[];
   /** Ordered backups used only by opt-in, pre-prompt startup recovery. */

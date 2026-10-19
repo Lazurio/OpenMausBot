@@ -33,7 +33,6 @@ export interface OverviewFacts {
     | "cwd"
     | "autoApprove"
     | "approvalMode"
-    | "approvePeerComms"
     | "peers"
     | "browser"
     | "chiefOfStaff"
@@ -162,7 +161,6 @@ function wontLines(facts: OverviewFacts): string[] {
   const mode = approvalModeFor(facts.bot);
   if (mode === "ask") lines.push("Command approvals use Ask mode; saved permissions and provider rules still apply.");
   if (facts.bot.peers?.length === 0) lines.push("Cannot initiate contact with other bots.");
-  else if (mode !== "full" && facts.bot.approvePeerComms) lines.push("Asks before contacting other bots.");
   if (!facts.routines.some((routine) => routine.enabled)) lines.push("Won't act on a schedule.");
   if (mode !== "full") lines.push("Profile proposal cards require your approval.");
   return lines;

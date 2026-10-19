@@ -8,9 +8,10 @@ import { readHandoffs } from "./testing/handoff-rows.ts";
 
 const TOKEN = "external-runtime-busy-fixture-0123456789abcdef";
 
-// An idle external caller consults a busy peer: the person's approval is asked once, before anything is queued, in both orders.
-it.each(["already busy", "became busy during approval"])(
-  "queues an idle external caller's ask behind a peer that is %s, without losing or repeating approval",
+// An idle external caller consults a busy peer: the ask queues once, without a card, and runs once the peer is free.
+// Lazurio overlay (DEV-6673): no peer approval card, so the ask queues at once.
+it.each(["already busy"])(
+  "queues an idle external caller's ask behind a peer that is %s, without losing or repeating it",
   async scenario => {
     const scratch = mkdtempSync(join(tmpdir(), "omb-external-busy-"));
     const gate = join(scratch, "finish-peer");
@@ -52,37 +53,23 @@ it.each(["already busy", "became busy during approval"])(
       // One slot per bot: the peer's running turn holds its work thread too,
       // so "busy" means the consultation has to wait for that turn to end.
       await api("PATCH", "/api/config", { threads: { maxConcurrentPerBot: 1 } });
-      // Peer review applies below Full access.
-      await api("PATCH", `/api/bots/${source.id}`, { approvePeerComms: true, approvalMode: "ask" });
+      await api("PATCH", `/api/bots/${source.id}`, { approvalMode: "ask" });
       writeFileSync(join(session.info.dataDir, "external-runtimes.json"), JSON.stringify({ [source.id]: { token: TOKEN, threadId: sourceThread } }), { mode: 0o600 });
       const requestText = `Only this queued request: ${scenario}`;
       const occupy = async () => {
         await control("send", "--bot", peer.id, "--task", peerThread, "--text", "Keep this unrelated turn running until the fixture gate opens.");
         await expect.poll(() => existsSync(prompts) && readFileSync(prompts, "utf8").includes("Keep this unrelated turn running"), { timeout: 15_000 }).toBe(true);
       };
-      const approve = async (card: any) => api("POST", `/api/threads/${sourceThread}/respond`, { requestId: card.card.requestId, behavior: "allow" });
-      // The route asks the person before it queues anything, so the call stays open; a rejection handler is attached at once so
-      // teardown never turns a failed assertion into an unhandled HTTP rejection.
-      if (scenario === "already busy") await occupy();
-      const pendingAsk = api("POST", "/api/internal/coordinate-bots", { botIds: [peer.id], message: requestText, consult: true }, true)
-        .then(value => ({ value }), error => ({ error }));
-      await expect.poll(async () => (await sourceCards()).length, { timeout: 15_000 }).toBe(1);
-      const [card] = await sourceCards();
-      expect(card.card.tool).toBe("ask_bot");
-      expect(card.card.answered).toBeFalsy();
-      expect(readHandoffs(session.info.dataDir).filter(node => node.parentId || node.botId !== peer.id || node.threadId !== peerThread)).toEqual([]);
-      if (scenario !== "already busy") await occupy();
-      await approve(card);
-      const outcome = await pendingAsk;
-      if ("error" in outcome) throw outcome.error;
-      const queued = outcome.value;
+      await occupy();
+      const queued = await api("POST", "/api/internal/coordinate-bots", { botIds: [peer.id], message: requestText, consult: true }, true);
+      expect(await sourceCards()).toEqual([]);
       expect(queued).toMatchObject({ rootId: expect.any(String), receipts: [{ botId: peer.id, outcome: "queued", requestId: expect.any(String) }] });
       expect(queued.deprecation).toBeUndefined();
       expect(queued.text).toBeUndefined();
       const id: string = queued.receipts[0].requestId;
       evidence.push({ scenario, queued, sourceThread, peerThread });
       await expect.poll(() => row(id)?.status, { timeout: 5_000 }).toBe("queued");
-      expect(row(id)).toMatchObject({ botId: peer.id, mode: "consult", reply: "poll", approvalGranted: true });
+      expect(row(id)).toMatchObject({ botId: peer.id, mode: "consult", reply: "poll" });
       const workThread = row(id)!.threadId;
       expect(workThread).not.toBe(peerThread);
       expect(await peerRequests(workThread)).toHaveLength(0);
@@ -102,8 +89,7 @@ it.each(["already busy", "became busy during approval"])(
       const requests = await peerRequests(workThread);
       expect(requests).toHaveLength(1);
       expect(requests[0].text).toContain(requestText);
-      expect((await sourceCards()).map(card => ({ tool: card.card.tool, answered: card.card.answered })))
-        .toEqual([{ tool: "ask_bot", answered: "allow" }]);
+      expect(await sourceCards()).toEqual([]);
       await expect.poll(() => row(queued.rootId)?.status, { timeout: 10_000 }).toBe("completed");
       expect(row(queued.rootId)).toMatchObject({ reply: "poll", threadId: sourceThread });
       await withholdAfterRevocation(id);

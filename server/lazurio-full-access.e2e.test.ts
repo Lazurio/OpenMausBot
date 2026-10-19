@@ -3,7 +3,8 @@
 // still choose to supervise a bot or a conversation. Real server, the
 // repository's fake engines, a temporary data folder; never the person's home.
 import { spawn, type ChildProcess } from "node:child_process";
-import { closeSync, openSync } from "node:fs";
+import { closeSync, openSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -17,6 +18,25 @@ const HOSTED = {
   OMB_ADMIN_WORKSPACE: "acme",
   OMB_ADMIN_MEMBERSHIP: "portal",
 };
+
+/** Stops the fixture's server and starts it again on the same data folder, with `env` added. */
+async function restart(fixture: VerificationServer, env: NodeJS.ProcessEnv = {}): Promise<ChildProcess> {
+  await waitForExit(fixture.child, { signal: "SIGTERM" });
+  const { url, dataDir, logPath } = fixture.info;
+  const log = openSync(logPath, "a", 0o600);
+  const server = spawn(process.execPath, ["--experimental-strip-types", fileURLToPath(new URL("./index.ts", import.meta.url))], {
+    cwd: fileURLToPath(new URL("..", import.meta.url)),
+    env: { ...verificationServerEnvironment({}, dataDir, Number(new URL(url).port)), ...env },
+    stdio: ["ignore", log, log],
+  });
+  closeSync(log);
+  for (const deadline = Date.now() + 20_000; ;) {
+    try { if ((await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(1_000) })).ok) break; } catch {}
+    if (Date.now() > deadline) throw new Error(`the restarted server did not start; see ${logPath}`);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  return server;
+}
 
 describe("full access on a hosted server", () => {
   let fixture: VerificationServer;
@@ -37,19 +57,7 @@ describe("full access on a hosted server", () => {
     fixture = await launchVerificationServer({});
     ({ url } = fixture.info);
     // The same data folder, restarted as a hosted company workspace.
-    await waitForExit(fixture.child, { signal: "SIGTERM" });
-    const log = openSync(fixture.info.logPath, "a", 0o600);
-    server = spawn(process.execPath, ["--experimental-strip-types", fileURLToPath(new URL("./index.ts", import.meta.url))], {
-      cwd: fileURLToPath(new URL("..", import.meta.url)),
-      env: { ...verificationServerEnvironment({}, fixture.info.dataDir, Number(new URL(url).port)), ...HOSTED },
-      stdio: ["ignore", log, log],
-    });
-    closeSync(log);
-    for (const deadline = Date.now() + 20_000; ;) {
-      try { if ((await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(1_000) })).ok) break; } catch {}
-      if (Date.now() > deadline) throw new Error(`the hosted server did not start; see ${fixture.info.logPath}`);
-      await new Promise((resolve) => setTimeout(resolve, 150));
-    }
+    server = await restart(fixture, HOSTED);
   }, 60_000);
 
   afterAll(async () => {
@@ -143,5 +151,72 @@ describe("no gate before a level a person picks", () => {
     const listed = (await call("GET", "/api/bots?messages=0")).body.bots.find((row: { id: string }) => row.id === bot.id);
     expect(listed.approvalMode).toBe("full");
     expect((await call("GET", "/api/bots?messages=0")).body.bots.some((row: { name: string }) => row.name === "Confirmed" || row.name === "Custom")).toBe(false);
+  });
+});
+
+describe("bots contact each other without a person's approval", () => {
+  const TOKEN = "lazurio-full-access-fixture-0123456789abcdef";
+  let fixture: VerificationServer;
+  let server: ChildProcess | undefined;
+  const call = async (method: string, path: string, body?: unknown, runtime = false) => {
+    const response = await fetch(`${fixture.info.url}${path}`, {
+      method,
+      headers: { "content-type": "application/json", ...(runtime ? { authorization: `Bearer ${TOKEN}` } : { origin: fixture.info.url }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    return { status: response.status, body: await response.json() as any };
+  };
+
+  beforeAll(async () => {
+    fixture = await launchVerificationServer({});
+  }, 60_000);
+
+  afterAll(async () => {
+    if (server) await waitForExit(server, { signal: "SIGTERM" });
+    await fixture?.close();
+  });
+
+  it("refuses, as a whole, a write naming the removed switch", async () => {
+    const bot = (await call("POST", "/api/bots", { name: "Asks first" })).body.bot as { id: string };
+    for (const [method, path, body] of [
+      ["PATCH", `/api/bots/${bot.id}`, { approvePeerComms: true }],
+      ["PATCH", `/api/bots/${bot.id}`, { approvePeerComms: false, title: "Not saved" }],
+      ["POST", "/api/bots", { name: "Born asking", settings: { approvePeerComms: true } }],
+      ["PUT", "/api/config", { newBotDefaults: { profile: { approvePeerComms: true } } }],
+    ] as const) {
+      const result = await call(method, path, body);
+      expect(result.status, `${method} ${path} ${JSON.stringify(body)}`).toBe(400);
+      expect(result.body.error).toMatch(/approvePeerComms is not available in this distribution \(it was removed\)/);
+    }
+    const listed = (await call("GET", "/api/bots?messages=0")).body.bots as Array<{ id: string; name: string; title?: string }>;
+    expect(listed.find((row) => row.id === bot.id)?.title ?? "").not.toBe("Not saved");
+    expect(listed.some((row) => row.name === "Born asking")).toBe(false);
+  });
+
+  it("drops a saved switch on load, and a bot at Ask hands work to a teammate with no approval card", async () => {
+    const source = (await call("POST", "/api/bots", { name: "Hands off", settings: { approvalMode: "ask" } })).body.bot as { id: string };
+    const peer = (await call("POST", "/api/bots", { name: "Takes it" })).body.bot as { id: string };
+    const listed = (await call("GET", "/api/bots?messages=0")).body.bots.find((row: { id: string }) => row.id === source.id);
+    const sourceThread = (listed.tasks?.[0]?.threadId ?? listed.threadId) as string;
+    // A bots.json from before the removal: this bot asked a person before contacting another bot.
+    await waitForExit(fixture.child, { signal: "SIGTERM" });
+    const botsFile = join(fixture.info.dataDir, "bots.json");
+    const saved = JSON.parse(readFileSync(botsFile, "utf8")) as Array<Record<string, unknown>>;
+    for (const bot of saved) if (bot.id === source.id) bot.approvePeerComms = true;
+    writeFileSync(botsFile, JSON.stringify(saved, null, 2));
+    server = await restart(fixture);
+    const loaded = JSON.parse(readFileSync(botsFile, "utf8")) as Array<Record<string, unknown>>;
+    expect(loaded.find((bot) => bot.id === source.id)).not.toHaveProperty("approvePeerComms");
+    expect((await call("GET", "/api/bots?messages=0")).body.bots.find((row: { id: string }) => row.id === source.id))
+      .toMatchObject({ approvalMode: "ask" });
+
+    writeFileSync(join(fixture.info.dataDir, "external-runtimes.json"), JSON.stringify({ [source.id]: { token: TOKEN, threadId: sourceThread } }), { mode: 0o600 });
+    const handed = await call("POST", "/api/internal/coordinate-bots", { botIds: [peer.id], message: "Check the fixture report.", consult: true }, true);
+    expect(handed.status, JSON.stringify(handed.body)).toBe(200);
+    expect(handed.body.receipts).toEqual([expect.objectContaining({ botId: peer.id })]);
+    const cards = ((await call("GET", `/api/threads/${sourceThread}/messages?limit=100`)).body.messages as Array<{ card?: { tool?: string } }>)
+      .filter((message) => ["ask_bot", "delegate_bot", "post_to_room"].includes(message.card?.tool ?? ""));
+    expect(cards).toEqual([]);
   });
 });
