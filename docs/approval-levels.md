@@ -20,7 +20,7 @@ from the operator's dedicated policy.
 | Level | Behavior |
 | --- | --- |
 | **Ask for approval** | Requests approval for commands and file changes, the way the provider's supervised mode does. |
-| **Auto-accept edits** | Approves file edits automatically; other actions can still require approval. Offered where the provider has such a mode (Claude, Grok, Antigravity). |
+| **Auto-accept edits** | Approves file edits automatically; other actions can still require approval. Offered where the provider has such a mode (Claude, Grok, Qwen Code, Gemini CLI). |
 | **Approve for me** | Uses the provider's automatic review on Codex, Claude, Cursor, and Grok to approve routine actions and ask about others. Providers without an equivalent fall back to asking. |
 | **Full access** | Enables the provider's permissive mode for commands, edits, and selected-computer actions, including potentially destructive or sensitive work. Residual native permission prompts are answered for you. OMB profile changes, routine actions, team setup, bot deletion, and enabled skill authoring apply without a second approval. Peer-review prompts are skipped within the bot's authorized scope. Work handed on with `coordinate_bots` uses the receiving bot's setting, never the sender's — except from a Chief of Staff, whose level flows down (below). Actual questions and missing credentials still need your input. |
 | **Custom (`config.toml`)** | Codex only. OpenMausBot reads and reapplies the effective approval and sandbox settings from your Codex configuration. |
@@ -166,25 +166,6 @@ belong to Codex, so a Custom bot goes back to Ask before it changes engine.
 Switching to an engine that cannot run the bot's level (for example
 Auto-accept edits on Codex) still asks to choose Ask first.
 
-### Antigravity: Ask, Edits, or Auto (full access)
-
-For Antigravity, the composer and bot settings offer **Ask for approval**,
-**Auto-accept edits** (its native `auto_edit` mode), and **Auto (full access)**.
-Auto enables native `yolo` mode and automatically approves remaining
-tool-permission requests for commands, edits, and computer actions, without an
-automatic reviewer. The composer chip reads **Auto**. This is the Full access
-level under another name, not a separate permission setting, applies at once
-like Full access, and covers every model in that Antigravity instance,
-including Gemini.
-
-A new Antigravity bot starts on Auto, the default. Old Antigravity
-`auto` / `autoApprove` settings still behave as Ask and are displayed as Ask;
-they never become unrestricted access on upgrade. Switching back to Ask
-restores prompts on the next turn. Questions and missing-credential forms
-still require an answer. A Chief or
-teammate can hand work to this bot with `coordinate_bots` without downgrading
-its explicit Auto (full access) grant. It does not enable Auto on any other bot.
-
 ## Asking you questions
 
 Every engine can stop and ask, and no approval level ever answers a question
@@ -198,7 +179,7 @@ card for a person. What differs per engine is only how the ask travels:
 | Grok Build | Structured round-trip (its own `ask_user_question`, sent as `_x.ai/ask_user_question`) | Yes — up to 6 |
 | Cursor | Structured round-trip (its own `cursor/ask_question`). Cursor accepts only option ids, so an answer in your own words goes back as a skipped question with your words as the reason | Yes — up to 6 |
 | Grok (API), MiniMax, OpenAI-compatible endpoints | The injected `ask_user` tool | Yes — up to 6 |
-| Other ACP engines (Antigravity, Gemini CLI, Qwen Code, OpenCode, …) | Option-match round-trip on the ACP permission request | One at a time — the request carries one choice set |
+| Other ACP engines (Gemini CLI, Qwen Code, OpenCode, …) | Option-match round-trip on the ACP permission request | One at a time — the request carries one choice set |
 | Pi | The injected `ask_user` tool over `extension_ui_request`; each question is its own card | Up to 6 per call, shown one after another. One pick per question, no multi-select |
 
 Codex can also ask without waiting (its `request_user_input_async` tool).
@@ -221,7 +202,6 @@ multi-question card renders its structured form on current apps instead.
 | Codex | `on-request` approvals, `workspace-write` sandbox, you review | not offered (Ask already writes in the workspace) | same sandbox, native `auto_review` reviewer | `never` approvals, `danger-full-access` sandbox |
 | Claude | Native `default` | Native `acceptEdits` | Native `auto` | Native `bypassPermissions` |
 | Cursor | Native default | not offered | Native `--auto-review` | Native `--force` |
-| Antigravity | Native `default` | Native `auto_edit` | Legacy `auto` behaves as Ask; UI Auto selects Full access | Native `yolo` plus automatic approval of remaining tool-permission requests; shown as Auto |
 | Grok Build | Native `default` | Native `acceptEdits` | Native `--permission-mode auto`; availability of Grok's reviewer depends on its feature rollout | Native `bypassPermissions` plus automatic approval of remaining tool-permission requests |
 | OpenCode | Ask | not offered | Ask | Approve individual ACP permission requests, never task questions |
 | Qwen Code | Native `default` | Native `--approval-mode auto-edit` | Native `--approval-mode auto` (Qwen's LLM classifier approves safe actions, blocks risky ones) | `--yolo`, plus automatic approval of remaining ACP permission requests |
@@ -234,7 +214,7 @@ multi-question card renders its structured form on current apps instead.
 
 These settings apply on each turn, including resumed conversations. Switching
 to a different provider while on Custom requires leaving Custom first;
-choose Ask. Switching models within Antigravity keeps the selected level.
+choose Ask.
 Native modes require a CLI version that supports them; OpenMausBot does not
 silently substitute unrestricted access when a mode is rejected.
 
@@ -267,9 +247,8 @@ proxy. Its fixture also verifies that explicit Ask sibling threads still wait.
 
 Run `pnpm exec electron scripts/smoke-approval-modes.cjs` to exercise the real
 private desktop-to-server grant protocol in a disposable fixture. It verifies
-that Full access applies over HTTP while Custom is refused there, Full → Auto → Ask on resumed Claude turns, and
-Antigravity automatic tool approvals on new and resumed Full access turns across
-multiple model variants. It also checks that Ask and legacy Auto still prompt,
+that Full access applies over HTTP while Custom is refused there and Full → Auto
+→ Ask on resumed Claude turns. It also checks that Ask still prompts,
 peer-started Full turns auto-approve, switching the receiving bot back to Ask
 restores prompts even for a Full-access sender, delegated Codex Custom uses the
 native Auto reviewer consistently, and questions remain interactive. Provider

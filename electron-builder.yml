@@ -71,7 +71,7 @@ extraResources:
     to: licenses/models-dev-LICENSE.txt
   - from: third_party/opencode/LICENSE
     to: licenses/opencode-LICENSE.txt
-  # Code adapted from T3 Code (MIT): the bots' browser egress gate, the Antigravity runtime, citations.
+  # Code adapted from T3 Code (MIT): the bots' browser egress gate, citations.
   - from: third_party/t3-code/LICENSE
     to: licenses/t3-code-LICENSE.txt
   - from: dist

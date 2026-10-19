@@ -45,8 +45,8 @@ of a real provider's planning quality or authentication.
 
 The desktop smoke uses a disposable Electron utility-process server and the
 real private approval bridge. It covers one Full Access grant for
-all existing, archived and future threads, including mixed Claude, Codex,
-Grok and Antigravity providers. Other bots and per-thread model choices stay
+all existing, archived and future threads, including mixed Claude, Codex
+and Grok providers. Other bots and per-thread model choices stay
 unchanged. The real composer and settings selectors are driven in a hidden
 fixture window: picking Full access applies at once, with no confirmation
 dialog, and the committed result is checked.

@@ -285,11 +285,6 @@ export interface EngineInstall {
   signInCommand?: string;
   /** `command` needs npm on PATH, so the UI can say so when Node is absent. */
   needsNode?: boolean;
-  /** The app downloads and verifies a pinned provider runtime itself. */
-  managed?: {
-    label: string;
-    downloadBytes: number;
-  };
   /** The engine needs a key saved in the app rather than a terminal step. */
   settings?: "connections";
   /** Settings can npm-install this package as the server's own user into an app-owned dir; set by the registry, never by a client. */

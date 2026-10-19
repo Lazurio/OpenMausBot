@@ -187,7 +187,7 @@ Every upkeep change is a journal row by **Memory upkeep** and can be undone.
 Upkeep pauses while a backup runs. The model steps need an engine with a
 one-shot text call — Claude, Codex, Grok, OpenAI-compatible, Mistral and
 MiniMax, and the agent engines that speak ACP (Grok CLI, Gemini, Kimi, Droid,
-Cursor, OpenCode, Qwen, Hermes, Antigravity and custom ACP agents). On an ACP
+Cursor, OpenCode, Qwen, Hermes and custom ACP agents). On an ACP
 engine each call starts the engine's own CLI in a fresh session of its own,
 never a chat's, in an empty folder, with no MCP servers and in the ask-first
 approval mode; it is refused and dropped the moment the agent asks for a

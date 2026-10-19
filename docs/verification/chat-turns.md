@@ -232,8 +232,7 @@ and PID checks. No real engine, account, or user's app data is used.
 
 Focused process checks also cover concurrent stops, denied signals, unrelated
 process safety, and bounded npm timeout errors. Codex's driver tests retain
-task ownership after an uncertain stop until a verified retry; Antigravity's
-lifecycle tests retain the verification profile on the same failure.
+task ownership after an uncertain stop until a verified retry.
 POSIX group escalation and the
 new server cases are skipped on Windows; its existing `taskkill /T /F` path
 remains covered by the cross-platform child-tree test when run on Windows.
@@ -241,9 +240,6 @@ Windows event-order regressions also run on every host in
 `server/kill-tree-windows.test.ts`: successful `taskkill` alone is not proof
 that Node observed the child's exit. Both orders (exit before or after the
 command callback) must settle without waiting for inherited pipes to close;
-an unobserved exit still times out as uncertain. The native Antigravity
-`closeAndWait` test in Windows CI verifies that callers cannot rename an
-executable while its process is still running. Local mocked Windows tests
-do not substitute for that native check.
+an unobserved exit still times out as uncertain.
 Processes that intentionally detach into a different group are not owned by
 this POSIX group-based cancellation.

@@ -37,7 +37,7 @@ export function npmAvailable(): boolean {
 }
 
 export function serverInstallFor(install: EngineInstall | undefined, npmPresent: boolean = npmAvailable()): { package: string } | null {
-  if (!install || install.managed) return null;
+  if (!install) return null;
   const pkg = npmPackageOf(install);
   return pkg && npmPresent ? { package: pkg } : null;
 }
