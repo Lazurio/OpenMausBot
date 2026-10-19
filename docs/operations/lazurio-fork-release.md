@@ -125,6 +125,7 @@ release offers it.
 | `lazurio: the Environment skin follows the Environment theme (0208)` | One colour theme per Environment, which Chat, Apps and Automate follow (root decision 0208). One more skin, added the way upstream adds a skin (its block in `src/styles.css`, its line in `src/lib/skins.ts`), names the theme's tokens that the shell declares, with Midnight's values as fallbacks. It is the default and offered only where the shell marks the Environment theme on the document (a Platform with decision 0208), each browser there moves to it once, and `index.html` lets the theme's dark values follow the device. Upstream's checks that measure a skin's values leave it out. See [`LAZURIO.md`](../../LAZURIO.md#the-environment-skin). Outside Lazurio nothing changes. Lazurio-only; never proposed upstream. |
 | `lazurio: guards for the upstream features removed from the code` and the `lazurio: remove …` commits after it (DEV-6673 M3) | What contradicts the Lazurio model is removed from the code, not hidden (issue #35): MausBot's own integrations, sign-ins, computers, MausBot Cloud purchase and account, and telemetry to upstream, plus the browser build's decorative window dots. One manifest per area in `lazurio/removals/` names the upstream files it deletes and changes and what must stay gone; see [`LAZURIO.md`](../../LAZURIO.md#what-the-overlay-removes). Lazurio-only; never proposed upstream. |
 | `lazurio: a signed-out engine sends the person to the Environment settings` and the `lazurio: remove …` sign-in commits after it (DEV-6673) | Engines sign in only through the Environment's own CLI logins, connected in the Launchpad's Environment settings, as for T3 Code (Organization Admin, 2026-10-19). A signed-out engine's card links to Getting started of the current Environment's Launchpad (from the shell's document) and checks the login again; the ChatGPT plan and Antigravity engines and added Claude accounts, MausBot's last own sign-ins, are removed. See [`LAZURIO.md`](../../LAZURIO.md#engine-sign-in). Outside Lazurio the card is upstream's. Lazurio-only; never proposed upstream. |
+| `lazurio: a hosted server runs every bot at Full like any other` and the three commits after it (DEV-6673) | Every bot runs at Full by default and nothing gates it, as T3 Code runs `full-access` (root decision 0172 with its addendum of 2026-10-19): no hosted Ask default or operator flag for Full, the levels are T3 Code's four (Custom and the desktop grant are removed), no warning before Auto, and no approval before a bot contacts another. Saved values load and drop; writes naming them are refused. Manifest `lazurio/removals/e-full-access.json`; see [`LAZURIO.md`](../../LAZURIO.md#access-levels). Lazurio-only; never proposed upstream. |
 
 Drop a commit as soon as upstream offers an equivalent. Upstream files the
 overlay changes are listed in `allowed_upstream_changes` in
@@ -133,11 +134,11 @@ change to any other upstream file. New Lazurio files need no entry. Versions
 are stamped only at build time by `scripts/lazurio-release-archive.sh` and
 never committed.
 
-Deliberately not in this overlay yet (DEV-6673): pairing without a code;
-Full access for every bot without a choice per bot (upstream starts new bots
-on Full, upstream #2808, but a hosted server makes Ask the default and keeps
-five approval levels; [principle 2](../../LAZURIO.md#how-lazurio-shapes-mausbot));
-and removing MausBot's own browsers and live view in favour of the
+New bots start on Full access, upstream's default (#2808); the overlay keeps
+it on every server and removes upstream's gates before it
+([`LAZURIO.md`](../../LAZURIO.md#access-levels)).
+Deliberately not in this overlay yet (DEV-6673 M2 and M4): pairing without a
+code, and removing MausBot's own browsers and live view in favour of the
 Environment browser ([principle 4](../../LAZURIO.md#how-lazurio-shapes-mausbot)).
 
 ## When to release
