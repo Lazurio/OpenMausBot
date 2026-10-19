@@ -3635,7 +3635,6 @@ describe("harness HTTP API", () => {
       color: "purple",
       mascotExpression: "focused",
       autoApprove: true,
-      acknowledgeLocalAuto: true,
       alwaysAllow: ["Bash:git"],
     });
     await api("PATCH", `/api/bots/${second.id}`, {
@@ -3977,7 +3976,6 @@ describe("harness HTTP API", () => {
       name: "Mira",
       title: "Project Lead",
       autoApprove: true,
-      acknowledgeLocalAuto: true,
       alwaysAllow: ["Bash:git"],
       approvePeerComms: true,
       chiefOfStaff: true,
@@ -5105,7 +5103,7 @@ describe("harness HTTP API", () => {
         expect(invalid.status, String(approvalMode)).toBe(400);
       }
 
-      const auto = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "auto", acknowledgeLocalAuto: true });
+      const auto = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "auto" });
       expect(auto.status).toBe(200);
       expect(auto.body.bot).toMatchObject({ approvalMode: "auto", autoApprove: true });
       const ask = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "ask" });
@@ -5120,11 +5118,11 @@ describe("harness HTTP API", () => {
       for (const body of [{ approvalMode: "custom" }, { approvalMode: "custom", acknowledgeFullAccess: true }]) {
         const rejected = await api("PATCH", `/api/bots/${bot.id}`, body);
         expect(rejected.status, JSON.stringify(body)).toBe(400);
-        expect(rejected.body.error).toMatch(/approvalMode must be ask, edits, auto, or full/);
+        expect(rejected.body.error).toMatch(/approvalMode "custom" is not available in this distribution/);
       }
       const thread = await api("PATCH", `/api/bots/${bot.id}/tasks/${bot.threadId}`, { approvalMode: "custom" });
       expect(thread.status).toBe(400);
-      expect(thread.body.error).toMatch(/approvalMode must be ask, edits, auto, or full/);
+      expect(thread.body.error).toMatch(/approvalMode "custom" is not available in this distribution/);
 
       const stored = (await api("GET", "/api/bots")).body.bots.find(
         (candidate: { id: string }) => candidate.id === bot.id,
@@ -5185,7 +5183,7 @@ describe("harness HTTP API", () => {
 
       const custom = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "custom" });
       expect(custom.status).toBe(400);
-      expect(custom.body.error).toMatch(/approvalMode must be/i);
+      expect(custom.body.error).toMatch(/approvalMode "custom" is not available in this distribution/);
 
       const born = await api("POST", "/api/bots", {
         modelSelection: { instanceId: "claude", model: "claude-sonnet-5" }, settings: { approvalMode: "full" },
@@ -5226,7 +5224,7 @@ describe("harness HTTP API", () => {
         expect(task.approvalMode).toBe("full");
         opened.push(task.threadId);
       }
-      const panel = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "auto", acknowledgeLocalAuto: true });
+      const panel = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "auto" });
       expect(panel.status).toBe(200);
       expect(levels(panel.body.bot)).toEqual(["auto", "full", "full"]);
 
@@ -5234,7 +5232,7 @@ describe("harness HTTP API", () => {
       expect((await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "auto", applyToAllThreads: "yes" })).status).toBe(400);
       expect((await api("PATCH", `/api/bots/${bot.id}`, { alwaysAllow: ["Read"] })).status).toBe(200);
       for (const mode of ["auto", "edits", "ask", "full"] as const) {
-        const team = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: mode, applyToAllThreads: true, acknowledgeLocalAuto: true });
+        const team = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: mode, applyToAllThreads: true });
         expect(team.status, mode).toBe(200);
         expect(team.body.bot, mode).toMatchObject({ approvalMode: mode, autoApprove: mode === "auto" });
         expect(levels(team.body.bot), mode).toEqual([mode, mode, mode]);
@@ -5313,7 +5311,7 @@ describe("harness HTTP API", () => {
 
   it("maps legacy autoApprove PATCHes to safe Auto or Ask", async () => {
     const bot = (await api("POST", "/api/bots")).body.bot;
-    const auto = await api("PATCH", `/api/bots/${bot.id}`, { autoApprove: true, acknowledgeLocalAuto: true });
+    const auto = await api("PATCH", `/api/bots/${bot.id}`, { autoApprove: true });
     expect(auto.status).toBe(200);
     expect(auto.body.bot).toMatchObject({ approvalMode: "auto", autoApprove: true });
 
@@ -5722,7 +5720,7 @@ describe("harness HTTP API", () => {
     try {
       expect((await api("PATCH", `/api/bots/${bot.id}`, {
         modelSelection: { instanceId: "claude", model: "claude-haiku-4-5" },
-        approvalMode: "auto", acknowledgeLocalAuto: true,
+        approvalMode: "auto",
       })).status).toBe(200);
       rmSync(fakeClaudeDump, { force: true });
       expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "count my notes" })).status).toBe(202);
@@ -6316,7 +6314,7 @@ describe("harness HTTP API", () => {
       })).status).toBe(200);
       expect((await api("PATCH", `/api/bots/${bot.id}`, {
         browserProfile: "work",
-        approvalMode: "auto", acknowledgeLocalAuto: true,
+        approvalMode: "auto",
         modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
       })).status).toBe(200);
       const preview = await api("GET", `/api/bots/${bot.id}/system-prompt`);
@@ -6379,7 +6377,7 @@ describe("harness HTTP API", () => {
       const bot = (await api("POST", "/api/bots")).body.bot;
       bots.push(bot.id);
       expect((await api("PATCH", `/api/bots/${bot.id}`, {
-        approvalMode: "auto", acknowledgeLocalAuto: true,
+        approvalMode: "auto",
         modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
       })).status).toBe(200);
       let path = `/api/bots/${bot.id}/messages`;

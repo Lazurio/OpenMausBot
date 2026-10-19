@@ -284,7 +284,7 @@ describe("botPatch", () => {
 
   // Lazurio overlay (DEV-6673 M3): every bot works on this computer, so the file confirms Auto there, as upstream does for "local".
   it("sends Auto with the file as the confirmation for this computer", () => {
-    expect(botPatch({ ...same, approval: "auto" }, echo, "Launch Room").patch).toEqual({ approvalMode: "auto", applyToAllThreads: true, acknowledgeLocalAuto: true });
+    expect(botPatch({ ...same, approval: "auto" }, echo, "Launch Room").patch).toEqual({ approvalMode: "auto", applyToAllThreads: true });
   });
 
   it("changes the model and keeps an effort the file does not name", () => {
