@@ -40,6 +40,11 @@ private grant channel, is removed in this distribution; a saved Custom level
 loads and drops, so its bot or thread follows the default, and a request that
 names it is refused.
 
+At every level a bot contacts, delegates to and posts in rooms without a
+person's approval: upstream's per-bot switch that made a bot ask a person
+first, and its approval cards, are removed too. Which teammates a bot may reach is
+still its team's and its peers list's.
+
 A team's sidebar menu has **Set for all bots in this team…**, for the owner
 or an admin. It sets one approval level (Ask, Auto-accept edits, Approve for
 me or Full access), or one model and effort, on every bot in that team. It
