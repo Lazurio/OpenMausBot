@@ -23,9 +23,6 @@ export interface BotCreateRouteDeps {
   cfg: AppConfig;
   presetStore: Pick<PresetStore, "resolve">;
   orgInstallStatuses(): ReadonlyMap<string, OrgInstallStatus>;
-  /** A hosted (company) workspace: Full access comes only from its policy. */
-  hostedWorkspace: boolean;
-  hostedFullAccessRefusal: string;
   desktopManaged: boolean;
   maxWorkspaceBots: number;
   cloudOwnerKey: string | null;
@@ -42,7 +39,7 @@ export interface BotCreateRouteDeps {
 export function createBotCreateRoutes(deps: BotCreateRouteDeps): RouteHandler {
   const {
     store, cfg, presetStore, orgInstallStatuses,
-    hostedWorkspace: HOSTED_WORKSPACE, hostedFullAccessRefusal: HOSTED_FULL_ACCESS_REFUSAL, desktopManaged: DESKTOP_MANAGED,
+    desktopManaged: DESKTOP_MANAGED,
     maxWorkspaceBots: MAX_WORKSPACE_BOTS, cloudOwnerKey: CLOUD_OWNER_KEY,
     hostedModels, cloudRoutineAuthors,
     storedAvatarExists, defaultSelection, checkedModelSelection, cloudOwnerSession, wireBot,
@@ -73,7 +70,6 @@ export function createBotCreateRoutes(deps: BotCreateRouteDeps): RouteHandler {
       if (settings.approvalMode === "custom") {
         return json(res, 403, { error: "Custom approval requires the desktop permission flow. Use the bot creation dialog or choose another level for API creation." });
       }
-      if (settings.approvalMode === "full" && HOSTED_WORKSPACE) return json(res, 403, { error: HOSTED_FULL_ACCESS_REFUSAL });
       // Lazurio overlay (DEV-6673 M3): every bot works on this computer (no Works on), so upstream's computer === "local" condition always holds.
       if (settings.approvalMode === "auto" && body.acknowledgeLocalAuto !== true) {
         return json(res, 400, { error: "Auto mode on this computer requires confirming the warning first (acknowledgeLocalAuto)" });

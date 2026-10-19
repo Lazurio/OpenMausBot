@@ -98,12 +98,6 @@ export function workspaceMembership(env: NodeJS.ProcessEnv = process.env):
   return { authority: "portal", pairingCodes, peopleUrl: people.href };
 }
 
-/** Only on a dedicated, portal-managed server; never an HTTP setting or a desktop grant. */
-export function sharedWorkspaceFullAccessConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.OMB_SHARED_WORKSPACE_FULL_ACCESS === "1" && env.OMB_DESKTOP_PARENT !== "1" &&
-    hostedWorkspaceConfiguration(env)?.portalMembership === true;
-}
-
 /** A configured server without this hook must refuse hosted access, never fall back to email or QR credentials. */
 export function createWorkspaceAccess(options: Omit<WorkspaceAccessOptions, "entitled">): WorkspaceAccess | null {
   if (!hostedWorkspaceConfigured(options.env)) return null;
