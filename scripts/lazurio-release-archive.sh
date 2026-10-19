@@ -69,11 +69,17 @@ node scripts/build-npm-package.mjs
 # upstream's build script and package.json stay untouched.
 mkdir -p release/npm/lazurio
 cp -R lazurio/teams release/npm/lazurio/teams
+# The server bundle (dist-server/index.js) inlines LazurioPlatform's browser
+# contract (lazurio/browser-contract/), which is MIT: its licence and the
+# Platform's NOTICE naming the exception ship with every copy.
+mkdir -p release/npm/LICENSES/lazurio-browser-contract
+cp lazurio/browser-contract/LICENSE lazurio/browser-contract/NOTICE release/npm/LICENSES/lazurio-browser-contract/
 node -e '
   const fs = require("node:fs");
   const path = "release/npm/package.json";
   const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
   if (!pkg.files.includes("lazurio")) pkg.files.push("lazurio");
+  if (!pkg.files.includes("LICENSES")) pkg.files.push("LICENSES");
   fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");
 '
 (cd release/npm && npm pack --silent --pack-destination "$work" >/dev/null)
@@ -93,9 +99,18 @@ test ! -d "$pkg/node_modules"
 for layer in enterprise dist-server/enterprise; do
   if [[ -e "$pkg/$layer" ]]; then echo "archive contains the enterprise layer: package/$layer" >&2; exit 1; fi
 done
+for required in cli.js dist-server/index.js dist-server/openmausbot.js dist/index.html package.json LICENSE lazurio/teams/steward.openmaus.json \
+  LICENSES/lazurio-browser-contract/LICENSE LICENSES/lazurio-browser-contract/NOTICE; do
   test -f "$pkg/$required" || { echo "archive is missing package/$required" >&2; exit 1; }
 done
 test "$(node -p 'require(process.argv[1]).version' "$pkg/package.json")" = "$VERSION"
+# The packed notices are the vendored ones, byte for byte, and the bundle really carries the contract.
+for notice in LICENSE NOTICE; do
+  cmp -s "$pkg/LICENSES/lazurio-browser-contract/$notice" "lazurio/browser-contract/$notice" ||
+    { echo "package/LICENSES/lazurio-browser-contract/$notice differs from lazurio/browser-contract/$notice" >&2; exit 1; }
+done
+grep -q "lazurio.browser-holder.v1" "$pkg/dist-server/index.js" || { echo "the server bundle does not carry the browser contract" >&2; exit 1; }
+grep -q '"LICENSES"' "$pkg/package.json" || { echo "package.json files does not list LICENSES" >&2; exit 1; }
 node -e 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))' "$pkg/lazurio/teams/steward.openmaus.json"
 help="$(node "$pkg/cli.js" --help)"
 grep -q "openmausbot serve" <<< "$help"
