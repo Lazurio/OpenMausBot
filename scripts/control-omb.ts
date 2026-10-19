@@ -284,6 +284,23 @@ export async function launchVerificationServer(
   const childEnv = verificationServerEnvironment(parentEnv, dataDir, port);
   if (enterprise) Object.assign(childEnv, { OMB_ENTERPRISE_DIR: enterprise.dir, OMB_LICENSE_KEY: enterprise.licenseKey });
   if (staticDir) childEnv.OMB_STATIC_DIR = staticDir;
+  // Lazurio overlay (DEV-6673 M4a): OMB_TEST_ENVIRONMENT_BROWSER=1 stands in for a Lazurio Environment that
+  if (parentEnv.OMB_TEST_ENVIRONMENT_BROWSER === "1") {
+    const bin = join(dataDir, ".local", "bin");
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, "lazurio"), [
+      "#!/bin/sh",
+      'printf \'%s\\n\' "$*" >> "$HOME/lazurio-calls.log"',
+      'case "$2" in',
+      `  link) printf '%s\\n' '${JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-link", session: null, link: "https://browser.vm-01.example.lazurio.io/" })}' ;;`,
+      `  done) printf '{"schema":"lazurio.browser-cli.v1","kind":"browser-done","session":"%s","outcome":"none"}\\n' "$4" ;;`,
+      "  *) exit 2 ;;",
+      "esac",
+      "",
+    ].join("\n"), { mode: 0o755 });
+    childEnv.XDG_RUNTIME_DIR = join(dataDir, "run");
+    mkdirSync(childEnv.XDG_RUNTIME_DIR, { recursive: true, mode: 0o700 });
+  }
   const child = spawn(process.execPath, verificationServerArgs(childEnv), {
     cwd: ROOT,
     env: childEnv,
