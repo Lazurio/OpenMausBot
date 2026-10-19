@@ -14,12 +14,11 @@ import type { ApprovalMode } from "../../../shared/approval-mode";
 import type { EffortLevel } from "../../../shared/wire";
 import type { ReplyStyle } from "../../../shared/reply-style";
 import { approvalModeOptionsFor } from "../ApprovalModeSelector";
-import { LocalComputerAutoWarning } from "../LocalComputerAutoWarning";
 import { ModelPicker } from "../ModelPicker";
 import { RoutineEditor } from "../RoutinesPage";
 import { SoulField } from "../SoulField";
 import { ThreadModelsLine } from "../ThreadModelsLine";
-import type { BotPatch, useBotSettingsDerived } from "../bot-settings/useBotSettingsDerived";
+import type { useBotSettingsDerived } from "../bot-settings/useBotSettingsDerived";
 import type { PageId } from "./page-registry";
 import { BotSwitch, buttonCls, Card, ColRow, LabelAction, LinkRow, NavRow, NoteRow, rowCls, Segmented, SegmentedRow } from "./rows";
 
@@ -33,7 +32,6 @@ export function DetailsTab({ bot, derived, overview, onOpen }: {
 }) {
   const { state, dispatch } = useStore();
   const [editingSoul, setEditingSoul] = useState(false);
-  const [localAutoWarning, setLocalAutoWarning] = useState<{ botId: string; patch: BotPatch } | null>(null);
   const [editingRoutine, setEditingRoutine] = useState<Routine | "new" | null>(null);
   const { patch, approvalMode, engine } = derived;
 
@@ -45,10 +43,6 @@ export function DetailsTab({ bot, derived, overview, onOpen }: {
     if (bot.busy || mode === approvalMode) return;
     if (mode === "full") {
       dispatch({ type: "updateBot", botId: bot.id, patch: { approvalMode: "full", applyToAllThreads: true } });
-      return;
-    }
-    if (mode === "auto") {
-      setLocalAutoWarning({ botId: bot.id, patch: { approvalMode: "auto", acknowledgeLocalAuto: true } });
       return;
     }
     patch({ approvalMode: mode });
@@ -240,16 +234,6 @@ export function DetailsTab({ bot, derived, overview, onOpen }: {
           onClose={() => setEditingRoutine(null)}
         />
       )}
-      <LocalComputerAutoWarning
-        open={localAutoWarning !== null}
-        onCancel={() => setLocalAutoWarning(null)}
-        onConfirm={() => {
-          const target = localAutoWarning;
-          setLocalAutoWarning(null);
-          if (!target) return;
-          dispatch({ type: "updateBot", botId: target.botId, patch: target.patch });
-        }}
-      />
       {state.routinesLoadState === "error" && <p role="alert" className="mx-1 mt-2 text-[12px] text-danger">{t("routines.loadError")}</p>}
     </div>
   );

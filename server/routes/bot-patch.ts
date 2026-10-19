@@ -23,6 +23,7 @@ import { sectionKey, type BotRecord, type GroupRecord, type Store } from "../sto
 import { pinnedClientThreadGuard } from "./pinned-client-thread.ts";
 import type { ModelSelectionCheck } from "./bots-create.ts";
 import { PASS, type RouteHandler } from "./table.ts";
+import { removedBotSetting, removedBotSettingError } from "../lazurio-removed-config.ts";
 
 export interface BotPatchRouteDeps {
   store: Store;
@@ -68,6 +69,9 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
       if (!body || typeof body !== "object" || Array.isArray(body)) {
         return json(res, 400, { error: "body must be a JSON object" });
       }
+      // Lazurio overlay (DEV-6673): a write naming a removed gate or level is refused as a whole.
+      const removedSetting = removedBotSetting(body);
+      if (removedSetting) return json(res, 400, { error: removedBotSettingError(removedSetting) });
       const pairedDevice = req.headers["x-openmausbot-companion"] === "1";
       if ((auth.kind === "session" && !auth.scopes.includes("admin")) || pairedDevice) {
         const field = clientBotPatchViolation(body);
@@ -298,20 +302,7 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
           return json(res, 400, { error: "Every thread's provider must support this approval level" });
         }
       }
-      // Auto on this Mac hands a bot the user's real session: only the desktop's warning dialog sends
-      // acknowledgeLocalAuto, so a bot curling the loopback API is refused.
-      // Lazurio overlay (DEV-6673 M3): every bot works on this computer (no Works on), so upstream's computer === "local" condition always holds.
-      const wantsAuto = requestedApprovalMode === "auto";
-      const granted = existingBot;
-      const alreadyGranted =
-        granted != null && approvalModeFor(granted) === "auto" &&
-        (body.applyToAllThreads !== true || store.tasks(granted.id).every((task) =>
-          approvalModeFor(store.projectBotForTask(granted.id, task.threadId) ?? {}) === "auto"));
-      if (wantsAuto === true && !alreadyGranted && body.acknowledgeLocalAuto !== true) {
-        return json(res, 400, {
-          error: "Auto mode on this computer requires confirming the warning first (acknowledgeLocalAuto)",
-        });
-      }
+      // Lazurio overlay (DEV-6673): upstream's warning gate before Auto (acknowledgeLocalAuto) is removed; a person picks a level, nothing confirms it.
       if (body.approvePeerComms !== undefined) {
         if (typeof body.approvePeerComms !== "boolean") {
           return json(res, 400, { error: "approvePeerComms must be true or false" });

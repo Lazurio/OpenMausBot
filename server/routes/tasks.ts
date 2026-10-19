@@ -16,6 +16,7 @@ import { titleConversationExcerpt, type ThreadTitleSource } from "../thread-titl
 import type { MessagePage } from "./channels.ts";
 import { bulkDeleteThreadIds, type BulkDeleteRefusal } from "./bulk-delete.ts";
 import { PASS, type RouteHandler } from "./table.ts";
+import { removedBotSetting, removedBotSettingError } from "../lazurio-removed-config.ts";
 
 type HostedModels = NonNullable<ReturnType<typeof hostedModelPolicy>>;
 
@@ -221,16 +222,19 @@ export function createTaskRoutes(deps: TaskRouteDeps): RouteHandler {
       if (!body || typeof body !== "object" || Array.isArray(body)) return json(res, 400, { error: "body must be a JSON object" });
       const current = store.projectBotForTask(m[1], m[2]);
       if (!current) return json(res, 404, { error: "no such task" });
-      const allowed = new Set(["title", "projectId", "modelSelection", "updateBotDefault", "resetApprovalToAsk", "approvalMode", "autoApprove", "requireAvailableModel", "pinnedMessageId", "acknowledgeLocalAuto", "archivedAt", "pinned", "snoozedUntil", "refreshPermissions", "link"]);
+      const allowed = new Set(["title", "projectId", "modelSelection", "updateBotDefault", "resetApprovalToAsk", "approvalMode", "autoApprove", "requireAvailableModel", "pinnedMessageId", "archivedAt", "pinned", "snoozedUntil", "refreshPermissions", "link"]);
+      // Lazurio overlay (DEV-6673): a write naming a removed gate or level is refused as a whole.
+      const removedSetting = removedBotSetting(body);
+      if (removedSetting) return json(res, 400, { error: removedBotSettingError(removedSetting) });
       if (Object.keys(body).some((key) => !allowed.has(key))) return json(res, 400, { error: "unsupported thread setting" });
       const notYours = cloudThreadRefusal(auth, m[2]);
       if (notYours) return json(res, 403, { error: notYours });
       // On a Cloud home only the owner decides whether a bot may act without asking, even in someone else's conversation.
       if (CLOUD_HOME && !cloudOwnerSession(auth) &&
-        (body.approvalMode !== undefined || body.autoApprove !== undefined || body.acknowledgeLocalAuto !== undefined || body.updateBotDefault === true || body.refreshPermissions === true)) {
+        (body.approvalMode !== undefined || body.autoApprove !== undefined || body.updateBotDefault === true || body.refreshPermissions === true)) {
         return json(res, 403, { error: "On this Cloud only its owner can change how a bot asks for approval, or its default model." });
       }
-      for (const key of ["requireAvailableModel", "acknowledgeLocalAuto", "updateBotDefault", "resetApprovalToAsk"] as const) {
+      for (const key of ["requireAvailableModel", "updateBotDefault", "resetApprovalToAsk"] as const) {
         if (body[key] !== undefined && typeof body[key] !== "boolean") return json(res, 400, { error: `${key} must be a boolean` });
       }
       if (body.requireAvailableModel === true && body.modelSelection === undefined) return json(res, 400, { error: "requireAvailableModel requires modelSelection" });
@@ -243,7 +247,7 @@ export function createTaskRoutes(deps: TaskRouteDeps): RouteHandler {
         return json(res, 400, { error: "refreshPermissions must be true" });
       }
       if (body.refreshPermissions === true) {
-        const extra = Object.keys(body).filter((key) => key !== "refreshPermissions" && key !== "acknowledgeLocalAuto");
+        const extra = Object.keys(body).filter((key) => key !== "refreshPermissions");
         if (extra.length) return json(res, 400, { error: "refreshPermissions cannot be combined with other thread settings" });
         const profile = store.bot(m[1]);
         if (!profile) return json(res, 404, { error: "no such bot" });
@@ -251,10 +255,6 @@ export function createTaskRoutes(deps: TaskRouteDeps): RouteHandler {
         const nextMode = approvalModeFor(profile);
         if (!supportsApprovalMode(current.modelSelection, nextMode)) {
           return json(res, 400, { error: "This provider does not support the selected approval level" });
-        }
-        // Lazurio overlay (DEV-6673 M3): every bot works on this computer (no Works on), so upstream's computer === "local" condition always holds.
-        if (nextMode === "auto" && approvalModeFor(current) !== "auto" && body.acknowledgeLocalAuto !== true) {
-          return json(res, 400, { error: "Auto mode on this computer requires confirming the warning first (acknowledgeLocalAuto)" });
         }
         const widensMode = approvalModeWidens(approvalModeFor(current), nextMode);
         const nextAllow = profile.alwaysAllow ?? [];
@@ -317,10 +317,6 @@ export function createTaskRoutes(deps: TaskRouteDeps): RouteHandler {
         if (threadBusy(current.id, current.threadId)) return json(res, 409, { error: "stop this thread before changing its approval mode" });
         if (mode === "auto" && approvalModeFor(current) !== "auto" && auth.kind === "loopback" && !DESKTOP_MANAGED && !req.headers.origin && store.bots.some((bot) => bot.busy)) {
           return json(res, 409, { error: "Change approval mode from the app or a paired device while bots are working." });
-        }
-        // Lazurio overlay (DEV-6673 M3): every bot works on this computer (no Works on), so upstream's computer === "local" condition always holds.
-        if (mode === "auto" && approvalModeFor(current) !== "auto" && body.acknowledgeLocalAuto !== true) {
-          return json(res, 400, { error: "Auto mode on this computer requires confirming the warning first (acknowledgeLocalAuto)" });
         }
         patch.approvalMode = mode;
         patch.autoApprove = mode === "auto";

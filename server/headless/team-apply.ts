@@ -76,8 +76,6 @@ export function botPatch(desired: DesiredBot, echo: Rec, team: string | undefine
     patch.approvalMode = desired.approval;
     patch.applyToAllThreads = true;
     changes.push(`approval ${APPROVAL_LABEL[approval]} → ${APPROVAL_LABEL[desired.approval]}`);
-    // The file is the confirmation the server asks for to leave a bot on Auto on this computer.
-    if (desired.approval === "auto") patch.acknowledgeLocalAuto = true;
   }
   if (desired.cwd && echo.cwd !== desired.cwd) { patch.cwd = desired.cwd; changes.push(`folder ${echo.cwd ?? "default"} → ${desired.cwd}`); }
   if (desired.browser) {

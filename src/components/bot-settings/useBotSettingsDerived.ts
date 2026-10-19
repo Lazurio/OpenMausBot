@@ -35,7 +35,6 @@ export type BotPatch = Partial<
     | "modelSelection"
   >
 > & {
-  acknowledgeLocalAuto?: boolean;
   acknowledgePeerScope?: boolean;
 };
 

@@ -16,10 +16,10 @@ const LISTED_FROM = 1000;
 
 const LINES: Record<string, number> = {
   "server/index.ts": 13938,
-  "src/state/store.tsx": 3384,
+  "src/state/store.tsx": 3380,
   "electron/main.mjs": 3198,
   "server/store.ts": 2397,
-  "src/components/Sidebar.tsx": 2329,
+  "src/components/Sidebar.tsx": 2308,
   "server/drivers/claude.ts": 2145,
   "server/drivers/acp/core.ts": 1994,
   "server/drivers/codex.ts": 1615,
@@ -33,7 +33,7 @@ const LINES: Record<string, number> = {
   "server/skills.ts": 1391,
   "scripts/mcp-server.ts": 1472,
   "server/drivers/pi.ts": 1143,
-  "src/components/Composer.tsx": 1141,
+  "src/components/Composer.tsx": 1116,
   "src/components/ModelPicker.tsx": 1180,
   "src/components/PhoneSetupFlow.tsx": 1283,
   "src/components/SettingsModal.tsx": 1075,
