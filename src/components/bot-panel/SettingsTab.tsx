@@ -119,18 +119,6 @@ export function SettingsTab({ bot, derived, slackUrl, query, onQuery, onOpen, on
         />
       )),
       ...(bot.chiefOfStaff ? [page("chiefteams", undefined, t("botPanel.chiefTeamsHint"), (bot.managedSections ?? []).length || none)] : []),
-      inline("peers", `${t("botPanel.askBeforePeers")} peers contact coordination`, (
-        <SwitchRow
-          key="peers"
-          data-panel-row="peers"
-          title={t("botPanel.askBeforePeers")}
-          color={bot.color}
-          checked={Boolean(bot.approvePeerComms)}
-          disabled={!bot.approvePeerComms && !canCoordinate}
-          tooltip={!bot.approvePeerComms && !canCoordinate ? t("botPanel.peersNeedEngine") : undefined}
-          onChange={() => patch({ approvePeerComms: !bot.approvePeerComms })}
-        />
-      )),
     ] },
     { label: t("botPanel.card.tools"), anchor: "tools", rows: [
       page("tools", SlidersHorizontal, t("botPanel.toolsHint")),

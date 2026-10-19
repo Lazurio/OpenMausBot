@@ -21,8 +21,9 @@ export const botDefaultModelSchema = z.object({
 
 // Preferences only: consent flags, live grants, bot IDs and execution state can never be replayed as permission grants.
 // Lazurio overlay (DEV-6673 M3): Works on, per-bot computers, MausBot's own connected apps and MCP server selection
-// are removed; saved defaults that name them still load, without them. So does upstream's Custom approval level (DEV-6673).
-const REMOVED_DEFAULTS = ["computer", "cloudBackend", "autoStartVps", "composio", "mcpServers"];
+// are removed; saved defaults that name them still load, without them. So do upstream's Custom approval level and
+// the switch that made a bot ask before contacting another bot (DEV-6673).
+const REMOVED_DEFAULTS = ["computer", "cloudBackend", "autoStartVps", "composio", "mcpServers", "approvePeerComms"];
 const withoutRemovedDefaults = (value: unknown) => value && typeof value === "object" && !Array.isArray(value)
   ? Object.fromEntries(Object.entries(value).filter(([key, item]) => !REMOVED_DEFAULTS.includes(key) &&
     !(key === "approvalMode" && item === "custom")))
@@ -38,7 +39,6 @@ export const botDefaultsProfileSchema = z.preprocess(withoutRemovedDefaults, pro
   alwaysAllow: strings(200, 500).optional(),
   chiefOfStaff: z.boolean().optional(),
   managedSections: strings(100, 60).optional(),
-  approvePeerComms: z.boolean().optional(),
   peers: strings(1000, 100).nullable().optional(),
   browser: z.boolean().optional(),
   browserProfile: z.string().max(100).nullable().optional(),
