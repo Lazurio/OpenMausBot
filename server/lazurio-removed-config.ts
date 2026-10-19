@@ -33,6 +33,7 @@ export function removedConfigKey(value: JsonValue): string | null {
 }
 
 // Request fields of removed gates (DEV-6673, LAZURIO.md principle 2): the confirmation upstream's Auto warning asked
+// for, the switch that made a bot ask a person before contacting another bot, and the desktop's approval grant.
 const REMOVED_BOT_FIELDS: readonly string[] = ["acknowledgeLocalAuto", "approvePeerComms", "approvalGrant", "toolScope", "xResearch", "phoneApps", "vpsAlias"];
 
 /** A field or value a bot or thread write names that Lazurio removed (DEV-6673), or null; such a write is refused with 400. */
@@ -45,3 +46,19 @@ export function removedBotSetting(settings: unknown): string | null {
 }
 
 export const removedBotSettingError = (removed: string) => `${removed} is not available in this distribution (it was removed)`;
+
+const WRITES = new Set(["POST", "PUT", "PATCH"]);
+
+/** Every bot and thread write (POST, PUT or PATCH under /api/bots) reads its body through this, so a body that names
+ * a removed field or value, at its top or in its `settings`, is refused with 400 before any route changes anything. */
+export function refusingRemovedBotSettings<C extends { method: string; path: string; readBody: (...args: any[]) => Promise<any> }>(ctx: C): C {
+  if (!WRITES.has(ctx.method) || (ctx.path !== "/api/bots" && !ctx.path.startsWith("/api/bots/"))) return ctx;
+  const read = ctx.readBody;
+  const readBody = async (...args: unknown[]) => {
+    const body = await read(...args);
+    const removed = removedBotSetting(body) ?? (body && typeof body === "object" ? removedBotSetting((body as Record<string, unknown>).settings) : null);
+    if (removed) throw Object.assign(new Error(removedBotSettingError(removed)), { status: 400 });
+    return body;
+  };
+  return { ...ctx, readBody: readBody as C["readBody"] };
+}
