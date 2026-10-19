@@ -1,0 +1,44 @@
+{
+  "schema": "lazurio.openmausbot.vendored-browser-contract.v1",
+  "repository": {
+    "name": "Lazurio/LazurioPlatform",
+    "id": "1361711425",
+    "ownerId": "309688040"
+  },
+  "tag": "v0.1.9",
+  "version": "0.1.9",
+  "sourceCommit": "bdcb4689c126030e1116bebc480f0e431810ea75",
+  "browserContract": 1,
+  "asset": {
+    "name": "lazurio-shell.tar.gz",
+    "sha256": "c818eec83863f5698eaec7399df62514e3c6236e900a6d43801bb287fa672d2f"
+  },
+  "attestation": {
+    "bundle": "lazurio.sigstore.json",
+    "signerWorkflow": "Lazurio/LazurioPlatform/.github/workflows/release.yml",
+    "sourceRef": "refs/tags/v0.1.9"
+  },
+  "files": {
+    "LICENSE": "1f655af5624125582cdbc6ac931bb82f8bc65f2cb5d91577704e82e404345453",
+    "NOTICE": "0402e8950f9395cca4e459f66c0f00bb1b0da3a148232771e3e9461f5be56846",
+    "node.d.ts": "2945080f64ea2192d63d87629ed3475240ff6d81896947f351009974700a3ccc",
+    "node.js": "27ebf04c8e14eb0ff392aaeb7f2d072345c270059f98954c816dc7443c212f7b",
+    "pure.d.ts": "4ba8a6c38d56bf20ede27ec881b6cd1cb249bc74b74bdcbc15014d8f826d66ac",
+    "pure.js": "d7e6bb910133b88b48c29b77bbbc14e37131d702a2e338cf696797c8135974a9",
+    "vectors/README.md": "cffc660be6f7f774777f639acd657e0ab91d04560edec44a74e4052fe1cd3041",
+    "vectors/v1/address-bar.json": "1027eae62727807ba1091346d9904c14f425e8c72aa3ebca206c94bec91c0513",
+    "vectors/v1/agent-browser.json": "e26a3a983c335e1ef63857a0442241f60ff2fb6f8b93cda62b5f69829ab772b7",
+    "vectors/v1/boot-clock.json": "33048a177fd2951ae0fc5d917e0bfd64a5b86f6c69896b4dd3445a42aea9d598",
+    "vectors/v1/cli.json": "c627d5c9e93c345337ae7ff1adb4c4724b65b157c61161c3b6e79aeb408d8548",
+    "vectors/v1/framing.json": "fb64ac2e8f5c860b6da05d14ffc4c99325b132d08dfb2eff012e278c98d41053",
+    "vectors/v1/holder-files.json": "c3da8ac09f4ea97ed2155a6e980af3d71e902b739a904c47806aabaae0f7a4e0",
+    "vectors/v1/language.json": "d4f87fc26d97e5669d326833132c7c7daee8a41100f80b88cfbc9c3f96319a37",
+    "vectors/v1/live-tabs.json": "0f9ff805127b0014ec56585ead4ad1d2a83037cd24e58e5184161875d13525e3",
+    "vectors/v1/messages.json": "d27702708917c501c2b5bee70b8f9c5e9ee18a46042f4eaafbe70aa907d06c61",
+    "vectors/v1/new-tab.json": "89b475ab402eb6e55dedebd3957f4b2a2f2b81cdc95bab8152c74639dd9ba7f7",
+    "vectors/v1/remote-tab-ids.json": "b296f9b748fab8ad3f6b14effe6f07182d90f40a1e982752da7d0abc050b174a",
+    "vectors/v1/strips.json": "4ed1754b160b7d1fdd8670ac00e135da6c89fa549b46c512589a0a4c9e77c292",
+    "vectors/v1/times.json": "fb774e4e3a5ede7fe9b374efe573a32da32105840360f164f97cbac66840a6a2",
+    "vectors/v1/view-addresses.json": "da50e183835b4e76d6a7cfbc68671945ae4e19da607fb5375bd44310864d99da"
+  }
+}

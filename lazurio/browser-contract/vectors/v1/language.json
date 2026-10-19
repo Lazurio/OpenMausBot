@@ -1,0 +1,94 @@
+{
+  "schema": "lazurio.browser-vectors.v1",
+  "contract": "language",
+  "cases": [
+    {
+      "name": "Czech and English",
+      "call": "surfaceLanguages",
+      "expect": [
+        "cs",
+        "en"
+      ]
+    },
+    {
+      "name": "Czech",
+      "call": "surfaceLanguageOf",
+      "args": [
+        "cs"
+      ],
+      "expect": "cs"
+    },
+    {
+      "name": "English",
+      "call": "surfaceLanguageOf",
+      "args": [
+        "en"
+      ],
+      "expect": "en"
+    },
+    {
+      "name": "a language with a region is none",
+      "call": "surfaceLanguageOf",
+      "args": [
+        "cs-CZ"
+      ],
+      "expect": null
+    },
+    {
+      "name": "another language is none",
+      "call": "surfaceLanguageOf",
+      "args": [
+        "de"
+      ],
+      "expect": null
+    },
+    {
+      "name": "nothing is none",
+      "call": "surfaceLanguageOf",
+      "args": [
+        null
+      ],
+      "expect": null
+    },
+    {
+      "name": "a Czech browser",
+      "call": "browserLanguage",
+      "args": [
+        "cs-CZ"
+      ],
+      "expect": "cs"
+    },
+    {
+      "name": "Czech in capitals",
+      "call": "browserLanguage",
+      "args": [
+        "CS"
+      ],
+      "expect": "cs"
+    },
+    {
+      "name": "an English browser",
+      "call": "browserLanguage",
+      "args": [
+        "en-US"
+      ],
+      "expect": "en"
+    },
+    {
+      "name": "any other language is English",
+      "call": "browserLanguage",
+      "args": [
+        "de-DE"
+      ],
+      "expect": "en"
+    },
+    {
+      "name": "Slovak is not Czech",
+      "call": "browserLanguage",
+      "args": [
+        "sk"
+      ],
+      "expect": "en"
+    }
+  ]
+}

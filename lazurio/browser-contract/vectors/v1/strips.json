@@ -1,0 +1,290 @@
+{
+  "schema": "lazurio.browser-vectors.v1",
+  "contract": "strips",
+  "cases": [
+    {
+      "name": "the Launchpad's strip",
+      "call": "isStrip",
+      "args": [
+        "launchpad"
+      ],
+      "expect": true
+    },
+    {
+      "name": "a T3 Code thread's strip",
+      "call": "isStrip",
+      "args": [
+        "t3-abc_DEF-123"
+      ],
+      "expect": true
+    },
+    {
+      "name": "64 characters",
+      "call": "isStrip",
+      "args": [
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      ],
+      "expect": true
+    },
+    {
+      "name": "the empty name",
+      "call": "isStrip",
+      "args": [
+        ""
+      ],
+      "expect": false
+    },
+    {
+      "name": "a path",
+      "call": "isStrip",
+      "args": [
+        "../x"
+      ],
+      "expect": false
+    },
+    {
+      "name": "a slash",
+      "call": "isStrip",
+      "args": [
+        "a/b"
+      ],
+      "expect": false
+    },
+    {
+      "name": "a space",
+      "call": "isStrip",
+      "args": [
+        "a b"
+      ],
+      "expect": false
+    },
+    {
+      "name": "a letter outside ASCII",
+      "call": "isStrip",
+      "args": [
+        "vlákno"
+      ],
+      "expect": false
+    },
+    {
+      "name": "a number",
+      "call": "isStrip",
+      "args": [
+        7
+      ],
+      "expect": false
+    },
+    {
+      "name": "null",
+      "call": "isStrip",
+      "args": [
+        null
+      ],
+      "expect": false
+    },
+    {
+      "name": "the Launchpad's one strip",
+      "call": "launchpadStrip",
+      "expect": "launchpad"
+    },
+    {
+      "name": "the prefixes of the other apps, bot- reserved for MausBot",
+      "call": "stripPrefixes",
+      "expect": {
+        "t3code": "t3-",
+        "codex": "codex-",
+        "claude": "claude-",
+        "mausbot": "bot-"
+      }
+    },
+    {
+      "name": "the Launchpad by its strip",
+      "call": "stripAppOf",
+      "args": [
+        "launchpad"
+      ],
+      "expect": "launchpad"
+    },
+    {
+      "name": "T3 Code by t3-",
+      "call": "stripAppOf",
+      "args": [
+        "t3-thread"
+      ],
+      "expect": "t3code"
+    },
+    {
+      "name": "Codex by codex-",
+      "call": "stripAppOf",
+      "args": [
+        "codex-019a-5b2c"
+      ],
+      "expect": "codex"
+    },
+    {
+      "name": "Claude Code by claude-",
+      "call": "stripAppOf",
+      "args": [
+        "claude-5d66-d6b4"
+      ],
+      "expect": "claude"
+    },
+    {
+      "name": "MausBot by bot-",
+      "call": "stripAppOf",
+      "args": [
+        "bot-42"
+      ],
+      "expect": "mausbot"
+    },
+    {
+      "name": "a session named by hand is no app's",
+      "call": "stripAppOf",
+      "args": [
+        "mine"
+      ],
+      "expect": null
+    },
+    {
+      "name": "only the Launchpad's exact strip is the Launchpad's",
+      "call": "stripAppOf",
+      "args": [
+        "launchpad-2"
+      ],
+      "expect": null
+    },
+    {
+      "name": "the prefixes are in lower case",
+      "call": "stripAppOf",
+      "args": [
+        "T3-thread"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a name with a slash is no app's",
+      "call": "stripAppOf",
+      "args": [
+        "t3-a/b"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a number is no app's",
+      "call": "stripAppOf",
+      "args": [
+        7
+      ],
+      "expect": null
+    },
+    {
+      "name": "a name given on purpose is used as given",
+      "call": "threadSession",
+      "args": [
+        "mine",
+        {}
+      ],
+      "expect": "mine"
+    },
+    {
+      "name": "a name given on purpose outside the grammar is refused",
+      "call": "threadSession",
+      "args": [
+        "bad name",
+        {
+          "CODEX_THREAD_ID": "1"
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "T3 Code's session comes first",
+      "call": "threadSession",
+      "args": [
+        {
+          "$": "undefined"
+        },
+        {
+          "AGENT_BROWSER_SESSION": "t3-thread",
+          "CODEX_THREAD_ID": "019a"
+        }
+      ],
+      "expect": "t3-thread"
+    },
+    {
+      "name": "a Codex thread's",
+      "call": "threadSession",
+      "args": [
+        {
+          "$": "undefined"
+        },
+        {
+          "CODEX_THREAD_ID": "019a-5b2c"
+        }
+      ],
+      "expect": "codex-019a-5b2c"
+    },
+    {
+      "name": "a Claude Code session's, every character outside the grammar a -",
+      "call": "threadSession",
+      "args": [
+        {
+          "$": "undefined"
+        },
+        {
+          "CLAUDE_CODE_SESSION_ID": "5d66.d6b4:x"
+        }
+      ],
+      "expect": "claude-5d66-d6b4-x"
+    },
+    {
+      "name": "a harness's name is cut at 64",
+      "call": "threadSession",
+      "args": [
+        {
+          "$": "undefined"
+        },
+        {
+          "CODEX_THREAD_ID": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      ],
+      "expect": "codex-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "name": "an empty name counts as none",
+      "call": "threadSession",
+      "args": [
+        "",
+        {
+          "AGENT_BROWSER_SESSION": "",
+          "CODEX_THREAD_ID": "1"
+        }
+      ],
+      "expect": "codex-1"
+    },
+    {
+      "name": "T3 Code's session made to fit",
+      "call": "threadSession",
+      "args": [
+        {
+          "$": "undefined"
+        },
+        {
+          "AGENT_BROWSER_SESSION": "t3 thread"
+        }
+      ],
+      "expect": "t3-thread"
+    },
+    {
+      "name": "no name and no harness",
+      "call": "threadSession",
+      "args": [
+        {
+          "$": "undefined"
+        },
+        {}
+      ],
+      "expect": null
+    }
+  ]
+}

@@ -1,0 +1,609 @@
+{
+  "schema": "lazurio.browser-vectors.v1",
+  "contract": "view-addresses",
+  "cases": [
+    {
+      "name": "an Organization's Environment: two labels",
+      "call": "isEnvironmentId",
+      "args": [
+        "vm-01.example"
+      ],
+      "expect": true
+    },
+    {
+      "name": "a personal Remote Environment: one label",
+      "call": "isEnvironmentId",
+      "args": [
+        "someone"
+      ],
+      "expect": true
+    },
+    {
+      "name": "a workstation's local id",
+      "call": "isEnvironmentId",
+      "args": [
+        "local"
+      ],
+      "expect": true
+    },
+    {
+      "name": "a label of 63 characters",
+      "call": "isEnvironmentId",
+      "args": [
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      ],
+      "expect": true
+    },
+    {
+      "name": "a label of 64 characters is too long",
+      "call": "isEnvironmentId",
+      "args": [
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      ],
+      "expect": false
+    },
+    {
+      "name": "three labels",
+      "call": "isEnvironmentId",
+      "args": [
+        "a.b.c"
+      ],
+      "expect": false
+    },
+    {
+      "name": "a label that begins with -",
+      "call": "isEnvironmentId",
+      "args": [
+        "-vm.example"
+      ],
+      "expect": false
+    },
+    {
+      "name": "upper case",
+      "call": "isEnvironmentId",
+      "args": [
+        "VM-01.example"
+      ],
+      "expect": false
+    },
+    {
+      "name": "an empty label",
+      "call": "isEnvironmentId",
+      "args": [
+        "vm..example"
+      ],
+      "expect": false
+    },
+    {
+      "name": "the empty id",
+      "call": "isEnvironmentId",
+      "args": [
+        ""
+      ],
+      "expect": false
+    },
+    {
+      "name": "a number",
+      "call": "isEnvironmentId",
+      "args": [
+        7
+      ],
+      "expect": false
+    },
+    {
+      "name": "an app origin of an Organization's Environment",
+      "call": "environmentIdOf",
+      "args": [
+        "https://launchpad.vm-01.example.lazurio.io"
+      ],
+      "expect": "vm-01.example"
+    },
+    {
+      "name": "an Apps address with its slash",
+      "call": "environmentIdOf",
+      "args": [
+        "https://launchpad.vm-01.example.lazurio.io/"
+      ],
+      "expect": "vm-01.example"
+    },
+    {
+      "name": "a personal Remote Environment's",
+      "call": "environmentIdOf",
+      "args": [
+        "https://t3code.someone.lazurio.io"
+      ],
+      "expect": "someone"
+    },
+    {
+      "name": "the view's origin names the same Environment",
+      "call": "environmentIdOf",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io"
+      ],
+      "expect": "vm-01.example"
+    },
+    {
+      "name": "an origin written in upper case",
+      "call": "environmentIdOf",
+      "args": [
+        "HTTPS://LAUNCHPAD.VM-01.EXAMPLE.LAZURIO.IO"
+      ],
+      "expect": "vm-01.example"
+    },
+    {
+      "name": "http is none",
+      "call": "environmentIdOf",
+      "args": [
+        "http://launchpad.vm-01.example.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a port is none",
+      "call": "environmentIdOf",
+      "args": [
+        "https://launchpad.vm-01.example.lazurio.io:8443"
+      ],
+      "expect": null
+    },
+    {
+      "name": "credentials are none",
+      "call": "environmentIdOf",
+      "args": [
+        "https://a:b@launchpad.vm-01.example.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a path is none",
+      "call": "environmentIdOf",
+      "args": [
+        "https://launchpad.vm-01.example.lazurio.io/x"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a query is none",
+      "call": "environmentIdOf",
+      "args": [
+        "https://launchpad.vm-01.example.lazurio.io/?a=1"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a fragment is none",
+      "call": "environmentIdOf",
+      "args": [
+        "https://launchpad.vm-01.example.lazurio.io/#a"
+      ],
+      "expect": null
+    },
+    {
+      "name": "lazurio.io itself",
+      "call": "environmentIdOf",
+      "args": [
+        "https://lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "an app without a base",
+      "call": "environmentIdOf",
+      "args": [
+        "https://someone.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a base of three labels",
+      "call": "environmentIdOf",
+      "args": [
+        "https://browser.a.b.c.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a label that begins with -",
+      "call": "environmentIdOf",
+      "args": [
+        "https://browser.-vm.example.lazurio.io"
+      ],
+      "expect": null
+    },
+    {
+      "name": "another domain",
+      "call": "environmentIdOf",
+      "args": [
+        "https://launchpad.vm-01.example.example.com"
+      ],
+      "expect": null
+    },
+    {
+      "name": "no address",
+      "call": "environmentIdOf",
+      "args": [
+        "not an address"
+      ],
+      "expect": null
+    },
+    {
+      "name": "the path of one remote tab's view",
+      "call": "viewPath",
+      "args": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": "/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    {
+      "name": "the path of a new tab",
+      "call": "viewPath",
+      "args": [
+        null
+      ],
+      "expect": "/"
+    },
+    {
+      "name": "the view of one remote tab",
+      "call": "browserViewUrl",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io",
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": "https://browser.vm-01.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    {
+      "name": "the view of a new tab",
+      "call": "browserViewUrl",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io",
+        null
+      ],
+      "expect": "https://browser.vm-01.example.lazurio.io/"
+    },
+    {
+      "name": "a tab's path of the view",
+      "call": "viewPathTab",
+      "args": [
+        "/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    {
+      "name": "a lower-case id names the tab in upper case",
+      "call": "viewPathTab",
+      "args": [
+        "/t/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "expect": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    {
+      "name": "a slash after the id",
+      "call": "viewPathTab",
+      "args": [
+        "/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/"
+      ],
+      "expect": null
+    },
+    {
+      "name": "an upper-case T",
+      "call": "viewPathTab",
+      "args": [
+        "/T/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": null
+    },
+    {
+      "name": "the socket's path is no tab's view",
+      "call": "viewPathTab",
+      "args": [
+        "/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/live"
+      ],
+      "expect": null
+    },
+    {
+      "name": "the bare path",
+      "call": "viewPathTab",
+      "args": [
+        "/"
+      ],
+      "expect": null
+    },
+    {
+      "name": "31 digits",
+      "call": "viewPathTab",
+      "args": [
+        "/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a tab of an Organization's Environment",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": {
+        "view": "https://browser.vm-01.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "origin": "https://browser.vm-01.example.lazurio.io",
+        "environment": "vm-01.example",
+        "tab": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      }
+    },
+    {
+      "name": "a tab of a personal Remote Environment",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.someone.lazurio.io/t/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+      ],
+      "expect": {
+        "view": "https://browser.someone.lazurio.io/t/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "origin": "https://browser.someone.lazurio.io",
+        "environment": "someone",
+        "tab": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+      }
+    },
+    {
+      "name": "the bare origin opens a new tab",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io"
+      ],
+      "expect": {
+        "view": "https://browser.vm-01.example.lazurio.io/",
+        "origin": "https://browser.vm-01.example.lazurio.io",
+        "environment": "vm-01.example",
+        "tab": null
+      }
+    },
+    {
+      "name": "the bare origin with its slash",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io/"
+      ],
+      "expect": {
+        "view": "https://browser.vm-01.example.lazurio.io/",
+        "origin": "https://browser.vm-01.example.lazurio.io",
+        "environment": "vm-01.example",
+        "tab": null
+      }
+    },
+    {
+      "name": "a lower-case id is the tab, written in upper case",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io/t/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "expect": {
+        "view": "https://browser.vm-01.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "origin": "https://browser.vm-01.example.lazurio.io",
+        "environment": "vm-01.example",
+        "tab": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      }
+    },
+    {
+      "name": "a slash after the id is none (F50 point 2 settles it)",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a query is none (F50 point 2 settles it)",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA?x=1"
+      ],
+      "expect": null
+    },
+    {
+      "name": "an empty query is none",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA?"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a fragment is none",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA#top"
+      ],
+      "expect": null
+    },
+    {
+      "name": "an empty fragment is none",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA#"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a query on the bare origin is none",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io/?x=1"
+      ],
+      "expect": null
+    },
+    {
+      "name": "an upper-case T is none",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io/T/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": null
+    },
+    {
+      "name": "the socket's path is none",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/live"
+      ],
+      "expect": null
+    },
+    {
+      "name": "another path is none",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io/assets/view.js"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a base of three labels is none (F50 point 2 settles it)",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.a.b.c.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a label that begins with - is none",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.-vm.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": null
+    },
+    {
+      "name": "another app's host is none",
+      "call": "viewAddressOf",
+      "args": [
+        "https://t3code.vm-01.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": null
+    },
+    {
+      "name": "browser.lazurio.io names no Environment",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": null
+    },
+    {
+      "name": "another domain is none",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.vm-01.example.example.com/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": null
+    },
+    {
+      "name": "http is none",
+      "call": "viewAddressOf",
+      "args": [
+        "http://browser.vm-01.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a port is none",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io:8443/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": null
+    },
+    {
+      "name": "credentials are none",
+      "call": "viewAddressOf",
+      "args": [
+        "https://a:b@browser.vm-01.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "expect": null
+    },
+    {
+      "name": "more than 512 characters are none",
+      "call": "viewAddressOf",
+      "args": [
+        "https://browser.vm-01.example.lazurio.io/t/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      ],
+      "expect": null
+    },
+    {
+      "name": "a number is none",
+      "call": "viewAddressOf",
+      "args": [
+        42
+      ],
+      "expect": null
+    },
+    {
+      "name": "an Environment's view host",
+      "call": "isViewHost",
+      "args": [
+        "browser.vm-01.example.lazurio.io"
+      ],
+      "expect": true
+    },
+    {
+      "name": "a personal Remote Environment's view host",
+      "call": "isViewHost",
+      "args": [
+        "browser.someone.lazurio.io"
+      ],
+      "expect": true
+    },
+    {
+      "name": "a name in that place that is no Environment's",
+      "call": "isViewHost",
+      "args": [
+        "browser.a.b.c.lazurio.io"
+      ],
+      "expect": true
+    },
+    {
+      "name": "browser.lazurio.io",
+      "call": "isViewHost",
+      "args": [
+        "browser.lazurio.io"
+      ],
+      "expect": true
+    },
+    {
+      "name": "a host in upper case",
+      "call": "isViewHost",
+      "args": [
+        "BROWSER.VM-01.EXAMPLE.LAZURIO.IO"
+      ],
+      "expect": true
+    },
+    {
+      "name": "a view host written with the DNS root's trailing dot",
+      "call": "isViewHost",
+      "args": [
+        "browser.vm-01.example.lazurio.io."
+      ],
+      "expect": true
+    },
+    {
+      "name": "another app of an Environment",
+      "call": "isViewHost",
+      "args": [
+        "t3code.vm-01.example.lazurio.io"
+      ],
+      "expect": false
+    },
+    {
+      "name": "a browser. host of another domain",
+      "call": "isViewHost",
+      "args": [
+        "browser.example.com"
+      ],
+      "expect": false
+    },
+    {
+      "name": "browser. under another label",
+      "call": "isViewHost",
+      "args": [
+        "x.browser.vm-01.example.lazurio.io"
+      ],
+      "expect": false
+    }
+  ]
+}
