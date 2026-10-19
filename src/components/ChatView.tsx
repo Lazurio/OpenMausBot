@@ -41,6 +41,7 @@ import {
   openBot,
 } from "@/state/store";
 import { EngineSetup } from "./EngineSetup";
+import { signedOutHeadline, useLazurioSignIn } from "./LazurioEngineSignIn";
 import { CHATGPT_USAGE_URL, ManageUsageLink } from "./ChatGptPlanStatus";
 import { CODEX_USAGE_URL, codexUsageLimitReached } from "../../shared/codex-usage-limit";
 import { ClaudeUpdatePrompt } from "./ClaudeUpdatePrompt";
@@ -287,11 +288,12 @@ export function FailedTurnRow({ tool, engine, onRetry }: {
   onRetry?: () => void;
 }) {
   const signedOut = signedOutEngine(tool, engine);
+  const lazurio = useLazurioSignIn(); // Lazurio overlay (DEV-6673)
   const cause = failedTurnCause(tool.name) ?? tool.name;
   return (
     <ErrorRow
       message={cause}
-      headline={signedOut ? t("chat.error.signedOut", { name: signedOut.displayName }) : plainErrorLine(cause)}
+      headline={signedOut ? signedOutHeadline(signedOut.displayName, lazurio) ?? t("chat.error.signedOut", { name: signedOut.displayName }) : plainErrorLine(cause)}
       onRetry={onRetry}
       setupInstance={tool.setup ? engine : undefined}
       claudeUpdateInstance={tool.claudeUpdate ? claudeUpdateTarget(engine) : undefined}
