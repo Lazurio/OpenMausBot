@@ -2,7 +2,7 @@
 // Run after pnpm build:server. Evidence remains; fixture homes are removed.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer } from "node:net";
@@ -42,9 +42,7 @@ if (process.versions.electron && process.argv.includes(flag)) {
   app.commandLine.appendSwitch("disable-background-networking");
   process.once("SIGTERM", () => app.quit());
   process.once("SIGINT", () => app.quit());
-  const { createTrustedApprovalModeCoordinator } = createRequire(import.meta.url)("../electron/approval-trusted-mode.cjs");
   const { DESKTOP_MUTATION_HEADER } = createRequire(import.meta.url)("../electron/desktop-server-auth.cjs");
-  const approval = createTrustedApprovalModeCoordinator({ randomId: randomUUID });
   const events = [];
   const commands = [];
   const children = [];
@@ -120,7 +118,6 @@ if (process.versions.electron && process.argv.includes(flag)) {
       let exited = false;
       exits.set(proc, new Promise((resolve) => proc.once("exit", (code) => {
         exited = true;
-        approval.rejectProcess(proc);
         record("exit", { code });
         resolve();
       })));
@@ -128,9 +125,6 @@ if (process.versions.electron && process.argv.includes(flag)) {
       proc.once("spawn", () => {
         record("spawn", { pid: proc.pid, generation: children.length });
         proc.postMessage({ type: "openmausbot:desktop-mutation-token", token, companionToken: token });
-      });
-      proc.on("message", (message) => {
-        if (supervisor.isCurrent(proc)) approval.receive(proc, message);
       });
       for (const stream of [proc.stdout, proc.stderr]) stream?.on("data", (data) => process.stdout.write(data));
       const identity = await pollServerIdentity({ port, pid: () => proc.pid, bootTimeoutMs: 20_000, isExited: () => exited || quitting });
@@ -176,13 +170,9 @@ if (process.versions.electron && process.argv.includes(flag)) {
       assert.equal(prompts.trim().split("\n").length, 1);
       // A frozen owned child cannot race an ACK ahead of our simulated crash.
       process.kill(initialPid, "SIGSTOP");
-      const pendingApproval = approval.request(initial.proc, bot.id, "ask").then(
-        () => "unexpected success", (error) => error.message,
-      );
       process.kill(initialPid, "SIGKILL");
       await exits.get(initial.proc);
       assert.equal(active, null, "readiness cleared in the same exit dispatch");
-      assert.match(await pendingApproval, /server stopped/);
       // This inert fake intentionally hangs even after stdin closes. Reap only
       // the exact fixture-recorded engine, never a process-name match.
       process.kill(fakePid, "SIGKILL");
@@ -196,13 +186,12 @@ if (process.versions.electron && process.argv.includes(flag)) {
       assert.equal(messages.messages.filter((message) => message.role === "user").length, 1);
       await sleep(1200);
       assert.equal(readFileSync(join(home, "prompts.jsonl"), "utf8"), prompts, "recovery must not resend the turn");
-      assert.equal((await approval.request(active, bot.id, "ask")).approvalMode, "ask");
       await control("create_bot", { name: "Replacement accepts fresh authorized writes" });
       const refused = await fetch(`${url}/api/bots`, { method: "POST", headers: { "content-type": "application/json" }, body: '{"name":"Must refuse"}' });
       assert.equal(refused.status, 403, "replacement remains fail-closed without the private token");
       finalReceipt = { passed: true, scenario, url, initialPid, replacementPid, commands,
-        checks: ["PID verified replacement", "same port", "unchanged parent lease", "replacement child lease", "immediate unavailable", "pending approval rejected", "new approval accepted", "private mutation capability restored", "unauthorized write refused", "interrupted turn retained once, not replayed"],
-        limitation: "Headless fixture uses the production supervisor, probe, lease, approval protocol and built server, not the complete desktop bootstrap or renderer. The inert hung engine is explicitly reaped by the fixture." };
+        checks: ["PID verified replacement", "same port", "unchanged parent lease", "replacement child lease", "immediate unavailable", "private mutation capability restored", "unauthorized write refused", "interrupted turn retained once, not replayed"],
+        limitation: "Headless fixture uses the production supervisor, probe, lease and built server, not the complete desktop bootstrap or renderer. The inert hung engine is explicitly reaped by the fixture." };
     } else {
       process.kill(initialPid, "SIGKILL");
       await exits.get(initial.proc);

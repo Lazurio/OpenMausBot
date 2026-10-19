@@ -3495,7 +3495,8 @@ describe("harness HTTP API", () => {
     }
   });
 
-  it("carries a Full bot's access across engines silently, and keeps Custom bots on Codex", async () => {
+  // Lazurio overlay (DEV-6673): upstream's Custom level is removed; a saved one loads and drops, so the bot follows Full.
+  it("carries a Full bot's access across engines silently, and drops a saved Custom level on load", async () => {
     const isolatedHome = mkdtempSync(join(tmpdir(), "omb-trusted-mode-model-"));
     const isolatedData = join(isolatedHome, ".openmausbot");
     const isolatedStatic = join(isolatedHome, "static");
@@ -3581,25 +3582,6 @@ describe("harness HTTP API", () => {
       expect(carriedThread.modelSelection).toEqual(targetSelection);
       expect(carriedThread.approvalMode ?? afterCarry.approvalMode).toBe("full");
 
-      for (const seeded of trustedBots.filter((candidate) => candidate.approvalMode === "custom")) {
-        const rejected = await isolatedApi("PATCH", `/api/bots/${seeded.id}/model`, targetSelection);
-        expect(rejected.status, seeded.approvalMode).toBe(400);
-        expect(rejected.body.error).toMatch(/requires choosing Ask first/i);
-        const scoped = await isolatedApi("PATCH", `/api/bots/${seeded.id}/tasks/${seeded.threadId}`, {
-          modelSelection: targetSelection, updateBotDefault: true, approvalMode: "ask",
-        });
-        expect(scoped.status, seeded.approvalMode).toBe(403);
-        expect(scoped.body.error).toMatch(/Custom approval|resetApprovalToAsk/i);
-        const unchanged = (await isolatedApi("GET", "/api/bots?messages=0")).body.bots.find(
-          (candidate: { id: string }) => candidate.id === seeded.id,
-        );
-        expect(unchanged).toMatchObject({
-          approvalMode: seeded.approvalMode,
-          modelSelection: seeded.modelSelection,
-        });
-        expect(unchanged.tasks.find((task: { threadId: string }) => task.threadId === seeded.threadId).modelSelection).toEqual(seeded.modelSelection);
-      }
-
       const full = trustedBots.find(candidate => candidate.approvalMode === "full")!;
       const sibling = (await isolatedApi("POST", `/api/bots/${full.id}/tasks`, { title: "Follows the bot" })).body.task;
       for (const body of [
@@ -3626,37 +3608,15 @@ describe("harness HTTP API", () => {
         .toMatchObject({ modelSelection: targetSelection, followsBotModel: true, approvalMode: "full" });
       const created = await isolatedApi("POST", `/api/bots/${full.id}/tasks`, { title: "New defaults" });
       expect(created.body.task).toMatchObject({ modelSelection: targetSelection, approvalMode: "ask" });
-      const refusedCustom = trustedBots.find(candidate => candidate.approvalMode === "custom")!;
-      expect((await isolatedApi("PATCH", `/api/bots/${refusedCustom.id}/tasks/${refusedCustom.threadId}`, {
-        modelSelection: targetSelection, resetApprovalToAsk: true,
-      })).status).toBe(403);
 
-      const custom = trustedBots.find((candidate) => candidate.approvalMode === "custom")!;
-      for (const body of [
-        { approvalMode: "ask" },
-        { approvalMode: "auto" },
-        { autoApprove: false },
-        { autoApprove: true },
-      ]) {
-        const rejected = await isolatedApi("PATCH", `/api/bots/${custom.id}`, body);
-        expect(rejected.status, JSON.stringify(body)).toBe(403);
-        expect(rejected.body.error).toMatch(/packaged desktop app/i);
-      }
-      const stillCustom = (await isolatedApi("GET", "/api/bots?messages=0")).body.bots.find(
-        (candidate: { id: string }) => candidate.id === custom.id,
-      );
-      expect(stillCustom).toMatchObject({ approvalMode: "custom", autoApprove: false });
-      for (const approvalMode of ["ask", "auto", "full"]) {
-        const rejected = await isolatedApi("PATCH", `/api/bots/${customThread.id}`, { approvalMode, applyToAllThreads: true });
-        expect(rejected.status, approvalMode).toBe(403);
-        expect(rejected.body.error).toMatch(/packaged desktop app/i);
-        expect((await isolatedApi("PATCH", `/api/bots/${custom.id}`, { approvalMode, applyToAllThreads: true })).status, approvalMode).toBe(403);
-      }
-      const keptCustom = (await isolatedApi("GET", "/api/bots?messages=0")).body.bots.find(
-        (candidate: { id: string }) => candidate.id === customThread.id,
-      );
-      expect(keptCustom.approvalMode).toBe("ask");
-      expect(keptCustom.tasks.find((task: { threadId: string }) => task.threadId === "custom-thread-own").approvalMode).toBe("custom");
+      const bots = (await isolatedApi("GET", "/api/bots?messages=0")).body.bots;
+      const custom = bots.find((candidate: { id: string }) => candidate.id === trustedBots[1].id);
+      expect(custom).toMatchObject({ approvalMode: "full" });
+      const keptAsk = bots.find((candidate: { id: string }) => candidate.id === customThread.id);
+      expect(keptAsk.approvalMode).toBe("ask");
+      expect(keptAsk.tasks.find((task: { threadId: string }) => task.threadId === "custom-thread-own").approvalMode).toBeUndefined();
+      const saved = JSON.parse(readFileSync(join(isolatedData, "bots.json"), "utf8")) as Array<{ id: string; approvalMode?: string }>;
+      expect(saved.find((candidate) => candidate.id === trustedBots[1].id)).not.toHaveProperty("approvalMode");
     } finally {
       await waitForExit(isolatedChild, { signal: "SIGTERM" });
       await removeTempDir(isolatedHome);
@@ -5135,7 +5095,7 @@ describe("harness HTTP API", () => {
     expect(cleared.body.bot.modelSelection).toEqual(selection);
   });
 
-  it("stores safe approval levels and Full over HTTP, and keeps Custom on the desktop", async () => {
+  it("stores safe approval levels and Full over HTTP, and refuses the removed Custom level", async () => {
     const bot = (await api("POST", "/api/bots", {
       modelSelection: { instanceId: "codex", model: "fixture-codex-model" },
     })).body.bot;
@@ -5159,12 +5119,12 @@ describe("harness HTTP API", () => {
 
       for (const body of [{ approvalMode: "custom" }, { approvalMode: "custom", acknowledgeFullAccess: true }]) {
         const rejected = await api("PATCH", `/api/bots/${bot.id}`, body);
-        expect(rejected.status, JSON.stringify(body)).toBe(403);
-        expect(rejected.body.error).toMatch(/desktop app/i);
+        expect(rejected.status, JSON.stringify(body)).toBe(400);
+        expect(rejected.body.error).toMatch(/approvalMode must be ask, edits, auto, or full/);
       }
       const thread = await api("PATCH", `/api/bots/${bot.id}/tasks/${bot.threadId}`, { approvalMode: "custom" });
-      expect(thread.status).toBe(403);
-      expect(thread.body.error).toMatch(/Custom access requires trusted desktop confirmation/);
+      expect(thread.status).toBe(400);
+      expect(thread.body.error).toMatch(/approvalMode must be ask, edits, auto, or full/);
 
       const stored = (await api("GET", "/api/bots")).body.bots.find(
         (candidate: { id: string }) => candidate.id === bot.id,
@@ -5225,7 +5185,7 @@ describe("harness HTTP API", () => {
 
       const custom = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "custom" });
       expect(custom.status).toBe(400);
-      expect(custom.body.error).toMatch(/does not support/i);
+      expect(custom.body.error).toMatch(/approvalMode must be/i);
 
       const born = await api("POST", "/api/bots", {
         modelSelection: { instanceId: "claude", model: "claude-sonnet-5" }, settings: { approvalMode: "full" },
@@ -5237,7 +5197,8 @@ describe("harness HTTP API", () => {
       const customBirth = await api("POST", "/api/bots", {
         modelSelection: { instanceId: "codex", model: "fixture-codex-model" }, settings: { approvalMode: "custom" },
       });
-      expect(customBirth.status).toBe(403);
+      expect(customBirth.status).toBe(400);
+      expect(customBirth.body.error).toMatch(/approvalMode "custom" is not available in this distribution/);
     } finally {
       for (const id of created) await api("DELETE", `/api/bots/${id}`);
     }

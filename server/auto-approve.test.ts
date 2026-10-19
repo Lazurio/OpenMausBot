@@ -6,7 +6,6 @@ import {
   HELD_NOTE,
   approvalHeldNote,
   approvalHeldReason,
-  approvalModeForOrigin,
   autoVerdict,
   deliverFullAccessApproval,
   delegatedApprovalMode,
@@ -34,13 +33,13 @@ describe("Full access delivery", () => {
 
 describe("autoVerdict", () => {
   it("never uses a saved command grant to silently send on the person's behalf", () => {
-    for (const mode of ["ask", "edits", "auto", "custom"] as const) {
+    for (const mode of ["ask", "edits", "auto"] as const) {
       expect(autoVerdict(mode, "mcp__composio__GMAIL_SEND_DRAFT", { commandAllowed: true })).toEqual({ approve: null, source: "outbound-guard" });
     }
     expect(autoVerdict("full", "GMAIL_SEND_EMAIL").source).toBe("full-access");
   });
   it("applies an explicit exact command grant without changing Full or answering questions/elevations", () => {
-    for (const mode of ["ask", "edits", "auto", "custom"] as const) {
+    for (const mode of ["ask", "edits", "auto"] as const) {
       expect(autoVerdict(mode, "Bash", { commandAllowed: true }).source).toBe("command-allowlist");
       expect(autoVerdict(mode, "Bash", { commandAllowed: true }).approve).toBeTruthy();
       expect(autoVerdict(mode, "Bash", { commandAllowed: true, requiresExplicitApproval: true }).approve).toBeNull();
@@ -49,7 +48,7 @@ describe("autoVerdict", () => {
     expect(autoVerdict("full", "Bash", { commandAllowed: true, requiresExplicitApproval: true }).source).toBe("full-access");
   });
   it("applies an exact saved MCP read grant without bypassing outbound or sandbox guards", () => {
-    for (const mode of ["ask", "edits", "auto", "custom"] as const) {
+    for (const mode of ["ask", "edits", "auto"] as const) {
       expect(autoVerdict(mode, "mcp__linear__list_issues", { toolAllowed: true })).toEqual({
         approve: "approved mcp__linear__list_issues (always allowed)",
         source: "tool-allowlist",
@@ -69,7 +68,6 @@ describe("autoVerdict", () => {
 
   it("leaves an Auto or Custom request with the person as the provider's own reviewer did", () => {
     expect(autoVerdict("auto", "Bash")).toEqual({ approve: null, source: "native-approval" });
-    expect(autoVerdict("custom", "Bash")).toEqual({ approve: null, source: "native-approval" });
   });
 
   it("never judges the action itself: Ask and Edits card everything the provider asks about", () => {
@@ -80,7 +78,7 @@ describe("autoVerdict", () => {
   });
 
   it("holds a sandbox widening for the person in every mode but Full", () => {
-    for (const mode of ["ask", "edits", "auto", "custom"] as const) {
+    for (const mode of ["ask", "edits", "auto"] as const) {
       expect(autoVerdict(mode, "shell", { requiresExplicitApproval: true }))
         .toEqual({ approve: null, source: "explicit-approval-block" });
     }
@@ -104,7 +102,6 @@ describe("autoVerdict", () => {
   it("does not grant a web search in Ask, Edits, or Custom", () => {
     expect(autoVerdict("ask", "WebSearch")).toEqual({ approve: null, source: "no-grant" });
     expect(autoVerdict("edits", "WebSearch")).toEqual({ approve: null, source: "no-grant" });
-    expect(autoVerdict("custom", "WebSearch")).toEqual({ approve: null, source: "native-approval" });
   });
 
   it("lets Full access, a sandbox block, and a saved command beat the web-search grant", () => {
@@ -120,16 +117,6 @@ describe("autoVerdict", () => {
       approve: "approved WebSearch (saved command)",
       source: "command-allowlist",
     });
-  });
-});
-
-describe("approvalModeForOrigin", () => {
-  it("runs peer-started Custom turns as Auto and leaves every other mode alone", () => {
-    expect(approvalModeForOrigin("custom", { peerInitiated: true })).toBe("auto");
-    expect(approvalModeForOrigin("custom", { peerInitiated: false })).toBe("custom");
-    for (const mode of ["ask", "edits", "auto", "full"] as const) {
-      expect(approvalModeForOrigin(mode, { peerInitiated: true })).toBe(mode);
-    }
   });
 });
 
@@ -155,7 +142,7 @@ describe("held notes", () => {
 describe("tools that ask a person", () => {
   // The backstop for a question arriving typed as a permission: approving runs the tool with no answers, and the model is
   // told "The user did not answer the questions."
-  const modes = ["ask", "edits", "auto", "custom", "full"] as const;
+  const modes = ["ask", "edits", "auto", "full"] as const;
 
   it("never answers AskUserQuestion for the person, even under Full access", () => {
     for (const mode of modes) {
@@ -186,19 +173,17 @@ describe("delegatedApprovalMode", () => {
   it("passes an Approve-for-me or Auto-accept-edits Chief's level on too", () => {
     expect(delegatedApprovalMode({ ...base, senderMode: "auto" })).toBe("auto");
     expect(delegatedApprovalMode({ ...base, senderMode: "edits" })).toBe("edits");
-    expect(delegatedApprovalMode({ ...base, senderMode: "custom", recipientDriverKind: "codex" })).toBe("auto");
   });
   it("passes nothing on from an ordinary bot, a Chief on Ask, or a bot to itself", () => {
     expect(delegatedApprovalMode({ ...base, senderIsChief: false })).toBeNull();
     expect(delegatedApprovalMode({ ...base, senderMode: "ask" })).toBeNull();
     expect(delegatedApprovalMode({ ...base, sameBot: true })).toBeNull();
   });
-  it("never lowers a teammate, and leaves one on Custom with its own config", () => {
+  it("never lowers a teammate", () => {
     expect(delegatedApprovalMode({ ...base, senderMode: "auto", recipientMode: "full" })).toBeNull();
     expect(delegatedApprovalMode({ ...base, senderMode: "auto", recipientMode: "auto" })).toBeNull();
     expect(delegatedApprovalMode({ ...base, senderMode: "full", recipientMode: "auto" })).toBe("full");
     expect(delegatedApprovalMode({ ...base, senderMode: "edits", recipientMode: "auto" })).toBeNull();
-    expect(delegatedApprovalMode({ ...base, recipientMode: "custom", recipientDriverKind: "codex" })).toBeNull();
   });
   it("steps down to the next level the teammate's engine has", () => {
     expect(delegatedApprovalMode({ ...base, recipientDriverKind: "hermesAgent" })).toBe("full");

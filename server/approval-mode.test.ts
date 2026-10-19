@@ -7,19 +7,17 @@ import {
   supportsApprovalMode,
   modelSwitchNeedsAsk,
   hasNativeAutoReview,
-  isEmergencyApprovalDowngrade,
   isApprovalMode,
 } from "../shared/approval-mode.ts";
 import { BUILT_IN_DRIVERS } from "./drivers/builtIn.ts";
 import { createApprovalModeSupport } from "./harness-capabilities.ts";
 
 describe("approval modes", () => {
-  it("carries Full silently to any engine that runs it; Custom never crosses engines", () => {
+  it("carries Full silently to any engine that runs it", () => {
     for (const driver of ["codex", "claudeAgent", "grokAgent", "antigravityAgent", "piAgent", "customAcp"]) {
       expect(modelSwitchNeedsAsk("ask", "codex", driver)).toBe(false);
       expect(modelSwitchNeedsAsk("auto", "codex", driver)).toBe(false);
       expect(modelSwitchNeedsAsk("full", "codex", driver)).toBe(false);
-      expect(modelSwitchNeedsAsk("custom", "codex", driver)).toBe(driver !== "codex");
     }
     expect(modelSwitchNeedsAsk("full", "codex", "claudeAgent")).toBe(false);
     expect(modelSwitchNeedsAsk("full", "claudeAgent", "openai-compat")).toBe(false);
@@ -31,7 +29,6 @@ describe("approval modes", () => {
   it("only exposes implemented provider capabilities", () => {
     for (const driver of ["codex", "claudeAgent", "antigravityAgent", "cursorAgent", "grokAgent", "opencodeGo", "qwenAgent", "geminiAgent"]) {
       expect(supportsApprovalMode(driver, "full")).toBe(true);
-      expect(supportsApprovalMode(driver, "custom")).toBe(driver === "codex");
       // Qwen's `--approval-mode auto` is an LLM classifier; Gemini has no reviewer
       expect(hasNativeAutoReview(driver)).toBe(["codex", "claudeAgent", "cursorAgent", "grokAgent", "qwenAgent"].includes(driver));
       expect(supportsApprovalMode(driver, "edits")).toBe(["claudeAgent", "grokAgent", "antigravityAgent", "qwenAgent", "geminiAgent"].includes(driver));
@@ -54,7 +51,6 @@ describe("approval modes", () => {
     expect(supportsApprovalMode(driver, "auto")).toBe(true);
     expect(supportsApprovalMode(driver, "edits")).toBe(false);
     expect(supportsApprovalMode(driver, "full")).toBe(true);
-    expect(supportsApprovalMode(driver, "custom")).toBe(false);
     expect(hasNativeAutoReview(driver)).toBe(false);
   });
 
@@ -65,13 +61,13 @@ describe("approval modes", () => {
     expect(supportsApprovalMode(driver, "auto")).toBe(true);
     expect(supportsApprovalMode(driver, "full")).toBe(true);
     expect(supportsApprovalMode(driver, "edits")).toBe(false);
-    expect(supportsApprovalMode(driver, "custom")).toBe(false);
     expect(hasNativeAutoReview(driver)).toBe(false);
   });
-  it("recognizes only the five durable values", () => {
-    expect(APPROVAL_MODES).toEqual(["ask", "edits", "auto", "full", "custom"]);
+  // Lazurio overlay (DEV-6673): the four runtime modes of Lazurio's T3 Code; upstream's Custom is removed.
+  it("recognizes only the four durable values", () => {
+    expect(APPROVAL_MODES).toEqual(["ask", "edits", "auto", "full"]);
     for (const mode of APPROVAL_MODES) expect(isApprovalMode(mode)).toBe(true);
-    for (const value of [undefined, null, true, "automatic", "bypass"]) {
+    for (const value of [undefined, null, true, "automatic", "bypass", "custom"]) {
       expect(isApprovalMode(value)).toBe(false);
     }
   });
@@ -90,35 +86,10 @@ describe("approval modes", () => {
 
   it("prefers a valid explicit mode and fails closed around corrupt values", () => {
     expect(approvalModeFor({ approvalMode: "full", autoApprove: false })).toBe("full");
-    expect(approvalModeFor({ approvalMode: "custom", autoApprove: true })).toBe("custom");
+    expect(approvalModeFor({ approvalMode: "custom", autoApprove: true })).toBe("auto");
+    expect(approvalModeFor({ approvalMode: "custom", autoApprove: false })).toBe("ask");
     expect(approvalModeFor({ approvalMode: "unknown", autoApprove: true })).toBe("auto");
     expect(approvalModeFor({ approvalMode: "unknown", autoApprove: false })).toBe("ask");
-  });
-
-  it("keeps an unconfirmed elevated grant in Ask", () => {
-    expect(approvalModeFor({
-      approvalMode: "full",
-      approvalGrant: { requestId: "pending", mode: "full", phase: "prepared" },
-    })).toBe("ask");
-    expect(approvalModeFor({
-      approvalMode: "custom",
-      approvalGrant: { requestId: "pending", mode: "custom", phase: "confirmed" },
-    })).toBe("ask");
-  });
-
-  it("permits only fail-closed recovery from an elevated mode", () => {
-    expect(isEmergencyApprovalDowngrade("full", "ask")).toBe(true);
-    expect(isEmergencyApprovalDowngrade("custom", "ask")).toBe(true);
-    expect(isEmergencyApprovalDowngrade("full", "auto")).toBe(false);
-    expect(isEmergencyApprovalDowngrade("ask", "auto")).toBe(false);
-    expect(isEmergencyApprovalDowngrade("auto", "ask")).toBe(false);
-  });
-
-  it("holds only the explicitly targeted thread during a composer grant", () => {
-    const approvalGrant = { requestId: "pending", mode: "full", phase: "prepared", threadOnly: true, threadId: "target" };
-    expect(approvalModeFor({ approvalMode: "full", approvalGrant, threadId: "target" })).toBe("ask");
-    expect(approvalModeFor({ approvalMode: "full", approvalGrant, threadId: "other" })).toBe("full");
-    expect(approvalModeFor({ approvalMode: "full", approvalGrant })).toBe("ask");
   });
 });
 
@@ -135,11 +106,9 @@ describe("approval support bound to a registry", () => {
     const codex = { instanceId: "codex-fixture", model: "fixture" };
     const pi = { instanceId: "pi-fixture", model: "fixture" };
     expect(supports(codex, "full")).toBe(true);
-    expect(supports(codex, "custom")).toBe(true);
     expect(supports(pi, "ask")).toBe(true);
     expect(supports(pi, "auto")).toBe(true);
     expect(supports(pi, "full")).toBe(true);
-    expect(supports(pi, "custom")).toBe(false);
   });
 
   it("answers an unknown instance like an unknown driver", () => {
@@ -152,7 +121,7 @@ describe("approval support bound to a registry", () => {
   });
 
   it("passes already-resolved driver views to the table unchanged", () => {
-    expect(supports({ driverKind: "codex" }, "custom")).toBe(true);
+    expect(supports({ driverKind: "codex" }, "edits")).toBe(false);
     expect(supports({ driverKind: "piAgent" }, "full")).toBe(true);
     expect(supports({ driverKind: undefined }, "ask")).toBe(true);
     expect(supports({ driverKind: undefined }, "full")).toBe(true);

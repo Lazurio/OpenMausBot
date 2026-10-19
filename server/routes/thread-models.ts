@@ -11,7 +11,6 @@ export interface ThreadModelRouteDeps {
   bot(id: string): {
     id: string;
     modelSelection: ModelSelection;
-    approvalGrant?: unknown;
     tasks?: ReadonlyArray<{ threadId: string; modelSelection?: ModelSelection }>;
   } | null | undefined;
   busy(botId: string, threadId: string): boolean;
@@ -40,7 +39,6 @@ export function createThreadModelRoutes(deps: ThreadModelRouteDeps): RouteHandle
     const ids = new Set(tasks.map((task) => task.threadId));
     const foreign = (raw as string[] | undefined)?.find((id) => !ids.has(id));
     if (foreign !== undefined) return json(res, 400, { error: `"${foreign}" is not one of this bot's threads` });
-    if (bot.approvalGrant) return json(res, 409, { error: "wait for the approval-level change to finish before changing models" });
     const listed = raw === undefined ? null : new Set(raw as string[]);
     const own = tasks.filter((task) => (!listed || listed.has(task.threadId)) &&
       task.modelSelection !== undefined && !sameModelSelection(task.modelSelection, bot.modelSelection));

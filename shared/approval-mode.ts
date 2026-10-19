@@ -1,8 +1,12 @@
 /** The approval levels exposed by the app. Each one is a provider's own
  * permission mode, passed through: OpenMausBot never decides a permission
  * itself (Full access aside, which answers residual prompts because that is
- * what the person granted). The order is the order the selector shows. */
-export const APPROVAL_MODES = ["ask", "edits", "auto", "full", "custom"] as const;
+ * what the person granted). The order is the order the selector shows.
+ * Lazurio overlay (DEV-6673): the four runtime modes of Lazurio's T3 Code
+ * (approval-required, auto-accept-edits, auto, full-access); upstream's
+ * Custom (Codex's own config.toml, entered only from the desktop app) is
+ * removed with its desktop grant. */
+export const APPROVAL_MODES = ["ask", "edits", "auto", "full"] as const;
 
 export type ApprovalMode = (typeof APPROVAL_MODES)[number];
 
@@ -16,22 +20,20 @@ export type ApprovalMode = (typeof APPROVAL_MODES)[number];
  * chat-completions family, ACP agents such as Kimi or Hermes, Pi's computer
  * confirms). */
 export function supportsApprovalMode(driverKind: string | undefined, mode: ApprovalMode): boolean {
-  if (mode === "custom") return driverKind === "codex";
   if (mode === "edits") return ["claudeAgent", "grokAgent", "antigravityAgent", "qwenAgent", "geminiAgent"].includes(driverKind ?? "");
   return true;
 }
 
-/** Whether switching engines must first drop this level to Ask. A Custom
- * grant's rules belong to one provider's tool semantics, so it never crosses
- * engines; Full carries silently to any engine; Auto-accept edits stops at an
- * engine without it.
+/** Whether switching engines must first drop this level to Ask. Full
+ * carries silently to any engine; Auto-accept edits stops at an engine
+ * without it.
  * Adapted from tahodev's provider-switch guard. */
 export function modelSwitchNeedsAsk(
   mode: ApprovalMode,
-  fromDriver: string | undefined,
+  _fromDriver: string | undefined,
   toDriver: string | undefined,
 ): boolean {
-  return !supportsApprovalMode(toDriver, mode) || (mode === "custom" && fromDriver !== toDriver);
+  return !supportsApprovalMode(toDriver, mode);
 }
 
 export function hasNativeAutoReview(driverKind: string | undefined): boolean {
@@ -40,7 +42,7 @@ export function hasNativeAutoReview(driverKind: string | undefined): boolean {
   return ["codex", "claudeAgent", "cursorAgent", "grokAgent", "qwenAgent"].includes(driverKind ?? "");
 }
 
-const APPROVAL_RANK: Record<ApprovalMode, number> = { ask: 0, edits: 1, auto: 2, full: 3, custom: 4 };
+const APPROVAL_RANK: Record<ApprovalMode, number> = { ask: 0, edits: 1, auto: 2, full: 3 };
 
 export function approvalModeWidens(from: ApprovalMode, to: ApprovalMode): boolean {
   return APPROVAL_RANK[to] > APPROVAL_RANK[from];
@@ -62,26 +64,8 @@ export const DEFAULT_APPROVAL_MODE: ApprovalMode = "full";
 export function approvalModeFor(bot: {
   approvalMode?: unknown;
   autoApprove?: unknown;
-  /** Server-only two-phase grant marker. Until Electron confirms it, the
-   * stored elevated selection is deliberately executable only as Ask. */
-  approvalGrant?: unknown;
-  threadId?: string;
 }): ApprovalMode {
-  const grant = bot.approvalGrant;
-  const otherThread = grant && typeof grant === "object" && "threadOnly" in grant && grant.threadOnly === true &&
-    "threadId" in grant && typeof grant.threadId === "string" && typeof bot.threadId === "string" && grant.threadId !== bot.threadId;
-  if (grant && !otherThread) return "ask";
   if (isApprovalMode(bot.approvalMode)) return bot.approvalMode;
   if (bot.autoApprove === true) return "auto";
   return bot.approvalMode === undefined ? DEFAULT_APPROVAL_MODE : "ask";
-}
-
-/** A private late-grant recovery may revoke an elevated mode even after a
- * turn began. It can only move to the fail-closed Ask mode; ordinary changes
- * remain blocked while the bot is working. */
-export function isEmergencyApprovalDowngrade(
-  current: ApprovalMode,
-  next: ApprovalMode,
-): boolean {
-  return next === "ask" && (current === "full" || current === "custom");
 }

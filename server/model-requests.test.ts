@@ -81,7 +81,8 @@ describe("ModelRequestService", () => {
     expect(proposal.detail).toContain("Loses peer coordination and every team tool");
     expect(proposal.detail).toContain("coordinate_bots");
     expect(proposal.detail).toContain("Loses approval levels: edits.");
-    expect(proposal.detail).toContain("Gains approval levels: custom.");
+    // Lazurio overlay (DEV-6673): Custom is removed, so Codex gains no level.
+    expect(proposal.detail).not.toContain("Gains approval levels");
     const result = service.resolve({ botId: bot.id, threadId: bot.threadId, requestId: proposal.requestId, behavior: "allow" });
     expect(result).toMatchObject({ claimed: true, state: "applied", targetBotId: bot.id });
     expect(bot.modelSelection).toEqual({ instanceId: "codex", model: "gpt-fixture" });

@@ -275,23 +275,13 @@ export interface BotRecord extends Omit<WireBot, "avatarUrl" | "tasks"> {
   tasks?: TaskRecord[];
   avatarUrl?: string;
   resumeCursors: Record<string, unknown>;
-  /** Elevation journal: Full/Custom runs as Ask until Electron confirms the prepared reply; a marker surviving a restart is revoked on load. */
-  approvalGrant?: {
-    requestId: string;
-    mode: "full" | "custom";
-    phase: "prepared" | "confirmed" | "activated" | "committed";
-    threadId?: string;
-    threadOnly?: true;
-    refreshPermissions?: true;
-    allThreads?: true;
-  };
   lastProfileRequestId?: string;
   lastTeamSetupReceipt?: { requestId: string; result: TeamSetupResult };
   packageBase?: Partial<Record<AgentPart, PartPair>>;
   assignedSkills?: string[];
 }
 
-export type BotWirePrivateKeys = "resumeCursors" | "tasks" | "avatarUrl" | "approvalGrant" | "lastProfileRequestId" | "lastTeamSetupReceipt" | "packageBase" | "assignedSkills";
+export type BotWirePrivateKeys = "resumeCursors" | "tasks" | "avatarUrl" | "lastProfileRequestId" | "lastTeamSetupReceipt" | "packageBase" | "assignedSkills";
 export type BotWireProjection = Pick<BotRecord, Exclude<keyof BotRecord, BotWirePrivateKeys>>;
 export type BotWireProjectionIsExact = AssertExact<Omit<WireBot, "avatarUrl" | "tasks">, BotWireProjection> & AssertSameKeys<Omit<WireBot, "avatarUrl" | "tasks">, BotWireProjection>;
 export const botWireProjectionIsExact: BotWireProjectionIsExact = true;
@@ -511,24 +501,10 @@ export class Store {
         delete b.approvalMode;
         botsMigrated = true;
       }
-      // Revoke an unactivated elevation before schedulers, listeners or HTTP can start any new work.
-      if (b.approvalGrant !== undefined) {
-        const threadOnly = b.approvalGrant.threadOnly === true;
-        if (threadOnly) {
-          const target = b.tasks?.find(task => task.threadId === b.approvalGrant?.threadId);
-          if (target) { target.approvalMode = "ask"; target.autoApprove = false; }
-        }
-        if (!threadOnly) {
-        b.approvalMode = "ask";
-        b.autoApprove = false;
-        for (const task of b.tasks ?? []) {
-          if (task.approvalMode === "full" || task.approvalMode === "custom") {
-            task.approvalMode = "ask";
-            task.autoApprove = false;
-          }
-        }
-        }
-        delete b.approvalGrant;
+      // Lazurio overlay (DEV-6673): the desktop's two-phase approval grant is removed with Custom; a saved
+      // marker is dropped, and a saved Custom level above (and on a thread) drops too, so the bot follows Full.
+      if (Object.hasOwn(b, "approvalGrant")) {
+        delete (b as unknown as Record<string, unknown>).approvalGrant;
         botsMigrated = true;
       }
       const avatar = botAvatarProfile(b);
@@ -2168,7 +2144,6 @@ export class Store {
     return {
       ...bot,
       threadId: task.threadId,
-      approvalGrant: bot.approvalGrant?.threadOnly && bot.approvalGrant.threadId !== threadId ? undefined : bot.approvalGrant,
       modelSelection: structuredClone(task.modelSelection ?? bot.modelSelection),
       resumeCursors: structuredClone(task.resumeCursors),
       approvalMode: task.approvalMode ?? (task.autoApprove === undefined ? bot.approvalMode : undefined),
@@ -2253,25 +2228,24 @@ export class Store {
     return moved;
   }
 
-  setAllThreadApprovalMode(botId: string, mode: Exclude<ApprovalMode, "custom">): BotRecord | null {
+  setAllThreadApprovalMode(botId: string, mode: ApprovalMode): BotRecord | null {
     const bot = this.bot(botId);
     if (!bot) return null;
     const patch = { approvalMode: mode, autoApprove: mode === "auto", ...(mode === "full" ? { alwaysAllow: [] } : {}) };
     const tasks = (bot.tasks ?? []).map(task => ({ ...task, ...patch }));
-    const next = { ...bot, ...patch, approvalGrant: undefined, tasks };
+    const next = { ...bot, ...patch, tasks };
     this.saveBots(this.bots.map(candidate => candidate === bot ? next : candidate));
     bot.tasks?.forEach((task, index) => Object.assign(task, tasks[index]));
-    Object.assign(bot, patch, { approvalGrant: undefined });
+    Object.assign(bot, patch);
     this.emit({ type: "bot", botId });
     return bot;
   }
 
-  /** An uncommitted grant is ignored, so a refresh cannot copy the temporary Ask mask. */
   refreshTaskPermissions(botId: string, threadId: string): TaskRecord | null {
     const bot = this.bot(botId);
     const task = this.taskByThread(botId, threadId);
     if (!bot || !task) return null;
-    const mode = approvalModeFor({ ...bot, approvalGrant: undefined });
+    const mode = approvalModeFor(bot);
     const alwaysAllow = structuredClone(bot.alwaysAllow ?? []);
     const autoApprove = mode === "auto";
     const sameAllow = JSON.stringify(task.alwaysAllow ?? []) === JSON.stringify(alwaysAllow);

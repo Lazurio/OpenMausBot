@@ -4,7 +4,6 @@ import { approvalModeFor } from "../../shared/approval-mode";
 import {
   approvalModeOptions,
   approvalModeOptionsFor,
-  approvalModeSelectionRequiresLocalDesktop,
   shownApprovalMode,
 } from "@/lib/approval-mode-options";
 import { CALL_MODES, effectiveCallMode, useCallMode } from "@/lib/call-mode";
@@ -48,26 +47,24 @@ const check = <Check size={15} className="shrink-0 text-accent" aria-hidden="tru
 
 /** The thread's approval level, the same choices the Advanced composer's shield offers, as a submenu. */
 function approvalItem(name: string, choice: ApprovalChoice): SidebarMenuItem {
-  const trusted = choice.trustedModesAvailable ?? true;
   const mode = shownApprovalMode(choice.driverKind, approvalModeFor({ approvalMode: choice.approvalMode, autoApprove: choice.autoApprove }));
   const all = approvalModeOptions();
   const current = approvalModeOptionsFor(choice.driverKind).find((option) => option.mode === mode)
     ?? all.find((option) => option.mode === mode)
     ?? all[0];
-  const localOnly = approvalModeSelectionRequiresLocalDesktop(mode, trusted);
-  const modesDisabled = Boolean(choice.disabled) || localOnly;
+  const modesDisabled = Boolean(choice.disabled);
   const CurrentIcon = current.Icon;
   return {
     key: "approval",
     separatorBefore: true,
     label: t("botSettings.simple.beforeActs", { name }),
     subtitle: current.label,
-    note: choice.disabled ? t("approvalMode.busy") : localOnly ? t("approvalMode.customLocalOnlyDot") : undefined,
+    note: choice.disabled ? t("approvalMode.busy") : undefined,
     icon: <CurrentIcon size={16} />,
     disabled: Boolean(choice.disabled) && !choice.onManageCommandAllowlist,
     onSelect: () => {},
     submenu: [
-      ...approvalModeOptionsFor(choice.driverKind, trusted).map((option): SidebarMenuItem => {
+      ...approvalModeOptionsFor(choice.driverKind).map((option): SidebarMenuItem => {
         const Icon = option.Icon;
         return {
           key: `approval:${option.mode}`,

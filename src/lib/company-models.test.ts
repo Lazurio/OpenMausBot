@@ -59,13 +59,12 @@ describe("Company switch planning", () => {
     expect(planCompanySwitch([bot("signed-out", "claude")], [signedOutClaude, companyMissingCli])).toEqual({ bots: [], needsAsk: [] });
   });
 
-  it("carries Full access through the switch and keeps Custom bots out of it", () => {
+  it("carries Full access through the switch", () => {
     const full = bot("full", "deleted-instance", { approvalMode: "full" });
     const fullSameEngine = bot("full-claude", "claude", { approvalMode: "full" });
-    const custom = bot("custom", "deleted-instance", { approvalMode: "custom" });
-    const plan = planCompanySwitch([full, fullSameEngine, custom, bot("ask", "claude")], [signedOutClaude, companyClaude]);
+    const plan = planCompanySwitch([full, fullSameEngine, bot("ask", "claude")], [signedOutClaude, companyClaude]);
     expect(plan.bots.map((row) => row.id)).toEqual(["full", "full-claude", "ask"]);
-    expect(plan.needsAsk.map((row) => row.id)).toEqual(["custom"]);
+    expect(plan.needsAsk).toEqual([]);
   });
 
   it("treats a signed-out engine's custom models as still able to run", () => {

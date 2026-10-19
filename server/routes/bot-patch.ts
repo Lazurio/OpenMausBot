@@ -46,7 +46,6 @@ export interface BotPatchRouteDeps {
   threadBusy(botId: string, threadId: string): boolean;
   activeGroupTurnForBot(botId: string): { group: GroupRecord; threadId: string } | null;
   checkedModelSelection(raw: unknown, current?: { selection: ModelSelection; busy: boolean }, requireAvailableModel?: boolean): ModelSelectionCheck;
-  engineSwitchNeedsAsk(mode: ApprovalMode, from: ModelSelection, to: ModelSelection): boolean;
   currentBrowserSession(botId: string, profile: string | undefined): string;
   forgetTemporaryBrowser(botId: string): Promise<void>;
 }
@@ -56,7 +55,7 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
     store, cfg, registry, sessions, browserRuntime, browserLive, memoryUpkeep, cacheKeepWarm, hostedModels, supportsApprovalMode,
     desktopManaged: DESKTOP_MANAGED, maxWorkspaceBots: MAX_WORKSPACE_BOTS,
     broadcast, wireBot, publicGroupState, audienceChanged, storedAvatarExists, requestedTaskBot, threadBusy, activeGroupTurnForBot,
-    checkedModelSelection, engineSwitchNeedsAsk, currentBrowserSession,
+    checkedModelSelection, currentBrowserSession,
     forgetTemporaryBrowser,
   } = deps;
   const pinnedClientThread = pinnedClientThreadGuard(store);
@@ -112,12 +111,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
       }
       const movedTask = selectedTask && !(body.keepThreadModels === true &&
         store.taskByThread(selectedTask.id, selectedTask.threadId)?.modelSelection !== undefined) ? selectedTask : null;
-      if (
-        existingBot?.approvalGrant &&
-        (rawSelection !== undefined || body.approvalMode !== undefined || body.autoApprove !== undefined)
-      ) {
-        return json(res, 409, { error: "wait for the approval-level change to finish before changing this setting" });
-      }
       if (body.requireAvailableModel === true && rawSelection === undefined) {
         return json(res, 400, { error: "requireAvailableModel requires modelSelection" });
       }
@@ -267,7 +260,7 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
       if (body.approvalMode !== undefined) {
         if (!isApprovalMode(body.approvalMode)) {
           return json(res, 400, {
-            error: "approvalMode must be ask, auto, full, or custom",
+            error: "approvalMode must be ask, edits, auto, or full",
           });
         }
         requestedApprovalMode = body.approvalMode;
@@ -290,46 +283,16 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
         patch.autoApprove = requestedApprovalMode === "auto";
       }
       const targetSelection = normalizedSelection ?? existingBot?.modelSelection;
-      if (normalizedSelection && movedTask) {
-        const mode = approvalModeFor(movedTask);
-        if (mode === "custom" &&
-          (!supportsApprovalMode(normalizedSelection, mode) || engineSwitchNeedsAsk(mode, movedTask.modelSelection, normalizedSelection))) {
-          return json(res, 400, { error: "Choose Ask for the selected thread before changing providers with elevated permissions" });
-        }
-      }
-      if (
-        requestedApprovalMode === "custom" &&
-        (body.approvalMode !== undefined || normalizedSelection !== undefined) &&
-        (!targetSelection || !supportsApprovalMode(targetSelection, requestedApprovalMode) ||
-          (existingBot && normalizedSelection && engineSwitchNeedsAsk(requestedApprovalMode, existingBot.modelSelection, normalizedSelection)))
-      ) {
-        return json(res, 400, {
-          error: "This provider does not support the selected approval level, or changing providers requires choosing Ask first",
-        });
-      }
-      // Full access applies from any client that can reach this API; Custom moves only through the
-      // desktop's private channel because it holds restrictions the person wrote.
-      const requiresPrivateApprovalTransition =
-        (requestedApprovalMode === "custom" && currentApprovalMode !== "custom") ||
-        (currentApprovalMode === "custom" && requestedApprovalMode !== "custom");
-      if (requiresPrivateApprovalTransition) {
-        return json(res, 403, {
-          error: "This approval-level change can only be made from the packaged desktop app",
-        });
-      }
       if (body.applyToAllThreads !== undefined) {
         if (typeof body.applyToAllThreads !== "boolean") return json(res, 400, { error: "applyToAllThreads must be true or false" });
-        if (body.applyToAllThreads && (body.approvalMode === undefined || requestedApprovalMode === "custom")) {
-          return json(res, 400, { error: "applyToAllThreads goes with an approvalMode other than custom" });
+        if (body.applyToAllThreads && body.approvalMode === undefined) {
+          return json(res, 400, { error: "applyToAllThreads goes with an approvalMode" });
         }
       }
       if (body.applyToAllThreads === true && existingBot) {
         const threads = store.tasks(existingBot.id);
         if (threads.some((task) => threadBusy(existingBot.id, task.threadId))) {
           return json(res, 409, { error: "stop this bot's turns before changing its approval level" });
-        }
-        if (threads.some((task) => approvalModeFor(store.projectBotForTask(existingBot.id, task.threadId) ?? {}) === "custom")) {
-          return json(res, 403, { error: "A thread on Custom approval can only leave it from the packaged desktop app" });
         }
         if (threads.some((task) => !supportsApprovalMode(task.modelSelection ?? targetSelection, requestedApprovalMode))) {
           return json(res, 400, { error: "Every thread's provider must support this approval level" });
@@ -493,7 +456,7 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
         bot = store.patchBot(m[1], patch);
       }
       if (!bot) return json(res, 404, { error: "no such bot" });
-      if (body.applyToAllThreads === true && requestedApprovalMode !== "custom") store.setAllThreadApprovalMode(bot.id, requestedApprovalMode);
+      if (body.applyToAllThreads === true) store.setAllThreadApprovalMode(bot.id, requestedApprovalMode);
       if (body.memoryUpkeep === false || body.memoryEnabled === false) memoryUpkeep.dropBot(bot.id);
       if (body.cacheKeepWarm !== undefined) cacheKeepWarm.refresh();
       if (normalizedSelection && movedTask) store.patchTask(bot.id, movedTask.threadId, { modelSelection: undefined,
