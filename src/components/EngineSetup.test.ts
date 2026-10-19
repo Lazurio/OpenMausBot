@@ -155,30 +155,15 @@ describe("install from Settings on the server", () => {
 });
 
 describe("server device-code sign-in", () => {
-  it("offers the distinct ChatGPT plan connection without the legacy Codex command", () => {
+  it("explains unavailable sign-in without offering a broken login or install", () => {
     vi.stubGlobal("window", { ogb: { platform: "linux" } });
     const engine: InstanceInfo = {
-      ...instance({ state: "available", authenticated: false, chatgptPlan: true }),
-      instanceId: "chatgpt", displayName: "ChatGPT plan", driverKind: "codex",
-      authentication: { method: "browser-pkce" }, install: { signInCommand: "codex login" },
+      ...instance({ state: "unavailable", authenticated: false, authenticationUnavailableReason: "Sign-in is not available on this server." }),
+      instanceId: "codex", displayName: "Codex", driverKind: "codex",
+      install: { command: { linux: "npm install -g @openai/codex" }, signInCommand: "codex login" },
     };
     const markup = renderToStaticMarkup(createElement(StoreProvider, null, createElement(EngineSetup, { instance: engine })));
-    expect(markup).toContain("Continue with ChatGPT");
-    expect(markup).toContain("separate from MausBot Cloud and API billing");
-    expect(markup).not.toContain("codex login");
-    expect(markup).not.toContain("Device-code login");
-  });
-
-  it("explains unavailable hosted plan auth without offering a broken login or install", () => {
-    vi.stubGlobal("window", { ogb: { platform: "linux" } });
-    const engine: InstanceInfo = {
-      ...instance({ state: "unavailable", authenticated: false, chatgptPlan: true, authenticationUnavailableReason: "Hosted ChatGPT plan access requires approval." }),
-      instanceId: "chatgpt", displayName: "ChatGPT plan", driverKind: "codex",
-      authentication: { method: "browser-pkce" }, install: { command: { linux: "npm install -g @openai/codex" }, signInCommand: "codex login" },
-    };
-    const markup = renderToStaticMarkup(createElement(StoreProvider, null, createElement(EngineSetup, { instance: engine })));
-    expect(markup).toContain("Hosted ChatGPT plan access requires approval.");
-    expect(markup).not.toContain("Continue with ChatGPT");
+    expect(markup).toContain("Sign-in is not available on this server.");
     expect(markup).not.toContain("npm install");
     expect(markup).not.toContain("codex login");
   });

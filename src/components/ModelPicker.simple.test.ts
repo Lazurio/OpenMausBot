@@ -579,17 +579,17 @@ describe("the model picker in Simple mode", () => {
   });
 
   it("asks a provider with nothing to list to check again", async () => {
-    const plan: InstanceInfo = {
-      ...engine("chatgpt", "codex", "ChatGPT plan", "subscription", []),
-      snapshot: { state: "available", version: "1.0.0", authenticated: true, chatgptPlan: true },
+    const work: InstanceInfo = {
+      ...engine("codex-work", "codex", "Codex work", "subscription", []),
+      snapshot: { state: "available", version: "1.0.0", authenticated: true },
     };
-    fixture.instances = [plan];
-    const opened = open(bot(undefined, "chatgpt", "gpt-5.6"));
+    fixture.instances = [work];
+    const opened = open(bot(undefined, "codex-work", "gpt-5.6"));
     const list = region(menu(opened.html), "data-simple-models", "data-simple-effort-band");
     expect(list).toContain("No models to show here yet.");
     expect(list).toContain(">Check again</button>");
     click(inside(opened).find((node) => node.props["data-simple-refresh"] !== undefined));
-    await vi.waitFor(() => expect(fixture.refreshModels).toHaveBeenCalledWith("chatgpt"));
+    await vi.waitFor(() => expect(fixture.refreshModels).toHaveBeenCalledWith("codex-work"));
     expect(fixture.refreshInstances).toHaveBeenCalled();
   });
 
@@ -609,12 +609,12 @@ describe("the model picker in Simple mode", () => {
     expect(menu(opened.html)).not.toContain("data-simple-account");
   });
 
-  it("reaches Codex and the ChatGPT plan from the one OpenAI row", () => {
-    const plan: InstanceInfo = {
-      ...engine("chatgpt", "codex", "ChatGPT plan", "subscription", [{ id: "gpt-5.6-plan", label: "GPT-5.6 (plan)" }]),
-      snapshot: { state: "available", version: "1.0.0", authenticated: true, chatgptPlan: true },
+  it("reaches every Codex account from the one OpenAI row", () => {
+    const work: InstanceInfo = {
+      ...engine("codex-work", "codex", "Codex work", "subscription", [{ id: "gpt-5.6-work", label: "GPT-5.6 (work)" }]),
+      snapshot: { state: "available", version: "1.0.0", authenticated: true },
     };
-    fixture.instances = [claude(), codex, plan];
+    fixture.instances = [claude(), codex, work];
     const forBot = bot();
     const opened = open(forBot);
     const openai = pane(opened)!.props.providers.filter((provider) => provider.label === "OpenAI");
@@ -623,32 +623,32 @@ describe("the model picker in Simple mode", () => {
     const browsed = render(forBot);
     expect(labels(browsed)).toEqual(["GPT-5.6"]);
     const account = pane(browsed)!.props.account as ReactElement<ComponentProps<typeof ClaudeAccountSelect>>;
-    expect(account.props.accounts.map((instance) => instance.displayName)).toEqual(["Codex", "ChatGPT plan"]);
+    expect(account.props.accounts.map((instance) => instance.displayName)).toEqual(["Codex", "Codex work"]);
 
-    account.props.onSelect(plan);
-    const onPlan = render(forBot);
-    expect(labels(onPlan)).toEqual(["GPT-5.6 (plan)"]);
-    pane(onPlan)!.props.onPick("gpt-5.6-plan");
+    account.props.onSelect(work);
+    const onWork = render(forBot);
+    expect(labels(onWork)).toEqual(["GPT-5.6 (work)"]);
+    pane(onWork)!.props.onPick("gpt-5.6-work");
     expect(fixture.dispatch).toHaveBeenLastCalledWith(expect.objectContaining({
-      type: "setModel", selection: expect.objectContaining({ instanceId: "chatgpt", model: "gpt-5.6-plan" }),
+      type: "setModel", selection: expect.objectContaining({ instanceId: "codex-work", model: "gpt-5.6-work" }),
     }));
   });
 
   it("opens a sign-in family on an account that is ready, not on a signed-out first one", () => {
     const signedOutCodex: InstanceInfo = { ...codex, snapshot: { ...codex.snapshot, authenticated: false } };
-    const plan: InstanceInfo = {
-      ...engine("chatgpt", "codex", "ChatGPT plan", "subscription", [{ id: "gpt-5.6-plan", label: "GPT-5.6 (plan)" }]),
-      snapshot: { state: "available", version: "1.0.0", authenticated: true, chatgptPlan: true },
+    const work: InstanceInfo = {
+      ...engine("codex-work", "codex", "Codex work", "subscription", [{ id: "gpt-5.6-work", label: "GPT-5.6 (work)" }]),
+      snapshot: { state: "available", version: "1.0.0", authenticated: true },
     };
-    fixture.instances = [claude(), signedOutCodex, plan];
+    fixture.instances = [claude(), signedOutCodex, work];
     const forBot = bot();
     const opened = open(forBot);
     const openai = pane(opened)!.props.providers.find((provider) => provider.label === "OpenAI")!;
-    expect(openai.target.instanceId).toBe("chatgpt");
+    expect(openai.target.instanceId).toBe("codex-work");
     pane(opened)!.props.onProvider(openai.target);
     const browsed = render(forBot);
     expect(pane(browsed)!.props.needsSetup).toBeNull();
-    expect(labels(browsed)).toEqual(["GPT-5.6 (plan)"]);
+    expect(labels(browsed)).toEqual(["GPT-5.6 (work)"]);
 
     (pane(browsed)!.props.account as ReactElement<ComponentProps<typeof ClaudeAccountSelect>>).props.onSelect(signedOutCodex);
     const onCodex = render(forBot);

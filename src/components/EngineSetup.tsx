@@ -4,7 +4,6 @@ import { api, type EngineInstall, type InstanceInfo, useStore } from "@/state/st
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { copyText } from "@/lib/copy-text";
-import { DeviceSignIn } from "./DeviceSignIn";
 import { RefreshEngines } from "./EngineLibrary";
 import { LazurioEngineSignIn, useLazurioSignIn } from "./LazurioEngineSignIn";
 
@@ -488,15 +487,12 @@ export function EngineSetup({
   const installCommand = installCommandFor(install);
   const signInCommand = install?.signInCommand;
   const signInOnly = intent === "cloud" && needsSignIn(instance);
-  const browserSignIn = signInOnly && instance.authentication?.method === "browser-pkce";
   const command = signInOnly ? signInCommand : installCommand;
   const title = signInOnly
     ? t("engineSetup.signInTitle", { name: instance.displayName })
     : t("engineSetup.setupTitle", { name: instance.displayName });
   const description = descriptionOverride ?? (signInOnly
-    ? browserSignIn
-      ? t("engineSetup.chatgpt.description")
-      : install?.managed
+    ? install?.managed
       ? t("engineSetup.managedSignIn")
       : t("engineSetup.terminalSignInCheck")
     : intent === "inject"
@@ -551,9 +547,7 @@ export function EngineSetup({
         </p>
       )}
 
-      {browserSignIn ? (
-        <DeviceSignIn key={instance.instanceId} instanceId={instance.instanceId} />
-      ) : install.server && !signInOnly ? (
+      {install.server && !signInOnly ? (
         <ServerEngineInstall instance={instance} mode="install" command={installCommand} />
       ) : install.managed ? (
         <ManagedEngineSetup instance={instance} signInOnly={signInOnly} />
@@ -579,7 +573,7 @@ export function EngineSetup({
         </p>
       )}
 
-      {(install.command || signInCommand) && !browserSignIn && !install.managed && (
+      {(install.command || signInCommand) && !install.managed && (
         <div className="mt-3 border-t border-hairline/40 pt-2">
           <p className="mb-1 text-[11.5px] leading-relaxed text-ink-secondary">{t("engineSetup.sameMachine")}</p>
           {needsCli(instance) && <p className="mb-1 text-[11.5px] leading-relaxed text-ink-secondary">{t("engineSetup.pathHint")}</p>}

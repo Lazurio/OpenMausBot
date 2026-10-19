@@ -323,7 +323,7 @@ export class ProviderRegistry {
           authentication: inst.startAuthentication
             ? {
                 // Lazurio overlay (DEV-6673 M3): no device-code or pasted-code engine logins here any more.
-                method: inst.authenticationMethod ?? "browser" as const, // a link and a callback URL (managed engines)
+                method: "browser" as const, // a link and a callback URL (managed engines)
                 signOut: inst.signOut !== undefined,
               }
             : undefined,

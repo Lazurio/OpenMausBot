@@ -20,7 +20,6 @@ function Preview() {
       <button onClick={() => applySkin("midnight")}>Dark</button>
       <button onClick={() => applySkin("atelier")}>Light</button>
       <button onClick={async () => { await fetch("/__fixture/connect", { method: "POST" }); await refreshInstances(); }}>Toggle sample connection</button>
-      <button onClick={async () => { await fetch("/__fixture/chatgpt", { method: "POST" }); await refreshInstances(); }}>Toggle sample ChatGPT plan</button>
     </nav>
   </>;
 }

@@ -3,13 +3,12 @@ import { once } from "node:events";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { tmpdir } from "node:os";
-import { dirname, join, sep } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ProviderInstance, RuntimeEvent } from "../contracts.ts";
-import { DATA_DIR, NATIVE_DIR } from "../config.ts";
-import { ChatGptPlanAuthController } from "./chatgpt-plan-auth.ts";
+import { NATIVE_DIR } from "../config.ts";
 import { recordEvents, type EventRecorder } from "../testing/events.ts";
 import { CodexDriver, codexNativeIncomingLogMessage, codexUpdateCommand } from "./codex.ts";
 import { CODEX_SIGN_IN_EXPIRED, codexNotSignedIn, codexSignInRefused, codexUserError } from "./codex-errors.ts";
@@ -43,11 +42,11 @@ const CONTROL_PLANE_FIXTURE = {
 };
 
 describe("CodexDriver.decodeConfig", () => {
-  it("makes plan/provider failures actionable without changing billing", () => {
-    expect(codexUserError("provider_not_configured", "own")).toContain("Continue with ChatGPT");
-    expect(codexUserError("provider_not_configured", "plan")).toContain("API billing will not be used");
-    expect(codexUserError("x".repeat(500) + "subscription_sharing_usage_limit_exceeded", "plan")).toMatch(/^subscription_sharing_usage_limit_exceeded:/);
-    expect(() => CodexDriver.decodeConfig({ authMode: "chatgpt-plan", managed: {} })).toThrow("cannot be combined");
+  it("makes provider failures actionable without changing billing", () => {
+    expect(codexUserError("provider_not_configured", "own")).toMatch(/^provider_not_configured: .*Refresh models/);
+  });
+  it("reads a saved sign-in mode as the computer's own Codex login", () => {
+    expect(CodexDriver.decodeConfig({ authMode: "chatgpt-plan" })).toEqual({ cli: "codex", fullAuto: false });
   });
   it("defaults to the codex binary with fullAuto off", () => {
     expect(CodexDriver.decodeConfig({})).toEqual({ cli: "codex", fullAuto: false });
@@ -110,9 +109,9 @@ describe("fake app-server shell policy", () => {
   };
 
   it("lets a `-c exclude` override drop the lower layers' filters but keep their include_only", async () => {
-    const policy = await readPolicy(["-c", 'shell_environment_policy.exclude=["OPENMAUSBOT_CHATGPT_TOKEN"]'],
+    const policy = await readPolicy(["-c", 'shell_environment_policy.exclude=["OMB_PRIVATE_TOKEN"]'],
       { filters: { "USER_SECRET_*": "exclude" }, include_only: ["PATH", "HOME"] });
-    expect(policy).toMatchObject({ exclude: ["OPENMAUSBOT_CHATGPT_TOKEN"], filters: null, include_only: ["PATH", "HOME"] });
+    expect(policy).toMatchObject({ exclude: ["OMB_PRIVATE_TOKEN"], filters: null, include_only: ["PATH", "HOME"] });
     expect(await readPolicy([], { filters: { "USER_SECRET_*": "exclude" } })).toMatchObject({ exclude: null, filters: { "USER_SECRET_*": "exclude" } });
   });
 });
@@ -123,7 +122,7 @@ describe("CodexDriver turns (fake app-server)", () => {
   let scratch: string;
 
   const create = async (
-    opts: { mode?: string; fullAuto?: boolean; environment?: Record<string, string>; managed?: boolean; authMode?: "chatgpt-plan" } = {},
+    opts: { mode?: string; fullAuto?: boolean; environment?: Record<string, string>; managed?: boolean } = {},
   ) => {
     if (opts.mode) process.env.FAKE_CODEX_MODE = opts.mode;
     instance = await CodexDriver.create({
@@ -137,7 +136,6 @@ describe("CodexDriver turns (fake app-server)", () => {
       config: {
         cli: FAKE_CLI,
         fullAuto: opts.fullAuto ?? false,
-        ...(opts.authMode ? { authMode: opts.authMode } : {}),
         ...(opts.managed ? { managed: { url: "http://127.0.0.1:1/v1", models: ["company-codex-model"] } } : {}),
       },
     });
@@ -1091,43 +1089,6 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
     await recorder.until((event) => event.type === "turn.completed");
   });
 
-  describe("on a ChatGPT plan", () => {
-    const plan = () => {
-      vi.spyOn(ChatGptPlanAuthController.prototype, "accessToken").mockResolvedValue("synthetic-plan-token");
-      vi.spyOn(ChatGptPlanAuthController.prototype, "models").mockResolvedValue({ default: "gpt-6.1-sol", options: [{ id: "gpt-6.1-sol", label: "GPT-6.1 Sol" }] });
-    };
-
-    it.each([
-      ["list", { exclude: ["USER_SECRET_*"] }, "shell_environment_policy.exclude", ["USER_SECRET_*", "OPENMAUSBOT_CHATGPT_TOKEN"]],
-      ["filters", { filters: { "USER_SECRET_*": "exclude" } }, "shell_environment_policy.filters", { "USER_SECRET_*": "exclude", OPENMAUSBOT_CHATGPT_TOKEN: "exclude" }],
-    ] as const)("keeps the person's own shell %s and adds the plan token to it", async (_name, policy, key, expected) => {
-      plan();
-      await create({ mode: "resume", authMode: "chatgpt-plan", environment: { FAKE_CODEX_SHELL_ENVIRONMENT_POLICY: JSON.stringify(policy) } });
-      const dump = join(scratch, "plan-own-policy.json");
-      process.env.FAKE_CODEX_DUMP = dump;
-      for (const resumeCursor of [undefined, "old-session"]) {
-        const { turnId } = await instance.adapter.sendTurn({ threadId: "t-plan-own-policy", text: "go", model: "gpt-6.1-sol", resumeCursor });
-        expect(await recorder.until((event) => event.type === "turn.completed" && event.turnId === turnId)).toMatchObject({ ok: true });
-        const seen = JSON.parse(readFileSync(dump, "utf8"));
-        const thread = seen.calls.find((call: { method: string }) => call.method === (resumeCursor ? "thread/resume" : "thread/start"));
-        expect(thread.params.config).toEqual({ [key]: expected });
-      }
-    });
-
-    it("refuses the turn when Codex's shell exclusions cannot be confirmed", async () => {
-      plan();
-      await create({ authMode: "chatgpt-plan", environment: { FAKE_CODEX_SHELL_ENVIRONMENT_POLICY: JSON.stringify({ filters: { "OMB_*": "maybe" } }) } });
-      const dump = join(scratch, "plan-bad-policy.json");
-      process.env.FAKE_CODEX_DUMP = dump;
-      await instance.adapter.sendTurn({ threadId: "t-plan-policy", text: "go", model: "gpt-6.1-sol" });
-      await recorder.until((event) => event.type === "turn.completed");
-      expect(recorder.events.at(-1)).toMatchObject({ ok: false });
-      expect(recorder.events.some((event) => event.type === "runtime.error" && event.message.includes("shell environment exclusions"))).toBe(true);
-      const seen = existsSync(dump) ? JSON.parse(readFileSync(dump, "utf8")) : { calls: [] };
-      expect(seen.calls.some((call: { method: string }) => call.method === "turn/start")).toBe(false);
-    });
-  });
-
   it.each(["ask", "auto"] as const)("pre-allows peer-agent comms without exposing its token in %s mode", async (approvalMode) => {
     await create();
     const dump = join(scratch, "agents.json");
@@ -1311,20 +1272,11 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
       ["gpt-6.1-sol", "gpt-6.1-sol", "openai"],
       ["fixture::other-model", "other-model", "fixture"],
     ] },
-    { name: "ChatGPT plan", opts: { authMode: "chatgpt-plan" as const }, selections: [
-      ["gpt-5.6-sol", "gpt-5.6-sol", "openai_chatgpt_plan"],
-      ["gpt-6.1-sol", "gpt-6.1-sol", "openai_chatgpt_plan"],
-    ] },
     { name: "Company", opts: { managed: true }, selections: [
       ["company-codex-model", "company-codex-model", "openmaus_company"],
       ["company-codex-model", "company-codex-model", "openmaus_company"],
     ] },
   ])("reasserts the selected model and provider after $name app-server restarts", async ({ opts, selections }) => {
-    const token = vi.spyOn(ChatGptPlanAuthController.prototype, "accessToken").mockResolvedValue("synthetic-chatgpt-token");
-    const catalog = vi.spyOn(ChatGptPlanAuthController.prototype, "models").mockResolvedValue({
-      default: "gpt-6.1-sol", options: ["gpt-5.6-sol", "gpt-6.1-sol"].map(id => ({ id, label: id })),
-    });
-    vi.stubEnv("OPENMAUSBOT_CHATGPT_TOKEN", "inherited-token-must-not-leak");
     vi.stubEnv("OPENAI_API_KEY", "inherited-api-key-must-not-leak");
     await create({ ...opts, mode: "resume", environment: { HOME: scratch, USERPROFILE: scratch, CODEX_HOME: join(scratch, ".codex") } });
     const dump = join(scratch, "model-provider-resume.json");
@@ -1341,151 +1293,16 @@ process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:m.id,result})+'\\n');});`)
         .toMatchObject({ sessionId: "codex-thread-1" });
       const seen = JSON.parse(readFileSync(dump, "utf8"));
       pids.add(seen.pid);
-      const plan = "authMode" in opts;
       expect(seen.env.OPENAI_API_KEY).toBeUndefined();
-      expect(seen.env.OPENMAUSBOT_CHATGPT_TOKEN).toBe(plan ? "synthetic-chatgpt-token" : undefined);
-      expect(JSON.stringify({ argv: seen.argv, calls: seen.calls })).not.toContain("synthetic-chatgpt-token");
-      if (plan) {
-        expect(seen.env.CODEX_HOME.startsWith(join(DATA_DIR, "providers", "chatgpt-plan") + sep)).toBe(true);
-        expect(seen.env.CODEX_HOME).not.toBe(join(scratch, ".codex"));
-        expect(seen.argv.some((arg: string) => arg.startsWith("shell_environment_policy.exclude="))).toBe(false);
-      } else expect(seen.env.CODEX_HOME).toBe(join(scratch, ".codex"));
+      expect(seen.env.CODEX_HOME).toBe(join(scratch, ".codex"));
       const threadCalls = seen.calls.filter((call: { method: string }) => ["thread/start", "thread/resume"].includes(call.method));
       expect(threadCalls).toHaveLength(1);
-      if (plan) expect(threadCalls[0].params.config["shell_environment_policy.exclude"]).toEqual(["OPENMAUSBOT_CHATGPT_TOKEN"]);
       expect(threadCalls[0]).toMatchObject({
         method: index ? "thread/resume" : "thread/start",
         params: { model: expectedModel, modelProvider, ...(index ? { threadId: "codex-thread-1" } : {}) },
       });
     }
     expect(pids.size).toBe(selections.length);
-    expect(token).toHaveBeenCalledTimes("authMode" in opts ? selections.length : 0);
-    expect(catalog).toHaveBeenCalledTimes("authMode" in opts ? 1 : 0);
-  });
-
-  it.each([
-    ["Cloud home", "OMB_CLOUD_ROLE", "home"],
-    ["hosted enterprise", "OMB_ADMIN_URL", "https://admin.example.test"],
-  ])("refuses desktop ChatGPT plan sign-in on %s before accessing credentials or spawning", async (_name, variable, value) => {
-    vi.stubEnv(variable, value);
-    const spawn = vi.spyOn(procs, "spawnCli").mockImplementation(() => { throw new Error("Unexpected process"); });
-    const exec = vi.spyOn(procs, "execCli").mockImplementation(() => { throw new Error("Unexpected process"); });
-    const catalog = vi.spyOn(ChatGptPlanAuthController.prototype, "models").mockResolvedValue({ default: "", options: [] });
-    const token = vi.spyOn(ChatGptPlanAuthController.prototype, "accessToken").mockResolvedValue("unused-synthetic-token");
-    const snapshot = vi.spyOn(ChatGptPlanAuthController.prototype, "snapshot").mockResolvedValue({ authenticated: false });
-    const start = vi.spyOn(ChatGptPlanAuthController.prototype, "start").mockRejectedValue(new Error("Unexpected sign-in"));
-    await create({ authMode: "chatgpt-plan" });
-    expect(instance.models).toEqual({ default: "", options: [] });
-    expect(await instance.snapshot()).toMatchObject({
-      state: "unavailable", authenticated: false, chatgptPlan: true,
-      authenticationUnavailableReason: expect.stringContaining("hosted-app approval"),
-    });
-    await expect(instance.startAuthentication!()).rejects.toThrow("hosted-app approval");
-    await expect(instance.adapter.sendTurn({ threadId: "hosted-plan", text: "Continue", model: "gpt-6.1-sol" }))
-      .rejects.toThrow("hosted-app approval");
-    for (const operation of [spawn, exec, catalog, token, snapshot, start]) expect(operation).not.toHaveBeenCalled();
-  });
-
-  it.each(["signOut", "dispose"] as const)("invalidates pending ChatGPT token/model preparation on %s", async (action) => {
-    const catalog = { default: "gpt-6.1-sol", options: [{ id: "gpt-6.1-sol", label: "GPT-6.1 Sol" }] };
-    let releaseToken!: (value: string) => void;
-    let releaseCatalog!: (value: typeof catalog) => void;
-    const pendingToken = new Promise<string>(resolve => { releaseToken = resolve; });
-    const pendingCatalog = new Promise<typeof catalog>(resolve => { releaseCatalog = resolve; });
-    const token = vi.spyOn(ChatGptPlanAuthController.prototype, "accessToken").mockResolvedValue("synthetic-plan-token");
-    const models = vi.spyOn(ChatGptPlanAuthController.prototype, "models").mockResolvedValue({ default: "", options: [] });
-    vi.spyOn(ChatGptPlanAuthController.prototype, "signOut").mockResolvedValue();
-    const spawn = vi.spyOn(procs, "spawnCli");
-    await create({ authMode: "chatgpt-plan" });
-    models.mockReturnValueOnce(pendingCatalog);
-    const changed = action === "dispose" ? "provider was removed" : "account changed";
-    const preparingModels = instance.adapter.sendTurn({ threadId: "plan-pending-models", text: "Continue", model: catalog.default });
-    const rejectedModels = expect(preparingModels).rejects.toThrow(changed);
-    await vi.waitFor(() => expect(models).toHaveBeenCalledTimes(2));
-    token.mockReturnValueOnce(pendingToken);
-    const preparingToken = instance.adapter.sendTurn({ threadId: "plan-pending-token", text: "Continue", model: catalog.default });
-    const rejectedToken = expect(preparingToken).rejects.toThrow(changed);
-
-    await instance[action]!();
-    releaseToken("stale-plan-token");
-    releaseCatalog(catalog);
-    await Promise.all([rejectedModels, rejectedToken]);
-    expect(instance.models).toEqual({ default: "", options: [] });
-    expect(spawn).not.toHaveBeenCalled();
-    expect(recorder.events).toEqual([]);
-  });
-
-  it("blocks new ChatGPT turns and sign-in while active tasks stop and credentials revoke", async () => {
-    const catalog = { default: "gpt-6.1-sol", options: [{ id: "gpt-6.1-sol", label: "GPT-6.1 Sol" }] };
-    vi.spyOn(ChatGptPlanAuthController.prototype, "models").mockResolvedValue(catalog);
-    const token = vi.spyOn(ChatGptPlanAuthController.prototype, "accessToken").mockResolvedValue("synthetic-plan-token");
-    let releaseRevocation!: () => void;
-    const pendingRevocation = new Promise<void>(resolve => { releaseRevocation = resolve; });
-    const revoke = vi.spyOn(ChatGptPlanAuthController.prototype, "signOut").mockReturnValue(pendingRevocation);
-    const start = vi.spyOn(ChatGptPlanAuthController.prototype, "start");
-    const spawn = vi.spyOn(procs, "spawnCli");
-    process.env.FAKE_CODEX_INTERRUPT_SILENT = "1";
-    process.env.FAKE_CODEX_INTERRUPT_GRACE_MS = "60";
-    await create({ authMode: "chatgpt-plan", mode: "approval" });
-    await instance.adapter.sendTurn({ threadId: "plan-running", text: "Continue", model: catalog.default });
-    await recorder.until(event => event.type === "request.opened");
-    const signingOut = instance.signOut!();
-    const assertBlocked = async () => {
-      await expect(instance.adapter.sendTurn({ threadId: "plan-new-turn", text: "Continue", model: catalog.default })).rejects.toThrow("account changed");
-      await expect(instance.startAuthentication!()).rejects.toThrow("being disconnected");
-    };
-    try {
-      // The first attempt lands during process shutdown, the second while token revocation is pending.
-      await assertBlocked();
-      expect(revoke).not.toHaveBeenCalled();
-      await vi.waitFor(() => expect(revoke).toHaveBeenCalledOnce());
-      await assertBlocked();
-      expect(instance.adapter.hasSession("plan-running")).toBe(false);
-      expect(spawn).toHaveBeenCalledOnce();
-      expect(token).toHaveBeenCalledOnce();
-      expect(start).not.toHaveBeenCalled();
-    } finally {
-      releaseRevocation();
-      await signingOut;
-    }
-    expect(instance.models).toEqual({ default: "", options: [] });
-  });
-
-  it("refuses ChatGPT sign-out when protocol interruption completes but process termination fails", async () => {
-    vi.spyOn(ChatGptPlanAuthController.prototype, "models").mockResolvedValue({ default: "gpt-6.1-sol", options: [{ id: "gpt-6.1-sol", label: "GPT-6.1 Sol" }] });
-    vi.spyOn(ChatGptPlanAuthController.prototype, "accessToken").mockResolvedValue("synthetic-plan-token");
-    const revoke = vi.spyOn(ChatGptPlanAuthController.prototype, "signOut").mockResolvedValue();
-    const dump = join(scratch, "plan-failed-stop.json");
-    process.env.FAKE_CODEX_DUMP = dump;
-    await create({ authMode: "chatgpt-plan", mode: "approval" });
-    await instance.adapter.sendTurn({ threadId: "plan-failed-stop", text: "Continue", model: "gpt-6.1-sol" });
-    await recorder.until(event => event.type === "request.opened");
-    const stopping = vi.spyOn(procs, "killCliTree").mockResolvedValue(false);
-    try {
-      await expect(instance.signOut!()).rejects.toThrow("could not stop safely");
-      await recorder.until(event => event.type === "runtime.error" && event.message.includes("did not shut down"));
-      const seen = JSON.parse(readFileSync(dump, "utf8"));
-      expect(seen.calls.some((call: { method: string }) => call.method === "turn/interrupt")).toBe(true);
-      expect(processIsAlive(seen.pid)).toBe(true);
-      expect(instance.adapter.hasSession("plan-failed-stop")).toBe(true);
-      expect(revoke).not.toHaveBeenCalled();
-    } finally {
-      stopping.mockRestore();
-      await instance.adapter.interruptTurn("plan-failed-stop");
-    }
-    await recorder.until(event => event.type === "turn.completed");
-    expect(instance.adapter.hasSession("plan-failed-stop")).toBe(false);
-  });
-
-  it("reports local ChatGPT sign-out with a warning when remote revocation is unconfirmed", async () => {
-    vi.spyOn(ChatGptPlanAuthController.prototype, "models").mockResolvedValue({ default: "gpt-6.1-sol", options: [{ id: "gpt-6.1-sol", label: "GPT-6.1 Sol" }] });
-    vi.spyOn(ChatGptPlanAuthController.prototype, "snapshot").mockResolvedValue({ authenticated: false });
-    const message = "Signed out locally, but remote revocation was not confirmed. Disconnect OpenMausBot in ChatGPT Settings → Usage to end access there.";
-    vi.spyOn(ChatGptPlanAuthController.prototype, "signOut").mockRejectedValue(Object.assign(new Error(message), { code: "chatgpt_revocation_unconfirmed" }));
-    await create({ authMode: "chatgpt-plan" });
-    await expect(instance.signOut!()).resolves.toBeUndefined();
-    expect(instance.models).toEqual({ default: "", options: [] });
-    expect(await instance.snapshot()).toMatchObject({ authenticated: false, chatgptPlan: true, warning: { message } });
   });
 
   it("rebuilds a personal thread Codex no longer has, once, from the chat", async () => {

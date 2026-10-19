@@ -222,9 +222,6 @@ The [skill approval lifecycle recipe](skill-approval-lifecycle.md) checks Deny,
 missing staged records and active-thread deletion in two isolated app windows,
 including the surviving conversation and sending again without deleting the bot.
 
-The [ChatGPT plan recipe](chatgpt-plan.md) checks the separate official OAuth
-flow, credential rotation, account ownership, and native Responses routing.
-
 The [mention fixture](mentions.md) checks candidate selection, composer highlighting,
 sent mentions, multiline scrolling and responsive wrapping in real chat views.
 

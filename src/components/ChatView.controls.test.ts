@@ -268,12 +268,6 @@ describe("thread control placement", () => {
       expect(markup).not.toContain("text-[12.5px]");
     }
   });
-  it("directs ChatGPT plan limits to usage settings rather than repeatedly retrying", () => {
-    const markup = renderToStaticMarkup(createElement(ErrorRow, { message: "ChatGPT plan usage limit reached (subscription_sharing_usage_limit_exceeded)", onRetry: () => {} }));
-    expect(markup).toContain("Manage usage");
-    expect(markup).toContain("https://chatgpt.com/settings/usage");
-    expect(markup).not.toContain(">Retry<");
-  });
   it("sends a Codex usage limit to the account's Codex usage page, not Retry", () => {
     const codex = { instanceId: "codex", driverKind: "codex", displayName: "Codex", snapshot: { state: "available", authenticated: true } } as unknown as InstanceInfo;
     const limit = `${CODEX_USAGE_LIMIT_REACHED} This is OpenAI's limit, not your MausBot plan. It resets at 5:23 PM (UTC).`;
