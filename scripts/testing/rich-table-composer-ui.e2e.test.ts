@@ -2,13 +2,13 @@
 // where they overlap: elementFromPoint inside the entry returns the composer,
 // never the header. Real renderer against the fake-engine fixture. Needs the
 // pinned agent-browser binary: runs when one resolves (tools directory,
-// OMB_AGENT_BROWSER_PATH, or PATH) or OMB_UI_E2E=1 asks for the verified
+// OMB_UI_AGENT_BROWSER_PATH, or PATH) or OMB_UI_E2E=1 asks for the verified
 // download; otherwise skipped.
 import { spawn, type ChildProcess } from "node:child_process";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
-import { resolveAgentBrowserBinary } from "../../server/browser-engine.ts";
+import { resolveAgentBrowserBinary } from "./ui-agent-browser.ts";
 import { waitForExit } from "../../server/testing/cleanup.ts";
 import { runControlOmb } from "../control-omb.ts";
 import { UI_TOOLS_DIR } from "./control-omb-ui.ts";

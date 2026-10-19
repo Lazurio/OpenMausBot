@@ -6,12 +6,12 @@ import { closeSync, mkdirSync, openSync, readFileSync, writeFileSync } from "nod
 import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { closeBrowserSession } from "../server/browser-engine.ts";
 import { waitForExit } from "../server/testing/cleanup.ts";
 import { DATA_ROUTES, DATA_TOOL_NAMES, type DataSheet } from "../shared/data-surface.ts";
 import { launchVerificationServer, runControlOmb, verificationServerEnvironment } from "./control-omb.ts";
 import { agentBrowser, ensureUiBrowser, sessionEnv, type UiHandle } from "./testing/control-omb-ui.ts";
 import { mountPreview, parkUntilSignal, type MountedPreview } from "./testing/preview-fixture.ts";
+import { closeBrowserSession } from "./testing/ui-agent-browser.ts";
 
 assert(process.argv.slice(2).every((arg) => arg === "--check"), "Usage: node --experimental-strip-types scripts/verify-data.ts [--check]");
 const check = process.argv.includes("--check");
@@ -230,12 +230,12 @@ try {
     await until(async () => await evaluate(receiptSelected), "First receipt did not mount its Data result");
     await ui("wait-settle", "--timeout", "30");
     assert.equal(await evaluate(receiptSelected), true, "First receipt lost its Data selection after configuration settled");
-    await clickTab("computer-browser");
+    await evaluate("document.getElementById('computer-panel-tabs-tab-computer').click(); true");
     await click("Close computer panel");
-    await until(async () => await evaluate("!document.querySelector('[data-tour=computer-data]')"), "Computer panel did not close after Browser selection");
+    await until(async () => await evaluate("!document.querySelector('[data-tour=computer-data]')"), "Computer panel did not close after Computer selection");
     await click("Bot's computer");
     await ui("wait-settle", "--timeout", "30");
-    assert.equal(await evaluate("document.querySelector('[data-tour=computer-browser]')?.getAttribute('aria-selected') === 'true' && !document.querySelector('[data-testid=data-panel]')"), true, "Consumed receipt replaced Browser when reopening the panel");
+    assert.equal(await evaluate("document.getElementById('computer-panel-tabs-tab-computer')?.getAttribute('aria-selected') === 'true' && !document.querySelector('[data-testid=data-panel]')"), true, "Consumed receipt replaced Computer when reopening the panel");
     await openReceipt();
     await until(async () => await evaluate(receiptSelected), "Clicking the receipt again did not mount its Data result");
     await ui("wait-settle", "--timeout", "30");
