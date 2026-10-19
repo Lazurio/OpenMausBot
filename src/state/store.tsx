@@ -362,7 +362,6 @@ export function currentTaskBot(bot: Bot, threadId = bot.threadId): Bot {
 }
 
 export type TaskUpdatePatch = Partial<Pick<Task, "modelSelection" | "approvalMode" | "autoApprove" | "pinnedMessageId">> & {
-  acknowledgeLocalAuto?: boolean;
   updateBotDefault?: boolean;
   resetApprovalToAsk?: boolean;
   projectId?: string | null;
@@ -373,6 +372,7 @@ export type TaskUpdatePatch = Partial<Pick<Task, "modelSelection" | "approvalMod
 };
 
 function taskPatchFields(patch: TaskUpdatePatch): Partial<Task> {
+  const { updateBotDefault: _modelDefault, resetApprovalToAsk, projectId, archivedAt, snoozedUntil, pinned, link, ...fields } = patch;
   return { ...fields, ...(resetApprovalToAsk ? { approvalMode: "ask", autoApprove: false, alwaysAllow: [] } : {}),
     ...(projectId === undefined ? {} : { projectId: projectId ?? undefined }),
     ...(archivedAt === undefined ? {} : { archivedAt: archivedAt ?? undefined }),
@@ -736,7 +736,7 @@ export type Action =
   | { type: "newBot"; section?: string; preserveSelection?: boolean; onCreated?: (bot: Bot) => void; onError?: (message: string) => void }
   | { type: "botCreationPending"; on: boolean }
   | { type: "updateTask"; botId: string; threadId: string; patch: TaskUpdatePatch }
-  | { type: "refreshTaskPermissions"; botId: string; threadId: string; acknowledgeLocalAuto?: boolean }
+  | { type: "refreshTaskPermissions"; botId: string; threadId: string }
   | { type: "followBotModel"; botId: string; onSettled?: (result: { busy: number }) => void }
   | { type: "createProject"; botId: string; name: string; emoji?: string | null; onCreated?: (project: BotProject) => void; onError?: (message: string) => void }
   | { type: "updateProject"; botId: string; projectId: string; patch: ProjectUpdatePatch; onSaved?: () => void; onError?: (message: string) => void }
@@ -1526,7 +1526,6 @@ export function reducer(state: AppState, action: Action): AppState {
       const target = animated.bots.find((bot) => bot.id === action.botId);
       const next = action.patch.chiefOfStaff ? { ...animated, bots: withOneChief(animated.bots, { ...target, ...action.patch, id: action.botId }) } : animated;
       const {
-        acknowledgeLocalAuto: _localAck,
         applyToAllThreads: _allThreads,
         keepThreadModels: _keepThreadModels, threadId: _threadId,
         peers,
@@ -1871,8 +1870,7 @@ export async function persistTaskApproval(
   botId: string, threadId: string, patch: TaskUpdatePatch,
   request: (path: string, init?: RequestInit) => Promise<{ bot: BotAnnouncement }> = api,
 ): Promise<BotAnnouncement> {
-  const { approvalMode, autoApprove, acknowledgeLocalAuto, ...ordinary } = patch;
-  const result = await request(`/api/bots/${botId}/tasks/${threadId}`, { method: "PATCH", body: JSON.stringify({ ...ordinary, approvalMode, autoApprove, acknowledgeLocalAuto }) });
+  const result = await request(`/api/bots/${botId}/tasks/${threadId}`, { method: "PATCH", body: JSON.stringify(patch) });
   return result.bot;
 }
 
@@ -2623,9 +2621,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             showError(new Error("That thread is no longer available"));
             break;
           }
-          const acknowledgeLocalAuto = action.acknowledgeLocalAuto === true;
           const refreshed = api<{ bot: BotAnnouncement }>(`/api/bots/${action.botId}/tasks/${action.threadId}`, {
             method: "PATCH",
+            body: JSON.stringify({ refreshPermissions: true }),
           }).then((result) => result.bot);
           void refreshed.then((updated) => {
             if (updated) rawDispatch({ type: "botPatched", bot: withTaskWrites(updated) });

@@ -10,6 +10,7 @@
     "server/drivers/codex-approval-config.ts",
     "server/outbound-hold.test.ts",
     "server/outbound-hold.ts",
+    "src/components/LocalComputerAutoWarning.tsx",
     "src/testing/thread-approvals.tsx"
   ],
   "forbidden": [
@@ -33,6 +34,11 @@
     "approvalMode.customLocalOnly",
     "Custom (config.toml)",
     "bot.approvalGrant",
+    "approvalGrant?:",
+    "LocalComputerAutoWarning",
+    "LOCAL_COMPUTER_AUTO_WARNING",
+    "planNeedsLocalAutoConsent",
+    "Allow Auto mode on this computer",
     "peer approval is required",
     "startsOnAsk",
     "newBot.startsOnAsk",

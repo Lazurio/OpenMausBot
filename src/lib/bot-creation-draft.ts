@@ -16,7 +16,7 @@ const routineTemplate = (routine: Routine): BotRoutineTemplate => ({
 export class BotCreationDraft {
   readonly id = `draft-${crypto.randomUUID()}`;
   template: NewBotDefaults;
-  consent: Pick<BotUpdatePatch, "acknowledgeLocalAuto"> & { acknowledgePeerScope?: boolean } = {};
+  consent: { acknowledgePeerScope?: boolean } = {};
   routines: Routine[];
   preset?: ChosenPreset;
   role?: string;
@@ -39,9 +39,8 @@ export class BotCreationDraft {
   }
 
   patch(value: BotUpdatePatch & Partial<BotDefaultsProfile> & { acknowledgePeerScope?: boolean }) {
-    const { acknowledgeLocalAuto, acknowledgePeerScope, applyToAllThreads: _all, keepThreadModels: _keep,
+    const { acknowledgePeerScope, applyToAllThreads: _all, keepThreadModels: _keep,
       autoApprove, ...profile } = value;
-    if (acknowledgeLocalAuto !== undefined) this.consent.acknowledgeLocalAuto = acknowledgeLocalAuto;
     if (acknowledgePeerScope !== undefined) this.consent.acknowledgePeerScope = acknowledgePeerScope;
     if (autoApprove !== undefined && profile.approvalMode === undefined) profile.approvalMode = autoApprove ? "auto" : "ask";
     this.template.profile = { ...this.template.profile, ...profile };

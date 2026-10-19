@@ -101,23 +101,19 @@ export function planTeamChange(bots: readonly Bot[], instances: readonly Instanc
   });
 }
 
-export function planNeedsLocalAutoConsent(plan: readonly TeamPlanRow[]): boolean {
-}
-
 /** One bot at a time, never in parallel: a refusal on one must not race the next. */
 export async function applyTeamPlan(
   plan: readonly TeamPlanRow[],
   persist: (bot: Bot, patch: BotUpdatePatch) => Promise<unknown>,
-  options: { acknowledgeLocalAuto?: boolean; onProgress?: (done: number) => void } = {},
+  options: { onProgress?: (done: number) => void } = {},
 ): Promise<TeamResultRow[]> {
   const results: TeamResultRow[] = [];
   for (const row of plan) {
     if (row.status === "unchanged") results.push({ bot: row.bot, status: "unchanged" });
     else if (row.status === "skip") results.push({ bot: row.bot, status: "skipped", reason: row.reason });
     else {
-        ? { ...row.patch, acknowledgeLocalAuto: true } : row.patch;
       try {
-        await persist(row.bot, patch);
+        await persist(row.bot, row.patch);
         results.push({ bot: row.bot, status: "applied" });
       } catch (cause) {
         results.push({ bot: row.bot, status: "skipped", reason: cause instanceof Error ? cause.message : String(cause) });

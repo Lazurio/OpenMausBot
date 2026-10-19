@@ -62,9 +62,11 @@ describe("refresh permissions from the sidebar", () => {
     expect(dialogs()).toBe(0);
   });
 
+  // Lazurio overlay (DEV-6673): no warning gate before Auto either.
+  it("copies Auto onto a thread at once, with no warning", () => {
     render(bot({ approvalMode: "auto" }));
     refresh("older");
-    expect(dispatch).not.toHaveBeenCalled();
-    expect(dialogs()).toBe(1);
+    expect(dispatch).toHaveBeenCalledExactlyOnceWith({ type: "refreshTaskPermissions", botId: "pepper", threadId: "older" });
+    expect(dialogs()).toBe(0);
   });
 });

@@ -5441,9 +5441,11 @@ describe("harness HTTP API", () => {
       for (const body of [{ approvalMode: "custom" }, { approvalMode: "custom", acknowledgeFullAccess: true }]) {
         const rejected = await api("PATCH", `/api/bots/${bot.id}`, body);
         expect(rejected.status, JSON.stringify(body)).toBe(400);
+        expect(rejected.body.error).toMatch(/approvalMode "custom" is not available in this distribution/);
       }
       const thread = await api("PATCH", `/api/bots/${bot.id}/tasks/${bot.threadId}`, { approvalMode: "custom" });
       expect(thread.status).toBe(400);
+      expect(thread.body.error).toMatch(/approvalMode "custom" is not available in this distribution/);
 
       const stored = (await api("GET", "/api/bots")).body.bots.find(
         (candidate: { id: string }) => candidate.id === bot.id,
@@ -5504,6 +5506,7 @@ describe("harness HTTP API", () => {
 
       const custom = await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "custom" });
       expect(custom.status).toBe(400);
+      expect(custom.body.error).toMatch(/approvalMode "custom" is not available in this distribution/);
 
       const born = await api("POST", "/api/bots", {
         modelSelection: { instanceId: "claude", model: "claude-sonnet-5" }, settings: { approvalMode: "full" },
@@ -6671,22 +6674,42 @@ describe("harness HTTP API", () => {
     const bot = (await api("POST", "/api/bots", { name: "Quill" })).body.bot;
     const conns: Socket[] = [];
     try {
-      const created = await api("POST", "/api/calendar-calls", {
-        name: "Launch room",
-        description: "Review the launch plan.",
-        botIds: [first.id, second.id],
-        schedule: { type: "once", at: Date.now() - 100 },
-        durationMinutes: 30,
-        attachments: [{
-          id: "launch-brief",
-          name: "Launch brief.txt",
-          path: "/tmp/a\"&<>.txt",
-          size: 12,
-          kind: "file",
-        }],
-      });
-      expect(created.status).toBe(201);
-      callId = created.body.call.id;
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
+        modelSelection: { instanceId: "claude", model: "claude-haiku-4-5" },
+        approvalMode: "auto",
+      })).status).toBe(200);
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "count my notes" })).status).toBe(202);
+      const dump = z.object({
+        mcpConfig: z.object({ mcpServers: z.object({ ogb: z.object({ args: z.array(z.string()) }) }) }),
+      }).parse(await readJsonFileWhenReady(fakeClaudeDump));
+      const socketPath = dump.mcpConfig.mcpServers.ogb.args[1];
+      const raise = async (
+        id: string,
+        command: string,
+        extra: Record<string, unknown> = {},
+        tool = "Bash",
+      ) => {
+        const conn = connect(socketPath);
+        conns.push(conn);
+        const answered = new Promise<{ behavior: string; always?: boolean }>((resolve) => {
+          let buf = "";
+          conn.on("data", (chunk) => {
+            buf += chunk;
+            const nl = buf.indexOf("\n");
+            if (nl !== -1) resolve(JSON.parse(buf.slice(0, nl)));
+          });
+        });
+        await new Promise<void>((resolve, reject) => {
+          conn.on("connect", resolve);
+          conn.on("error", reject);
+        });
+        conn.write(JSON.stringify({ t: "ask", id, tool, input: { command, ...extra } }) + "\n");
+        return answered;
+      };
+      type Msg = { kind: string; tool?: { name: string }; card?: { title: string; subtitle: string; requestId?: string; held?: string; heldCode?: string; allowKey?: string; allowSession?: boolean; answered?: string } };
+      const messages = async (): Promise<Msg[]> =>
+        (await api("GET", "/api/bots?messages=40")).body.bots.find((candidate: { id: string }) => candidate.id === bot.id).messages;
 
       await expect.poll(async () => {
         const snapshot = await api("GET", "/api/bots?messages=50");

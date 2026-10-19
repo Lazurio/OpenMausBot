@@ -6,7 +6,6 @@ import { persistBotUpdate, type Bot, type InstanceInfo } from "@/state/store";
 import { EFFORT_LEVELS } from "../../shared/wire";
 import {
   applyTeamPlan,
-  planNeedsLocalAutoConsent,
   planTeamChange,
   TEAM_APPROVAL_MODES,
   teamBots,
@@ -97,8 +96,6 @@ describe("team-wide settings", () => {
     expect(plan.map((row) => row.status)).toEqual(["unchanged", "apply", "apply"]);
   });
 
-  });
-
   it("keeps each bot on its own engine and skips models and efforts that engine does not offer", () => {
     const bots = [
       bot("claude", { modelSelection: { instanceId: "claude", model: "sonnet", effort: "low" } }),
@@ -143,12 +140,13 @@ describe("team-wide settings", () => {
       await Promise.resolve();
       inFlight--;
       if (target.id === "b") throw new Error("This provider does not support the selected approval level");
-    }, { acknowledgeLocalAuto: true });
+    });
+    // Lazurio overlay (DEV-6673): no confirmation travels with Auto.
     expect(order).toEqual([
-      'a:{"approvalMode":"auto","applyToAllThreads":true,"acknowledgeLocalAuto":true}',
-      'b:{"approvalMode":"auto","applyToAllThreads":true,"acknowledgeLocalAuto":true}',
+      'a:{"approvalMode":"auto","applyToAllThreads":true}',
+      'b:{"approvalMode":"auto","applyToAllThreads":true}',
       'c:{"approvalMode":"auto","applyToAllThreads":true}',
-      'e:{"approvalMode":"auto","applyToAllThreads":true,"acknowledgeLocalAuto":true}',
+      'e:{"approvalMode":"auto","applyToAllThreads":true}',
     ]);
     expect(results.map((row) => row.status)).toEqual(["applied", "skipped", "applied", "unchanged", "applied"]);
     expect(results[1]).toMatchObject({ reason: "This provider does not support the selected approval level" });

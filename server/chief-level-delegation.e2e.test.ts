@@ -46,7 +46,7 @@ it("starts a thread a Chief opens with a teammate at the Chief's level, and a Ch
     for (const teammate of [ada, bea]) await api("PATCH", `/api/bots/${teammate.id}`, { approvalMode: "ask" });
 
     // The person put this Chief conversation on Approve for me.
-    await api("PATCH", `/api/bots/${chief.id}/tasks/${chief.activeTaskId}`, { approvalMode: "auto", acknowledgeLocalAuto: true });
+    await api("PATCH", `/api/bots/${chief.id}/tasks/${chief.activeTaskId}`, { approvalMode: "auto" });
     const adaTurn = await bringIn(chief, chief.activeTaskId, ada, "check-auto");
     expect(adaTurn.permissionMode).toBe("auto");
     expect(persistedTask(ada.id, adaTurn.threadId)).toMatchObject({ approvalMode: "auto", autoApprove: false });

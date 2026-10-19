@@ -42,7 +42,7 @@ it("carries a Chief's level down every hop it hands out, in threads and in a roo
     const bea = (await cli("new-bot", "--name", "Bea", "--section", "Operations")).bot;
     const ola = (await cli("new-bot", "--name", "Ola", "--section", "Operations")).bot;
     // The person put Clive, and Ola, an ordinary bot, on Approve for me; Ada and Bea on Ask, below the Full default.
-    for (const auto of [chief, ola]) await api("PATCH", `/api/bots/${auto.id}`, { approvalMode: "auto", acknowledgeLocalAuto: true, applyToAllThreads: true });
+    for (const auto of [chief, ola]) await api("PATCH", `/api/bots/${auto.id}`, { approvalMode: "auto", applyToAllThreads: true });
     for (const teammate of [ada, bea]) await api("PATCH", `/api/bots/${teammate.id}`, { approvalMode: "ask" });
 
     // Clive → Ada → Bea, each in a thread of its own.

@@ -36,7 +36,6 @@ export type BotPatch = Partial<
   >
 > & {
   peers?: string[] | null;
-  acknowledgeLocalAuto?: boolean;
   acknowledgePeerScope?: boolean;
 };
 

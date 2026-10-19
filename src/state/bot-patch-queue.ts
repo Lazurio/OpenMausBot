@@ -39,8 +39,6 @@ export type BotUpdatePatch = Partial<
 > & {
   /** null: talks to every bot again. */
   peers?: string[] | null;
-  /** The server's proof the local-auto warning was shown: wire-only, never folded into bot state. */
-  acknowledgeLocalAuto?: boolean;
   applyToAllThreads?: boolean;
   keepThreadModels?: boolean;
   /** With modelSelection: the thread this client shows. Body only: Bot.threadId is the server's selection. */
@@ -98,7 +96,6 @@ const isAbortError = (error: unknown): boolean =>
 
 const stateOverlay = (patch: BotUpdatePatch): BotStatePatch => {
   const {
-    acknowledgeLocalAuto: _localAck,
     applyToAllThreads: _allThreads,
     keepThreadModels: _keepThreadModels,
     threadId: _threadId,

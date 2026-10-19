@@ -31,9 +31,14 @@ export function removedConfigKey(value: JsonValue): string | null {
 }
 
 const REMOVED_BOT_FIELDS: readonly string[] = ["acknowledgeLocalAuto", "approvePeerComms", "approvalGrant", "toolScope", "xResearch", "phoneApps", "vpsAlias"];
+
+/** A field or value a bot or thread write names that Lazurio removed (DEV-6673), or null; such a write is refused with 400. */
 export function removedBotSetting(settings: unknown): string | null {
   if (!settings || typeof settings !== "object" || Array.isArray(settings)) return null;
   const record = settings as Record<string, unknown>;
+  for (const key of REMOVED_BOT_FIELDS) if (Object.hasOwn(record, key)) return key;
   for (const [key, value] of REMOVED_BOT_VALUES) if (record[key] === value) return `${key} ${JSON.stringify(value)}`;
   return null;
 }
+
+export const removedBotSettingError = (removed: string) => `${removed} is not available in this distribution (it was removed)`;

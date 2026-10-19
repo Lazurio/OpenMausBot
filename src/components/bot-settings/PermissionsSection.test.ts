@@ -24,7 +24,7 @@ function render(bot: Bot, others: Bot[] = []) {
   const derived = {
     patch: (patch: object) => dispatch({ type: "updateBot", botId: bot.id, patch }),
     engine: { instanceId: "claude", driverKind: "claudeAgent", displayName: "Claude" },
-    canCoordinate: true, approvalMode: bot.approvalMode ?? "ask", trustedModesAvailable,
+    canCoordinate: true, approvalMode: bot.approvalMode ?? "ask",
     sectionName: "General", currentChief: undefined,
   } as unknown as Derived;
   flushSync(() => root.render(createElement(BotEditorStore, {
@@ -56,8 +56,8 @@ afterEach(() => {
 });
 
 describe("Full access in bot settings", () => {
-  it.each([false, true])("applies to the bot and every thread at once, with no dialog (desktop bridge: %s)", (bridge) => {
-    render(base, bridge);
+  it("applies to the bot and every thread at once, with no dialog", () => {
+    render(base);
     choose("Full access");
     expect(dialogs()).toBe(0);
     expect(dispatch).toHaveBeenCalledExactlyOnceWith({
@@ -65,7 +65,7 @@ describe("Full access in bot settings", () => {
     });
   });
 
-  it("re-applies Full to every thread from its button, with no dialog and no desktop bridge", () => {
+  it("re-applies Full to every thread from its button, with no dialog", () => {
     render({ ...base, approvalMode: "full" });
     const button = [...host.querySelectorAll("button")].find((candidate) => candidate.textContent === "Apply Full access to all threads");
     expect(button).toBeDefined();
@@ -76,10 +76,12 @@ describe("Full access in bot settings", () => {
     });
   });
 
+  // Lazurio overlay (DEV-6673): no warning gate before Auto.
+  it("applies Auto at once, with no warning", () => {
     render(base);
     choose("Approve for me");
-    expect(dispatch).not.toHaveBeenCalled();
-    expect(dialogs()).toBe(1);
+    expect(dialogs()).toBe(0);
+    expect(dispatch).toHaveBeenCalledExactlyOnceWith({ type: "updateBot", botId: "pepper", patch: { approvalMode: "auto" } });
   });
 });
 

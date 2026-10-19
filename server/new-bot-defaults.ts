@@ -4,6 +4,7 @@ import { EFFORT_LEVELS, MAUS_COLOR_NAMES } from "../shared/wire.ts";
 import { isModelVariant } from "./contracts.ts";
 import { normalizeCronSchedule } from "../shared/routine-schedule.ts";
 import { parseToolScope, type ToolScope } from "../shared/tool-scope.ts";
+import { removedBotSetting, removedBotSettingError } from "./lazurio-removed-config.ts";
 
 const strings = (max: number, length: number) => z.array(z.string().max(length)).max(max);
 const clock = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
@@ -110,6 +111,8 @@ export function resolveBotCreationDefaults(saved: NewBotDefaults | undefined, bo
   }
   const template = newBotDefaultsSchema.parse(body.useDefaults === false ? {} : saved ?? {});
   // Lazurio overlay (DEV-6673): a request naming a removed setting is refused; a saved default that does is dropped above.
+  const removed = removedBotSetting(body) ?? removedBotSetting(body.settings);
+  if (removed) throw Object.assign(new Error(removedBotSettingError(removed)), { status: 400 });
   const checked = botDefaultsProfileSchema.safeParse(body.settings === undefined ? {} : body.settings);
   if (!checked.success) throw Object.assign(new Error(checked.error.message), { status: 400 });
   const explicit = checked.data;

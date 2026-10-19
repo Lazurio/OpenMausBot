@@ -50,7 +50,6 @@ export async function createConfiguredBot(
       }
       const granted = await persistTaskApproval(bot.id, bot.threadId, {
         approvalMode: profile.approvalMode,
-        acknowledgeLocalAuto: draft.consent.acknowledgeLocalAuto === true,
       }, request);
       if (granted.approvalMode !== profile.approvalMode) {
         throw new Error("The initial thread's requested approval level was not granted");

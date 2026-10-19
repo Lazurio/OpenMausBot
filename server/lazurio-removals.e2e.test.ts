@@ -2,6 +2,7 @@
 // removes from the code answer no request any more. The routes come from the
 // removal manifests in lazurio/removals/ (scripts/lazurio-removals.node-test.mjs
 // checks the files and strings); `:bot` stands for the first-run bot's id. A write that names a removed
+// setting is refused as a whole.
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";

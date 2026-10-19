@@ -291,20 +291,13 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
           return json(res, 400, { error: "Every thread's provider must support this approval level" });
         }
       }
-      // Auto on this Mac hands a bot the user's real session: only the desktop's warning dialog sends
-      // acknowledgeLocalAuto, so a bot curling the loopback API is refused.
-      const wantsAuto = requestedApprovalMode === "auto";
-      const alreadyGranted =
-        return json(res, 400, {
-          error: "Auto mode on this computer requires confirming the warning first (acknowledgeLocalAuto)",
-        });
-      }
       if (body.approvePeerComms !== undefined) {
         if (typeof body.approvePeerComms !== "boolean") {
           return json(res, 400, { error: "approvePeerComms must be true or false" });
         }
         patch.approvePeerComms = body.approvePeerComms;
       }
+      // Lazurio overlay (DEV-6673): upstream's warning gate before Auto (acknowledgeLocalAuto) is removed; a person picks a level, nothing confirms it.
       // null: every visible bot; an array (even empty) is the explicit wiring. Narrowing is free;
       // widening needs acknowledgePeerScope, since any loopback caller (a bot with Bash) gets admin.
       if (body.peers !== undefined) {
