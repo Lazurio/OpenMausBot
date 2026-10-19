@@ -177,8 +177,6 @@ export function verificationServerEnvironment(parentEnv: NodeJS.ProcessEnv, data
   }
   // Enables POST /api/testing/org-library; the route does not exist without it.
   if (parentEnv.OMB_TEST_ORG_LIBRARY_KEY) childEnv.OMB_TEST_ORG_LIBRARY_KEY = parentEnv.OMB_TEST_ORG_LIBRARY_KEY;
-  // One log line per browser call and preview frame.
-  if (parentEnv.OMB_BROWSER_TIMING === "1") childEnv.OMB_BROWSER_TIMING = "1";
   // A loopback fake only: the key never reaches a real provider.
   const liveUrl = parentEnv.OMB_OPENAI_LIVE_URL?.trim() ?? "";
   if (/^http:\/\/127\.0\.0\.1:\d{1,5}$/.test(liveUrl)) {
@@ -229,9 +227,12 @@ export function verificationServerArgs(childEnv: NodeJS.ProcessEnv): string[] {
 export async function launchVerificationServer(
   parentEnv: NodeJS.ProcessEnv = process.env,
   signal?: AbortSignal,
-  browser?: { binaryPath: string; executablePath: string },
   // Lazurio overlay (DEV-6673 M3): formerly the Local VM fixture; the slot stays so positional callers keep their meaning.
   _removedLocalVm?: undefined,
+  /** Lazurio overlay (DEV-6673): formerly the bots' browser (agent-browser and Chrome) handed to the
+   * server, which has no browser of its own any more. Now only says that the UI harness runs
+   * agent-browser with the fixture's data directory as its home. */
+  agentBrowserHome?: boolean,
   /** A stand-in enterprise layer (the folder shape core loads) and the key
    * it should accept, so a recipe can prove entitled behaviour offline. */
   enterprise?: { dir: string; licenseKey: string },
@@ -250,7 +251,7 @@ export async function launchVerificationServer(
   const url = `http://127.0.0.1:${port}`;
   // Native browser daemons use UNIX sockets, and a macOS temp home can exceed
   // their path limit.
-  const dataDir = mkdtempSync(join(browser && process.platform !== "win32" ? "/tmp" : tmpdir(), "openmausbot-verify-data-"));
+  const dataDir = mkdtempSync(join(agentBrowserHome && process.platform !== "win32" ? "/tmp" : tmpdir(), "openmausbot-verify-data-"));
   const fixtureTemp = join(dataDir, "tmp");
   const fixtureDumpPath = join(dataDir, "fake-claude-dump.json");
   mkdirSync(fixtureTemp, { recursive: true });
@@ -282,10 +283,6 @@ export async function launchVerificationServer(
   const log = openSync(logPath, "a", 0o600);
   const childEnv = verificationServerEnvironment(parentEnv, dataDir, port);
   if (enterprise) Object.assign(childEnv, { OMB_ENTERPRISE_DIR: enterprise.dir, OMB_LICENSE_KEY: enterprise.licenseKey });
-  if (browser) Object.assign(childEnv, {
-    OMB_AGENT_BROWSER_PATH: browser.binaryPath,
-    AGENT_BROWSER_EXECUTABLE_PATH: browser.executablePath,
-  });
   if (staticDir) childEnv.OMB_STATIC_DIR = staticDir;
   const child = spawn(process.execPath, verificationServerArgs(childEnv), {
     cwd: ROOT,

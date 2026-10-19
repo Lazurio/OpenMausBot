@@ -76,22 +76,6 @@ describe.skipIf(process.platform === "win32")("Linux afterPack permissions", () 
   });
 });
 
-describe("desktop browser package gate", () => {
-  it("rejects a missing browser manifest instead of accepting partial resources", async () => {
-    const { appOutDir, resources } = fixture();
-    fs.mkdirSync(path.join(resources, "browser-engine"));
-    await expect(afterPack({ electronPlatformName: "win32", arch: 1, appOutDir }))
-      .rejects.toThrow(/manifest\.json/);
-  });
-
-  it("rejects an unsupported package architecture before accepting the browser", async () => {
-    const { appOutDir, resources } = fixture();
-    fs.mkdirSync(path.join(resources, "browser-engine"));
-    await expect(afterPack({ electronPlatformName: "win32", arch: 0, appOutDir }))
-      .rejects.toThrow(/Unsupported desktop browser package architecture/);
-  });
-});
-
 // Real Mach-O fixtures: /usr/bin binaries are arm64e, not arm64, so compile.
 const canBuildMachO = process.platform === "darwin" && fs.existsSync("/usr/bin/lipo") &&
   spawnSync("cc", ["--version"]).status === 0;

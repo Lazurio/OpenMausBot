@@ -15,14 +15,14 @@ import {
   runControlOmb,
   type VerificationServer,
 } from "../control-omb.ts";
+import { fixtureApi, mountPreview, type MountedPreview } from "./preview-fixture.ts";
 import {
   closeBrowserSession,
+  credentialStoreFlags,
   ensureChrome,
   installAgentBrowserBinary,
   resolveAgentBrowserBinary,
-} from "../../server/browser-engine.ts";
-import { fixtureApi, mountPreview, type MountedPreview } from "./preview-fixture.ts";
-import { credentialStoreFlags } from "../../server/browser/egress/gate.ts";
+} from "./ui-agent-browser.ts";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 /** Gitignored, persistent: the binary and its Chrome download once per checkout. */
@@ -157,7 +157,7 @@ export function installedChrome(toolsDir = UI_TOOLS_DIR, platform: NodeJS.Platfo
   return null;
 }
 
-/** OMB_AGENT_BROWSER_PATH, then the tools directory, then PATH; otherwise the
+/** OMB_UI_AGENT_BROWSER_PATH, then the tools directory, then PATH; otherwise the
  * pinned download, verified by size and SHA-256. Chrome follows the same rule
  * with AGENT_BROWSER_EXECUTABLE_PATH. Both land once under UI_TOOLS_DIR. */
 export async function ensureUiBrowser(
@@ -457,7 +457,7 @@ export async function launchUi(
   try {
     const { binary, chrome } = await ensureUiBrowser(parentEnv, note);
     checkpoint();
-    fixture = await launchVerificationServer({ ...parentEnv, ...fakeEnv }, startup.signal, undefined,
+    fixture = await launchVerificationServer({ ...parentEnv, ...fakeEnv }, startup.signal, undefined, true);
     checkpoint();
     const api = fixtureApi(fixture.info.url);
     await api("PATCH", "/api/config", { language: "en" });
