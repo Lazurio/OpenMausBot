@@ -1,4 +1,3 @@
-import { browserAvailable, builtInBrowserEnabled } from "@/lib/feature-flags";
 import { stateForBot } from "@/lib/mascot";
 import { useStore, type Bot } from "@/state/store";
 import { approvalModeFor } from "../../../shared/approval-mode";
@@ -29,8 +28,6 @@ export type BotPatch = Partial<
     | "voice"
     | "chiefOfStaff"
     | "managedSections"
-    | "browser"
-    | "recordBrowserSteps"
     | "modelSelection"
   >
 > & {
@@ -45,12 +42,6 @@ export function useBotSettingsDerived(bot: Bot) {
   const engine = state.instances.find((instance) => instance.instanceId === bot.modelSelection.instanceId);
   const approvalMode = approvalModeFor(bot);
   const canCoordinate = engine?.capabilities?.agentsMcp === true;
-  const canUseBrowser = engine?.capabilities?.browserMcp === true;
-  const desktopBrowser = browserAvailable(state.config);
-  const browserBlockedOnWindows = window.ogb?.platform === "win32" && !desktopBrowser;
-  const browserFeature = builtInBrowserEnabled(state.config);
-  const browserAllowed = bot.browser !== false;
-  const browserEnabled = browserFeature && browserAllowed;
   const sectionName = bot.section?.trim() || "General";
   const currentChief = state.bots.find(
     (candidate) =>
@@ -65,12 +56,6 @@ export function useBotSettingsDerived(bot: Bot) {
     engine,
     approvalMode,
     canCoordinate,
-    canUseBrowser,
-    desktopBrowser,
-    browserBlockedOnWindows,
-    browserFeature,
-    browserAllowed,
-    browserEnabled,
     sectionName,
     currentChief,
     botRoutines,

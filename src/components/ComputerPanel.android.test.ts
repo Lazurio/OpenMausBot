@@ -28,7 +28,6 @@ vi.mock("./AndroidDevicePanel", async (importOriginal) => ({
   ...await importOriginal<typeof import("./AndroidDevicePanel")>(),
   AndroidDevicePanel: () => null,
 }));
-vi.mock("./BrowserPanel", () => ({ BrowserPanel: () => null }));
 vi.mock("./bot-settings/RoutinesSection", () => ({ RoutinesSection: () => null }));
 vi.mock("./data/DataPanel", () => ({ DataPanel: () => createElement("div", { "data-testid": "data-panel" }) }));
 const panelViewStore = vi.hoisted(() => ({ current: "computer" }));
@@ -56,7 +55,7 @@ const engine = (instanceId: string) => ({
   instanceId, driverKind: "claudeAgent", displayName: instanceId, access: "subscription",
   snapshot: { state: "available", version: "1", authenticated: true },
   models: { default: "m", options: [{ id: "m", label: "M" }] },
-  capabilities: { computerMcp: true, browserMcp: true },
+  capabilities: { computerMcp: true },
 }) as InstanceInfo;
 const makeBot = (patch: Partial<Bot> = {}): Bot => ({
   id: "scout", threadId: "thread", name: "Scout", title: "", description: "", color: "green",

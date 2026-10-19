@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Archive, CircleUser, Coins, FlaskConical, KeyRound, Monitor, Palette, ScrollText, Search, Sparkles, TabletSmartphone, Terminal, User, Users, X, Building2, Zap, BookOpen } from "lucide-react";
 import { api, useStore, type AppSettingsSection, type ConfigStatus } from "@/state/store";
-import { builtInBrowserEnabled, routinesInConversationEnabled, showToolCallsEnabled, skillAuthoringEnabled, skillsLibraryEnabled } from "@/lib/feature-flags";
+import { routinesInConversationEnabled, showToolCallsEnabled, skillAuthoringEnabled, skillsLibraryEnabled } from "@/lib/feature-flags";
 import { localeChoices, type LocaleKey } from "@/locales";
 import { t } from "@/lib/i18n";
 import { withTourReset } from "@/lib/guided-tour";
@@ -20,8 +20,6 @@ import { ActivitySection } from "./ActivitySection";
 import { useOwnerOrAdmin } from "@/lib/use-owner-or-admin";
 import { currentPhonePairingTarget } from "@/lib/phone-pairing";
 import { CustomDomainSettings } from "./CustomDomainSettings";
-import { BrowserProfilesManager } from "./BrowserProfilesManager";
-import { BuiltInBrowserRow, NewBrowserSettings } from "./BrowserSettingsRows";
 import { RemoteComputerSection } from "./RemoteComputerSection";
 import { ConnectedWorkspacesSettings } from "./ConnectedWorkspacesSettings";
 import { OrganizationSettings } from "./OrganizationSettings";
@@ -84,7 +82,7 @@ export const SECTIONS: Array<{
   { id: "decisionModel", group: "ai", labelKey: "settings.section.decisionModel", icon: Zap, keywords: ["decision", "jev", "typesafe", "routing", "auto", "rooms", "who answers"] },
   { id: "skills", group: "ai", labelKey: "settings.section.skills", icon: BookOpen, keywords: ["skills", "library", "assign", "agent skills", "skill md"] },
   { id: "desktopWorkspaces", group: "computers", labelKey: "settings.section.desktopWorkspaces", icon: Building2, keywords: ["workspace", "cloud", "hosted", "server", "servers", "connect", "pair", "switch", "local"] },
-  { id: "computer", group: "computers", labelKey: "place.local", icon: Monitor, keywords: ["this computer", "desktop", "browser", "built-in browser", "profiles", "browser profiles"] },
+  { id: "computer", group: "computers", labelKey: "place.local", icon: Monitor, keywords: ["this computer", "desktop"] },
   { id: "organization", group: "account", labelKey: "settings.section.organization", icon: Building2, keywords: ["company", "organization", "organisation", "sign in", "enroll", "managed", "models", "disconnect"] },
   { id: "usage", group: "account", labelKey: "settings.section.usage", icon: Coins, keywords: ["tokens", "cost", "billing", "plan", "quota", "remaining", "weekly", "5-hour", "model", "used"] },
   { id: "backups", group: "account", labelKey: "settings.section.backups", icon: Archive, keywords: ["export", "import", "restore", "full backup", "password", "recovery"] },
@@ -612,18 +610,6 @@ function ExperimentalFeaturesRow() {
       </div>
       {error ? <p role="alert" className="mt-2 text-[12px] text-danger">{error}</p> : null}
       <LearnedSkillsSettings />
-      <NewBrowserSettings />
-    </Card>
-  );
-}
-
-function BrowserProfilesRow() {
-  const { state } = useStore();
-  const profiles = state.config?.browserProfiles ?? [];
-  if (!builtInBrowserEnabled(state.config) && profiles.length === 0) return null;
-  return (
-    <Card title={t("settings.profiles.title")} subtitle={t("settings.profiles.sharedSubtitle")}>
-      <BrowserProfilesManager />
     </Card>
   );
 }
@@ -879,9 +865,7 @@ export function SettingsModal() {
         );
       }
       case "computer":
-        return advanced
-          ? <><BuiltInBrowserRow /><BrowserProfilesRow /><MacLocalControl /></>
-          : <MacLocalControl />;
+        return <MacLocalControl />;
       case "usage":
         return <UsageSection />;
       case "skills":
@@ -1056,13 +1040,6 @@ export function SettingsModal() {
                   <section key={id} data-settings-block={id} className="flex scroll-mt-2 flex-col gap-4">
                     {stacked && labelKey ? blockHeading(labelKey) : null}
                     {renderSection(id)}
-                    {id === "computer" && (
-                      <div data-settings-block="browser" className="flex flex-col gap-4 pt-2">
-                        {blockHeading("settings.experimental.browser")}
-                        <BuiltInBrowserRow />
-                        <BrowserProfilesRow />
-                      </div>
-                    )}
                   </section>
                 );
               })

@@ -52,15 +52,12 @@ it("a plain visit reveals nothing", () => {
   expect(f.revealed).toEqual([]);
 });
 
-it("keeps browser access separately off until granted, including old sidecar snapshots", () => {
-  for (const browserControlAccess of [undefined, false, true]) {
-    f.state = { enabled: true, devices: [{ id: "phone-1", name: "Ada", lastSeenAt: Date.now(), cloudDesktopAccess: true, browserControlAccess }], port: 8810 };
-    const markup = renderToStaticMarkup(createElement(() => CompanionSection({})));
-    const browser = markup.match(/<button[^>]*aria-label="Browser control access for Ada"[^>]*>/)?.[0];
-    const computer = markup.match(/<button[^>]*aria-label="Computer view access for Ada"[^>]*>/)?.[0];
-    expect(browser).toContain(`aria-checked="${browserControlAccess === true}"`);
-    expect(computer).toContain('aria-checked="true"');
-  }
+it("offers a paired device computer view access, and no browser control", () => {
+  f.state = { enabled: true, devices: [{ id: "phone-1", name: "Ada", lastSeenAt: Date.now(), cloudDesktopAccess: true }], port: 8810 };
+  const markup = renderToStaticMarkup(createElement(() => CompanionSection({})));
+  const computer = markup.match(/<button[^>]*aria-label="Computer view access for Ada"[^>]*>/)?.[0];
+  expect(computer).toContain('aria-checked="true"');
+  expect(markup).not.toContain("Browser control access");
 });
 
 it("reveals again after Settings went elsewhere and came back on a new request", () => {

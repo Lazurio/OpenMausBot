@@ -6,7 +6,7 @@ import { signInOutcome } from "../../shared/sign-in-request";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { answerSignIn, signInHostIsHere } from "@/lib/sign-in";
-import { useStore, type Message } from "@/state/store";
+import type { Message } from "@/state/store";
 import { ASK_CHIP, ASK_CHIP_IDLE, ASK_PRIMARY_BUTTON, ASK_QUIET_BUTTON, AskCard, AskSettledLine, returnFocusToComposer } from "./AskCard";
 
 const WHERE = {
@@ -26,7 +26,6 @@ export function SignInRequestCard({
   threadId: string;
   message: Message;
 }) {
-  const { dispatch } = useStore();
   const card = message.signIn!;
   const [pending, setPending] = useState<"done" | "cancel" | null>(null);
   const [explained, setExplained] = useState(false);
@@ -83,10 +82,6 @@ export function SignInRequestCard({
   }
 
   const where = WHERE[card.place === "local" && !here ? "host" : card.place];
-  const open = () => {
-    if (card.place === "local") setExplained(true);
-    else dispatch({ type: "openSignIn", botId, messageId: message.id, url: card.url, site: card.site, place: card.place });
-  };
   return (
     <AskCard
       ariaLabel={t("signIn.cardLabel", { name: botName, site: card.site })}
@@ -97,10 +92,12 @@ export function SignInRequestCard({
           {pending === "cancel" ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
           {t("signIn.cancel")}
         </button>
-        <button type="button" onClick={open} disabled={pending !== null} className={cn(ASK_CHIP, ASK_CHIP_IDLE)}>
-          <LogIn size={14} />
-          {t("signIn.open")}
-        </button>
+        {card.place === "local" && (
+          <button type="button" onClick={() => setExplained(true)} disabled={pending !== null} className={cn(ASK_CHIP, ASK_CHIP_IDLE)}>
+            <LogIn size={14} />
+            {t("signIn.open")}
+          </button>
+        )}
         <button type="button" onClick={() => void answer("done")} disabled={pending !== null} className={ASK_PRIMARY_BUTTON}>
           {pending === "done" ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
           {t("signIn.done")}
@@ -148,11 +145,9 @@ export function SignInBanner({
       <div className="text-[13px] leading-relaxed text-warning">
         <b>{askerName}</b> {t("signIn.banner", { site: help.site })}
       </div>
-      {help.place === "local" && (
-        <div className="mt-1 text-[12px] leading-relaxed text-ink-secondary">
-          {t(signInHostIsHere() ? "signIn.where.local" : "signIn.where.host", { name: askerName })}
-        </div>
-      )}
+      <div className="mt-1 text-[12px] leading-relaxed text-ink-secondary">
+        {t(WHERE[help.place === "local" && !signInHostIsHere() ? "host" : help.place], { name: askerName })}
+      </div>
       <div className="mt-2 flex gap-2">
         <button
           type="button"

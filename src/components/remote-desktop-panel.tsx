@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { CalendarClock, CalendarDays, Globe, Loader2, Plus, X } from "lucide-react";
+import { useState } from "react";
+import { CalendarClock, CalendarDays, Loader2, Plus, X } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import { useCaptionChrome } from "@/components/DesktopCapabilities";
@@ -7,7 +7,6 @@ import type { Routine } from "@/lib/routines";
 import { scheduleLabel } from "@/lib/schedule-label";
 import { useStore, type Bot } from "@/state/store";
 import { RoutineEditor } from "./RoutinesPage";
-import { BrowserPanel, type BrowserSignIn } from "./BrowserPanel";
 import { SignInBanner } from "./SignInRequestCard";
 
 function routineScheduleLabel(routine: Routine) {
@@ -55,17 +54,8 @@ export function RemoteDesktopPanel({ bot }: { bot: Bot }) {
   const { padClass, dragProps } = useCaptionChrome();
   const [error, setError] = useState<string | null>(null);
   const [creatingRoutine, setCreatingRoutine] = useState(false);
-  const [view, setView] = useState<"browser" | "schedules">("browser");
-  const [signIn, setSignIn] = useState<BrowserSignIn>();
   const help = state.computerControl[bot.id]?.help ?? null;
   const asker = help ? state.bots.find((candidate) => candidate.id === help.botId)?.name ?? bot.name : bot.name;
-  const requestedSignIn = state.signInFocus?.botId === bot.id ? state.signInFocus : undefined;
-  useEffect(() => {
-    if (!requestedSignIn || requestedSignIn.consumed) return;
-    setView("browser");
-    if (requestedSignIn.place === "browser") setSignIn({ url: requestedSignIn.url, site: requestedSignIn.site, nonce: requestedSignIn.requestId });
-    dispatch({ type: "signInFocusConsumed", requestId: requestedSignIn.requestId });
-  }, [dispatch, requestedSignIn]);
   const botRoutines = state.routines
     .filter((routine) => routine.botId === bot.id)
     .sort((a, b) => Number(b.enabled) - Number(a.enabled) || (a.nextRunAt ?? Infinity) - (b.nextRunAt ?? Infinity));
@@ -80,20 +70,6 @@ export function RemoteDesktopPanel({ bot }: { bot: Bot }) {
           <div className="text-[14px] font-medium text-ink">{bot.name}&apos;s computer</div>
         </div>
         <div className="flex items-center gap-1">
-          <div className="flex rounded-full bg-inset p-0.5" aria-label="Bot panel view">
-            {(["browser", "schedules"] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setView(option)}
-                aria-pressed={view === option}
-                className={cn("flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px]", view === option ? "bg-card text-ink shadow-sm" : "text-ink-secondary hover:text-ink")}
-              >
-                {option === "browser" ? <Globe size={12} /> : <CalendarClock size={12} />}
-                {option === "browser" ? "Browser" : "Schedules"}
-              </button>
-            ))}
-          </div>
           <button
             type="button"
             onClick={() => dispatch({ type: "toggleComputer", open: false })}
@@ -105,17 +81,9 @@ export function RemoteDesktopPanel({ bot }: { bot: Bot }) {
         </div>
       </div>
 
-      {view === "browser" ? (
-        <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-1">
-          {help && <div className="-mt-2 mb-3"><SignInBanner help={help} askerName={asker} onError={setError} /></div>}
-          <BrowserPanel bot={bot} signIn={signIn} />
-          {error && <div role="alert" className="mt-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-[12px] text-danger">{error}</div>}
-          <p className="mt-2 text-[11px] leading-relaxed text-ink-secondary">
-            Watching and driving this browser needs browser control for this paired device, in Settings → Remote access on the host computer.
-          </p>
-        </div>
-      ) : (
       <div className="flex flex-1 flex-col items-center gap-4 overflow-y-auto px-6 py-5 text-center">
+        {help && <div className="-mt-3 w-full"><SignInBanner help={help} askerName={asker} onError={setError} /></div>}
+        {error && <div role="alert" className="w-full rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-left text-[12px] text-danger">{error}</div>}
         <div className="w-full rounded-xl bg-card p-4 text-left">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-[15px] font-medium text-ink">
@@ -182,7 +150,6 @@ export function RemoteDesktopPanel({ bot }: { bot: Bot }) {
           </div>
         </div>
       </div>
-      )}
       {creatingRoutine && (
         <RoutineEditor
           bots={[bot]}

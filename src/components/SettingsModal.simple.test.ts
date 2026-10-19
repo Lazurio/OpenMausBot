@@ -9,7 +9,7 @@ import { SECTIONS, SIMPLE_HIDDEN_SECTIONS, SIMPLE_PAGES, SettingsModal, revealSe
 const fixture = vi.hoisted(() => ({
   section: "general" as AppSettingsSection,
   advancedMode: false,
-  config: { features: { browser: false }, browserEngine: { kind: "bundled", installable: true } } as Record<string, unknown>,
+  config: {} as Record<string, unknown>,
   api: vi.fn(),
   dispatch: vi.fn(),
   switches: [] as ComponentProps<typeof Switch>[],
@@ -71,7 +71,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   fixture.section = "general";
   fixture.advancedMode = false;
-  fixture.config = { features: { browser: false }, browserEngine: { kind: "bundled", installable: true } };
+  fixture.config = {};
   fixture.switches = [];
   fixture.ownerOrAdmin = null;
   fixture.api.mockResolvedValue({});
@@ -136,14 +136,14 @@ describe("Settings in Simple mode", () => {
     expect(html).toContain("More providers for OpenCode bots");
   });
 
-  it("stacks Remote access, Servers, This computer and the built-in browser on Computers", () => {
+  it("stacks Remote access, Servers and This computer on Computers, with no browser of its own", () => {
     fixture.section = "companion";
     const html = render();
     expect(currentPage(html)).toBe("computers");
-    expect(blocks(html)).toEqual(["companion", "desktopWorkspaces", "computer", "browser"]);
+    expect(blocks(html)).toEqual(["companion", "desktopWorkspaces", "computer"]);
     const headings = [...html.matchAll(/<h3[^>]*>([^<]+)<\/h3>/g)].map((match) => match[1]);
-    expect(headings).toEqual(["Remote access", "Servers", "This computer", "Built-in browser"]);
-    expect(html).toContain('aria-label="Enable the built-in browser"');
+    expect(headings).toEqual(["Remote access", "Servers", "This computer"]);
+    expect(html).not.toContain("built-in browser");
   });
 
   it("adds People and Activity to Account for a hosted workspace's admins in a browser", () => {
@@ -168,7 +168,6 @@ describe("Settings in Simple mode", () => {
     expect(pages(html)).toEqual(["appearance", "computers"]);
     expect(currentPage(html)).toBe("computers");
     expect(blocks(html)).toEqual(["companion", "desktopWorkspaces"]);
-    expect(html).not.toContain('aria-label="Enable the built-in browser"');
   });
 
   it.each<[AppSettingsSection, string]>([
@@ -215,41 +214,25 @@ describe("Settings in Simple mode", () => {
   });
 });
 
-describe("the built-in browser switch", () => {
-  const browserSwitch = () => fixture.switches.find((props) => props["aria-label"] === "Enable the built-in browser");
-
-  it.each([false, true])("writes features.browser from Computers (advanced: %s)", async (advanced) => {
+describe("no browser of its own", () => {
+  it.each([false, true])("offers no browser switch or browser profiles on This computer (advanced: %s)", (advanced) => {
     fixture.advancedMode = advanced;
     fixture.section = "computer";
     const html = render();
-    if (advanced) {
-      expect(html.indexOf('aria-label="Enable the built-in browser"')).toBeLessThan(html.indexOf("MARKER:computer;"));
-    } else {
-      expect(html.indexOf("MARKER:computer;")).toBeLessThan(html.indexOf('aria-label="Enable the built-in browser"'));
-    }
-    const toggle = browserSwitch()!;
-    expect(toggle.checked).toBe(false);
-    toggle.onClick!({} as never);
-    await vi.waitFor(() => expect(fixture.dispatch).toHaveBeenCalledWith({ type: "configStatus", config: {} }));
-    expect(fixture.api).toHaveBeenCalledWith("/api/config", {
-      method: "PATCH",
-      body: JSON.stringify({ features: { browser: true } }),
-    });
+    expect(html).toContain("MARKER:computer;");
+    for (const removed of ["built-in browser", "Browser profiles", "Signed-in sites"]) expect(html).not.toContain(removed);
+    expect(fixture.switches.some((props) => String(props["aria-label"] ?? "").toLowerCase().includes("browser"))).toBe(false);
   });
 
-  it("is no longer on Experimental, which keeps skill drafting", () => {
+  it("keeps skill drafting on Experimental, with no new-browser switch", () => {
     fixture.advancedMode = true;
     fixture.section = "experimental";
     const html = render();
-    expect(html).not.toContain('aria-label="Enable the built-in browser"');
     expect(html).toContain("Bots may write their own skills");
-    expect(browserSwitch()).toBeUndefined();
+    expect(html).not.toContain("browser");
   });
 
-  it("is found by searching for the browser under This computer in Advanced", () => {
-    const computer = SECTIONS.find((entry) => entry.id === "computer")!;
-    const experimental = SECTIONS.find((entry) => entry.id === "experimental")!;
-    expect(computer.keywords).toContain("browser");
-    expect(experimental.keywords).not.toContain("browser");
+  it("is not found by searching for a browser", () => {
+    for (const entry of SECTIONS) expect(entry.keywords, entry.id).not.toContain("browser");
   });
 });

@@ -15,9 +15,9 @@ describe("where a bot works", () => {
     expect(placeLabelKey("browser")).toBe("place.browser");
   });
 
-  it("gives browser tools the browser, computer tools this computer, and other tools nothing", () => {
-    expect(toolPlace("agent_browser_snapshot")).toBe("browser");
-    expect(toolPlace("mcp__browser__browser_click")).toBe("browser");
+  it("gives computer tools this computer, and other tools, browser tools included, nothing", () => {
+    expect(toolPlace("agent_browser_snapshot")).toBeNull();
+    expect(toolPlace("mcp__browser__browser_click")).toBeNull();
     expect(toolPlace("mcp__computer__screenshot")).toBe("local");
     expect(toolPlace("click")).toBe("local");
     for (const name of ["Bash", "Read", "list_bots", "recall", "propose_routine", "mcp__agents__ask_bot"]) {

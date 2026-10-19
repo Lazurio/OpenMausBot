@@ -23,7 +23,6 @@ import { VisibilitySection } from "../bot-settings/VisibilitySection";
 import { VoiceSection } from "../bot-settings/VoiceSection";
 import type { useBotHistory, useBotOverview } from "../bot-settings/useBotOverview";
 import type { useBotSettingsDerived } from "../bot-settings/useBotSettingsDerived";
-import { BrowserLogins } from "./apps-and-logins";
 import { teamNames, useBotActions } from "./bot-actions";
 import { useOpenComputer } from "./ComputerTab";
 import { PAGES, sectionTarget, setupTarget, type PageId, type PanelTarget } from "./page-registry";
@@ -162,16 +161,6 @@ function FolderPage({ bot, derived }: Pick<PageContext, "bot" | "derived">) {
   );
 }
 
-function BrowserPage({ bot, derived }: Pick<PageContext, "bot" | "derived">) {
-  const openComputer = useOpenComputer(bot);
-  return (
-    <>
-      <AccessSection bot={bot} derived={derived} parts={["browser"]} />
-      <BrowserLogins bot={bot} browserEnabled={derived.browserEnabled} onOpenBrowser={() => openComputer("browser")} />
-    </>
-  );
-}
-
 function ChiefTeamsPage({ bot, derived }: Pick<PageContext, "bot" | "derived">) {
   const { state } = useStore();
   if (!bot.chiefOfStaff) return <NoteRow>{t("botPanel.chiefFirst")}</NoteRow>;
@@ -248,8 +237,6 @@ export function PageBody({ page, ...context }: PageContext & { page: PageId }): 
       return null;
     case "skills":
       return <SkillsSection bot={bot} />;
-    case "browser":
-      return <BrowserPage bot={bot} derived={derived} />;
     case "folder":
       return <FolderPage bot={bot} derived={derived} />;
     case "android":

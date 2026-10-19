@@ -542,7 +542,6 @@
     "src/components/bot-panel/DetailsTab.tsx",
     "src/components/bot-panel/PanelShell.dom.test.ts",
     "src/components/bot-panel/SettingsTab.tsx",
-    "src/components/bot-panel/apps-and-logins.tsx",
     "src/components/bot-panel/page-registry.test.ts",
     "src/components/bot-panel/page-registry.ts",
     "src/components/bot-panel/pages.tsx",
