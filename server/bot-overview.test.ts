@@ -12,7 +12,6 @@ function baseFacts(overrides: Partial<OverviewFacts> = {}): OverviewFacts {
       cwd: undefined,
       autoApprove: false,
       peers: [],
-      browser: undefined,
       chiefOfStaff: undefined,
     },
     routines: [],
@@ -75,16 +74,6 @@ describe("buildBotOverview", () => {
     }
     expect(buildBotOverview(baseFacts({ bot: { ...bot, peers: [] } })).wont)
       .toContain("Cannot initiate contact with other bots.");
-  });
-
-  it("does not advertise a browser disabled globally or unsupported by the engine", () => {
-    const facts = baseFacts({ bot: { ...baseFacts().bot }, browserEnabled: true, engine: { browserMcp: false } });
-    expect(buildBotOverview(facts).reaches).not.toContain("Has the built-in browser.");
-    facts.engine = { browserMcp: true };
-    facts.browserEnabled = false;
-    expect(buildBotOverview(facts).reaches).not.toContain("Has the built-in browser.");
-    facts.browserEnabled = true;
-    expect(buildBotOverview(facts).reaches).toContain("Has the built-in browser.");
   });
 
   it("renders an enabled interval routine with its last completed run", () => {

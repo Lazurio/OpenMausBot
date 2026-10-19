@@ -56,7 +56,7 @@ import {
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 export interface CliOptions {
-  command: "setup" | "start" | "serve" | "pair" | "sessions" | "status" | "access" | "service" | "browser" | "fleet" | "help";
+  command: "setup" | "start" | "serve" | "pair" | "sessions" | "status" | "access" | "service" | "fleet" | "help";
   port: number;
   dataDir: string;
   label?: string;
@@ -75,8 +75,6 @@ export interface CliOptions {
   serviceAction?: "install" | "uninstall";
   sentinel?: boolean;
   email?: string;
-  /** `browser install [--with-deps]` */
-  browserAction?: "install" | "status";
   /** `fleet init|create|list|users|suspend|resume|delete|upgrade|agent` */
   fleetAction?: FleetInput["action"] | "agent";
   operator?: string;
@@ -94,7 +92,6 @@ export interface CliOptions {
   yes?: boolean;
   keepData?: boolean;
   fleetUserAction?: "add" | "remove";
-  withDeps?: boolean;
   json: boolean;
   /** Explicitly ignore saved remote access for this launch. */
   local?: boolean;
@@ -103,7 +100,7 @@ export interface CliOptions {
   phone?: "ios" | "android";
 }
 
-const COMMANDS = ["setup", "start", "serve", "pair", "sessions", "status", "access", "service", "browser", "fleet", "help", "--help", "-h"];
+const COMMANDS = ["setup", "start", "serve", "pair", "sessions", "status", "access", "service", "fleet", "help", "--help", "-h"];
 
 export function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): CliOptions | { error: string } {
   const implicitStart = !argv.length || (argv[0]!.startsWith("--") && argv[0] !== "--help");
@@ -119,7 +116,6 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env):
     tunnel: false,
     client: false,
     pair: true,
-    withDeps: false,
     json: false,
     chatOnly: false,
   };
@@ -161,8 +157,6 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env):
       } else if (options.command === "access" && arg === "--chat-only") options.chatOnly = true;
       else if (options.command === "service" && !options.serviceAction && (arg === "install" || arg === "uninstall")) options.serviceAction = arg;
       else if (options.command === "service" && arg === "--sentinel") options.sentinel = true;
-      else if (options.command === "browser" && (arg === "install" || arg === "status")) options.browserAction = arg;
-      else if (options.command === "browser" && arg === "--with-deps") options.withDeps = true;
       else if (options.command === "fleet" && !options.fleetAction && ["init", "create", "list", "users", "suspend", "resume", "delete", "upgrade", "agent"].includes(arg)) options.fleetAction = arg as FleetInput["action"] | "agent";
       else if (options.command === "fleet" && options.fleetAction && !["init", "list", "upgrade", "agent"].includes(options.fleetAction) && !options.slug && !arg.startsWith("--")) options.slug = arg;
       else if (options.command === "fleet" && arg === "--operator") options.operator = value();
@@ -192,7 +186,6 @@ export function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env):
   if (options.command === "service" && !options.serviceAction) return { error: "service needs one of: install [the same options as serve], uninstall" };
   if (options.domain && (options.tailscale || options.tunnel || options.publicUrl)) return { error: "--domain already gives the server its address; drop --tailscale, --tunnel and --public-url" };
   if (options.local && (options.tailscale || options.tunnel || options.publicUrl)) return { error: "--local cannot be combined with a remote-access option" };
-  if (options.command === "browser" && !options.browserAction) return { error: "browser needs an action: install or status" };
   if (options.command === "fleet") {
     if (!options.fleetAction) return { error: "fleet needs one of: init --domain HOST [--operator USER], create NAME --admin EMAIL, list, users NAME add|remove EMAIL, suspend NAME, resume NAME, delete NAME --yes, upgrade, agent" };
     if (["create", "users", "suspend", "resume", "delete"].includes(options.fleetAction) && !options.slug) return { error: `fleet ${options.fleetAction} needs a workspace name` };
@@ -524,42 +517,6 @@ export async function runAccess(options: CliOptions, io: CliIo = defaultIo()): P
   return 0;
 }
 
-export async function runBrowser(options: CliOptions, io: CliIo = defaultIo()): Promise<number> {
-  const { browserEngineStatus, describeBrowserEngine, ensureChrome, installAgentBrowserBinary, resolveAgentBrowserBinary } = await import("./browser-engine.ts");
-  const status = browserEngineStatus({ dataDir: options.dataDir });
-  if (options.browserAction === "status") {
-    io.log(describeBrowserEngine(status, status.kind === "ready" ? new (await import("./browser/chrome/launcher.ts")).ChromeLauncher({ dataDir: options.dataDir }).describe() : undefined));
-    if (status.kind !== "ready" && status.installable) io.log("install it with:  openmausbot browser install");
-    return status.kind === "ready" ? 0 : 1;
-  }
-  let binary = resolveAgentBrowserBinary({ dataDir: options.dataDir });
-  if (binary) {
-    io.log(`agent-browser is already here: ${binary}`);
-  } else {
-    if (status.kind !== "ready" && !status.installable) {
-      io.error(status.reason);
-      return 1;
-    }
-    try {
-      binary = await installAgentBrowserBinary({ dataDir: options.dataDir, log: io.log });
-    } catch (error) {
-      io.error(`could not install agent-browser: ${message(error)}`);
-      return 1;
-    }
-    io.log(`installed ${binary}`);
-  }
-  try {
-    await ensureChrome(binary, { withDeps: options.withDeps === true, log: io.log });
-  } catch (error) {
-    io.error(`Chrome is not ready: ${message(error)}`);
-    if (process.platform === "linux" && !options.withDeps) io.error("on Linux, install Chrome's system libraries with `sudo openmausbot browser install --with-deps`, then retry `openmausbot browser install` as the user running serve");
-    return 1;
-  }
-  io.log("browser installed for this user and data directory; run serve as the same user, then enable it under Settings → Computers and per bot");
-  if (process.platform === "linux" && options.withDeps) io.log("if serve runs as another user, run `openmausbot browser install` from that user's login shell too");
-  return 0;
-}
-
 export function serverEntry(here = HERE): { command: string; args: string[]; staticDir: string | null; skillsDir: string | null } {
   const bundled = join(here, "index.js");
   const root = resolve(here, "..");
@@ -606,7 +563,6 @@ async function planTunnel(options: CliOptions, log: (line: string) => void): Pro
 }
 
 export async function runServe(options: CliOptions, log: (line: string) => void = console.log): Promise<number> {
-  const { browserEngineStatus, describeBrowserEngine } = await import("./browser-engine.ts");
   if (await serverUp(options.port)) {
     console.error(`something already answers on http://127.0.0.1:${options.port}; use \`openmausbot pair\` against it, or --port for a second server`);
     return 1;
@@ -788,7 +744,6 @@ export async function runServe(options: CliOptions, log: (line: string) => void 
       if (options.open !== false && !await openDashboard(options.port)) log("Open the local address above in a browser on this computer.");
     } else {
       log(`data: ${options.dataDir}`);
-      log(describeBrowserEngine(browserEngineStatus({ dataDir: options.dataDir })));
     }
     if (options.pair && options.phone) {
       log("");
@@ -959,8 +914,6 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
         node: process.execPath,
         script: process.argv[1] ?? "",
       }, { log: (line) => console.log(line), error: (line) => console.error(line) });
-    case "browser":
-      return runBrowser(options);
     default:
       console.log(USAGE);
       return 0;

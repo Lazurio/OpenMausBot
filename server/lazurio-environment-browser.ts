@@ -47,6 +47,7 @@ import {
   parseBrowserCliAnswer,
   stripPrefixes,
 } from "../lazurio/browser-contract/pure.js";
+import { SIGN_IN_PROMPT } from "./system-prompt.ts";
 
 /** The Platform release whose contract module MausBot vendored (lazurio/browser-contract/provenance.json),
  * which every holder file it writes names (F50 point 3). */
@@ -91,9 +92,9 @@ export function environmentBrowserPrompt(session: string, declared: boolean): st
     `You work in the Environment browser, the one browser this Environment has, with its sign-ins, through your own session \`${session}\`.`,
     `Open your window with \`lazurio browser window --session ${session}\`: it prints the link a person opens to watch and work in the same tab with you, and the command to work in it.`,
     `Work in it with Lazurio's agent-browser from your shell, always with your session: \`agent-browser --cdp ${port} --session ${session} <command>\` (for example \`snapshot -i\`, \`click @e3\`, \`fill @e5 "text"\`, \`open https://example.com\`).`,
-    "Your tabs stay in your strip until this bot is archived or deleted. When you need a person to sign in, solve a CAPTCHA or confirm something, send them your window's link and wait; never ask for passwords or codes in chat.",
+    "Your tabs stay in your strip until this bot is archived or deleted. When a person has to step in (a sign-in, a CAPTCHA, a confirmation), send them your window's link, where they work in the same tab.",
     `When your work in the browser is done, run \`lazurio browser done --session ${session}\`. Never close tabs with agent-browser (that closes them for everyone who holds or watches them), and never start a browser of your own (Chrome, Chromium, Playwright, Puppeteer or an agent-browser without --cdp ${port}).`,
-  ].join(" ");
+  ].join(" ") + SIGN_IN_PROMPT;
 }
 
 export interface LazurioRun {
@@ -130,8 +131,11 @@ export interface EnvironmentBrowserSeams {
 }
 
 export interface EnvironmentBrowser {
-  /** Whether this Environment declares its browser (`lazurio browser link --json`), believed for a minute. */
+  /** Whether this Environment declares its browser (`lazurio browser link --json`). Only the first call waits; an
+   * answer older than a minute is given once more while it is asked again. */
   declared(): Promise<boolean>;
+  /** The last answer without waiting (false until there is one); a stale one is asked again. */
+  lastDeclared(): boolean;
   /** The tabs a bot's strip holds, in the order they were first recorded. */
   tabs(botId: string): Promise<string[]>;
   /** One reconciliation of every bot's strip; resolves once it is done. */
@@ -160,13 +164,22 @@ export function startEnvironmentBrowser(seams: EnvironmentBrowserSeams): Environ
   const log = seams.log ?? ((line: string) => console.warn(`environment browser: ${line}`));
 
   let declaration: { value: boolean; at: number } | null = null;
-  const declared = async () => {
-    if (declaration && Date.now() - declaration.at < DECLARATION_TTL_MS) return declaration.value;
-    const answer = await run(["browser", "link", "--json"], LINK_CHECK_MS).catch(() => null);
-    const parsed = answer?.code === browserCliExit.done ? parseBrowserCliAnswer(answer.stdout) : null;
-    const value = parsed?.kind === "browser-link" && !("available" in parsed && parsed.available === false);
-    declaration = { value, at: Date.now() };
-    return value;
+  let asking: Promise<boolean> | null = null;
+  const ask = (): Promise<boolean> => {
+    asking ??= (async () => {
+      const answer = await run(["browser", "link", "--json"], LINK_CHECK_MS).catch(() => null);
+      const parsed = answer?.code === browserCliExit.done ? parseBrowserCliAnswer(answer.stdout) : null;
+      const value = parsed?.kind === "browser-link" && !("available" in parsed && parsed.available === false);
+      declaration = { value, at: Date.now() };
+      return value;
+    })().finally(() => { asking = null; });
+    return asking;
+  };
+  // A known answer is given at once and asked again in the background once it is stale; only the first one waits.
+  const declared = async (): Promise<boolean> => {
+    if (!declaration) return ask();
+    if (Date.now() - declaration.at >= DECLARATION_TTL_MS) void ask();
+    return declaration.value;
   };
 
   /** What this process knows of each live bot's strip, and the tab each session was bound to at the last reading. */
@@ -288,8 +301,14 @@ export function startEnvironmentBrowser(seams: EnvironmentBrowserSeams): Environ
   beat?.unref();
   if (on) void sync();
 
+  void declared();
+
   return {
     declared,
+    lastDeclared() {
+      void declared();
+      return declaration?.value ?? false;
+    },
     async tabs(botId) {
       await current;
       return [...(held.get(botId) ?? [])];

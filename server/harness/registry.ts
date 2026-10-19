@@ -283,7 +283,6 @@ export class ProviderRegistry {
             computerMcp: inst.adapter.capabilities.computerMcp === true,
             agentsMcp: inst.adapter.capabilities.agentsMcp === true,
             phoneMcp: inst.adapter.capabilities.phoneMcp === true,
-            browserMcp: inst.adapter.capabilities.browserMcp === true,
             images: inst.adapter.capabilities.images === true,
             effortLevels: inst.adapter.capabilities.effortLevels,
             modelVariants: inst.adapter.capabilities.modelVariants === true,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { soulSystemPrompt } from "./bot-folder.ts";
-import { BUILT_IN_BROWSER_SYSTEM_PROMPT } from "./browser-engine.ts";
+import { environmentBrowserPrompt } from "./lazurio-environment-browser.ts";
 import {
   longCommandsPrompt,
   buildSystemPrompt,
@@ -109,8 +109,7 @@ describe("computerPrompt", () => {
     const prompt = computerPrompt("local");
     expect(prompt).toContain("background delivery");
     expect(prompt).toContain("do not bring OpenMausBot");
-    expect(prompt).toContain("dedicated browser tools");
-    expect(prompt).toContain("keeping the user's intended browser profile/account");
+    expect(prompt).toContain("in the Environment browser as your Browser instructions say");
     expect(prompt).toContain("Do not silently retry a background refusal");
     expect(prompt).toContain("including through shell scripts, AppleScript/System Events");
     expect(prompt).toContain("If a background action unexpectedly changes focus");
@@ -119,11 +118,12 @@ describe("computerPrompt", () => {
     expect(computerPrompt(null)).toBe("");
   });
 
-  it("shares the authorized sign-in policy across every computer and browser surface", () => {
+  it("shares the authorized sign-in policy across the computer and the Environment browser", () => {
     expect(computerPrompt("local")).toContain("act on the user's computer");
     expect(computerPrompt("local").endsWith(SIGN_IN_PROMPT)).toBe(true);
     expect(computerPrompt("local").startsWith(" ")).toBe(true);
-    expect(BUILT_IN_BROWSER_SYSTEM_PROMPT.endsWith(SIGN_IN_PROMPT)).toBe(true);
+    expect(environmentBrowserPrompt("bot-x", true).endsWith(SIGN_IN_PROMPT)).toBe(true);
+    expect(environmentBrowserPrompt("bot-x", false)).not.toContain("request_sign_in");
   });
 
   it("allows authorized login without granting secret discovery or removing human handoff", () => {
@@ -136,7 +136,7 @@ describe("computerPrompt", () => {
     expect(SIGN_IN_PROMPT).toContain("then continue the task");
     expect(SIGN_IN_PROMPT).toContain("call request_sign_in with the site and a short reason and end your turn");
     expect(SIGN_IN_PROMPT).toContain("never to send you the password or code");
-    for (const prompt of [computerPrompt("local"), BUILT_IN_BROWSER_SYSTEM_PROMPT]) {
+    for (const prompt of [computerPrompt("local"), environmentBrowserPrompt("bot-x", true)]) {
       expect(prompt).not.toContain("At a sign-in, password");
       expect(prompt).not.toMatch(/never type (?:their|the user's) (?:password|credentials)/i);
     }
@@ -195,7 +195,7 @@ describe("cloudHomePrompt", () => {
       const text = cloudHomePrompt();
       expect(text).toMatch(/^ You run on the user's My Cloud, their always-on OpenMausBot in the cloud, not on their own computer\./);
       expect(text.startsWith(` You run on ${CLOUD_HOME_PLACE}.`)).toBe(true);
-      expect(text).toContain("Offer what works here: the built-in browser.");
+      expect(text).toContain("Offer what works here: files and the shell in this folder.");
       expect(text).not.toMatch(/\bOMB\b|\bBoat\b|\bbox\b|cloud computer|Local VM/);
       expect(text).toContain("Never ask them to set up this computer; it does not exist here.");
       expect(text).not.toMatch(/Computer panel|container runtime|configure/i);
