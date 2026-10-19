@@ -159,7 +159,11 @@ release's shell artifact and attestation bundle, verifies the attestation
 against the Platform's release workflow at that tag and the repository's and
 owner's immutable ids, checks `artifact.json` and every digest, and writes the
 contract's files with their MIT `LICENSE`, the release's `NOTICE` and
-`provenance.json`. A bump is a reviewed pull request made by that command;
+`provenance.json`. The server bundle inlines the module, so the release
+archive ships its `LICENSE` and `NOTICE` as
+`package/LICENSES/lazurio-browser-contract/` (listed in the package's
+`files`), and the archive check compares them with the vendored ones. A bump
+is a reviewed pull request made by that command;
 nothing there is edited by hand. `scripts/lazurio-browser-contract.node-test.mjs`
 checks the bytes against `provenance.json` and runs every vector of the
 release on each CI run. `BROWSER_CONTRACT_RELEASE` in
