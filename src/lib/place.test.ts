@@ -16,7 +16,7 @@ describe("where a bot works", () => {
   });
 
   it("gives computer tools this computer, and other tools, browser tools included, nothing", () => {
-    expect(toolPlace("agent_browser_snapshot")).toBeNull();
+    expect(toolPlace("browser_navigate")).toBeNull();
     expect(toolPlace("mcp__browser__browser_click")).toBeNull();
     expect(toolPlace("mcp__computer__screenshot")).toBe("local");
     expect(toolPlace("click")).toBe("local");
@@ -26,7 +26,7 @@ describe("where a bot works", () => {
   });
 
   it("classifies tool names without guessing computer for unrelated tools", () => {
-    expect(toolSurfaceKind("agent_browser_open")).toBe("browser");
+    expect(toolSurfaceKind("browser_navigate")).toBe("browser");
     expect(toolSurfaceKind("browser__snapshot")).toBe("browser");
     expect(toolSurfaceKind("computer__click")).toBe("computer");
     expect(toolSurfaceKind("hotkey")).toBe("computer");
