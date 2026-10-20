@@ -102,6 +102,9 @@ builds them.
   bot at Full on every server, with T3 Code's four levels and no gate before
   Full, before Auto or before contacting another bot (2,
   [Access levels](#access-levels)); bots work in their own tabs of the
+  Environment browser, with their own session `bot-<id>` and strip, which
+  people see and work in in the right panel Prohlížeč, and MausBot's own
+  browser and Computer panel are removed (4,
   [The Environment browser](#the-environment-browser)); the Folder as every
   bot's start (6).
 
@@ -227,6 +230,31 @@ computer of its own, and it opens its own tabs in the Environment browser.
   browser link --json` declares none) bots have no browser. Their
   instructions say so plainly and forbid starting one; upstream's engine is
   not kept as a fallback.
+- **People** see a bot's tabs and work in them with the bot in MausBot's
+  right panel, Prohlížeč ([below](#the-browser-panel)), through the
+  Platform's view `browser.<…>/t/<id>`.
+
+### The browser panel
+
+**Decided on 2026-10-19 (the Organization Admin; root decision 0191 points
+([below](#what-the-overlay-removes)).
+
+  Advanced alike. A plain click on a link to a tab of this Environment's view
+- **Lazurio accounts go to the person's own browser** (points 36–38). A
+  sign-in at `lazurio.io` (Lazurio sign-in, the Dashboard, the vault, another
+  Environment, this Environment's Apps, Chat, Automate and browser view) is
+  never opened in the panel: its card asks the person to sign in in their own
+  browser and links there, and the bot's instructions say the same. Links to
+  another Environment's view or any other page stay links of the person's
+  browser.
+  Data).
+- **Without an Environment browser** (outside Lazurio, local development)
+  the strip answers `{"available": false}` and the panel says the browser is
+  not available; Files stays.
+- **Words** come from the shell's language (Czech unless the profile is
+
+The Lazurio side is `src/components/LazurioBrowserPanel.tsx` (the panel),
+`server/lazurio-environment-browser.test.ts` and the e2e test cover the strip,
 
 The file rules come from the Platform's contract module, vendored by digest
 from a release into `lazurio/browser-contract/` with its MIT licence, the
@@ -368,6 +396,11 @@ signed-in accounts, and integrations come from the Environment.
   and their documents. Bots work in the Environment browser
   ([above](#the-environment-browser)). Upstream's UI tests still drive the web
   app with agent-browser, from the test-only `scripts/testing/ui-agent-browser.ts`.
+- **The Computer panel** (DEV-6673 task 212): upstream's right panel with its
+  own live view of the screen (the local preview, Linux local control), its
+  remote-desktop variant, the person's hand-back of the wheel, the sign-in
+  banner it showed and the screen preview in the bot panel's Computer tab.
+  The right panel Prohlížeč replaces it ([above](#the-browser-panel)).
 - **Telemetry to upstream**: upstream's PostHog analytics, the welcome
   tour's name and e-mail form, the `@devs` bug report to the MausBot team
   (`report_bug`) with the recent log it attached, and the "Product updates by
