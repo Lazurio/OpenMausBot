@@ -6,7 +6,7 @@ import { stopConversation } from "./run.ts";
 
 type Rec = Record<string, any>;
 
-const dryRun = (ctx: VerbContext, tool: string, args: Rec, extra: Rec = {}): VerbOutcome | undefined =>
+export const dryRun = (ctx: VerbContext, tool: string, args: Rec, extra: Rec = {}): VerbOutcome | undefined =>
   ctx.flags["dry-run"] === true
     ? { result: { ok: true, dryRun: true, command: ctx.verb, tool, arguments: args, ...extra }, exitCode: EXIT.done,
       human: [`Would call ${tool} with ${JSON.stringify(args)}${extra.tree ? ", then stop every teammate still working on it" : ""}. Nothing was sent.`] }

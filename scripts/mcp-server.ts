@@ -3,6 +3,8 @@
 // for external agents (Hermes, Claude Desktop, Cursor, etc.).
 import readline from "node:readline";
 
+import { AUTOMATION_TOOLS, handleAutomationTool } from "./mcp-automations.ts";
+
 export function validateBaseUrl(url: string): string {
   const trimmed = url.replace(/\/+$/, "");
   let parsed: URL;
@@ -470,6 +472,7 @@ export const TOOLS: McpToolDefinition[] = [
     },
     annotations: DESTRUCTIVE,
   },
+  ...AUTOMATION_TOOLS,
 ];
 
 function parsePositiveLimit(raw: unknown, fallback = 30, maximum = 200): number {
@@ -1246,7 +1249,7 @@ export async function handleToolCall(
     }
 
     default:
-      throw new ToolInputError(`Unknown tool: ${name}`);
+      return handleAutomationTool(name, args, fetcher, ToolInputError);
   }
 }
 
@@ -1341,7 +1344,7 @@ export async function processMcpMessage(
           name: "openmausbot-mcp",
           version: "1.1.0",
         },
-        instructions: "Use bounded read tools before mutating the OpenMausBot team. Approval grants, deletion, and computer lifecycle are intentionally unavailable.",
+        instructions: "Use bounded read tools before mutating the OpenMausBot team. Approval grants, deleting bots, rooms or conversations, and computer lifecycle are intentionally unavailable.",
       });
     }
 
