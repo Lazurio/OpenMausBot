@@ -1487,7 +1487,6 @@ describe("pending queued chip", () => {
       type: "hydrate",
       bots: [{ ...bot, messages: [canonical] }],
       groups: [],
-      computerControl: {},
     });
 
     expect(hydrated.pendingQueued).toEqual({});
@@ -1507,7 +1506,7 @@ describe("pending queued chip", () => {
       defaultResponder: { kind: "everyone" }, bulletin: "", unread: false, messages: [] };
     const state = { ...initialState, groups: [group], pendingQueued: { "team-thread": [{ queueId: "team-q", text: "team work" }] } };
     const queues = { sibling: [{ queueId: "sibling-q", text: "waiting after refresh", reason: "capacity" as const }] };
-    const hydrated = reducer(state, { type: "hydrate", bots: [{ ...bot, messages: [] }], groups: [group], computerControl: {}, botQueuedMessages: queues });
+    const hydrated = reducer(state, { type: "hydrate", bots: [{ ...bot, messages: [] }], groups: [group], botQueuedMessages: queues });
     expect(hydrated.pendingQueued).toEqual({ ...queues, "team-thread": state.pendingQueued["team-thread"] });
     const cancelled = reducer(hydrated, { type: "botQueues", queues: {} });
     expect(cancelled.pendingQueued).toEqual(state.pendingQueued);
@@ -1740,7 +1739,7 @@ describe("messageAdded leaf adoption", () => {
     const next = reducer(state, {
       type: "messageAdded",
       threadId: "thread-1",
-      message: { id: "shot", at: 3, parentId: "m1", role: "bot", kind: "screen", png: "x" } as never as Message,
+      message: { id: "shot", at: 3, parentId: "m1", role: "bot", kind: "activity", tool: { name: "late", ok: true } } as never as Message,
     });
     expect(next.bots[0].activeLeafId).toBe("m2");
     expect(next.bots[0].messages.map((m) => m.id)).toContain("shot");
@@ -1837,7 +1836,7 @@ describe("thread ordering stamps", () => {
     expect(state.bots[0].tasks?.[1]?.lastThreadOrderAt).toBe(20);
     add({ id: "person", at: 22, role: "user", kind: "text", text: "Hello" });
     expect(state.bots[0].tasks?.[1]?.lastThreadOrderAt).toBe(22);
-    state = reducer(state, { type: "hydrate", bots: [bot], groups: [], computerControl: {} });
+    state = reducer(state, { type: "hydrate", bots: [bot], groups: [] });
     expect(state.bots[0].tasks?.[1]?.lastThreadOrderAt).toBe(22);
   });
 });
@@ -2268,7 +2267,7 @@ describe("conversation model variant discoveries", () => {
   it("clears runtime capabilities on reload while preserving the saved variant", () => {
     let state = run(start(), { ...base(), type: "turn.started" });
     state = run(state, discovery());
-    state = reducer(state, { type: "hydrate", bots: [owner], groups: [], computerControl: {} });
+    state = reducer(state, { type: "hydrate", bots: [owner], groups: [] });
     expect(state.modelVariantSessions).toEqual({});
     expect(state.bots[0].tasks![0].modelSelection?.variant).toBe("minimal");
   });
@@ -2333,7 +2332,7 @@ describe("restoring the open conversation", () => {
     defaultResponder: { kind: "everyone" }, bulletin: "", unread: false, messages: [],
   };
   const hydrating = (state: AppState, resumeId?: string, bots: Bot[] = [first, second], groups: Group[] = [room]) =>
-    reducer(state, { type: "hydrate", bots, groups, computerControl: {}, resumeId });
+    reducer(state, { type: "hydrate", bots, groups, resumeId });
 
   it("hydrate keeps a known live selection", () => {
     expect(hydrating({ ...initialState, selectedId: "bot-2" }, "room-1").selectedId).toBe("bot-2");

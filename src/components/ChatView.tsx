@@ -21,7 +21,7 @@ import { ACTION_ICON, MESSAGE_ROW, MessageActions, messageActionClass } from "@/
 import { useBotMessageMenu, userMessageMenu } from "@/components/message-menu";
 import { useSpeech } from "@/lib/tts/useSpeech";
 import { localSystemVoiceActive } from "@/lib/local-voice";
-import { useCaptionChrome, useDesktopCapabilities } from "@/components/DesktopCapabilities";
+import { useCaptionChrome } from "@/components/DesktopCapabilities";
 import {
   api,
   currentTaskBot,
@@ -44,8 +44,6 @@ import { openExternalLink } from "@/lib/app-links";
 import { CODEX_USAGE_URL, codexUsageLimitReached } from "../../shared/codex-usage-limit";
 import { ClaudeUpdatePrompt } from "./ClaudeUpdatePrompt";
 import { LazurioBrowserButton, useLazurioBrowserPanel } from "./LazurioBrowser";
-import { MacCuaRecoveryActions } from "./MacCuaRecoveryActions";
-import { macCuaPermissionMessage, missingMacCuaPermissions } from "@/lib/mac-cua-permissions";
 import { failedTurnCause, signedOutEngine } from "@/lib/failed-turn";
 import { plainErrorLine } from "@/lib/plain-error";
 import { isPureLeakedSystemHarnessMessage, stripLeakedSystemHarnessMessages } from "../../shared/system-message-guard.ts";
@@ -86,7 +84,6 @@ import { SignInRequestCard } from "./SignInRequestCard";
 import { hasRoutineExecutionTask, RoutineRunCard } from "./RoutineRunCard";
 import { CallRecordRow } from "./CallRecordRow";
 import { AttachmentGallery, collectMessageFiles, replyAttachmentGroup, splitMessageAttachments } from "./AttachmentGallery";
-import { ScreenFrame } from "./ScreenFrame";
 import { CompactionChip, DigestChip } from "./DigestChip";
 import { RenameTitle } from "./RenameTitle";
 import { BotActivityPicker } from "./TaskPicker";
@@ -99,7 +96,6 @@ import { SpeakButton } from "./SpeakButton";
 import { CallOverlay } from "./CallView";
 import { LiveCallBar } from "./LiveCallBar";
 import { LiveCallChip } from "./LiveCallPill";
-import { toolPlace } from "@/lib/place";
 import { cn } from "@/lib/cn";
 import { activeLocale, t } from "@/lib/i18n";
 import { COMPACT_BUBBLE } from "@/lib/compact-chip";
@@ -219,16 +215,7 @@ export function ErrorRow({
   setupInstance?: InstanceInfo;
   claudeUpdateInstance?: InstanceInfo;
 }) {
-  const { capabilities, ready } = useDesktopCapabilities();
-  const failedPermissions = missingMacCuaPermissions(message);
-  const currentPermissions = missingMacCuaPermissions(capabilities.localComputer.message);
-  const macCuaReason = ready && capabilities.host.platform === "darwin" &&
-    capabilities.localComputer.available === false && capabilities.localComputer.reasonCode !== "remote-server" &&
-    message.startsWith("CUA Driver is not ready for this computer — ") &&
-    failedPermissions.length > 0 && failedPermissions.join(",") === currentPermissions.join(",")
-    ? macCuaPermissionMessage(currentPermissions)
-    : null;
-  const headline = macCuaReason ?? plainHeadline ?? message;
+  const headline = plainHeadline ?? message;
   const usageUrl = codexUsageLimitReached(message) ? CODEX_USAGE_URL : null;
   return (
     <div className="flex justify-start">
@@ -237,9 +224,7 @@ export function ErrorRow({
           <AlertTriangle size={15} className="mt-0.5 shrink-0" />
           <span className="min-w-0 break-words">{headline}</span>
         </div>
-        {headline !== message && <details className="mt-2 text-[12px] text-ink-secondary"><summary className="cursor-pointer">{macCuaReason ? t("computer.mac.permission.driverDetail") : t("chat.error.details")}</summary><p className="mt-1 break-words">{message}</p></details>}
-        {macCuaReason &&
-          <MacCuaRecoveryActions reason={message} />}
+        {headline !== message && <details className="mt-2 text-[12px] text-ink-secondary"><summary className="cursor-pointer">{t("chat.error.details")}</summary><p className="mt-1 break-words">{message}</p></details>}
         {usageUrl ? (
           <a href={usageUrl} target="_blank" rel="noopener noreferrer" className="ui-button ui-button-md mt-2 border-transparent bg-ink text-app hover:brightness-110" onClick={(event) => { if (window.ogb?.openExternal) { event.preventDefault(); void openExternalLink(usageUrl); } }}>{t("chat.error.manageUsage")}</a>
         ) : claudeUpdateInstance ? (
@@ -681,7 +666,7 @@ const ActivityChip = memo(function ActivityChip({ message }: { message: Message 
       </div>
     );
   }
-  return <ToolActivity tool={tool} place={toolPlace(tool.name)} />;
+  return <ToolActivity tool={tool} />;
 });
 
 function RoutineRunRow({ message, botId }: { message: Message; botId: string }) {
@@ -872,8 +857,6 @@ const MessagesList = memo(function MessagesList({
               return showToolCalls ? <DigestChip message={m} /> : null;
             case "compaction":
               return <CompactionChip message={m} />;
-            case "screen":
-              return <ScreenFrame threadId={threadId} message={m} />;
             default: {
               const peer = peerLine(m) ?? peerRequest(m, botId);
               const user = m.role === "user" && !peer;
