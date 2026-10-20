@@ -1,24 +1,29 @@
-// Lazurio overlay (DEV-6673; root decision 0191 points 13, 34 and 41): MausBot's right panel,
-// Prohlížeč. Its first view is the bot's strip in the Environment browser, as a T3 Code thread's
-// right panel shows a thread's: each tab is a frame of the Platform's view
+// Lazurio overlay (DEV-6673; root decision 0191 points 13, 34 and 41, 0195 points 13–15): MausBot's
+// right panel, Prohlížeč. Its first view is the bot's strip in the Environment browser, as a T3 Code
+// thread's right panel shows a thread's: each tab is a frame of the Platform's view
 // `https://browser.<…>/t/<id>`, where the bot and the person work in the same tab at once (nothing
-// is handed over or locked), and "+" opens the bot's window (`lazurio browser window --session
-// bot-<id>`, through the server). The strip is the server's answer, read while the browser is in
-// view. Where the Environment declares no browser, the view says so. The panel's other views are
-// upstream's: the bot's files and worktree, and in Advanced its routines and data.
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+// is handed over or locked). "+" is Nová karta, the shell's `<lazurio-new-tab>`: a page it opens or
+// a tab chosen in Přehled joins the bot's strip; × lets a tab go, with Vrátit. The strip is the
+// server's answer, read while the browser is in view. Where the Environment declares no browser,
+// the view says so. The panel's other views are upstream's: the bot's files and worktree, and in
+// Advanced its routines and data.
+import { createElement, lazy, Suspense, useEffect, useRef, useState } from "react";
 import { CalendarClock, Database, ExternalLink, FolderOpen, Globe, Loader2, Plus, X, type LucideIcon } from "lucide-react";
 
-import { acceptViewMessage, browserTimes, viewFrameAttributes } from "../../lazurio/browser-contract/pure.js";
-import type { BotBrowserTab, BotBrowserWindow } from "../../shared/lazurio-browser";
+import { acceptViewMessage, browserTimes, newTabEventName, viewFrameAttributes } from "../../lazurio/browser-contract/pure.js";
+import type { BotBrowserTab } from "../../shared/lazurio-browser";
 import { cn } from "@/lib/cn";
 import { useAdvancedMode } from "@/lib/interface-mode";
 import { t } from "@/lib/i18n";
 import {
   browserPanelViews,
+  changeBotTab,
+  closeNoticeText,
   fetchBotBrowserStrip,
+  newTabChoiceOf,
   readBrowserPanelView,
   resolveBrowserPanelView,
+  stripHolds,
   takeBrowserTabRequest,
   useBotBrowserStrip,
   useBrowserTabRequest,
@@ -27,8 +32,7 @@ import {
   type BrowserPanelView,
   type BrowserTabRequest,
 } from "@/lib/lazurio-browser-panel";
-import type { LocaleKey } from "@/locales";
-import { api, currentTaskBot, useStore, type Bot } from "@/state/store";
+import { ApiError, api, currentTaskBot, useStore, type Bot } from "@/state/store";
 import { useCaptionChrome } from "./DesktopCapabilities";
 import { ComputerFilesPane } from "./ComputerFilesPane";
 import { RoutinesSection } from "./bot-settings/RoutinesSection";
@@ -42,11 +46,26 @@ const MAX_WIDTH = 1280;
 const DEFAULT_WIDTH = 560;
 const RESIZE_STEP = 40;
 
-const UPSTREAM_VIEWS: Record<Exclude<BrowserPanelView, "browser">, { Icon: LucideIcon; label: LocaleKey }> = {
-  files: { Icon: FolderOpen, label: "computer.tab.files" },
-  routines: { Icon: CalendarClock, label: "computer.tab.routines" },
-  data: { Icon: Database, label: "computer.tab.data" },
-};
+const VIEW_ICONS: Record<BrowserPanelView, LucideIcon> = { browser: Globe, files: FolderOpen, routines: CalendarClock, data: Database };
+
+/** The shell's Nová karta (LazurioPlatform F47 point 2, contract C10), defined by `/.lazurio/shell.js`. */
+const NEW_TAB_ELEMENT = "lazurio-new-tab";
+const newTabDefined = () => typeof customElements !== "undefined" && customElements.get(NEW_TAB_ELEMENT) !== undefined;
+
+function useNewTabDefined(): boolean {
+  const [defined, setDefined] = useState(newTabDefined);
+  useEffect(() => {
+    if (defined || typeof customElements === "undefined") return;
+    let alive = true;
+    void customElements.whenDefined(NEW_TAB_ELEMENT).then(() => {
+      if (alive) setDefined(true);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [defined]);
+  return defined;
+}
 
 function readWidth(): number {
   try {
@@ -168,7 +187,8 @@ export function LazurioBrowserPanel({ bot: profileBot }: { bot: Bot }) {
         <div className="relative flex min-h-7 items-center justify-center">
           <div className="mx-9 flex min-w-0 gap-0.5 overflow-x-auto rounded-full bg-inset p-1 [scrollbar-width:none]" role="tablist" aria-label={words.browser} onKeyDown={onTabKey} data-testid="browser-panel-views">
             {views.map((option) => {
-              const { Icon, label } = option === "browser" ? { Icon: Globe, label: words.browser } : { Icon: UPSTREAM_VIEWS[option].Icon, label: t(UPSTREAM_VIEWS[option].label) };
+              const Icon = VIEW_ICONS[option];
+              const label = words[option];
               const selected = option === view;
               return (
                 <button
@@ -206,7 +226,7 @@ export function LazurioBrowserPanel({ bot: profileBot }: { bot: Bot }) {
 
       <div role="tabpanel" id={panelId(view)} aria-labelledby={tabId(view)} tabIndex={0} className={cn("flex min-h-0 flex-1 flex-col", FOCUS)}>
         {view === "browser" ? (
-          <BotBrowser key={bot.id} botId={bot.id} requested={shownRequest} />
+          <BotBrowser key={bot.id} botId={bot.id} requested={shownRequest} onView={choose} />
         ) : view === "files" ? (
           <ComputerFilesPane bot={bot} />
         ) : view === "routines" ? (
@@ -223,16 +243,33 @@ export function LazurioBrowserPanel({ bot: profileBot }: { bot: Bot }) {
   );
 }
 
-/** The bot's tabs: its strip and the tabs its pages opened, which only this panel shows. */
-function BotBrowser({ botId, requested }: { botId: string; requested?: BrowserTabRequest }) {
+/** A tab of the panel's strip: one of the bot's tabs, or a Nová karta that has not become one yet. */
+type Entry = { kind: "tab"; tab: BotBrowserTab } | { kind: "new"; id: string };
+const entryId = (entry: Entry) => (entry.kind === "tab" ? entry.tab.tabId : entry.id);
+
+type Notice =
+  | { kind: "closed"; tab: BotBrowserTab; title: string; description: string }
+  | { kind: "not-kept"; full: boolean };
+
+/** The bot's tabs, as a T3 Code thread's strip: the server's strip, the person's holds on their way, and Nová karta. */
+function BotBrowser({ botId, requested, onView }: {
+  botId: string;
+  requested?: BrowserTabRequest;
+  onView: (view: BrowserPanelView) => void;
+}) {
   const words = useBrowserWords();
   const strip = useBotBrowserStrip(botId);
-  const [failed, setFailed] = useState(false);
-  const [opening, setOpening] = useState(false);
+  const newTabAvailable = useNewTabDefined();
   const [selected, setSelected] = useState<string | null>(requested?.tabId ?? null);
-  const [extra, setExtra] = useState<BotBrowserTab[]>([]);
+  const [newTabs, setNewTabs] = useState<string[]>([]);
   const [titles, setTitles] = useState<Record<string, string>>({});
+  /** Tabs the person holds whose hold has not landed, or did not: the strip shows them meanwhile. */
+  const [ownTabs, setOwnTabs] = useState<BotBrowserTab[]>([]);
+  /** Tabs × let go of, out of the strip until a list lacks them. */
+  const [released, setReleased] = useState<ReadonlySet<string>>(new Set());
+  const [notice, setNotice] = useState<Notice | null>(null);
   const frames = useRef(new Map<string, HTMLIFrameElement>());
+  const newTabCount = useRef(0);
 
   useEffect(() => {
     const read = () => void fetchBotBrowserStrip(botId, api).catch(() => null);
@@ -242,23 +279,78 @@ function BotBrowser({ botId, requested }: { botId: string; requested?: BrowserTa
   }, [botId]);
 
   useEffect(() => {
-    if (requested) setSelected(requested.tabId);
-  }, [requested]);
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), notice.kind === "closed" ? browserTimes.undoMs : browserTimes.viewerGraceMs);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   const available = strip?.available === true ? strip : null;
-  const tabs = available ? [...available.tabs, ...extra.filter((tab) => !available.tabs.some((own) => own.tabId === tab.tabId))] : [];
-  const requestedTab = available && selected && !tabs.some((tab) => tab.tabId === selected) && selected === requested?.tabId
-    ? { tabId: selected, view: viewOfTab(available, selected) } : null;
-  const shown = requestedTab ? [...tabs, requestedTab] : tabs;
-  const active = shown.find((tab) => tab.tabId === selected) ?? shown.find((tab) => tab.tabId === available?.current) ?? shown[0] ?? null;
 
-  const viewOrigin = available?.viewOrigin ?? null;
-  const activeId = active?.tabId ?? null;
+  const hold = async (tabId: string) => {
+    if (!available) return;
+    setReleased((current) => {
+      const next = new Set(current);
+      next.delete(tabId);
+      return next;
+    });
+    if (!stripHolds(available, tabId)) {
+      setOwnTabs((current) => current.some((tab) => tab.tabId === tabId) ? current
+        : [...current, { tabId, view: viewOfTab(available, tabId), agent: false, alsoHeldBy: [] }]);
+    }
+    try {
+      await changeBotTab(botId, tabId, "hold", api);
+      setOwnTabs((current) => current.filter((tab) => tab.tabId !== tabId));
+    } catch (error) {
+      setNotice({ kind: "not-kept", full: error instanceof ApiError && error.status === 409 });
+    }
+  };
+
+  const release = async (tab: BotBrowserTab) => {
+    setReleased((current) => new Set(current).add(tab.tabId));
+    setOwnTabs((current) => current.filter((own) => own.tabId !== tab.tabId));
+    setNotice({ kind: "closed", tab, ...closeNoticeText(tab, words.czech) });
+    await changeBotTab(botId, tab.tabId, "release", api).catch(() => null);
+  };
+
+  /** The latest `hold`, for the effects below: it reads the strip of the render that runs it. */
+  const holdLatest = useRef(hold);
+  holdLatest.current = hold;
+
+  const undo = (tab: BotBrowserTab) => {
+    setNotice(null);
+    setSelected(tab.tabId);
+    void hold(tab.tabId);
+  };
+
+  // A link, a sign-in or the bot's new window asked for a tab: it comes to the front, and the bot holds it.
+  const handled = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (!requested || !available || handled.current === requested.nonce) return;
+    handled.current = requested.nonce;
+    setSelected(requested.tabId);
+    if (!stripHolds(available, requested.tabId)) void holdLatest.current(requested.tabId);
+  }, [requested, available]);
+
+  const tabs = available ? [
+    ...available.tabs.filter((tab) => !released.has(tab.tabId)),
+    ...ownTabs.filter((own) => !available.tabs.some((tab) => tab.tabId === own.tabId)),
+  ] : [];
+  const entries: Entry[] = [...tabs.map((tab): Entry => ({ kind: "tab", tab })), ...newTabs.map((id): Entry => ({ kind: "new", id }))];
+  const active = entries.find((entry) => entryId(entry) === selected)
+    ?? entries.find((entry) => entry.kind === "tab" && entry.tab.tabId === available?.current)
+    ?? entries[0] ?? null;
+  const activeId = active ? entryId(active) : null;
+
   // A tab's frame mounts when it is first shown and stays, so switching back is instant and the view keeps its size.
   const [mounted, setMounted] = useState<ReadonlySet<string>>(new Set());
   useEffect(() => {
-    if (activeId) setMounted((current) => current.has(activeId) ? current : new Set(current).add(activeId));
-  }, [activeId]);
+    if (active?.kind === "tab") {
+      const id = active.tab.tabId;
+      setMounted((current) => current.has(id) ? current : new Set(current).add(id));
+    }
+  }, [active]);
+
+  const viewOrigin = available?.viewOrigin ?? null;
   useEffect(() => {
     if (!viewOrigin) return;
     const listen = (event: MessageEvent) => {
@@ -267,29 +359,34 @@ function BotBrowser({ botId, requested }: { botId: string; requested?: BrowserTa
       if (!message) return;
       if (message.kind === "info") setTitles((current) => ({ ...current, [message.tab]: message.title }));
       else if (message.kind === "new-tab") {
-        setExtra((current) => current.some((tab) => tab.tabId === message.tab) ? current : [...current, { tabId: message.tab, view: `${viewOrigin}/t/${message.tab}` }]);
         if (from === activeId) setSelected(message.tab);
+        void holdLatest.current(message.tab);
       } else {
-        setExtra((current) => current.filter((tab) => tab.tabId !== message.tab));
-        void fetchBotBrowserStrip(botId, api).catch(() => null);
+        setOwnTabs((current) => current.filter((tab) => tab.tabId !== message.tab));
+        void changeBotTab(botId, message.tab, "release", api).catch(() => null);
       }
     };
     window.addEventListener("message", listen);
     return () => window.removeEventListener("message", listen);
   }, [botId, viewOrigin, activeId]);
 
-  const openWindow = async () => {
-    setOpening(true);
-    setFailed(false);
-    try {
-      const answer = await api<BotBrowserWindow>(`/api/bots/${encodeURIComponent(botId)}/browser/window`, { method: "POST" });
-      setSelected(answer.tab.tabId);
-      await fetchBotBrowserStrip(botId, api);
-    } catch {
-      setFailed(true);
-    } finally {
-      setOpening(false);
+  const openNewTab = () => {
+    newTabCount.current += 1;
+    const id = `new-tab-${newTabCount.current}`;
+    setNewTabs((current) => [...current, id]);
+    setSelected(id);
+  };
+  const closeNewTab = (id: string) => setNewTabs((current) => current.filter((entry) => entry !== id));
+  const chose = (newTabId: string | null, detail: unknown) => {
+    const choice = newTabChoiceOf(detail, available ?? undefined);
+    if (!choice) return;
+    if (newTabId) closeNewTab(newTabId);
+    if (choice.kind === "view") {
+      onView(choice.view);
+      return;
     }
+    setSelected(choice.tabId);
+    void hold(choice.tabId);
   };
 
   if (strip === undefined) {
@@ -299,50 +396,76 @@ function BotBrowser({ botId, requested }: { botId: string; requested?: BrowserTa
       </div>
     );
   }
-  if (!available) return <Notice title={words.unavailableTitle} body={words.unavailableBody} testId="browser-unavailable" />;
+  if (!available) return <PanelNotice title={words.unavailableTitle} body={words.unavailableBody} testId="browser-unavailable" />;
 
-  const label = (tab: BotBrowserTab, index: number) => titles[tab.tabId]?.trim() || words.tab(index + 1);
+  const label = (entry: Entry, index: number) => entry.kind === "new" ? words.newTab : titles[entry.tab.tabId]?.trim() || words.tab(index + 1);
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-testid="bot-browser">
+    <div className="relative flex min-h-0 flex-1 flex-col" data-testid="bot-browser">
       <div className="flex items-center gap-1 border-b border-hairline/40 px-2 pb-2" role="tablist" aria-label={words.browser} data-testid="bot-browser-strip">
         <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto [scrollbar-width:none]">
-          {shown.map((tab, index) => {
-            const selectedTab = tab.tabId === active?.tabId;
-            const name = label(tab, index);
+          {entries.map((entry, index) => {
+            const id = entryId(entry);
+            const selectedTab = id === activeId;
+            const name = label(entry, index);
+            const marked = entry.kind === "tab" && (entry.tab.agent || entry.tab.alsoHeldBy.length > 0);
             return (
-              <button
-                key={tab.tabId}
-                type="button"
-                role="tab"
-                aria-selected={selectedTab}
-                data-tab-id={tab.tabId}
-                title={name}
-                onClick={() => setSelected(tab.tabId)}
+              <div
+                key={id}
                 className={cn(
-                  "flex max-w-[12rem] shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-[12px]",
+                  "group flex max-w-[13rem] shrink-0 items-center rounded-md text-[12px]",
                   selectedTab ? "bg-raised text-ink" : "text-ink-secondary hover:bg-raised/60 hover:text-ink",
                 )}
               >
-                <Globe size={12} aria-hidden="true" className="shrink-0" />
-                <span className="truncate">{name}</span>
-              </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={selectedTab}
+                  data-tab-id={id}
+                  title={name}
+                  onClick={() => setSelected(id)}
+                  className="flex min-w-0 items-center gap-1.5 py-1 pl-2 pr-1"
+                >
+                  <span className="relative inline-flex shrink-0">
+                    {entry.kind === "new" ? <Plus size={12} aria-hidden="true" /> : <Globe size={12} aria-hidden="true" />}
+                    {marked && (
+                      <span
+                        aria-hidden="true"
+                        data-tab-mark={entry.tab.agent ? "agent" : "shared"}
+                        className={cn("absolute -right-0.5 -top-0.5 size-1.5 rounded-full", entry.tab.agent ? "bg-accent" : "bg-ink-tertiary")}
+                      />
+                    )}
+                  </span>
+                  <span className="truncate">{name}</span>
+                </button>
+                <button
+                  type="button"
+                  data-close-tab={id}
+                  onClick={() => (entry.kind === "new" ? closeNewTab(entry.id) : void release(entry.tab))}
+                  className="mr-1 rounded p-0.5 text-ink-tertiary hover:bg-control hover:text-ink"
+                  title={words.closeTab}
+                  aria-label={words.closeTab}
+                >
+                  <X size={11} />
+                </button>
+              </div>
             );
           })}
         </div>
-        <button
-          type="button"
-          onClick={() => void openWindow()}
-          disabled={opening}
-          data-testid="bot-browser-new-tab"
-          className="shrink-0 rounded-md p-1 text-ink-secondary hover:bg-control hover:text-ink disabled:opacity-50"
-          title={words.newTab}
-          aria-label={words.newTab}
-        >
-          {opening ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
-        </button>
-        {active && (
+        {newTabAvailable && (
+          <button
+            type="button"
+            onClick={openNewTab}
+            data-testid="bot-browser-new-tab"
+            className="shrink-0 rounded-md p-1 text-ink-secondary hover:bg-control hover:text-ink"
+            title={words.newTab}
+            aria-label={words.newTab}
+          >
+            <Plus size={15} />
+          </button>
+        )}
+        {active?.kind === "tab" && (
           <a
-            href={active.view}
+            href={active.tab.view}
             target="_blank"
             rel="noopener"
             data-lazurio-own-browser
@@ -354,13 +477,19 @@ function BotBrowser({ botId, requested }: { botId: string; requested?: BrowserTa
           </a>
         )}
       </div>
-      {failed && <p role="alert" className="mx-3 mt-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-[12px] text-danger">{words.openFailed}</p>}
-      {shown.length === 0 ? (
-        <Notice title={words.emptyTitle} body={words.emptyBody} testId="bot-browser-empty" action={{ label: words.newTab, onClick: () => void openWindow(), busy: opening }} />
+      {entries.length === 0 ? (
+        newTabAvailable
+          ? <NewTab strip={available.strip} filesLabel={words.files} onChoice={(detail) => chose(null, detail)} />
+          : <PanelNotice title={words.newTab} body={words.newTabLater} testId="bot-browser-empty" />
       ) : (
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-1">
-          {shown.filter((tab) => mounted.has(tab.tabId)).map((tab) => {
-            const visible = tab.tabId === active?.tabId;
+          {active?.kind === "new" && (
+            <div className="col-start-1 row-start-1 flex min-h-0 flex-col">
+              <NewTab key={active.id} strip={available.strip} filesLabel={words.files} onChoice={(detail) => chose(active.id, detail)} />
+            </div>
+          )}
+          {tabs.filter((tab) => mounted.has(tab.tabId)).map((tab) => {
+            const visible = tab.tabId === activeId;
             return (
               <iframe
                 key={tab.tabId}
@@ -381,32 +510,49 @@ function BotBrowser({ botId, requested }: { botId: string; requested?: BrowserTa
           })}
         </div>
       )}
+      {notice && (
+        <div role="status" data-testid="bot-browser-notice" className="absolute inset-x-3 bottom-3 flex items-start gap-3 rounded-xl border border-hairline/60 bg-menu px-4 py-3 shadow-lg">
+          <div className="min-w-0 flex-1 text-[12.5px] leading-snug">
+            <div className="font-medium text-ink">{notice.kind === "closed" ? notice.title : words.notKept}</div>
+            <div className="mt-0.5 text-ink-secondary">{notice.kind === "closed" ? notice.description : words.notKeptBody(notice.full)}</div>
+          </div>
+          {notice.kind === "closed" && (
+            <button type="button" onClick={() => undo(notice.tab)} className="shrink-0 rounded-lg bg-control px-3 py-1.5 text-[12.5px] font-medium text-ink hover:bg-raised-hover">
+              {words.undo}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
 
-function Notice({ title, body, testId, action }: {
-  title: string;
-  body: string;
-  testId: string;
-  action?: { label: string; onClick: () => void; busy: boolean };
-}) {
+/** Nová karta: the shell's element, which frames the Launchpad's `/new-tab` and says what it became. */
+function NewTab({ strip, filesLabel, onChoice }: { strip: string; filesLabel: string; onChoice: (detail: unknown) => void }) {
+  const [element, setElement] = useState<HTMLElement | null>(null);
+  const choose = useRef(onChoice);
+  choose.current = onChoice;
+  useEffect(() => {
+    if (!element) return;
+    const listen = (event: Event) => choose.current((event as CustomEvent<unknown>).detail);
+    element.addEventListener(newTabEventName, listen);
+    return () => element.removeEventListener(newTabEventName, listen);
+  }, [element]);
+  return createElement(NEW_TAB_ELEMENT, {
+    ref: setElement,
+    strip,
+    tools: JSON.stringify([{ id: "files", label: filesLabel }]),
+    "data-testid": "bot-browser-new-tab-view",
+    className: "flex min-h-0 w-full flex-1",
+  });
+}
+
+function PanelNotice({ title, body, testId }: { title: string; body: string; testId: string }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-2 px-8 text-center" data-testid={testId}>
       <Globe size={22} className="text-ink-secondary" aria-hidden="true" />
       <div className="text-[14px] font-medium text-ink">{title}</div>
       <p className="max-w-sm text-[12.5px] leading-snug text-ink-secondary">{body}</p>
-      {action && (
-        <button
-          type="button"
-          onClick={action.onClick}
-          disabled={action.busy}
-          className="mt-1 flex items-center gap-1.5 rounded-lg bg-control px-3 py-1.5 text-[12.5px] text-ink hover:bg-raised-hover disabled:opacity-50"
-        >
-          {action.busy ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
-          {action.label}
-        </button>
-      )}
     </div>
   );
 }

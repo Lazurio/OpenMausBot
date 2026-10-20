@@ -1001,7 +1001,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
 
   const { messages: allMessages, activeLeafId } = bot;
   const messages = useMemo(() => visibleMessages({ messages: allMessages, activeLeafId }), [allMessages, activeLeafId]);
-  useLazurioBrowserPanel(bot.id, messages);
+  useLazurioBrowserPanel([bot.id], messages);
   const lookups = useMemo(() => transcriptLookups(allMessages, messages), [allMessages, messages]);
   const recordedRun = useMemo(() => runSteps(messages), [messages]);
   const recordedRunCounts = runSummary(recordedRun);
