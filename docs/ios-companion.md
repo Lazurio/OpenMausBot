@@ -2,7 +2,7 @@
 
 The iOS app is a thin, native client for the OpenMausBot instance running on
 your Mac. The Mac remains the only machine that persists agent processes,
-credentials, SQLite data, transcripts, and computers. The iPhone trusts a Mac
+credentials, SQLite data, and transcripts. The iPhone trusts a Mac
 by scanning the QR code shown in desktop **Settings → Remote access**; it does not need
 an OpenMausBot account of its own.
 

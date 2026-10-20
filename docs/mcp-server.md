@@ -14,6 +14,7 @@ OpenMausBot team while the desktop app and its harness are running.
   list, create, delete and rotate the secret of webhooks, as the app's Automations page does.
 
 The server intentionally cannot approve requests, remember permission grants, delete bots, rooms or conversations,
+import teams, or change engine credentials. Those actions stay in the human-facing app.
 
 ## From the openmausbot command
 
