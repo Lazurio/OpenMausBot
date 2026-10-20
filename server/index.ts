@@ -483,6 +483,7 @@ import { createUpdateCheckRoutes, serverUpdateChecker } from "./routes/update-ch
 import { createInternalSignInRoutes } from "./routes/sign-in.ts";
 import { createInternalThreadRoutes } from "./routes/internal-threads.ts";
 import { createSignInCardRoutes } from "./routes/sign-in-cards.ts";
+import { createLazurioBrowserRoutes } from "./routes/lazurio-browser.ts";
 import { createInternalEscalateRoutes } from "./routes/internal-escalate.ts";
 import { createRoomHoldRoutes } from "./routes/room-holds.ts";
 import { createGroupRoutes } from "./routes/groups.ts";
@@ -10221,7 +10222,7 @@ function requestSignIn(from: BotRecord, threadId: string, rawSite: unknown, rawR
     kind: "signin",
     text: signInFallbackText(from.name, target.site),
     ...(owner.group ? { from: { botId: from.id, name: from.name, color: from.color } } : {}),
-    signIn: { url: target.url, site: target.site, place, ...(reason ? { reason } : {}) },
+    signIn: { url: target.url, site: target.site, place, ...(reason ? { reason } : {}), ...(place === "browser" ? environmentBrowser.signInTab(from.id, target.url) : {}) },
   });
   for (const prior of store.activePath(threadId)) {
     if (prior.id === message.id || !prior.signIn || !isPendingSignInRequest(prior, target.site, from.id, Boolean(owner.group))) continue;
@@ -10746,6 +10747,7 @@ ROUTES.push(createBotMemoryRoutes({
 }));
 ROUTES.push(createDeciderRoutes({ decider, config: () => cfg }), createNotificationRoutes(), createUpdateCheckRoutes({ check: serverUpdateChecker({ desktopManaged: DESKTOP_MANAGED, managed: Boolean(CLOUD_HOME || HOSTED_WORKSPACE) }) }));
 ROUTES.push(createSignInCardRoutes({ settle: settleSignIn, threadVisible: (auth, threadId) => visibleTo(viewerFor(auth)).thread(threadId) }));
+ROUTES.push(createLazurioBrowserRoutes({ browser: environmentBrowser, liveBot: (id) => Boolean(store.bot(id)) && !store.bot(id)!.hidden }));
 ROUTES.push(createRoomHoldRoutes({
   group: (id) => store.group(id),
   setHold: (groupId, botId, held) => {

@@ -7,7 +7,9 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { launchVerificationServer, type VerificationServer } from "../scripts/control-omb.ts";
+import { randomBytes } from "node:crypto";
+
+import { ENVIRONMENT_BROWSER_WINDOW_TAB, launchVerificationServer, type VerificationServer } from "../scripts/control-omb.ts";
 
 const TAB_A = "A1".repeat(16);
 const TAB_B = "B2".repeat(16);
@@ -35,8 +37,9 @@ describe.skipIf(process.platform === "win32")("a Lazurio server on an Environmen
   };
   const tabsOf = (botId: string) => existsSync(holder(botId)) ? (JSON.parse(readFileSync(holder(botId), "utf8")) as { tabs: string[] }).tabs : null;
 
+  const capabilityKey = randomBytes(24).toString("hex");
   beforeAll(async () => {
-    fixture = await launchVerificationServer({ ...process.env, OMB_TEST_ENVIRONMENT_BROWSER: "1" });
+    fixture = await launchVerificationServer({ ...process.env, OMB_TEST_ENVIRONMENT_BROWSER: "1", OMB_TEST_INTERNAL_CAPABILITY_KEY: capabilityKey });
   }, 60_000);
 
   afterAll(async () => {
@@ -62,6 +65,66 @@ describe.skipIf(process.platform === "win32")("a Lazurio server on an Environmen
     expect((await call("DELETE", `/api/bots/${b.id}`)).status).toBe(200);
     await expect.poll(() => existsSync(holder(b.id)), { timeout: 10_000 }).toBe(false);
     await expect.poll(calls, { timeout: 10_000 }).toContain(`browser done --session bot-${b.id} --json`);
+  });
+
+  it("gives the bot's panel its strip, each tab with its Platform view", async () => {
+    const bot = (await call("POST", "/api/bots", { name: "Panel" })).body.bot;
+    expect((await call("GET", `/api/bots/${bot.id}/browser`)).body).toEqual({
+      available: true, viewOrigin: "https://browser.vm-01.example.lazurio.io", tabs: [], current: null,
+    });
+    bind(bot.id, TAB_A);
+    expect((await call("PATCH", `/api/bots/${bot.id}`, { title: "Reads pages" })).status).toBe(200);
+    await expect.poll(async () => (await call("GET", `/api/bots/${bot.id}/browser`)).body, { timeout: 10_000 }).toEqual({
+      available: true,
+      viewOrigin: "https://browser.vm-01.example.lazurio.io",
+      tabs: [{ tabId: TAB_A, view: `https://browser.vm-01.example.lazurio.io/t/${TAB_A}` }],
+      current: TAB_A,
+    });
+    expect((await call("POST", `/api/bots/${bot.id}/browser`)).status).toBe(405);
+    expect((await call("GET", "/api/bots/no-such-bot/browser")).status).toBe(404);
+  });
+
+  it("opens the bot's window for the panel's New tab through `lazurio browser window`, and holds it in its strip", async () => {
+    const bot = (await call("POST", "/api/bots", { name: "New tab" })).body.bot;
+    const opened = await call("POST", `/api/bots/${bot.id}/browser/window`);
+    expect(opened).toEqual({ status: 200, body: { tab: { tabId: ENVIRONMENT_BROWSER_WINDOW_TAB, view: `https://browser.vm-01.example.lazurio.io/t/${ENVIRONMENT_BROWSER_WINDOW_TAB}` } } });
+    expect(calls()).toContain(`browser window --session bot-${bot.id} --json`);
+    expect(tabsOf(bot.id)).toEqual([ENVIRONMENT_BROWSER_WINDOW_TAB]);
+    expect((await call("GET", `/api/bots/${bot.id}/browser`)).body.current).toBe(ENVIRONMENT_BROWSER_WINDOW_TAB);
+    expect((await call("PATCH", `/api/bots/${bot.id}`, { hidden: true })).status).toBe(200);
+    expect((await call("POST", `/api/bots/${bot.id}/browser/window`)).status).toBe(404);
+  });
+
+  it("names the bot's tab on a sign-in it asks for there, which opens the person's panel on it; never for a Lazurio account", async () => {
+    const bot = (await call("POST", "/api/bots", { name: "Signs in" })).body.bot;
+    rmSync(fixture.fixtureDumpPath, { force: true });
+    expect((await call("POST", `/api/bots/${bot.id}/messages`, { text: "Get the report." })).status).toBe(202);
+    await expect.poll(() => existsSync(fixture.fixtureDumpPath), { timeout: 15_000 }).toBe(true);
+    bind(bot.id, TAB_B);
+    expect((await call("PATCH", `/api/bots/${bot.id}`, { title: "Reads reports" })).status).toBe(200);
+    await expect.poll(() => tabsOf(bot.id), { timeout: 10_000 }).toEqual([TAB_B]);
+
+    const minted = await fetch(`${fixture.info.url}/api/testing/internal-capability`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-openmausbot-test-capability": capabilityKey },
+      body: JSON.stringify({ botId: bot.id, threadId: bot.threadId }),
+    });
+    const { token } = await minted.json() as { token: string };
+    const ask = async (site: string) => {
+      const response = await fetch(`${fixture.info.url}/api/internal/request-sign-in`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({ fromBotId: bot.id, fromThreadId: bot.threadId, site, reason: "A login." }),
+      });
+      expect(response.status, site).toBe(201);
+      const { messageId } = await response.json() as { messageId: string };
+      const { messages } = (await call("GET", `/api/threads/${bot.threadId}/messages`)).body as { messages: Array<{ id: string; signIn?: Record<string, unknown> }> };
+      return messages.find((message) => message.id === messageId)!.signIn!;
+    };
+    expect(await ask("https://example.com/login")).toMatchObject({ site: "example.com", place: "browser", tab: TAB_B });
+    const account = await ask("https://auth.lazurio.io/sign-in");
+    expect(account).toMatchObject({ site: "auth.lazurio.io", place: "browser" });
+    expect(account).not.toHaveProperty("tab");
   });
 
   it("tells a bot its own session and the Platform's commands", async () => {
@@ -110,6 +173,13 @@ describe.skipIf(process.platform === "win32")("a Lazurio server without a declar
   }, 60_000);
   afterAll(async () => {
     await fixture?.close();
+  });
+
+  it("answers the bot's panel that there is no browser, and opens no window", async () => {
+    const headers = { "content-type": "application/json", origin: fixture.info.url };
+    const bot = (await (await fetch(`${fixture.info.url}/api/bots`, { method: "POST", headers, body: JSON.stringify({ name: "No panel" }) })).json() as any).bot;
+    expect(await (await fetch(`${fixture.info.url}/api/bots/${bot.id}/browser`, { headers })).json()).toEqual({ available: false });
+    expect((await fetch(`${fixture.info.url}/api/bots/${bot.id}/browser/window`, { method: "POST", headers })).status).toBe(409);
   });
 
   it("tells its bots plainly that the Environment browser is unavailable", async () => {
