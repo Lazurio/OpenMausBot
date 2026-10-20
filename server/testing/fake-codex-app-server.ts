@@ -142,11 +142,6 @@ if (process.argv[2] === "exec") {
   process.exit(0);
 }
 const calls: Array<{ method: string; params: unknown }> = [];
-const mcpOverrides: Record<string, Record<string, unknown>> = {};
-for (let index = 0; process.env.FAKE_CODEX_MCP_OVERRIDES === "1" && index < process.argv.length; index++) {
-  const match = process.argv[index - 1] === "-c" ? /^mcp_servers\.([^.]+)\.([^.]+)=(.*)$/.exec(process.argv[index]!) : null;
-  if (match) (mcpOverrides[match[1]!] ??= {})[match[2]!] = JSON.parse(match[3]!);
-}
 // codex-cli 0.160 config/read reports every shell_environment_policy field, null when unset. A `-c
 // shell_environment_policy.exclude=[…]` override replaces the list and drops the lower `filters` (0.160.1).
 const shellExcludeOverride = process.argv.reduce<unknown>((found, arg, index) => {
@@ -489,7 +484,7 @@ process.stdin.on("data", (chunk) => {
                   approval_policy: "never",
                   approvals_reviewer: "auto_review",
                   sandbox_mode: "read-only",
-                  mcp_servers: process.env.FAKE_CODEX_MCP_OVERRIDES === "1" ? mcpOverrides : process.env.FAKE_CODEX_MCP_CONFIG ? JSON.parse(process.env.FAKE_CODEX_MCP_CONFIG) : {
+                  mcp_servers: {
                     harmless_name: { env: { DISPLAY_LABEL: "innocuous-config-secret-7a9c" } },
                   },
                 }),

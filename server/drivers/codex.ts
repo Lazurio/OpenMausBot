@@ -6,7 +6,6 @@ import { TEAM_TOOLS_FAILED, teamToolsFailed } from "./team-tools.ts";
 import { existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
-import { codexConfigMcp } from "./codex-mcp-names.ts";
 
 import { stripWorkspaceCredentialEnv } from "../config.ts";
 import { openStartupModelCatalog, writeStartupModelCache } from "../startup-model-catalog.ts";
@@ -48,9 +47,7 @@ import { extractMcpImages } from "../mcp-tool-images.ts";
 import { parseProtocolAskQuestions, questionChoices } from "../../shared/ask-question.ts";
 import { codexQuestionReply, openAsyncQuestion, type CodexAsk } from "./codex-questions.ts";
 import { codexVersionBehind, readLatestCodexRelease } from "./codex-release.ts";
-import { canUseMcpServer } from "../../shared/tool-scope.ts";
-import { assertToolScopeSupported } from "../../shared/tool-scope-support.ts";
-import { gateServer, mcpStdioServer } from "../mcp-gate-config.ts";
+import { mcpStdioServer } from "../mcp-gate-config.ts";
 
 export { decodeCodexSelection, readCodexModelCatalog, STATIC_CODEX_MODELS } from "./codex-catalog.ts";
 
@@ -141,7 +138,7 @@ export function managedCodexArgs(config: NonNullable<CodexConfig["managed"]>): s
   ];
 }
 
-const PRIVATE_ENV_FAMILIES = ["OMB_GATE_CONFIG_", "OMB_REMOTE_MCP_CONFIG_"];
+const PRIVATE_ENV_FAMILIES = ["OMB_REMOTE_MCP_CONFIG_"];
 const PROXY_LITERAL_ENV = ["NODE_USE_ENV_PROXY", "NO_PROXY", "no_proxy"];
 const SHELL_ESSENTIALS = new Set(["PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "TERM", "LANG", "TZ"]);
 
@@ -510,7 +507,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
 
     const sendTurn = async (turn: SendTurnInput) => {
       if (startupModelRefresh) await startupModelRefresh;
-      turn = { ...turn, toolScope: assertToolScopeSupported(DRIVER_KIND, turn.toolScope) };
       const assertNotRemoved = () => {
         if (disposed) throw new Error("This provider was removed. Select a connected account and send again.");
       };
@@ -572,63 +568,42 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         const env = childEnv();
         const launchedLogin = chatgptTurn ? storedCodexLogin(env) : null;
         const appServerArgs = ["app-server", ...(config.managed ? managedCodexArgs(config.managed) : codexLocalProviderArgs(env, turn.model)), ...codexToolSurfaceArgs(),
-          // Native shell snapshots can restore variables the shell policy removed.
-          ...(turn.toolScope === undefined ? [] : ["-c", "features.shell_snapshot=false"]),
           // A guest-driven turn: no shell, no file reads (-c wins over config files).
           ...(turn.guestConfined ? GUEST_CONFINED_CODEX_ARGS : [])];
         const baseEnv = new Map(Object.entries(env).filter(([, value]) => value !== undefined));
         const mountedNames = new Set<string>();
-        const selectedMcp = new Map<string, StdioMcpSpec>();
-        const selectedApprovals = new Map<string, McpApprovalMode>();
         const literalEnvs = new Map<string, Record<string, string>>();
-        const scopedServer = (name: string, mountName: string, server: McpServerSpec): StdioMcpSpec | null => {
-          if (!canUseMcpServer(turn.toolScope, name)) return null;
+        const codexMcpServer = (mountName: string, server: McpServerSpec): StdioMcpSpec | null => {
           // Every URL server goes through OpenMausBot's remote proxy: Codex's own client adds fields
           // strict servers refuse (codex-cli 0.160.1 sends elicitation.form/url; rmcp 3.2 can add
           // schemaValidation), and Codex does not speak SSE.
-          if (turn.toolScope === undefined && !("url" in server)) return server;
+          if (!("url" in server)) return server;
           const hash = createHash("sha256").update(mountName).digest("hex");
           // Codex starts MCP children with only a few env names.
-          const proxy = turn.toolScope === undefined
-            ? mcpStdioServer(server, { nodeEnv: { ELECTRON_RUN_AS_NODE: "1" }, configEnvName: `OMB_REMOTE_MCP_CONFIG_${hash}`, sourceEnv: env })
-            : gateServer({ name, server, threadId, budget: 0, toolScope: turn.toolScope, nodeEnv: { ELECTRON_RUN_AS_NODE: "1" },
-              configEnvName: `OMB_GATE_CONFIG_${hash}`, sourceEnv: env });
+          const proxy = mcpStdioServer(server, { nodeEnv: { ELECTRON_RUN_AS_NODE: "1" }, configEnvName: `OMB_REMOTE_MCP_CONFIG_${hash}`, sourceEnv: env });
           if (!proxy) return null;
           const shared = { ...proxy.env };
-          if (turn.toolScope === undefined) {
-            const literal = Object.fromEntries(Object.entries(shared).filter(([key]) => PROXY_LITERAL_ENV.includes(key)));
-            for (const key of PROXY_LITERAL_ENV) delete shared[key];
-            if (Object.keys(literal).length) literalEnvs.set(mountName, literal);
-          }
+          const literal = Object.fromEntries(Object.entries(shared).filter(([key]) => PROXY_LITERAL_ENV.includes(key)));
+          for (const key of PROXY_LITERAL_ENV) delete shared[key];
+          if (Object.keys(literal).length) literalEnvs.set(mountName, literal);
           return { command: proxy.command, args: proxy.args ?? [], env: shared };
         };
-        const mountSelected = (name: string, mountName: string, server: McpServerSpec, approval: McpApprovalMode = "auto") => {
-          const selected = scopedServer(name, mountName, server);
-          if (selected) {
-            selectedMcp.set(mountName, selected);
-            selectedApprovals.set(mountName, approval);
-            mountMcpServer(appServerArgs, env, mountName, selected, approval, literalEnvs.get(mountName), mountedNames);
-            if (turn.toolScope !== undefined && approval === "prompt") appServerArgs.push("-c", `mcp_servers.${mountName}.default_tools_approval_mode="prompt"`);
-          }
+        const mount = (mountName: string, server: McpServerSpec, approval: McpApprovalMode = "auto") => {
+          const stdio = codexMcpServer(mountName, server);
+          if (stdio) mountMcpServer(appServerArgs, env, mountName, stdio, approval, literalEnvs.get(mountName), mountedNames);
         };
         if (turn.integrations?.agents) {
           // OpenMausBot's own coordination tools never ask: "auto" quiets only read-only tools.
-          mountSelected("agents", "agents", turn.integrations.agents, "approve");
+          mount("agents", turn.integrations.agents, "approve");
         }
         if (turn.integrations?.localComputer) {
-          mountSelected("computer", "computer", turn.integrations.localComputer);
+          mount("computer", turn.integrations.localComputer);
         }
         if (turn.integrations?.browser) {
-          mountSelected("browser", "browser", turn.integrations.browser);
+          mount("browser", turn.integrations.browser);
         }
-        if (turn.integrations?.data) mountSelected("data", "data", turn.integrations.data);
-        if (turn.toolScope !== undefined) {
-          for (const name of codexConfigMcp(env).names) appServerArgs.push("-c", `mcp_servers.${name}.enabled=false`);
-        }
+        if (turn.integrations?.data) mount("data", turn.integrations.data);
         if (turn.integrations?.phone) {
-          if (turn.toolScope !== undefined) {
-            mountSelected("phone", "openmausbot_phone", turn.integrations.phone);
-          } else {
           const bridge = turn.integrations.phone;
           Object.assign(env, bridge.env);
           for (const name of Object.keys(bridge.env)) mountedNames.add(name);
@@ -639,7 +614,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
             "-c", `${prefix}.env_vars=${JSON.stringify(Object.keys(bridge.env))}`,
             "-c", `${prefix}.default_tools_approval_mode="auto"`,
           );
-          }
         }
 
         // Codex gives MCP children their variables from the environment it runs shell commands in, so
@@ -647,19 +621,13 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         const mountedEnv = [...mountedNames].filter((name) => env[name] !== undefined && !SHELL_ESSENTIALS.has(name) && !name.startsWith("LC_")
           && (name === "ELECTRON_RUN_AS_NODE" || baseEnv.get(name) !== env[name]));
         const privateEnv = [...new Set([
-          ...(turn.toolScope !== undefined ? ["OMB_GATE_CONFIG_*"] : []),
           ...PRIVATE_ENV_FAMILIES.filter((family) => mountedEnv.some((name) => name.startsWith(family))).map((family) => `${family}*`),
           ...mountedEnv.filter((name) => !PRIVATE_ENV_FAMILIES.some((family) => name.startsWith(family))).sort(),
         ])];
-        // Records this turn writes never run without proof that shell snapshots are off.
-        const provenPrivateEnv = turn.toolScope !== undefined;
-        if (privateEnv.length && turn.toolScope === undefined) appServerArgs.push("-c", "features.shell_snapshot=false");
+        // Native shell snapshots can restore variables the shell policy removed.
+        if (privateEnv.length) appServerArgs.push("-c", "features.shell_snapshot=false");
 
-        const selectionConfig: { config?: Record<string, unknown> } = turn.toolScope === undefined ? {} : { config: { mcp_servers: Object.fromEntries(
-          [...selectedMcp].map(([name, server]) => [name, {
-            command: server.command, args: server.args, env_vars: Object.keys(server.env), env: {}, default_tools_approval_mode: selectedApprovals.get(name) ?? "prompt",
-          }]),
-        ) } };
+        const threadConfig: { config?: Record<string, unknown> } = {};
 
         const commandCwd = permissionLaunchCwd(turn.cwd ?? homedir());
         const releaseSlot = tryCodexLaunchSlot() ?? await waitForLaunchSlot(attempt);
@@ -1321,34 +1289,14 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         }
         if (privateEnv.length) {
           const snapshot = (effectiveConfig as { features?: { shell_snapshot?: unknown } } | null)?.features?.shell_snapshot;
-          if (provenPrivateEnv ? snapshot !== false : snapshot === true) {
+          if (snapshot === true) {
             throw new Error("Codex could not disable inherited shell snapshots. No prompt was sent.");
           }
-        }
-        if (privateEnv.length) {
           const rawPolicy = (effectiveConfig as { shell_environment_policy?: unknown } | null)?.shell_environment_policy;
           if (rawPolicy !== undefined && (!rawPolicy || typeof rawPolicy !== "object" || Array.isArray(rawPolicy))) {
             throw new Error("Codex could not confirm its shell environment policy. No prompt was sent.");
           }
-          selectionConfig.config = { ...selectionConfig.config,
-            ...extendShellExclusions((rawPolicy ?? {}) as Record<string, unknown>, privateEnv) };
-        }
-        if (turn.toolScope !== undefined) {
-          const catalog = (effectiveConfig as { mcp_servers?: unknown } | null)?.mcp_servers;
-          if (!catalog || typeof catalog !== "object" || Array.isArray(catalog)) throw new Error("Codex could not confirm its selected MCP configuration. No prompt was sent.");
-          for (const [name, entry] of Object.entries(catalog)) {
-            if (entry && typeof entry === "object" && (entry as { enabled?: unknown }).enabled === false) continue;
-            const expected = selectedMcp.get(name);
-            const actual = entry as { command?: unknown; args?: unknown; env_vars?: unknown; env?: unknown; default_tools_approval_mode?: unknown; tools?: unknown } | null;
-            if (!expected || actual?.command !== expected.command
-              || JSON.stringify(actual?.args ?? []) !== JSON.stringify(expected.args ?? [])
-              || !Array.isArray(actual?.env_vars) || JSON.stringify([...actual.env_vars].sort()) !== JSON.stringify(Object.keys(expected.env).sort())
-              || actual.default_tools_approval_mode !== (selectedApprovals.get(name) ?? "prompt")
-              || (actual.env != null && (typeof actual.env !== "object" || Array.isArray(actual.env) || Object.keys(actual.env).length > 0))
-              || (actual.tools != null && (typeof actual.tools !== "object" || Array.isArray(actual.tools) || Object.keys(actual.tools).length > 0))) {
-              throw new Error("Codex has an MCP server outside the selected configuration. Disable native MCP entries for this account before using tool selection. No prompt was sent.");
-            }
-          }
+          threadConfig.config = extendShellExclusions((rawPolicy ?? {}) as Record<string, unknown>, privateEnv);
         }
         // A Codex that did not take the overrides runs nothing for a guest.
         if (turn.guestConfined && !codexShellDisabled(effectiveConfig)) {
@@ -1377,7 +1325,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         let promptText = turn.text;
         if (cursor) {
           const resumeThread = () => request("thread/resume", {
-            ...selectionConfig,
+            ...threadConfig,
             threadId: cursor,
             developerInstructions,
             model: selection.model,
@@ -1410,7 +1358,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         }
         if (!codexThreadId) {
           const startThread = () => request("thread/start", {
-              ...selectionConfig,
+              ...threadConfig,
               developerInstructions,
               cwd: turn.cwd ?? homedir(),
               model: selection.model,

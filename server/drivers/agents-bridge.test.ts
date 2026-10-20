@@ -15,12 +15,10 @@ import {
   BRIDGE_NAMES_MAX_CHARS,
   FIND_MATCHES_MAX,
   FIND_TOOL,
-  TOOL_BRIDGE_ENV,
   USE_TOOL,
   bridgedCallTarget,
   bridgedCallTitle,
   createToolBridge,
-  unbridgedServer,
   type BridgeTool,
 } from "./agents-bridge.ts";
 
@@ -478,19 +476,5 @@ describe("seeing through a bridged call", () => {
       ["mcp__agents__use_tool", "not json"],
       ["Bash", { name: "list_triggers" }],
     ] as const) expect(bridgedCallTitle(title, input, isTool), `${title} ${JSON.stringify(input)}`).toBe(title);
-  });
-
-  it("starts an agents server unbridged for a mount whose selection matches the name in the call", () => {
-    const bridged = { command: "node", args: ["agents-proxy.js"], env: { OMB_BOT_ID: "bot-1", [TOOL_BRIDGE_ENV]: "1" } };
-    expect(unbridgedServer(bridged)).toEqual({ command: "node", args: ["agents-proxy.js"], env: { OMB_BOT_ID: "bot-1", [TOOL_BRIDGE_ENV]: "0" } });
-    // the turn's own integration is not touched
-    expect(bridged.env[TOOL_BRIDGE_ENV]).toBe("1");
-    // nothing to do: already unbridged, another server, or one with no environment
-    const off = { command: "node", env: { [TOOL_BRIDGE_ENV]: "0" } };
-    const other = { command: "npx", args: ["some-server"], env: { TOKEN: "t" } };
-    const bare: { command: string; env?: Record<string, string> } = { command: "npx" };
-    expect(unbridgedServer(off)).toBe(off);
-    expect(unbridgedServer(other)).toBe(other);
-    expect(unbridgedServer(bare)).toBe(bare);
   });
 });

@@ -7,20 +7,19 @@ const server = { command: "example-mcp", args: ["--stdio"], env: { TOKEN: "dispo
 const input = { name: "notes", server, threadId: "disposable-thread", budget: 0 };
 const remote = { type: "http" as const, url: "https://mcp.example.test/mcp", headers: { Authorization: "Bearer disposable-remote-token" } };
 
-describe("MCP scope configuration", () => {
-  it("preserves the legacy budget-zero escape hatch only when selection is absent", () => {
+describe("MCP gate configuration", () => {
+  it("mounts a gate only for a result budget, with the upstream spec kept out of argv", () => {
     expect(gateServer(input)).toBeNull();
-    const gated = gateServer({ ...input, toolScope: { allow: [] } });
+    const gated = gateServer({ ...input, budget: 12_000 });
     expect(gated).not.toBeNull();
-    expect(JSON.parse(gated!.env.OMB_GATE_TOOL_SCOPE)).toEqual({ allow: [] });
-    expect(gated!.env.OMB_GATE_BUDGET).toBe("0");
+    expect(gated!.args).toHaveLength(1);
     expect(JSON.parse(gated!.env.OMB_GATE_UPSTREAM)).toEqual(server);
     expect(gated!.args.join(" ")).not.toContain("disposable-test-token");
   });
 
-  it("rejects malformed scopes and unmountable scoped servers instead of returning a bypass", () => {
-    expect(() => gateServer({ ...input, toolScope: { allow: null } as never })).toThrow(/tool selection/i);
-    expect(() => gateServer({ ...input, server: {}, toolScope: { allow: [] } })).toThrow(/MCP server/i);
+  it("leaves a server it cannot mount, and a URL server without a limit of its own, ungated", () => {
+    expect(gateServer({ ...input, server: {}, budget: 12_000 })).toBeNull();
+    expect(gateServer({ ...input, server: remote, budget: 12_000 })).toBeNull();
   });
 });
 
@@ -77,7 +76,7 @@ describe("remote proxy configuration", () => {
     const record = `OMB_REMOTE_MCP_CONFIG_${"0".repeat(64)}`;
     expect(Object.keys(mcpStdioServer(remote, { sourceEnv, configEnvName: record })!.env!).sort()).toEqual(
       ["HTTPS_PROXY", "NODE_EXTRA_CA_CERTS", "NODE_USE_ENV_PROXY", "NO_PROXY", "SSL_CERT_FILE", "no_proxy", record].sort());
-    const gated = gateServer({ name: "whop", server: remote, threadId: "disposable-thread", budget: 0, toolScope: { allow: [] }, sourceEnv })!;
+    const gated = gateServer({ name: "whop", server: remote, threadId: "disposable-thread", budget: 40_000, gateRemote: true, sourceEnv })!;
     expect(JSON.parse(gated.env.OMB_GATE_UPSTREAM).env).toMatchObject({ HTTPS_PROXY: "http://proxy.example.test:3128", NODE_USE_ENV_PROXY: "1" });
   });
 
@@ -94,8 +93,8 @@ describe("remote proxy configuration", () => {
       expect(plain.NODE_USE_ENV_PROXY).toBe("0");
       expect(plain.NO_PROXY).toBeUndefined();
       expect(plain.no_proxy).toBe(sourceEnv.no_proxy);
-      expect(JSON.parse(gateServer({ name: "whop", server: http, threadId: "disposable-thread", budget: 0, toolScope: { allow: [] }, sourceEnv })!.env.OMB_GATE_UPSTREAM).env.NODE_USE_ENV_PROXY).toBe("0");
-      expect(JSON.parse(gateServer({ name: "whop", server: remote, threadId: "disposable-thread", budget: 0, toolScope: { allow: [] }, sourceEnv })!.env.OMB_GATE_UPSTREAM).env.NODE_USE_ENV_PROXY).toBe("1");
+      expect(JSON.parse(gateServer({ name: "whop", server: http, threadId: "disposable-thread", budget: 40_000, gateRemote: true, sourceEnv })!.env.OMB_GATE_UPSTREAM).env.NODE_USE_ENV_PROXY).toBe("0");
+      expect(JSON.parse(gateServer({ name: "whop", server: remote, threadId: "disposable-thread", budget: 40_000, gateRemote: true, sourceEnv })!.env.OMB_GATE_UPSTREAM).env.NODE_USE_ENV_PROXY).toBe("1");
     }
     expect(mcpStdioServer(http, { sourceEnv: { NODE_USE_ENV_PROXY: "1" } })!.env!.NODE_USE_ENV_PROXY).toBe("0");
     expect(mcpStdioServer(http, { sourceEnv: {} })!.env).not.toHaveProperty("NODE_USE_ENV_PROXY");
@@ -107,14 +106,13 @@ describe("remote proxy configuration", () => {
     expect(() => mcpStdioServer(remote, { configEnvName: "OMB_REMOTE_MCP_SERVER" })).toThrow(/private MCP proxy/);
   });
 
-  it("gates an unselected URL server only when its own result limit is set", () => {
+  it("gates a URL server only when its own result limit is set", () => {
     expect(hasOwnResultBudget("whop", { whop: 40_000 })).toBe(true);
     expect(hasOwnResultBudget("whop", { whop: 0 })).toBe(false);
     expect(hasOwnResultBudget("whop", { other: 40_000 })).toBe(false);
     expect(hasOwnResultBudget("whop", undefined)).toBe(false);
     const gated = gateServer({ name: "whop", server: remote, threadId: "disposable-thread", budget: 40_000, gateRemote: true })!;
     expect(gated.env.OMB_GATE_BUDGET).toBe("40000");
-    expect(gated.env).not.toHaveProperty("OMB_GATE_TOOL_SCOPE");
     expect(JSON.parse(gated.env.OMB_GATE_UPSTREAM).args[0]).toContain("mcp-remote-proxy");
     // 0 = never trim: nothing to gate
     expect(gateServer({ name: "whop", server: remote, threadId: "disposable-thread", budget: 0, gateRemote: true })).toBeNull();

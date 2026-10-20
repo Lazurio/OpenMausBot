@@ -8,6 +8,8 @@ const REMOVED_CONFIG_KEYS: ReadonlyArray<readonly string[]> = [
   ...["computer", "cloudBackend", "autoStartVps", "composio", "mcpServers"].map((key) => ["newBotDefaults", "profile", key]),
   // DEV-6673, LAZURIO.md principle 2: bots contact each other without a person's approval.
   ["newBotDefaults", "profile", "approvePeerComms"],
+  // DEV-6673, LAZURIO.md principle 3: every bot gets the Environment's tools; there is no per-bot tool selection.
+  ["newBotDefaults", "profile", "toolScope"],
 ];
 
 // Values a setting can no longer take (DEV-6673, LAZURIO.md principle 2): upstream's Custom approval level.
@@ -33,7 +35,8 @@ export function removedConfigKey(value: JsonValue): string | null {
 
 // Request fields of removed gates (DEV-6673, LAZURIO.md principle 2): the confirmation upstream's Auto warning asked
 // for, the switch that made a bot ask a person before contacting another bot, and the desktop's approval grant.
-const REMOVED_BOT_FIELDS: readonly string[] = ["acknowledgeLocalAuto", "approvePeerComms", "approvalGrant"];
+// And the per-bot tool selection (LAZURIO.md principle 3): every bot gets the tools the Environment provides.
+const REMOVED_BOT_FIELDS: readonly string[] = ["acknowledgeLocalAuto", "approvePeerComms", "approvalGrant", "toolScope"];
 
 /** A field or value a bot or thread write names that Lazurio removed (DEV-6673), or null; such a write is refused with 400. */
 export function removedBotSetting(settings: unknown): string | null {
