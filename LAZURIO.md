@@ -194,6 +194,12 @@ Cursor keeping upstream's card, and the card outside Lazurio.
   start on it and nothing needs setting; Full also survives an engine
   change. Questions and missing credentials still reach a person; GitHub
   rights and branch rules stay the limit.
+  is the boundary (Lazurio decision 0172), and the server trusts a caller on
+  its own computer as its owner, named by the port of the Machine's MausBot
+  (`--port` or `OMB_PORT`). On an Environment the command is the release's
+  `cli.js` under `~/.local/share/lazurio/mausbot/current/`, run with the
+  Environment's `node`. A webhook's secret is printed only with
+  `--show-secret`, or saved to a file only its owner can read. Each command
 
 ## What the overlay removes
 
