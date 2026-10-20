@@ -1,0 +1,50 @@
+{
+  "area": "Computer panel",
+  "why": "The right panel shows what a bot works in, and on a Lazurio Environment that is the Environment browser: people see the bot's tabs through the Platform's view and work in them with the bot at the same time, as in a T3 Code thread's right panel (root decision 0191 points 13, 34 and 41). Upstream's Computer panel, with its own live view of the screen, its remote-desktop variant and its hand-the-wheel-back control, is therefore removed; the panel Prohlížeč (LazurioBrowserPanel) replaces it, keeping upstream's Files view and Data and Routines in Advanced.",
+  "files": [
+    "src/components/ComputerPanel.android.test.ts",
+    "src/components/ComputerPanel.i18n.test.ts",
+    "src/components/ComputerPanel.simple.test.ts",
+    "src/components/ComputerPanel.tabs.test.ts",
+    "src/components/ComputerPanel.test.ts",
+    "src/components/ComputerPanel.tsx",
+    "src/components/LinuxLocalControl.tsx",
+    "src/components/LocalScreenPreview.tsx",
+    "src/components/computer-panel-tabs.ts",
+    "src/components/remote-desktop-panel.tsx",
+    "src/lib/computer-panel-view.test.ts",
+    "src/lib/computer-panel-view.ts"
+  ],
+  "forbidden": [
+    "./ComputerPanel",
+    "./remote-desktop-panel",
+    "RemoteDesktopPanel",
+    "LocalScreenPreview",
+    "./LinuxLocalControl",
+    "computer-panel-view",
+    "computer-panel-tabs",
+    "omb-computer-panel",
+    "transitionComputerControlLease",
+    "SignInBanner",
+    "useOpenComputer"
+  ],
+  "routes": [],
+  "changes": [
+    "docs/verification/computer-files.md",
+    "docs/verification/routines.md",
+    "scripts/verify-data.ts",
+    "server/request-auth.test.ts",
+    "server/request-auth.ts",
+    "shared/wire.ts",
+    "src/App.tsx",
+    "src/components/BotSettingsDialog.simple.test.ts",
+    "src/components/ChatView.tsx",
+    "src/components/SignInRequestCard.test.ts",
+    "src/components/SignInRequestCard.tsx",
+    "src/components/bot-panel/ComputerTab.tsx",
+    "src/components/bot-panel/pages.tsx",
+    "src/components/lazy-screens.test.ts",
+    "src/components/lazy-screens.tsx",
+    "src/lib/computer-control.ts"
+  ]
+}

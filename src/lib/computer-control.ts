@@ -1,7 +1,5 @@
 import type { ComputerHelpRef } from "../../shared/wire";
 
-export type ComputerControlAction = "take" | "release";
-
 export interface ComputerControlSnapshot {
   held: boolean;
   helpReason: string | null;
@@ -26,20 +24,4 @@ export function heldComputerControlBotIds(
   return Object.entries(snapshots)
     .filter(([, snapshot]) => snapshot.held)
     .map(([botId]) => botId);
-}
-
-/** The server's answer must match the request: a take that is not held, or a release that still is, fails. */
-export async function transitionComputerControlLease<
-  Action extends ComputerControlAction,
-  Snapshot extends ComputerControlSnapshot,
->(input: {
-  action: Action;
-  requestControl: (action: Action) => Promise<Snapshot>;
-}): Promise<Snapshot> {
-  const { action, requestControl } = input;
-  const snap = await requestControl(action);
-  if (snap.held !== (action === "take")) {
-    throw new Error(`OpenMausBot could not ${action === "take" ? "confirm" : "release"} computer control`);
-  }
-  return snap;
 }

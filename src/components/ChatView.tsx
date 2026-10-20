@@ -10,7 +10,6 @@ import {
   ChevronRight,
   Copy,
   Crown,
-  Monitor,
   Pin,
   RefreshCw,
   Square,
@@ -44,6 +43,7 @@ import { EngineSetup, signedOutHeadline, useLazurioSignIn } from "./EngineSetup"
 import { openExternalLink } from "@/lib/app-links";
 import { CODEX_USAGE_URL, codexUsageLimitReached } from "../../shared/codex-usage-limit";
 import { ClaudeUpdatePrompt } from "./ClaudeUpdatePrompt";
+import { LazurioBrowserButton, useLazurioBrowserPanel } from "./LazurioBrowser";
 import { MacCuaRecoveryActions } from "./MacCuaRecoveryActions";
 import { macCuaPermissionMessage, missingMacCuaPermissions } from "@/lib/mac-cua-permissions";
 import { failedTurnCause, signedOutEngine } from "@/lib/failed-turn";
@@ -1001,6 +1001,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
 
   const { messages: allMessages, activeLeafId } = bot;
   const messages = useMemo(() => visibleMessages({ messages: allMessages, activeLeafId }), [allMessages, activeLeafId]);
+  useLazurioBrowserPanel(bot.id, messages);
   const lookups = useMemo(() => transcriptLookups(allMessages, messages), [allMessages, messages]);
   const recordedRun = useMemo(() => runSteps(messages), [messages]);
   const recordedRunCounts = runSummary(recordedRun);
@@ -1249,20 +1250,10 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
             </button>
           )}
           <ThreadContextWarning bot={bot} messages={messages} />
-          {/* Simple mode moves the model, the computer and ⋯ into the bot panel; a remote client's panel has neither. */}
+          {/* Simple mode moves the model and ⋯ into the bot panel; a remote client's panel has neither. */}
           {advanced && !remoteClient && <ModelPicker key={bot.threadId} bot={bot} threadId={bot.threadId} />}
           <LiveCallChip currentBotId={bot.id} onOpen={(botId, threadId) => openThread(dispatch, { botId, threadId }, state, showThreads)} />
-          {(advanced || remoteClient) && <button
-            data-tour="computer"
-            onClick={() => dispatch({ type: "toggleComputer" })}
-            className={cn(
-              "relative rounded-md p-1.5 hover:bg-raised",
-              state.computerOpen ? "text-accent" : "text-ink-secondary hover:text-ink",
-            )}
-            title={t("chat.computer")} aria-label={t("chat.computer")}
-          >
-            <Monitor size={18} />
-          </button>}
+          <LazurioBrowserButton open={state.computerOpen} />
           {(advanced || remoteClient) && <ChatHeaderMenu key={`menu:${bot.threadId}`} bot={bot} />}
         </div>
         </div>

@@ -1,19 +1,18 @@
-import { Folder, Monitor, Smartphone, Table } from "lucide-react";
+import { Folder, Globe, Smartphone } from "lucide-react";
 
-import { writeComputerPanelView, type ComputerPanelView } from "@/lib/computer-panel-view";
+import { writeBrowserPanelView, type BrowserPanelView } from "@/lib/lazurio-browser-panel";
 import { t } from "@/lib/i18n";
 import { shortPath } from "@/lib/short-path";
 import { useStore, type Bot } from "@/state/store";
-import { BotAvatar } from "../Avatar";
 import { useDesktopCapabilities } from "../DesktopCapabilities";
-import { screenFramePreview } from "../ScreenFrame";
+import { useBrowserWords } from "../LazurioBrowser";
 import type { PageId } from "./page-registry";
-import { Card, LinkRow, NavRow } from "./rows";
+import { Card, NavRow } from "./rows";
 
-export function useOpenComputer(bot: Pick<Bot, "id">) {
+export function useOpenBrowserPanel(bot: Pick<Bot, "id">) {
   const { dispatch } = useStore();
-  return (view: ComputerPanelView = "computer") => {
-    writeComputerPanelView(bot.id, view);
+  return (view: BrowserPanelView = "browser") => {
+    writeBrowserPanelView(bot.id, view);
     dispatch({ type: "toggleSettings", open: false });
     dispatch({ type: "toggleComputer", open: true });
   };
@@ -21,36 +20,13 @@ export function useOpenComputer(bot: Pick<Bot, "id">) {
 
 export function ComputerTab({ bot, onOpen }: { bot: Bot; onOpen: (page: PageId) => void }) {
   const { capabilities } = useDesktopCapabilities();
-  const openComputer = useOpenComputer(bot);
-
-  const screen = [...bot.messages].reverse().find((message) => message.kind === "screen" && (message.hasImage || message.png));
-  const screenSrc = screen ? screenFramePreview({ threadId: bot.threadId, messageId: screen.id }, screen.mime).src : null;
+  const openPanel = useOpenBrowserPanel(bot);
+  const words = useBrowserWords();
   const home = capabilities.host?.homeDir;
   const android = Boolean(window.ogb?.androidDevice);
 
   return (
     <div data-panel-tabpanel="computer">
-      <div className="relative mt-[18px] flex aspect-[16/10] max-w-full flex-col items-center justify-center gap-2 overflow-hidden rounded-[14px] border border-ink/[0.06] bg-inset">
-        {screenSrc ? (
-          <img src={screenSrc} alt={t("computer.screenOf", { name: bot.name })} className="absolute inset-0 size-full object-cover" />
-        ) : (
-          <>
-            <span className="opacity-55"><BotAvatar bot={bot} size={52} animated={false} /></span>
-            <span className="text-[12.5px] text-ink-secondary">{t(bot.busy ? "botPanel.screen.working" : "botPanel.screen.idle")}</span>
-          </>
-        )}
-        <button
-          type="button"
-          data-panel-action="open-computer"
-          onClick={() => openComputer()}
-          className="absolute bottom-2.5 right-2.5 flex h-7 items-center gap-1.5 rounded-full border border-ink/10 bg-panel/80 px-2.5 text-[12px] text-ink backdrop-blur-sm hover:bg-panel"
-        >
-          <Monitor size={13} aria-hidden="true" />
-          {t("botPanel.openFullView")}
-        </button>
-      </div>
-      <div className="mt-[7px] text-center text-[12px] text-ink-tertiary">{t("computer.screenOf", { name: bot.name })}</div>
-
       <Card label={t("botPanel.onThisComputer")} anchor="on-computer">
         <NavRow
           data-panel-page="folder"
@@ -60,12 +36,11 @@ export function ComputerTab({ bot, onOpen }: { bot: Bot; onOpen: (page: PageId) 
           onClick={() => onOpen("folder")}
         />
         <NavRow
-          data-panel-row="data"
-          icon={Table}
-          title={t("computer.tab.data")}
-          hint={t("botPanel.dataHint")}
+          data-panel-row="browser"
+          icon={Globe}
+          title={words.browser}
           drill={false}
-          onClick={() => openComputer("data")}
+          onClick={() => openPanel("browser")}
         />
         {android && (
           <NavRow
@@ -77,11 +52,6 @@ export function ComputerTab({ bot, onOpen }: { bot: Bot; onOpen: (page: PageId) 
           />
         )}
       </Card>
-
-      <Card>
-        <LinkRow data-panel-link="computer" icon={Monitor} onClick={() => openComputer()}>{t("botPanel.openFullComputer")}</LinkRow>
-      </Card>
-      <p className="mt-2 text-center text-[12px] text-ink-tertiary">{t("botPanel.fullViewHint")}</p>
     </div>
   );
 }
