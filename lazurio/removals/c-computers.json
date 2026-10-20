@@ -434,7 +434,6 @@
     "server/team-setup-requests.ts",
     "server/testing/fake-acp-cli.ts",
     "server/tool-results.e2e.test.ts",
-    "server/tool-scope.e2e.test.ts",
     "server/turn-watchdog.test.ts",
     "server/wire.test.ts",
     "server/workspace-backup-policy.test.ts",

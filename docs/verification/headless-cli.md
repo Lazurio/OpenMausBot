@@ -7,8 +7,8 @@ teammates and a room, and a second apply sends no write; `run --wait job`
 waits until the Chief and both teammates are done, and the export holds the
 job tree, three transcripts, the Chief's report and both screenshots. Then
 `team export` applies back with no changes, a second file renames a bot
-(`was:`) and `--prune` deletes one made by hand, a `native:` tool selection on
-a Claude bot is refused before any write, and a job whose teammate hangs is
+(`was:`) and `--prune` deletes one made by hand, an older file that selects
+tools applies without them and with a warning, and a job whose teammate hangs is
 stopped, teammate included, by `--on-timeout stop`.
 
 ```sh
