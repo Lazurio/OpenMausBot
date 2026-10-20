@@ -75,6 +75,7 @@ describe("the bots' strips", () => {
   let listeners: Array<(change: StripChange) => void>;
   let runs: string[][];
   let browser: EnvironmentBrowser | null;
+  let announced: Array<[string, string]>;
   const sockets = () => join(runtime, "agent-browser");
   const holders = () => join(runtime, "lazurio-browser", "holders");
 
@@ -102,6 +103,7 @@ describe("the bots' strips", () => {
       },
       now: async () => ({ boot: "8e1c8f0e-6c3b-4b39-9d3e-1f2a3b4c5d6e", at: 100 }),
       everyMs: 60_000,
+      onNewTab: (botId, tabId) => announced.push([botId, tabId]),
       log: () => {},
     });
     return browser;
@@ -112,6 +114,7 @@ describe("the bots' strips", () => {
     bots = [{ id: BOT_A, name: "Researcher" }, { id: BOT_B, name: "Writer" }];
     listeners = [];
     runs = [];
+    announced = [];
     browser = null;
   });
 
@@ -251,26 +254,25 @@ describe("the bots' strips", () => {
   });
 
   const VIEW = "https://browser.vm-01.example.lazurio.io";
-  const windowAnswer = (session: string, targetId: string): LazurioRun => ({
-    code: 0,
-    stdout: JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-window", session, targetId, created: true, link: `${VIEW}/t/${targetId}`, command: "agent-browser" }),
-  });
-  const linkAnswer: LazurioRun = { code: 0, stdout: JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-link", session: null, link: `${VIEW}/` }) };
+  const tab = (tabId: string, extra: Record<string, unknown> = {}) => ({ tabId, view: `${VIEW}/t/${tabId}`, agent: false, alsoHeldBy: [], ...extra });
 
   it("gives the panel a bot's strip with each tab's view on the declared view's origin, and the tab its session works in", async () => {
     await bind(botBrowserSession(BOT_A), TAB_A);
     const strips = start();
     await strips.sync();
     await bind(botBrowserSession(BOT_A), TAB_C);
+    await mkdir(holders(), { recursive: true });
+    await writeFile(join(holders(), "t3-thread.json"), JSON.stringify({ strip: "t3-thread", label: "Research", tabs: [TAB_A] }));
     await strips.sync();
     expect(await strips.strip(BOT_A)).toEqual({
       available: true,
+      strip: `bot-${BOT_A}`,
       viewOrigin: VIEW,
-      tabs: [{ tabId: TAB_A, view: `${VIEW}/t/${TAB_A}` }, { tabId: TAB_C, view: `${VIEW}/t/${TAB_C}` }],
+      tabs: [tab(TAB_A, { alsoHeldBy: [{ strip: "t3-thread", label: "Research" }] }), tab(TAB_C, { agent: true })],
       current: TAB_C,
     });
     expect(strips.boundTab(BOT_A)).toBe(TAB_C);
-    expect(await strips.strip(BOT_B)).toEqual({ available: true, viewOrigin: VIEW, tabs: [], current: null });
+    expect(await strips.strip(BOT_B)).toEqual({ available: true, strip: `bot-${BOT_B}`, viewOrigin: VIEW, tabs: [], current: null });
     expect(strips.boundTab(BOT_B)).toBeNull();
   });
 
@@ -278,30 +280,51 @@ describe("the bots' strips", () => {
     await bind(botBrowserSession(BOT_A), TAB_A);
     const none = start(() => ({ code: 10, stdout: JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-link", available: false }) }));
     expect(await none.strip(BOT_A)).toEqual({ available: false });
-    expect(await none.openWindow(BOT_A)).toEqual({ kind: "unavailable" });
+    expect(await none.hold(BOT_A, TAB_B)).toEqual({ refused: "unavailable" });
     await browser?.stop();
     const odd = start(() => ({ code: 0, stdout: JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-link", session: null, link: "https://example.com/" }) }));
     expect(await odd.strip(BOT_A)).toEqual({ available: false });
-    expect(runs.filter((args) => args[1] === "window")).toEqual([]);
   });
 
-  it("opens the bot's window for New tab with lazurio browser window --session bot-<id>, and holds it in the bot's strip", async () => {
+  it("holds a tab the person chose in the bot's strip, and lets it go on ×, with the contract's one write", async () => {
     const session = botBrowserSession(BOT_A);
-    const strips = start(async (args) => {
-      if (args[1] !== "window") return linkAnswer;
-      await bind(args[3]!, TAB_B);
-      return windowAnswer(args[3]!, TAB_B.toLowerCase());
-    });
-    expect(await strips.openWindow(BOT_A)).toEqual({ kind: "opened", tab: { tabId: TAB_B, view: `${VIEW}/t/${TAB_B}` } });
-    expect(runs).toContainEqual(["browser", "window", "--session", session, "--json"]);
+    const strips = start();
+    await strips.sync();
+    expect(await strips.hold(BOT_A, TAB_B.toLowerCase())).toMatchObject({ available: true, tabs: [tab(TAB_B)] });
     expect((await holderOf(session)).tabs).toEqual([TAB_B]);
-    expect(await strips.strip(BOT_A)).toMatchObject({ available: true, current: TAB_B });
+    expect(await strips.hold(BOT_A, TAB_C)).toMatchObject({ tabs: [tab(TAB_B), tab(TAB_C)] });
+    expect(await strips.release(BOT_A, TAB_B)).toMatchObject({ tabs: [tab(TAB_C)] });
+    expect((await holderOf(session)).tabs).toEqual([TAB_C]);
+    expect(await strips.release(BOT_A, TAB_C)).toMatchObject({ tabs: [] });
+    expect(existsSync(join(holders(), `${session}.json`))).toBe(false);
+    expect(runs.filter((args) => args[1] !== "link")).toEqual([]);
   });
 
-  it("says a window that did not open failed, and holds nothing", async () => {
-    const strips = start((args) => args[1] === "window" ? { code: 1, stdout: "" } : linkAnswer);
-    expect(await strips.openWindow(BOT_A)).toEqual({ kind: "failed" });
-    expect(existsSync(join(holders(), `${botBrowserSession(BOT_A)}.json`))).toBe(false);
+  it("refuses a hold of no tab, of an archived or unknown bot, and past the strip's bound", async () => {
+    const session = botBrowserSession(BOT_A);
+    await mkdir(holders(), { recursive: true });
+    await writeFile(join(holders(), `${session}.json`), holderFileText(session, "Researcher", Array.from({ length: MAX_BOT_TABS }, (_, n) => ({ id: n.toString(16).toUpperCase().padStart(32, "0"), recordedAt: null })), BROWSER_CONTRACT_RELEASE));
+    bots = [...bots, { id: "gone", name: "Gone", hidden: true }];
+    const strips = start();
+    await strips.sync();
+    expect(await strips.hold(BOT_A, "not a tab")).toEqual({ refused: "invalid-tab" });
+    expect(await strips.hold("gone", TAB_B)).toEqual({ refused: "bot-not-found" });
+    expect(await strips.hold("nobody", TAB_B)).toEqual({ refused: "bot-not-found" });
+    expect(await strips.hold(BOT_A, TAB_B)).toEqual({ refused: "too-many-tabs" });
+  });
+
+  it("announces a tab the bot's session newly binds, so the person's panel opens on it, but not the ones found at start", async () => {
+    await bind(botBrowserSession(BOT_A), TAB_A);
+    const strips = start();
+    await strips.sync();
+    expect(announced).toEqual([]);
+    await bind(botBrowserSession(BOT_A), TAB_C);
+    await strips.sync();
+    expect(announced).toEqual([[BOT_A, TAB_C]]);
+    await strips.release(BOT_A, TAB_C);
+    await strips.sync();
+    expect(announced).toEqual([[BOT_A, TAB_C]]);
+    expect((await holderOf(botBrowserSession(BOT_A))).tabs).toEqual([TAB_A]);
   });
 
   it("does nothing where there is no runtime directory", async () => {
