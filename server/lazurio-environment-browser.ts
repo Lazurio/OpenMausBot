@@ -22,6 +22,11 @@
 // AGENT_BROWSER_SOCKET_DIR nor AGENT_BROWSER_NAMESPACE (C7), so the Platform's idle limit applies.
 // Outside a Lazurio Environment, where `lazurio browser link --json` declares no browser, bots
 // have no browser, and their instructions say so.
+//
+// People see a bot's strip in MausBot's right panel, Prohlížeč, as a T3 Code thread's: each tab
+// through the Platform's view `<view origin>/t/<id>`, the origin being the one the declaration's
+// link names (C3), and "+" opens the bot's window with `lazurio browser window --session bot-<id>`.
+// Nothing here frames, proxies or reads a page: the view is the Platform's.
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readdir, rm } from "node:fs/promises";
@@ -43,10 +48,14 @@ import {
   browserBounds,
   browserCliExit,
   browserTimes,
+  browserViewUrl,
   isStrip,
   parseBrowserCliAnswer,
   stripPrefixes,
+  targetIdOf,
+  viewAddressOf,
 } from "../lazurio/browser-contract/pure.js";
+import { lazurioAccountSite, type BotBrowserStrip, type BotBrowserTab } from "../shared/lazurio-browser.ts";
 import { SIGN_IN_PROMPT } from "./system-prompt.ts";
 
 /** The Platform release whose contract module MausBot vendored (lazurio/browser-contract/provenance.json),
@@ -63,6 +72,8 @@ const DIGEST_LENGTH = 32;
 export const MAX_BOT_TABS = 128;
 const LINK_CHECK_MS = 10_000;
 const DONE_MS = 15_000;
+/** `lazurio browser window` opens a window and binds agent-browser's session to it. */
+const WINDOW_MS = 30_000;
 /** How long a declaration of the Environment browser (or its absence) is believed. */
 const DECLARATION_TTL_MS = 60_000;
 
@@ -92,10 +103,14 @@ export function environmentBrowserPrompt(session: string, declared: boolean): st
     `You work in the Environment browser, the one browser this Environment has, with its sign-ins, through your own session \`${session}\`.`,
     `Open your window with \`lazurio browser window --session ${session}\`: it prints the link a person opens to watch and work in the same tab with you, and the command to work in it.`,
     `Work in it with Lazurio's agent-browser from your shell, always with your session: \`agent-browser --cdp ${port} --session ${session} <command>\` (for example \`snapshot -i\`, \`click @e3\`, \`fill @e5 "text"\`, \`open https://example.com\`).`,
-    "Your tabs stay in your strip until this bot is archived or deleted. When a person has to step in (a sign-in, a CAPTCHA, a confirmation), send them your window's link, where they work in the same tab.",
+    "Your tabs stay in your strip, which the person sees in MausBot's Browser panel, until this bot is archived or deleted. When a person has to step in (a sign-in, a two-factor code, a CAPTCHA), call request_sign_in while your window shows that page: their panel opens on your tab and they work in it with you. Your window's link opens the same tab.",
+    "Pages that carry a person's Lazurio account (anything at lazurio.io that asks to sign in: Lazurio sign-in, the Dashboard, the vault, another Environment, and this Environment's Apps, Chat, Automate and browser view) never open in the Environment browser: send the person the link to open in their own browser.",
     `When your work in the browser is done, run \`lazurio browser done --session ${session}\`. Never close tabs with agent-browser (that closes them for everyone who holds or watches them), and never start a browser of your own (Chrome, Chromium, Playwright, Puppeteer or an agent-browser without --cdp ${port}).`,
   ].join(" ") + SIGN_IN_PROMPT;
 }
+
+/** What "+" in the panel came to: the bot's window, or why there is none. */
+export type BotWindow = { kind: "opened"; tab: BotBrowserTab } | { kind: "unavailable" } | { kind: "failed" };
 
 export interface LazurioRun {
   code: number;
@@ -138,6 +153,16 @@ export interface EnvironmentBrowser {
   lastDeclared(): boolean;
   /** The tabs a bot's strip holds, in the order they were first recorded. */
   tabs(botId: string): Promise<string[]>;
+  /** A live bot's strip with the view of each tab, for the person's panel. */
+  strip(botId: string): Promise<BotBrowserStrip>;
+  /** The bot's window (`lazurio browser window --session bot-<id>`): the one its session works in, else a new
+   * one bound to it; in its strip once this resolves. */
+  openWindow(botId: string): Promise<BotWindow>;
+  /** The tab the bot's session worked in at the last reconciliation, when its strip holds it; null otherwise. */
+  boundTab(botId: string): string | null;
+  /** What a sign-in card the bot asks for in the Environment browser names: the bot's tab, on which the person's
+   * panel opens; nothing for a Lazurio account, which the person signs in to in their own browser (0191 point 36). */
+  signInTab(botId: string, url: string): { tab?: string };
   /** One reconciliation of every bot's strip; resolves once it is done. */
   sync(): Promise<void>;
   stop(): Promise<void>;
@@ -163,14 +188,15 @@ export function startEnvironmentBrowser(seams: EnvironmentBrowserSeams): Environ
   const alive = seams.alive ?? processAlive;
   const log = seams.log ?? ((line: string) => console.warn(`environment browser: ${line}`));
 
-  let declaration: { value: boolean; at: number } | null = null;
+  let declaration: { value: boolean; viewOrigin: string | null; at: number } | null = null;
   let asking: Promise<boolean> | null = null;
   const ask = (): Promise<boolean> => {
     asking ??= (async () => {
       const answer = await run(["browser", "link", "--json"], LINK_CHECK_MS).catch(() => null);
       const parsed = answer?.code === browserCliExit.done ? parseBrowserCliAnswer(answer.stdout) : null;
       const value = parsed?.kind === "browser-link" && !("available" in parsed && parsed.available === false);
-      declaration = { value, at: Date.now() };
+      const link = value && parsed && "link" in parsed ? parsed.link : null;
+      declaration = { value, viewOrigin: viewAddressOf(link)?.origin ?? null, at: Date.now() };
       return value;
     })().finally(() => { asking = null; });
     return asking;
@@ -182,11 +208,19 @@ export function startEnvironmentBrowser(seams: EnvironmentBrowserSeams): Environ
     return declaration.value;
   };
 
+  /** The origin of the declared browser's view; null without a declared browser or a runtime directory. */
+  const viewOrigin = async (): Promise<string | null> => holders !== undefined && await declared() ? declaration?.viewOrigin ?? null : null;
+
   /** What this process knows of each live bot's strip, and the tab each session was bound to at the last reading. */
   const held = new Map<string, string[]>();
   const lastBinding = new Map<string, string>();
   /** The last refusal logged for each strip, so a full strip is said once, not on every beat. */
   const refusals = new Map<string, string>();
+
+  function boundTab(botId: string): string | null {
+    const tab = lastBinding.get(botBrowserSession(botId));
+    return tab !== undefined && (held.get(botId) ?? []).includes(tab) ? tab : null;
+  }
 
   const fileOf = (bot: StripBot, directory: string) => ({
     directory,
@@ -328,6 +362,33 @@ export function startEnvironmentBrowser(seams: EnvironmentBrowserSeams): Environ
     async tabs(botId) {
       await current;
       return [...(held.get(botId) ?? [])];
+    },
+    async strip(botId) {
+      const origin = await viewOrigin();
+      if (origin === null) return { available: false };
+      await current;
+      const tabs = (held.get(botId) ?? []).map((tabId) => ({ tabId, view: browserViewUrl(origin, tabId) }));
+      return { available: true, viewOrigin: origin, tabs, current: boundTab(botId) };
+    },
+    async openWindow(botId) {
+      const origin = await viewOrigin();
+      if (origin === null) return { kind: "unavailable" };
+      const session = botBrowserSession(botId);
+      const answer = await run(["browser", "window", "--session", session, "--json"], WINDOW_MS).catch(() => null);
+      const parsed = answer ? parseBrowserCliAnswer(answer.stdout) : null;
+      if (parsed !== null && "available" in parsed && parsed.available === false) return { kind: "unavailable" };
+      const tabId = answer?.code === browserCliExit.done && parsed?.kind === "browser-window" && "targetId" in parsed ? targetIdOf(parsed.targetId) : null;
+      if (tabId === null) {
+        log(`lazurio browser window --session ${session} failed (exit ${answer?.code ?? "none"})`);
+        return { kind: "failed" };
+      }
+      await sync();
+      return { kind: "opened", tab: { tabId, view: browserViewUrl(origin, tabId) } };
+    },
+    boundTab,
+    signInTab(botId, url) {
+      const tab = lazurioAccountSite(url) ? null : boundTab(botId);
+      return tab ? { tab } : {};
     },
     sync,
     async stop() {

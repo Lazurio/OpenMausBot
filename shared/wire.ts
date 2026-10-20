@@ -635,6 +635,9 @@ export interface SignInRequestCardData {
   reason?: string;
   /** Where the login has to happen: the place the asking turn worked in. */
   place: Surface;
+  /** Lazurio: the bot's tab in the Environment browser the sign-in happens in, a DevTools target id;
+   * the person's panel opens on it (shared/lazurio-browser.ts). */
+  tab?: string;
   done?: boolean;
   cancelled?: boolean;
   /** A newer request for the same site in this conversation replaced this

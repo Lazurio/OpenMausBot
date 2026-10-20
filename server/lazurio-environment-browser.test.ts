@@ -56,6 +56,12 @@ describe("a bot's instructions", () => {
     expect(text).toMatch(/never start a browser of your own/);
   });
 
+  it("send a person to the bot's tab through request_sign_in, and Lazurio account pages to the person's own browser", () => {
+    const text = environmentBrowserPrompt("bot-x", true);
+    expect(text).toMatch(/call request_sign_in while your window shows that page: their panel opens on your tab/);
+    expect(text).toMatch(/Lazurio account .* never open in the Environment browser: send the person the link to open in their own browser/);
+  });
+
   it("say clearly that there is no browser where the Environment declares none", () => {
     const text = environmentBrowserPrompt("bot-x", false);
     expect(text).toMatch(/no Environment browser/);
@@ -80,7 +86,7 @@ describe("the bots' strips", () => {
   const holderOf = async (session: string) => JSON.parse(await readFile(join(holders(), `${session}.json`), "utf8")) as {
     schema: string; strip: string; label: string; tabs: string[]; contract: string;
   };
-  const start = (answer: (args: readonly string[]) => LazurioRun = (args) => (args[1] === "done"
+  const start = (answer: (args: readonly string[]) => LazurioRun | Promise<LazurioRun> = (args) => (args[1] === "done"
     ? { code: 0, stdout: JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-done", session: args[3], outcome: "stopped" }) }
     : { code: 0, stdout: JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-link", session: null, link: "https://browser.vm-01.example.lazurio.io/" }) })) => {
     browser = startEnvironmentBrowser({
@@ -244,10 +250,65 @@ describe("the bots' strips", () => {
     expect((await holderOf(session)).tabs).toEqual([TAB_A]);
   });
 
+  const VIEW = "https://browser.vm-01.example.lazurio.io";
+  const windowAnswer = (session: string, targetId: string): LazurioRun => ({
+    code: 0,
+    stdout: JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-window", session, targetId, created: true, link: `${VIEW}/t/${targetId}`, command: "agent-browser" }),
+  });
+  const linkAnswer: LazurioRun = { code: 0, stdout: JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-link", session: null, link: `${VIEW}/` }) };
+
+  it("gives the panel a bot's strip with each tab's view on the declared view's origin, and the tab its session works in", async () => {
+    await bind(botBrowserSession(BOT_A), TAB_A);
+    const strips = start();
+    await strips.sync();
+    await bind(botBrowserSession(BOT_A), TAB_C);
+    await strips.sync();
+    expect(await strips.strip(BOT_A)).toEqual({
+      available: true,
+      viewOrigin: VIEW,
+      tabs: [{ tabId: TAB_A, view: `${VIEW}/t/${TAB_A}` }, { tabId: TAB_C, view: `${VIEW}/t/${TAB_C}` }],
+      current: TAB_C,
+    });
+    expect(strips.boundTab(BOT_A)).toBe(TAB_C);
+    expect(await strips.strip(BOT_B)).toEqual({ available: true, viewOrigin: VIEW, tabs: [], current: null });
+    expect(strips.boundTab(BOT_B)).toBeNull();
+  });
+
+  it("gives the panel no strip where the Environment declares no browser, or its link is no view address", async () => {
+    await bind(botBrowserSession(BOT_A), TAB_A);
+    const none = start(() => ({ code: 10, stdout: JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-link", available: false }) }));
+    expect(await none.strip(BOT_A)).toEqual({ available: false });
+    expect(await none.openWindow(BOT_A)).toEqual({ kind: "unavailable" });
+    await browser?.stop();
+    const odd = start(() => ({ code: 0, stdout: JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-link", session: null, link: "https://example.com/" }) }));
+    expect(await odd.strip(BOT_A)).toEqual({ available: false });
+    expect(runs.filter((args) => args[1] === "window")).toEqual([]);
+  });
+
+  it("opens the bot's window for New tab with lazurio browser window --session bot-<id>, and holds it in the bot's strip", async () => {
+    const session = botBrowserSession(BOT_A);
+    const strips = start(async (args) => {
+      if (args[1] !== "window") return linkAnswer;
+      await bind(args[3]!, TAB_B);
+      return windowAnswer(args[3]!, TAB_B.toLowerCase());
+    });
+    expect(await strips.openWindow(BOT_A)).toEqual({ kind: "opened", tab: { tabId: TAB_B, view: `${VIEW}/t/${TAB_B}` } });
+    expect(runs).toContainEqual(["browser", "window", "--session", session, "--json"]);
+    expect((await holderOf(session)).tabs).toEqual([TAB_B]);
+    expect(await strips.strip(BOT_A)).toMatchObject({ available: true, current: TAB_B });
+  });
+
+  it("says a window that did not open failed, and holds nothing", async () => {
+    const strips = start((args) => args[1] === "window" ? { code: 1, stdout: "" } : linkAnswer);
+    expect(await strips.openWindow(BOT_A)).toEqual({ kind: "failed" });
+    expect(existsSync(join(holders(), `${botBrowserSession(BOT_A)}.json`))).toBe(false);
+  });
+
   it("does nothing where there is no runtime directory", async () => {
     browser = startEnvironmentBrowser({ env: { HOME: runtime }, bots: () => bots, onChange: () => () => {}, runLazurio: async () => ({ code: 127, stdout: "" }) });
     await browser.sync();
     expect(await readdir(runtime)).toEqual([]);
+    expect(await browser.strip(BOT_A)).toEqual({ available: false });
   });
 
   it("names the vendored Platform release in every holder file it writes", () => {
