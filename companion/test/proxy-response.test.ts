@@ -19,7 +19,6 @@ const deeplyNested = (() => {
 let harness: Server;
 let sidecar: Server;
 let sidecarPort = 0;
-let cloudDesktopAccess = true;
 let companionMarker = "";
 let companionDevice = "";
 let companionRange = "";
@@ -60,7 +59,7 @@ beforeAll(async () => {
   sidecar = createServer(
     createProxyHandler({
       harnessPort,
-      authenticate: (t) => (t === TOKEN ? { id: "phone-1", cloudDesktopAccess, browserControlAccess: false } : null),
+      authenticate: (t) => (t === TOKEN ? { id: "phone-1", browserControlAccess: false } : null),
       redeem: () => ({ error: "not used here" }),
       serverName: () => "Test computer",
       endpoints: () => endpointCandidates,
@@ -94,28 +93,14 @@ describe("preparing a harness response for a device", () => {
     }
   });
 
-  it("requires the host to enable computer access for viewer and preview requests", async () => {
-    cloudDesktopAccess = false;
-    try {
-      for (const path of ["computer/join", "computer/screenshot", "local-computer/screenshot", "local-computer/join"]) {
-        const { status, text } = await device(`/api/bots/b1/${path}`, "POST");
-        expect(status).toBe(403);
-        expect(text).toContain("enable it in OpenMausBot");
-        expect(text).toContain("Settings → Remote access");
-      }
-    } finally {
-      cloudDesktopAccess = true;
-    }
-  });
-
-  it("forwards only the enabled device's request for a fresh viewer", async () => {
+  it("marks a paired device's forwarded request as the companion's", async () => {
     respond = (res) => {
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ joinUrl: "https://desktop.example/session/fresh", state: "ready" }));
+      res.end(JSON.stringify({ read: true }));
     };
-    const { status, text } = await device("/api/bots/b1/computer/join", "POST");
+    const { status, text } = await device("/api/bots/b1/read", "POST");
     expect(status).toBe(200);
-    expect(JSON.parse(text).joinUrl).toBe("https://desktop.example/session/fresh");
+    expect(JSON.parse(text).read).toBe(true);
     expect(companionMarker).toBe("1");
     expect(companionDevice).toBe("phone-1");
   });
@@ -133,42 +118,6 @@ describe("preparing a harness response for a device", () => {
     });
     expect(response.status).toBe(200);
     expect(companionDevice).toBe("phone-1");
-  });
-
-  it("turns a host-loopback VPS viewer into a device-scoped companion path", async () => {
-    respond = (res) => {
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({
-        joinUrl: "http://127.0.0.1:45678/vnc.html#autoconnect=true&password=viewer-secret",
-        state: "running",
-      }));
-    };
-    const { status, text } = await device("/api/bots/b1/computer/join", "POST");
-    expect(status).toBe(200);
-    const joinUrl = String(JSON.parse(text).joinUrl);
-    expect(joinUrl).toMatch(/^\/vps-viewer\/[A-Za-z0-9_-]{32}\/vnc\.html#/);
-    expect(joinUrl).toContain("password=viewer-secret");
-    expect(joinUrl).toContain("path=vps-viewer%2F");
-    expect(joinUrl).not.toContain("127.0.0.1:45678");
-  });
-
-  it("turns the Local VM's loopback viewer into the same device-scoped path", async () => {
-    respond = (res) => {
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({
-        joinUrl: "http://127.0.0.1:45679/vnc.html#autoconnect=true&resize=scale&password=vm-secret",
-      }));
-    };
-    const { status, text } = await device("/api/bots/b1/local-computer/join?controlLeaseId=phone-lease-0123456789", "POST");
-    expect(status).toBe(200);
-    const joinUrl = String(JSON.parse(text).joinUrl);
-    expect(joinUrl).toMatch(/^\/vps-viewer\/[A-Za-z0-9_-]{32}\/vnc\.html#/);
-    expect(joinUrl).toContain("password=vm-secret");
-    expect(joinUrl).not.toContain("127.0.0.1:45679");
-
-    const refused = await device("/api/bots/b1/local-computer/join", "POST");
-    expect(refused.status).toBe(502);
-    expect(refused.text).not.toContain("vm-secret");
   });
 
   it("never forwards a body it could not scrub", async () => {
@@ -257,7 +206,7 @@ describe("preparing a harness response for a device", () => {
       res.end("image-bytes");
     };
 
-    const response = await device("/api/threads/thread-1/messages/message-1/image");
+    const response = await device("/api/attachments/avatar-123.webp");
     expect(response.status).toBe(200);
     expect(response.text).toBe("image-bytes");
     expect(response.headers.get("cache-control")).toBe("private, no-store");

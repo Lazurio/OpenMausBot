@@ -2,7 +2,6 @@
 // (a DNS-rebinding defence), so a device's request is replayed to 127.0.0.1
 // as this process, never with the device's Host or Origin.
 import { request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
-import type { Duplex } from "node:stream";
 
 import { bearerToken } from "./devices.ts";
 import {
@@ -13,11 +12,9 @@ import {
 import {
   denyReason,
   isBrowserControlAccess,
-  isCloudDesktopAccess,
   isMessageFileDownload,
 } from "./routes.ts";
 import { sendTunnelJson } from "./tunnel-gzip.ts";
-import { CompanionViewerRelay } from "./viewer-relay.ts";
 import { createSseScrubber, isJson, scrub } from "./wire.ts";
 
 export interface ProxyOptions {
@@ -26,7 +23,7 @@ export interface ProxyOptions {
   mutationToken?: () => string | null;
   authenticate: (
     token: string | undefined,
-  ) => { id?: string; cloudDesktopAccess: boolean; browserControlAccess: boolean } | null;
+  ) => { id?: string; browserControlAccess: boolean } | null;
   /** Pairing is handled here and never forwarded: the harness has no such route. */
   redeem: (
     code: string,
@@ -214,52 +211,7 @@ const forwardHeaders = (req: IncomingMessage, authenticatedDeviceId?: string, mu
   return out;
 };
 
-/** Read-only (`action: "check"`); every failure is "no". */
-function harnessControlCheck(options: ProxyOptions) {
-  return (deviceId: string, botId: string, controlLeaseId: string): Promise<boolean> => new Promise((resolve) => {
-    const mutationToken = options.mutationToken?.();
-    if (options.mutationToken && !mutationToken) return resolve(false);
-    const body = JSON.stringify({ action: "check", controlLeaseId });
-    const headers: Record<string, string> = {
-      accept: "application/json",
-      "content-type": "application/json",
-      "content-length": String(Buffer.byteLength(body)),
-      "x-openmausbot-companion": "1",
-      "x-openmausbot-companion-device": deviceId,
-    };
-    if (mutationToken) headers["x-openmausbot-companion-auth"] = mutationToken;
-    const request = httpRequest({
-      hostname: "127.0.0.1",
-      port: options.harnessPort,
-      path: `/api/bots/${encodeURIComponent(botId)}/computer/control`,
-      method: "POST",
-      headers,
-    }, (response) => {
-      const chunks: Buffer[] = [];
-      let size = 0;
-      response.on("data", (chunk: Buffer) => {
-        size += chunk.length;
-        if (size > 16_384) return request.destroy();
-        chunks.push(chunk);
-      });
-      response.once("end", () => {
-        try {
-          const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { owned?: unknown };
-          resolve(response.statusCode === 200 && parsed.owned === true);
-        } catch {
-          resolve(false);
-        }
-      });
-      response.once("error", () => resolve(false));
-    });
-    request.setTimeout(5_000, () => request.destroy());
-    request.once("error", () => resolve(false));
-    request.end(body);
-  });
-}
-
 export function createProxyHandler(options: ProxyOptions) {
-  const viewers = new CompanionViewerRelay({ checkControl: harnessControlCheck(options) });
   const capabilityStreams = new Map<string, Set<() => void>>();
   const handle = function handle(req: IncomingMessage, res: ServerResponse): void {
     const path = (req.url ?? "/").split("?")[0];
@@ -285,10 +237,6 @@ export function createProxyHandler(options: ProxyOptions) {
         error: "browser control is off for this device — enable it in Remote access settings on the host computer",
       };
     };
-    if (viewers.isViewerPath(req.url)) {
-      viewers.handleHttp(req, res, device);
-      return;
-    }
     const denial = denyReason({
       path,
       method,
@@ -296,23 +244,14 @@ export function createProxyHandler(options: ProxyOptions) {
     });
     if (denial) return sendJson(res, denial.status, { error: denial.error });
 
-    // Pairing grants the ordinary companion surface, not a computer's browser
-    // session; the owner enables this per device, off by default.
-    if (isCloudDesktopAccess(method, path) && !device?.cloudDesktopAccess) {
-      return sendJson(res, 403, {
-        error: "computer access is off for this device — enable it in OpenMausBot → Settings → Remote access",
-      });
-    }
-
-    // A separate grant: this browser is normally signed into the person's own accounts.
+    // Pairing grants the ordinary companion surface, not a bot's browser session,
+    // which is normally signed into the person's own accounts; the owner enables
+    // this per device, off by default.
     if (isBrowserControlAccess(method, path) && !device?.browserControlAccess) {
       return sendJson(res, 403, {
         error: "browser control is off for this device — open Remote access on the computer and turn on \"Allow browser control\" for it",
       });
     }
-
-    const viewerClose = /^\/api\/bots\/([\w-]+)\/computer\/viewer-close$/.exec(path);
-    if (viewerClose && device?.id) viewers.close(device.id, viewerClose[1]);
 
     if (method === "POST" && path === "/api/pair") {
       readJson(req).then(
@@ -557,12 +496,6 @@ export function createProxyHandler(options: ProxyOptions) {
           // deep nesting throws RangeError where JSON.parse does not.
           let text: string;
           try {
-            parsed = viewers.rewriteJoinResponse(
-              path,
-              parsed,
-              device?.id,
-              new URL(req.url ?? "/", "http://companion.invalid").searchParams.get("controlLeaseId"),
-            );
             text = JSON.stringify(scrub(parsed));
           } catch {
             sendJson(res, 502, { error: "the response could not be prepared for this device" });
@@ -622,17 +555,7 @@ export function createProxyHandler(options: ProxyOptions) {
     req.pipe(upstream);
   };
 
-  handle.upgrade = (req: IncomingMessage, socket: Duplex, head: Buffer): void => {
-    if (req.headers.origin) {
-      socket.destroy();
-      return;
-    }
-    const token = bearerToken(req.headers.authorization);
-    const device = options.authenticate(token);
-    viewers.handleUpgrade(req, socket, head, device);
-  };
   handle.disconnectDevice = (deviceId: string): void => {
-    viewers.closeDevice(deviceId);
     // Revoking a capability closes the streams it already granted.
     const open = capabilityStreams.get(deviceId);
     if (!open) return;

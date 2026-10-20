@@ -37,7 +37,7 @@ describe("browser authorization while the harness is responding", () => {
         const handler = createProxyHandler({
           harnessPort: upstreamPort,
           authenticate: (token) => token === "fixture-token" && valid
-            ? { id: "fixture-phone", cloudDesktopAccess: false, browserControlAccess: allowed } : null,
+            ? { id: "fixture-phone", browserControlAccess: allowed } : null,
           redeem: () => ({ error: "offline fixture" }),
           serverName: () => "Synthetic computer",
         });

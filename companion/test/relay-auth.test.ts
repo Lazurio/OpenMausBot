@@ -29,7 +29,7 @@ it("adds the private capability only after authenticating and authorizing, never
   let capability: string | null = null;
   const port = await listen(createServer(createProxyHandler({
     harnessPort, mutationToken: () => capability,
-    authenticate: (token) => token === "paired" ? { id: "real-phone", cloudDesktopAccess: false, browserControlAccess: false } : null,
+    authenticate: (token) => token === "paired" ? { id: "real-phone", browserControlAccess: false } : null,
     redeem: () => ({ error: "not pairing" }), serverName: () => "Fixture",
   })));
   const call = async (path: string, token = "paired", method = "POST") => {
@@ -47,7 +47,7 @@ it("adds the private capability only after authenticating and authorizing, never
   capability = "private-relay-secret";
   expect(await call("/api/bots/b/read", "unpaired")).toBe(401);
   expect(await call("/api/config", "paired", "PUT")).toBe(403);
-  expect(await call("/api/bots/b/computer/join")).toBe(403);
+  expect(await call("/api/bots/b/computer/join")).toBe(404);
   expect(received).toHaveLength(0);
   expect(await call("/api/bots/b/read")).toBe(200);
   expect(received).toHaveLength(1);

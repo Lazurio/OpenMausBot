@@ -131,12 +131,8 @@ const proxy = createProxyHandler({
     connected: connectedDevices.open,
   });
 const companion = createServer(proxy);
-// `createServer(proxy)` handles plain HTTP only; noVNC's WebSocket arrives as
-// Node's separate `upgrade` event.
-companion.on("upgrade", proxy.upgrade);
 // Large JSON replies go gzipped here: this is the only listener whose replies go up the home connection to Cloudflare.
 const managedOrigin = PRIVATE_ORIGIN ? createServer(gzipTunnelReplies(proxy)) : null;
-managedOrigin?.on("upgrade", proxy.upgrade);
 
 const control = createControlServer({
   devices,

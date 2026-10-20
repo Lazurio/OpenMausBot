@@ -110,21 +110,21 @@ describe("the per-launch control token", () => {
 });
 
 describe("origins the control server will change state for", () => {
-  it("controls cloud desktop access per paired device", async () => {
+  it("controls browser control access per paired device", async () => {
     const { code } = devices.openPairing();
     const paired = devices.redeem(code, "iPhone");
     if ("error" in paired) throw new Error(paired.error);
 
-    expect(paired.device.cloudDesktopAccess).toBe(false);
+    expect(paired.device.browserControlAccess).toBe(false);
     disconnectedDeviceIds = [];
-    expect((await ask("POST", `/devices/${paired.device.id}/cloud-desktop`)).status).toBe(200);
-    expect(devices.authenticate(paired.token)?.cloudDesktopAccess).toBe(true);
+    expect((await ask("POST", `/devices/${paired.device.id}/browser-control`)).status).toBe(200);
+    expect(devices.authenticate(paired.token)?.browserControlAccess).toBe(true);
     expect(disconnectedDeviceIds).toEqual([paired.device.id]);
     disconnectedDeviceIds = [];
-    expect((await ask("DELETE", `/devices/${paired.device.id}/cloud-desktop`)).status).toBe(200);
-    expect(devices.authenticate(paired.token)?.cloudDesktopAccess).toBe(false);
+    expect((await ask("DELETE", `/devices/${paired.device.id}/browser-control`)).status).toBe(200);
+    expect(devices.authenticate(paired.token)?.browserControlAccess).toBe(false);
     expect(disconnectedDeviceIds).toEqual([paired.device.id]);
-    expect((await ask("POST", "/devices/missing/cloud-desktop")).status).toBe(404);
+    expect((await ask("POST", "/devices/missing/browser-control")).status).toBe(404);
   });
 
   it("reports a permission write failure without dropping the control server", async () => {
@@ -135,12 +135,12 @@ describe("origins the control server will change state for", () => {
       throw new Error("ENOSPC: no space left on device");
     };
     try {
-      const failed = await ask("POST", `/devices/${device.id}/cloud-desktop`);
+      const failed = await ask("POST", `/devices/${device.id}/browser-control`);
       expect(failed).toEqual({
         status: 500,
-        body: { error: "could not save cloud desktop access" },
+        body: { error: "could not save browser control access" },
       });
-      expect(devices.list().find((candidate) => candidate.id === device.id)?.cloudDesktopAccess).toBe(false);
+      expect(devices.list().find((candidate) => candidate.id === device.id)?.browserControlAccess).toBe(false);
       expect((await ask("GET", "/state")).status).toBe(200);
     } finally {
       writable.persist = persist;
@@ -279,8 +279,8 @@ describe("hostCandidates", () => {
     revokedDeviceIds = [];
 
     expect((await ask("DELETE", "/devices/missing-device")).status).toBe(404);
-    expect((await ask("POST", `/devices/${paired.device.id}/cloud-desktop`)).status).toBe(200);
-    expect((await ask("DELETE", `/devices/${paired.device.id}/cloud-desktop`)).status).toBe(200);
+    expect((await ask("POST", `/devices/${paired.device.id}/browser-control`)).status).toBe(200);
+    expect((await ask("DELETE", `/devices/${paired.device.id}/browser-control`)).status).toBe(200);
     expect(revokedDeviceIds).toEqual([]);
 
     expect((await ask("DELETE", `/devices/${paired.device.id}`)).status).toBe(200);

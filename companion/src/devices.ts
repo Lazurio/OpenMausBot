@@ -14,11 +14,8 @@ export interface DeviceRecord {
   tokenHash: string;
   createdAt: number;
   lastSeenAt: number;
-  /** Off on every new and migrated device until the computer owner enables it. */
-  cloudDesktopAccess: boolean;
-  /** A separate grant from cloudDesktopAccess: a browser signed into the
-   * person's real accounts is a different risk from a disposable VM. Off on
-   * every new and migrated device until the computer owner enables it. */
+  /** A browser signed into the person's real accounts. Off on every new and
+   * migrated device until the computer owner enables it. */
   browserControlAccess: boolean;
 }
 
@@ -94,7 +91,6 @@ function normalizeDevice(record: Partial<DeviceRecord> & { id: string; tokenHash
     name: cleanDeviceName(record.name),
     createdAt,
     lastSeenAt: timestamp(record.lastSeenAt, createdAt),
-    cloudDesktopAccess: record.cloudDesktopAccess === true,
     browserControlAccess: record.browserControlAccess === true,
   };
 }
@@ -230,7 +226,6 @@ export class DeviceRegistry {
       tokenHash: sha256(token),
       createdAt: Date.now(),
       lastSeenAt: Date.now(),
-      cloudDesktopAccess: false,
       browserControlAccess: false,
     };
     this.devices.push(device);
@@ -289,20 +284,6 @@ export class DeviceRegistry {
   }
 
   /** Per device, so one phone does not inherit another's permission. */
-  setCloudDesktopAccess(id: string, allowed: boolean): boolean {
-    const device = this.devices.find((candidate) => candidate.id === id);
-    if (!device) return false;
-    const previous = device.cloudDesktopAccess;
-    device.cloudDesktopAccess = allowed;
-    try {
-      this.persist();
-    } catch (error) {
-      device.cloudDesktopAccess = previous;
-      throw error;
-    }
-    return true;
-  }
-
   setBrowserControlAccess(id: string, allowed: boolean): boolean {
     const device = this.devices.find((candidate) => candidate.id === id);
     if (!device) return false;
