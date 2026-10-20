@@ -110,13 +110,13 @@ builds them.
   bot at Full on every server, with T3 Code's four levels and no gate before
   Full, before Auto or before contacting another bot (2,
   [Access levels](#access-levels)); bots work in their own tabs of the
-  Environment browser, with their own session `bot-<id>` and strip, and
-  MausBot's own browser is removed (4,
+  Environment browser, with their own session `bot-<id>` and strip, which
+  people see and work in in the right panel Prohlížeč, and MausBot's own
+  browser and Computer panel are removed (4,
   [The Environment browser](#the-environment-browser)); the Folder as every
   bot's start (6).
-- **Not yet:** MausBot's right panel does not show a bot's tabs through the
-  Platform's view yet, and the "Computer" panel still stands (4). There is no
-  Computer Use on the Environment desktop (5) and no report to Chat (7).
+- **Not yet:** there is no Computer Use on the Environment desktop (5) and no
+  report to Chat (7).
 
 Until a gap is closed the sections below describe the code as it is; plan
 DEV-6673 tracks each gap.
@@ -242,10 +242,63 @@ computer of its own, and it opens its own tabs in the Environment browser.
   browser link --json` declares none) bots have no browser. Their
   instructions say so plainly and forbid starting one; upstream's engine is
   not kept as a fallback.
-- **People** see a bot's tab and work in it with the bot through the
-  Platform's view `browser.<…>/t/<id>`, from the link the bot sends. MausBot's
-  right panel that shows the bot's strip through that view is the next step
-  (DEV-6673 task 212).
+- **People** see a bot's tabs and work in them with the bot in MausBot's
+  right panel, Prohlížeč ([below](#the-browser-panel)), through the
+  Platform's view `browser.<…>/t/<id>`.
+
+### The browser panel
+
+**Decided on 2026-10-19 (the Organization Admin; root decision 0191 points
+13, 34, 36–38 and 41).** MausBot's right panel is **Prohlížeč** (English
+"Browser"), as a T3 Code thread's right panel: upstream's Computer panel
+and its own live view of the screen are removed
+([below](#what-the-overlay-removes)).
+
+- **The bot's tabs.** The panel shows the bot's strip, the server's answer
+  to `GET /api/bots/<bot>/browser`: each tab with its Platform view
+  `<view origin>/t/<id>`, the origin being the one `lazurio browser link
+  --json` declares. Each tab is a frame of that view, with the contract's
+  frame attributes; the bot and the person click and type in the same tab at
+  once, and nothing is handed over or locked (point 13). A tab a page opens
+  shows in the panel while someone looks at it. The strip is read every 5 s
+  while the browser is in view.
+- **New tab** ("+", Nová karta) opens the bot's window,
+  `lazurio browser window --session bot-<id>` (`POST
+  /api/bots/<bot>/browser/window`): the one the bot's session works in, else a
+  new window bound to it, which then joins the strip.
+- **Where it opens.** The button sits in the bot's header in Simple and
+  Advanced alike. A plain click on a link to a tab of this Environment's view
+  opens the panel on that tab instead of a new tab of the person's browser.
+  When the bot asks the person to sign in, enter a two-factor code or solve a
+  CAPTCHA (`request_sign_in` in the Environment browser), the card names the
+  bot's tab (`signIn.tab`, the tab its session works in) and the panel opens
+  on it by itself, once per card, where it sits beside the chat; the card
+  also offers to show the tab.
+- **Lazurio accounts go to the person's own browser** (points 36–38). A
+  sign-in at `lazurio.io` (Lazurio sign-in, the Dashboard, the vault, another
+  Environment, this Environment's Apps, Chat, Automate and browser view) is
+  never opened in the panel: its card asks the person to sign in in their own
+  browser and links there, and the bot's instructions say the same. Links to
+  another Environment's view or any other page stay links of the person's
+  browser.
+- **The other views** are upstream's: **Files**, the bot's folder and
+  worktree with the files the chat changed, in every mode; **Routines** and
+  **Data** only in Advanced (a data result the person opens still shows
+  Data).
+- **Without an Environment browser** (outside Lazurio, local development)
+  the strip answers `{"available": false}` and the panel says the browser is
+  not available; Files stays.
+- **Words** come from the shell's language (Czech unless the profile is
+  English: Prohlížeč, karta, Nová karta, Prostředí), English outside Lazurio;
+  a tooltip is the control's name.
+
+The Lazurio side is `src/components/LazurioBrowserPanel.tsx` (the panel),
+`src/components/LazurioBrowser.tsx` (the header button, ChatView's one hook
+and the sign-in card's line), `src/lib/lazurio-browser-panel.ts` (its state),
+`shared/lazurio-browser.ts` (the wire types and the Lazurio account rule) and
+`server/routes/lazurio-browser.ts`; `src/lib/lazurio-browser-panel.test.ts`,
+`server/lazurio-environment-browser.test.ts` and the e2e test cover the strip,
+New tab, the sign-in tab and the absence of the Computer panel.
 
 The file rules come from the Platform's contract module, vendored by digest
 from a release into `lazurio/browser-contract/` with its MIT licence, the
@@ -366,6 +419,13 @@ signed-in accounts, and integrations come from the Environment.
   and their documents. Bots work in the Environment browser
   ([above](#the-environment-browser)). Upstream's UI tests still drive the web
   app with agent-browser, from the test-only `scripts/testing/ui-agent-browser.ts`.
+- **The Computer panel** (DEV-6673 task 212): upstream's right panel with its
+  own live view of the screen (the local preview, Linux local control), its
+  remote-desktop variant, the person's hand-back of the wheel, the sign-in
+  banner it showed and the screen preview in the bot panel's Computer tab.
+  The right panel Prohlížeč replaces it ([above](#the-browser-panel)).
+  Upstream's local computer and its control lease on the server stay as
+  upstream has them.
 - **Telemetry to upstream**: upstream's PostHog analytics and the welcome
   tour's name and e-mail form. `src/lib/analytics.ts` keeps upstream's
   function names as no-ops, so nothing is collected, stored or sent.
