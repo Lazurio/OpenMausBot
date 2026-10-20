@@ -132,7 +132,7 @@ try {
   const evaluate = async (js: string) => (await ui("eval", "--js", js)).result;
   const click = (name: string) => ui("click", "--name", name);
   // The selected panel shares its tab's name; click the tab itself.
-  const clickTab = (tour: string) => evaluate(`(() => { const tab = document.querySelector('[data-tour=${tour}]'); if (!tab) throw new Error('Missing tab ${tour}'); tab.click(); return true; })()`);
+  const clickTab = (view: string) => evaluate(`(() => { const tab = document.querySelector('[data-panel-view=${view}]'); if (!tab) throw new Error('Missing tab ${view}'); tab.click(); return true; })()`);
   const browser = (...args: string[]) => agentBrowser(binary, sessionEnv(handle!), args);
   const drag = async (element: string, dx: number, dy: number) => {
     const { x, y } = await evaluate(`(() => { const { left, top, width, height } = (${element}).getBoundingClientRect(); return { x: Math.round(left + width / 2), y: Math.round(top + height / 2) }; })()`);
@@ -214,12 +214,12 @@ try {
   const recordedSql = sheet.cards.find((card) => card.id === daily.id)?.sql;
   const openReceipt = () => evaluate(`[...document.querySelectorAll('${receipt} button')].find(element => element.textContent.includes('Open in Data')).click(); true`);
   const toggleReceiptSql = () => evaluate(`document.querySelector('${receipt} button[aria-expanded]').click(); true`);
-  const receiptSelected = `document.querySelector('[data-tour=computer-data]')?.getAttribute('aria-selected') === 'true' && ${active}.length === 1 && ${active}[0].getAttribute('data-card-id') === ${JSON.stringify(daily.id)}`;
+  const receiptSelected = `document.querySelector('[data-panel-view=data]')?.getAttribute('aria-selected') === 'true' && ${active}.length === 1 && ${active}[0].getAttribute('data-card-id') === ${JSON.stringify(daily.id)}`;
   await until(async () => await evaluate("!!document.querySelector('textarea[aria-label=\"Message Data review\"]')"), "Seeded conversation did not mount");
   console.log(JSON.stringify({ ok: true, ui: handlePath, ...fixture.info, pid: server?.pid, previewUrl: preview.previewUrl, botId: bot.id, rows: 100_000, cards: 20, serverChecks: "load, describe, SQL, charts, paging, filter, sort, export, restart" }, null, 2));
   if (check) {
-    if (await evaluate("!!document.querySelector('[data-tour=computer-data]')")) await click("Close computer panel");
-    await until(async () => await evaluate("!document.querySelector('[data-tour=computer-data]')"), "Computer panel did not close");
+    if (await evaluate("!!document.querySelector('[data-panel-view=data]')")) await click("Close");
+    await until(async () => await evaluate("!document.querySelector('[data-panel-view=data]')"), "Browser panel did not close");
     await until(async () => await evaluate(`!!document.querySelector('${receipt} button')`), "Older chart's inline receipt did not render");
     await toggleReceiptSql();
     assert.equal(await evaluate(`document.querySelector('${receipt} pre code')?.textContent`), recordedSql, "Expanded receipt should show the bot's recorded SQL");
@@ -230,20 +230,20 @@ try {
     await until(async () => await evaluate(receiptSelected), "First receipt did not mount its Data result");
     await ui("wait-settle", "--timeout", "30");
     assert.equal(await evaluate(receiptSelected), true, "First receipt lost its Data selection after configuration settled");
-    await evaluate("document.getElementById('computer-panel-tabs-tab-computer').click(); true");
-    await click("Close computer panel");
-    await until(async () => await evaluate("!document.querySelector('[data-tour=computer-data]')"), "Computer panel did not close after Computer selection");
-    await click("Bot's computer");
+    await evaluate("document.getElementById('browser-panel-tab-browser').click(); true");
+    await click("Close");
+    await until(async () => await evaluate("!document.querySelector('[data-panel-view=data]')"), "Browser panel did not close after Browser selection");
+    await click("Browser");
     await ui("wait-settle", "--timeout", "30");
-    assert.equal(await evaluate("document.getElementById('computer-panel-tabs-tab-computer')?.getAttribute('aria-selected') === 'true' && !document.querySelector('[data-testid=data-panel]')"), true, "Consumed receipt replaced Computer when reopening the panel");
+    assert.equal(await evaluate("document.getElementById('browser-panel-tab-browser')?.getAttribute('aria-selected') === 'true' && !document.querySelector('[data-testid=data-panel]')"), true, "Consumed receipt replaced Browser when reopening the panel");
     await openReceipt();
     await until(async () => await evaluate(receiptSelected), "Clicking the receipt again did not mount its Data result");
     await ui("wait-settle", "--timeout", "30");
     assert.equal(await evaluate(receiptSelected), true, "Clicking the receipt again did not reopen its Data result");
     await chooseHistory("Latest result");
   } else {
-    if (!await evaluate("!!document.querySelector('[data-tour=computer-data]')")) await click("Bot's computer");
-    await clickTab("computer-data");
+    if (!await evaluate("!!document.querySelector('[data-panel-view=data]')")) await click("Browser");
+    await clickTab("data");
   }
 
   if (!check) {
@@ -705,7 +705,7 @@ try {
       await api("PATCH", "/api/config", { openaiCompat: { key: "synthetic-data-fixture", url: `http://127.0.0.1:${address.port}/v1`, model: "data-chat-fixture" } });
       await runControlOmb(["set-model", "--bot", bot.id, "--instance", "openaiCompat", "--model", "data-chat-fixture", "--url", url]);
       await browser("set", "viewport", "1600", "1000");
-      await clickTab("computer-data");
+      await clickTab("data");
       await until(async () => await evaluate("!!document.querySelector('[data-testid=data-panel] [data-testid=data-history]')"), "Data view did not reopen after configuring the fixture provider");
       await chooseHistory("All 100,000 orders");
       await typeSql(manualSql);
