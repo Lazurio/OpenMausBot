@@ -49,14 +49,6 @@ bridged only where nothing decides by a tool's own name. The decision is one
 function, `agentsToolBridgeRefusal` in `server/agents-bridge-switch.ts`, and
 its default is no bridge.
 
-**Bots.** A bot with a [tool selection](tool-selection.md) is never bridged.
-Its selection is matched against the name in the call, so it keeps the whole
-catalog, as before. This holds even if the selection is saved while a turn is
-being set up: wherever a selection is mounted in front of the agents tools,
-they are started unbridged (`server/mcp-gate-config.ts`,
-`server/drivers/chat-mcp-tools.ts`), and the gate judges a `use_tool` call by
-the tool it names as well (`server/mcp-gate.ts`).
-
 **Engines.** Only engines on which OpenMausBot pre-approves all of its own
 tools, so that no approval is ever asked for, remembered or refused by one
 tool's name, and on which everything the engine itself reads about a tool's
@@ -67,7 +59,7 @@ name can be read by OpenMausBot too:
 | Claude Code | Yes, with the exceptions below | The agents server is pre-allowed as a whole (`--allowedTools mcp__agents`, `server/drivers/claude.ts:1673`), and the settings the CLI reads for the turn are checked. |
 | API models: OpenAI-compatible, Cerebras, Grok API, Groq, Meta, MiniMax, Mistral | Yes | The chat runtime never asks for the agents server (`server/drivers/chat-mcp-tools.ts:371`) and reads no configuration of the person's about a tool. |
 | Codex | No | Codex reads a layered configuration of its own: `config.toml` under `CODEX_HOME` or `~/.codex`, a Company engine's own home under OpenMausBot's data, a trusted project's `.codex/config.toml`, `/etc/codex/config.toml` and `/etc/codex/managed_config.toml`; and it has `PreToolUse` and `PermissionRequest` hooks of its own. Any of these can take a rule about a tool by name, and this version does not examine them. |
-| Pi | No | pi is launched with `-e` for OpenMausBot's extension and nothing that keeps the person's own extensions out (`server/drivers/pi.ts`, `PI_ARGS`), in the person's home. Pi loads the extensions it finds there, and an extension's `tool_call` handler can block a call by the name it sees, as OpenMausBot's own does (`server/drivers/pi-mcp-extension.ts`). This version does not examine them. |
+| Pi | No | pi is launched with `-e` for OpenMausBot's extension and nothing that keeps the person's own extensions out (`server/drivers/pi.ts`, `PI_ARGS`), in the person's home. Pi loads the extensions it finds there, and an extension's `tool_call` handler can block a call by the name it sees. This version does not examine them. |
 | ACP agents: Grok, Kimi, Droid, Cursor, OpenCode, Qwen, Hermes, Cline, Gemini, custom | No | They keep their own permissions. "Always allow this session" hands the agent its own remembered approval ([approval levels](approval-levels.md)); given once for a harmless `use_tool` call it would cover every hidden tool. A reviewer would also lose the read-only marks the hidden reads carry, and Grok has native tools named `use_tool` and `search_tool`. |
 | Muse Code, and any engine not named above | No | Not shown to qualify. |
 

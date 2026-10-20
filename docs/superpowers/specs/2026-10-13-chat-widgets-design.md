@@ -32,7 +32,7 @@ Design reference (approved 2026-10-13): https://claude.ai/artifact/3jp8ZJ62qQCx8
 - `onChangeAction`. Field values travel with the action that is pressed; change events are dropped.
 - Raw colours, gradients and custom themes. Only tokens, so all nine skins keep working.
 - Password fields. `Input` with `inputType: "password"` is rejected; secrets go through `request_credential`.
-- Search over widget content, and a settings switch. Per-bot tool scope (`mcp:agents:show_widget`) is the off switch.
+- Search over widget content, and a settings switch.
 
 ## Wire
 
