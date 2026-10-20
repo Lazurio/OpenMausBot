@@ -92,6 +92,31 @@ describe("message-db", () => {
     expect(readThread("t2", legacy("t2")).messages).toEqual([]);
   });
 
+  it("reads an older screen message without its image, wherever it is stored (DEV-6673)", () => {
+    const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const screen = { ...msg("s1", "", { role: "bot" }), kind: "screen", png: PNG, mime: "image/png" } as unknown as Message;
+    insertMessage("t3", msg("u1", "look"));
+    insertMessage("t3", { ...screen, parentId: "u1" });
+    insertMessage("t3", msg("b1", "done", { role: "bot", parentId: "s1" }));
+    setActiveLeaf("t3", "b1");
+    writeFileSync(legacy("t4"), JSON.stringify({ activeLeafId: "s1", messages: [screen] }));
+
+    const stale = (messages: readonly Message[]) => messages.filter((m) => "png" in m || "mime" in m || JSON.stringify(m).includes(PNG));
+    const full = readThread("t3", legacy("t3"));
+    expect(full.messages.map((m) => m.id)).toEqual(["u1", "s1", "b1"]);
+    expect(full.messages[1]).toMatchObject({ id: "s1", kind: "screen", parentId: "u1" });
+    expect(stale(full.messages)).toEqual([]);
+    expect(stale(readThreadTail("t3", legacy("t3"), 2).messages)).toEqual([]);
+    expect(stale(readThread("t4", legacy("t4")).messages)).toEqual([]);
+
+    // The Store, which feeds every page, event and export of a conversation, holds no image either.
+    closeMessageDb();
+    const store = new Store(selection);
+    expect(stale(store.messagesFor("t3"))).toEqual([]);
+    expect(store.activePath("t3").map((m) => m.id)).toEqual(["u1", "s1", "b1"]);
+    expect(stale(store.messagesTail("t3", 1).messages)).toEqual([]);
+  });
+
   it("imports a pre-branching flat array file", () => {
     writeFileSync(legacy("t3"), JSON.stringify([msg("a", "one"), msg("b", "two")]));
     const imported = readThread("t3", legacy("t3"));

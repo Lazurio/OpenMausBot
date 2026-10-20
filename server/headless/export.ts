@@ -5,6 +5,7 @@ import { pipeline } from "node:stream/promises";
 import type { ReadableStream as WebReadableStream } from "node:stream/web";
 
 import { messageFileTargets } from "../message-file.ts";
+import { withoutScreenImage } from "../stale-screen-image.ts";
 import { EXIT, flag, HeadlessError, parseCount, parseSize, usageError } from "./args.ts";
 import { readJob, type HeadlessClient } from "./client.ts";
 import { resolveTarget, type VerbContext, type VerbOutcome } from "./context.ts";
@@ -87,6 +88,7 @@ function removeEarlierExport(out: string): void {
   } catch {
     return;
   }
+  // An export made while MausBot had a computer of its own also listed `screens`: they go too, though no export writes them now.
   const listed = [manifest.transcripts, manifest.files, manifest.screens].flatMap((entries) => Array.isArray(entries) ? entries as Rec[] : [])
     .map((entry) => entry?.file).filter((file): file is string => typeof file === "string");
   const written = [...listed, ...listed.filter((file) => /^transcripts[\\/].*\.json$/.test(file)).map((file) => file.replace(/\.json$/, ".md")), "job.json", "manifest.json"];
@@ -203,7 +205,8 @@ export async function exportJob(client: HeadlessClient, options: ExportOptions, 
       continue;
     }
     const all: Rec[] = Array.isArray(transcript.messages) ? transcript.messages : [];
-    const kept = all.slice(-TRANSCRIPT_MESSAGES).map((message) => typeof message.text === "string" && message.text.length > MESSAGE_TEXT_MAX
+    // A server of an older release may still send a screen message's image: the transcript never keeps it.
+    const kept = all.slice(-TRANSCRIPT_MESSAGES).map(withoutScreenImage).map((message) => typeof message.text === "string" && message.text.length > MESSAGE_TEXT_MAX
       ? { ...message, text: `${message.text.slice(0, MESSAGE_TEXT_MAX)}…` } : message);
     const redacted = redactDeep({ name: transcript.name, threadId, label, ...(all.length > kept.length ? { truncated: all.length - kept.length } : {}), messages: kept });
     writeFileSync(join(out, "transcripts", `${name}.json`), `${JSON.stringify(redacted, null, 2)}\n`, { mode: 0o600 });

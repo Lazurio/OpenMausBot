@@ -9,6 +9,7 @@ import type { ResolvedSender, SteerQueueReason } from "../shared/wire.ts";
 import type { Message } from "./store.ts";
 import type { UsageTrigger } from "./usage-ledger.ts";
 import { MessageSearchWorker } from "./message-search-worker.ts";
+import { withoutScreenImage } from "./stale-screen-image.ts";
 import { searchMessagesInDatabase, type SearchHit } from "./message-search-query.ts";
 import type { Notification, NotificationLogEntry } from "../shared/notification.ts";
 export type { SearchHit } from "./message-search-query.ts";
@@ -377,7 +378,8 @@ export function cancelledChatFollowup(kind: ChatFollowup["kind"], ownerId: strin
   ).get(kind, ownerId, threadId, sendId));
 }
 
-const rowToMessage = (row: { json: string }): Message => JSON.parse(row.json) as Message;
+// Every stored message enters the server here: an older `screen` message is read without its image (stale-screen-image.ts).
+const rowToMessage = (row: { json: string }): Message => withoutScreenImage(JSON.parse(row.json) as Message);
 
 export interface ThreadRows {
   messages: Message[];
@@ -449,7 +451,7 @@ function importLegacy(threadId: string, legacyFile: string): ThreadRows {
       chmodSync(`${legacyFile}.imported`, 0o600);
     } catch {}
   } catch {}
-  return { messages, activeLeafId };
+  return { messages: messages.map(withoutScreenImage), activeLeafId };
 }
 
 export function insertMessage(threadId: string, message: Message): void {
