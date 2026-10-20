@@ -6,21 +6,28 @@ import { describe, expect, it } from "vitest";
 
 import { lazurioAccountSite } from "../../shared/lazurio-browser";
 import {
+  announceBotBrowserTab,
   browserPanelViews,
+  closeNoticeText,
+  newTabChoiceOf,
   parseBotBrowserStrip,
+  placesOf,
   readBrowserPanelView,
   resolveBrowserPanelView,
   signInToReveal,
+  takeAnnouncedTabs,
   viewTabOfLink,
 } from "./lazurio-browser-panel";
 
 const VIEW = "https://browser.vm-01.example.lazurio.io";
 const TAB_A = "A".repeat(32);
 const TAB_B = "B".repeat(32);
+const tab = (tabId: string, extra: Record<string, unknown> = {}) => ({ tabId, view: `${VIEW}/t/${tabId}`, agent: false, alsoHeldBy: [], ...extra });
 const strip = parseBotBrowserStrip({
   available: true,
+  strip: "bot-scout",
   viewOrigin: VIEW,
-  tabs: [{ tabId: TAB_A, view: `${VIEW}/t/${TAB_A}` }],
+  tabs: [tab(TAB_A, { agent: true })],
   current: TAB_A,
 })!;
 
@@ -46,12 +53,13 @@ describe("the panel's views", () => {
 
 describe("the bot's strip from the server", () => {
   it("keeps each tab with its view on the declared origin", () => {
-    expect(strip).toEqual({ available: true, viewOrigin: VIEW, tabs: [{ tabId: TAB_A, view: `${VIEW}/t/${TAB_A}` }], current: TAB_A });
+    expect(strip).toEqual({ available: true, strip: "bot-scout", viewOrigin: VIEW, tabs: [tab(TAB_A, { agent: true })], current: TAB_A });
   });
 
   it("drops a tab whose view is on another origin or names another tab, and reads no browser plainly", () => {
     expect(parseBotBrowserStrip({
       available: true,
+      strip: "bot-scout",
       viewOrigin: VIEW,
       tabs: [
         { tabId: TAB_A, view: `https://browser.other.example.lazurio.io/t/${TAB_A}` },
@@ -59,16 +67,17 @@ describe("the bot's strip from the server", () => {
         { tabId: TAB_B, view: `https://example.com/t/${TAB_B}` },
       ],
       current: TAB_A,
-    })).toEqual({ available: true, viewOrigin: VIEW, tabs: [], current: null });
+    })).toEqual({ available: true, strip: "bot-scout", viewOrigin: VIEW, tabs: [], current: null });
+    expect(parseBotBrowserStrip({ available: true, strip: "bot.with.dots", viewOrigin: VIEW, tabs: [] })).toBeNull();
     expect(parseBotBrowserStrip({ available: false })).toEqual({ available: false });
-    expect(parseBotBrowserStrip({ available: true, viewOrigin: "https://example.com", tabs: [] })).toBeNull();
+    expect(parseBotBrowserStrip({ available: true, strip: "bot-scout", viewOrigin: "https://example.com", tabs: [] })).toBeNull();
     expect(parseBotBrowserStrip("nonsense")).toBeNull();
   });
 });
 
 describe("a link in the chat", () => {
   it("opens the panel on a tab of this Environment's view", () => {
-    expect(viewTabOfLink(`${VIEW}/t/${TAB_B.toLowerCase()}`, strip)).toEqual({ tabId: TAB_B, view: `${VIEW}/t/${TAB_B}` });
+    expect(viewTabOfLink(`${VIEW}/t/${TAB_B.toLowerCase()}`, strip)).toBe(TAB_B);
   });
 
   it("stays a link of the person's own browser for another Environment's view, any other page, or no browser", () => {
@@ -88,13 +97,18 @@ describe("a sign-in the bot asks for", () => {
   });
 
   it("opens the panel on the bot's tab, the newest card waiting for the person", () => {
-    expect(signInToReveal([card({}, "old"), { id: "text", kind: "text" }, card({ tab: TAB_B }, "new")])).toEqual({ messageId: "new", tabId: TAB_B });
+    expect(signInToReveal([card({}, "old"), { id: "text", kind: "text" }, card({ tab: TAB_B }, "new")], "scout")).toEqual({ messageId: "new", tabId: TAB_B, botId: "scout" });
+  });
+
+  it("in a room, opens the panel on the asking member's tab", () => {
+    expect(signInToReveal([{ ...card({ tab: TAB_B }, "room"), from: { botId: "writer" } }])).toEqual({ messageId: "room", tabId: TAB_B, botId: "writer" });
+    expect(signInToReveal([card({ tab: TAB_B }, "nobody")])).toBeNull();
   });
 
   it("opens nothing for a settled card, one without the bot's tab, on the host computer, or with a Lazurio account", () => {
     for (const signIn of [{ done: true }, { cancelled: true }, { superseded: true }, { stopped: true }, { tab: undefined }, { place: "local" },
       { url: "https://auth.lazurio.io/sign-in", site: "auth.lazurio.io" }]) {
-      expect(signInToReveal([card(signIn)]), JSON.stringify(signIn)).toBeNull();
+      expect(signInToReveal([card(signIn)], "scout"), JSON.stringify(signIn)).toBeNull();
     }
   });
 
@@ -105,6 +119,43 @@ describe("a sign-in the bot asks for", () => {
     expect(lazurioAccountSite("https://notlazurio.io/")).toBe(false);
     expect(lazurioAccountSite("https://lazurio.io.example.com/")).toBe(false);
     expect(lazurioAccountSite("not a url")).toBe(false);
+  });
+});
+
+describe("Nová karta", () => {
+  it("becomes a tab of this Environment's view, held by the bot, or the bot's files", () => {
+    expect(newTabChoiceOf({ kind: "page", tab: TAB_B, view: `${VIEW}/t/${TAB_B}` }, strip)).toEqual({ kind: "tab", tabId: TAB_B });
+    expect(newTabChoiceOf({ kind: "tab", tab: TAB_B, view: `${VIEW}/t/${TAB_B}` }, strip)).toEqual({ kind: "tab", tabId: TAB_B });
+    expect(newTabChoiceOf({ kind: "tool", id: "files" }, strip)).toEqual({ kind: "view", view: "files" });
+  });
+
+  it("takes nothing of another Environment's view, a view of another tab, an unknown tool or without a browser", () => {
+    expect(newTabChoiceOf({ kind: "page", tab: TAB_B, view: `https://browser.other.example.lazurio.io/t/${TAB_B}` }, strip)).toBeNull();
+    expect(newTabChoiceOf({ kind: "page", tab: TAB_B, view: `${VIEW}/t/${TAB_A}` }, strip)).toBeNull();
+    expect(newTabChoiceOf({ kind: "tool", id: "terminal" }, strip)).toBeNull();
+    expect(newTabChoiceOf({ kind: "page", tab: TAB_B, view: `${VIEW}/t/${TAB_B}` }, { available: false })).toBeNull();
+  });
+});
+
+describe("× on a strip tab", () => {
+  it("says what becomes of the tab, as T3 Code's strip does, with the person's words", () => {
+    expect(closeNoticeText(tab(TAB_A), true))
+      .toEqual({ title: "Karta zmizela z lišty tohoto bota.", description: "Zavře se v Prostředí." });
+    expect(closeNoticeText(tab(TAB_A, { agent: true }), true).description).toBe("Pracuje v ní bot, takže zůstává otevřená.");
+    expect(closeNoticeText(tab(TAB_A, { alsoHeldBy: [{ strip: "launchpad", label: "Apps" }, { strip: "t3-x", label: "Rešerše" }] }), true).description)
+      .toBe("Dál je v Apps a ve vlákně „Rešerše“.");
+    expect(closeNoticeText(tab(TAB_A), false)).toEqual({ title: "The tab left this bot's strip.", description: "It closes in the Environment." });
+    expect(placesOf([{ strip: "bot-writer", label: "Writer" }], false)).toBe("with the bot “Writer”");
+  });
+});
+
+describe("a tab the bot's session newly opened", () => {
+  it("is taken once, by a chat that shows that bot", () => {
+    announceBotBrowserTab("scout", TAB_A);
+    announceBotBrowserTab("writer", TAB_B);
+    expect(takeAnnouncedTabs(new Set(["other"]))).toEqual([]);
+    expect(takeAnnouncedTabs(new Set(["scout", "writer"])).map(({ botId, tabId }) => [botId, tabId])).toEqual([["scout", TAB_A], ["writer", TAB_B]]);
+    expect(takeAnnouncedTabs(new Set(["scout", "writer"]))).toEqual([]);
   });
 });
 
@@ -121,6 +172,7 @@ describe("upstream's Computer panel", () => {
 
   it("is replaced in the app by the browser panel, whose button the bot's header shows in every mode", () => {
     expect(source("src/App.tsx")).toContain("<LazurioBrowserPanel ");
+    expect(source("src/components/GroupView.tsx")).toContain("useLazurioBrowserPanel(group.memberIds, group.messages);");
     expect(source("src/App.tsx")).not.toMatch(/ComputerPanel|RemoteDesktopPanel/);
     expect(source("src/components/lazy-screens.tsx")).not.toMatch(/ComputerPanel|RemoteDesktopPanel/);
     expect(source("src/components/ChatView.tsx")).toMatch(/^ {10}<LazurioBrowserButton open=\{state\.computerOpen\} \/>$/m);

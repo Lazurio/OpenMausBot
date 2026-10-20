@@ -90,6 +90,7 @@ import { roomSpeakerIds, roomThreadSpeakerId, roomThreadWorking } from "@/lib/ro
 import { RoomQueueList, RoutedByLine, roomMemberQueueTitle } from "./RoomQueueList";
 import { JumpToLatestButton } from "./JumpToLatestButton";
 import { Select } from "./Select";
+import { useLazurioBrowserPanel } from "./LazurioBrowser";
 
 export function RoomToolChip({ message, roomId }: { message: Message; roomId?: string }) {
   const { state, dispatch } = useStore();
@@ -1148,6 +1149,7 @@ export function GroupView({ group }: { group: Group }) {
     () => group.memberIds.map((id) => state.bots.find((b) => b.id === id)).filter((b): b is Bot => Boolean(b)),
     [group.memberIds, state.bots],
   );
+  useLazurioBrowserPanel(group.memberIds, group.messages);
   const speaker = members.find((b) => b.id === group.busyBotId);
   const threadWorking = roomThreadWorking(group, group.threadId);
   const speakersElsewhere = new Set(roomSpeakerIds(group).filter((id) => id !== group.busyBotId));

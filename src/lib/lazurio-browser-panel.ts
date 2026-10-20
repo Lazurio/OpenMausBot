@@ -1,12 +1,13 @@
-// Lazurio overlay (DEV-6673; root decision 0191 points 13, 34 and 36–43): the state of MausBot's
-// right panel, Prohlížeč, which shows a bot's tabs in the Environment browser through the
-// Platform's view, as a T3 Code thread's right panel does. The server's answer
-// (`GET /api/bots/<bot>/browser`) is the one truth about the strip; this module only keeps the
-// last answer per bot, the tab a link or a sign-in asked the panel to show, and the panel's views.
+// Lazurio overlay (DEV-6673; root decision 0191 points 13, 34 and 36–43, 0195 points 13–15): the
+// state of MausBot's right panel, Prohlížeč, which shows a bot's tabs in the Environment browser
+// through the Platform's view, as a T3 Code thread's right panel does. The server's answer
+// (`GET /api/bots/<bot>/browser`) is the one truth about the strip; this module keeps the last
+// answer per bot, the person's holds and releases on their way, the tab a link, a sign-in or the
+// bot's new window asked the panel to show, and the panel's views and words.
 import { useSyncExternalStore } from "react";
 
-import { viewAddressOf } from "../../lazurio/browser-contract/pure.js";
-import type { BotBrowserStrip, BotBrowserTab } from "../../shared/lazurio-browser";
+import { isStrip, newTabViewOf, parseNewTabChoice, viewAddressOf } from "../../lazurio/browser-contract/pure.js";
+import type { BotBrowserHolder, BotBrowserStrip, BotBrowserTab } from "../../shared/lazurio-browser";
 import { lazurioAccountSite } from "../../shared/lazurio-browser";
 import type { SignInRequestCardData } from "../../shared/wire";
 
@@ -46,31 +47,54 @@ export function writeBrowserPanelView(botId: string, view: BrowserPanelView, sto
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+function holdersOf(value: unknown): BotBrowserHolder[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((holder) => isRecord(holder) && typeof holder.strip === "string" && typeof holder.label === "string"
+    ? [{ strip: holder.strip, label: holder.label }] : []);
+}
+
 /** A tab whose view is a view address of `viewOrigin` naming exactly that tab, or null. */
 function tabOf(value: unknown, viewOrigin: string): BotBrowserTab | null {
   if (!isRecord(value) || typeof value.tabId !== "string") return null;
   const address = viewAddressOf(value.view);
-  return address && address.origin === viewOrigin && address.tab === value.tabId ? { tabId: address.tab, view: address.view } : null;
+  if (!address || address.origin !== viewOrigin || address.tab !== value.tabId) return null;
+  return { tabId: address.tab, view: address.view, agent: value.agent === true, alsoHeldBy: holdersOf(value.alsoHeldBy) };
 }
 
 /** The server's answer as the panel reads it; null for anything else. Only views of the declared origin count. */
 export function parseBotBrowserStrip(value: unknown): BotBrowserStrip | null {
   if (!isRecord(value)) return null;
   if (value.available === false) return { available: false };
-  if (value.available !== true || typeof value.viewOrigin !== "string" || !Array.isArray(value.tabs)) return null;
+  if (value.available !== true || typeof value.viewOrigin !== "string" || !Array.isArray(value.tabs) || !isStrip(value.strip)) return null;
   const origin = viewAddressOf(value.viewOrigin);
   if (!origin || origin.tab !== null) return null;
   const tabs = value.tabs.map((tab) => tabOf(tab, origin.origin)).filter((tab): tab is BotBrowserTab => tab !== null);
   const current = typeof value.current === "string" && tabs.some((tab) => tab.tabId === value.current) ? value.current : null;
-  return { available: true, viewOrigin: origin.origin, tabs, current };
+  return { available: true, strip: value.strip, viewOrigin: origin.origin, tabs, current };
 }
 
 /** The tab of this Environment's view a link opens, or null: another Environment's view, any other page, and a
  * Lazurio account page open in the person's own browser as they always did (0191 points 37 and 38). */
-export function viewTabOfLink(href: string, strip: BotBrowserStrip | undefined): BotBrowserTab | null {
+export function viewTabOfLink(href: string, strip: BotBrowserStrip | undefined): string | null {
   if (!strip?.available) return null;
   const address = viewAddressOf(href);
-  return address && address.origin === strip.viewOrigin && address.tab !== null ? { tabId: address.tab, view: address.view } : null;
+  return address && address.origin === strip.viewOrigin && address.tab !== null ? address.tab : null;
+}
+
+/** Whether the strip holds the tab. */
+export function stripHolds(strip: BotBrowserStrip | undefined, tabId: string): boolean {
+  return strip?.available === true && strip.tabs.some((tab) => tab.tabId === tabId);
+}
+
+/** What Nová karta became, as the panel takes it: a tab of this Environment's view (a page it opened or one chosen
+ * in Přehled), or one of the panel's own views; null for anything else. */
+export function newTabChoiceOf(detail: unknown, strip: BotBrowserStrip | undefined):
+  { kind: "tab"; tabId: string } | { kind: "view"; view: BrowserPanelView } | null {
+  const choice = parseNewTabChoice(detail);
+  if (!choice) return null;
+  if (choice.kind === "tool") return choice.id === "files" ? { kind: "view", view: "files" } : null;
+  if (!strip?.available || newTabViewOf(choice.view, choice.tab) === null) return null;
+  return viewAddressOf(choice.view)?.origin === strip.viewOrigin ? { kind: "tab", tabId: choice.tab } : null;
 }
 
 /** The view of `tabId` in this strip's Environment. */
@@ -78,21 +102,50 @@ export function viewOfTab(strip: Extract<BotBrowserStrip, { available: true }>, 
   return strip.tabs.find((tab) => tab.tabId === tabId)?.view ?? `${strip.viewOrigin}/t/${tabId}`;
 }
 
-/** The sign-in card that should open the panel on the bot's tab: the newest one still waiting for the person, in
+type SignInMessage = { id: string; kind?: string; signIn?: SignInRequestCardData; from?: { botId?: string } };
+
+/** The sign-in card that should open the panel on a bot's tab: the newest one still waiting for the person, in
  * the Environment browser, with the bot's tab, which is no Lazurio account (that one opens in the person's own
- * browser). Null when there is none. */
+ * browser). In a room the asking bot is the card's sender. Null when there is none. */
 export function signInToReveal(
-  messages: ReadonlyArray<{ id: string; kind?: string; signIn?: SignInRequestCardData }>,
-): { messageId: string; tabId: string } | null {
+  messages: ReadonlyArray<SignInMessage>,
+  chatBotId?: string,
+): { messageId: string; tabId: string; botId: string } | null {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]!;
     const card = message.signIn;
     if (message.kind !== "signin" || !card) continue;
     if (card.done || card.cancelled || card.superseded || card.stopped) continue;
     if (card.place !== "browser" || !card.tab || lazurioAccountSite(card.url)) continue;
-    return { messageId: message.id, tabId: card.tab };
+    const botId = message.from?.botId ?? chatBotId;
+    if (!botId) continue;
+    return { messageId: message.id, tabId: card.tab, botId };
   }
   return null;
+}
+
+/** Where else a tab is: in Apps, in a T3 Code thread, with another bot, or another strip's label. */
+export function placesOf(holders: ReadonlyArray<BotBrowserHolder>, czech: boolean): string {
+  const places = holders.map((holder) =>
+    holder.strip === "launchpad" ? (czech ? "v Apps" : "in Apps")
+      : holder.strip.startsWith("t3-") ? (czech ? `ve vlákně „${holder.label}“` : `in the thread “${holder.label}”`)
+        : holder.strip.startsWith("bot-") ? (czech ? `u bota „${holder.label}“` : `with the bot “${holder.label}”`)
+          : holder.label || holder.strip);
+  const last = places.at(-1) ?? "";
+  if (places.length < 2) return last;
+  return `${places.slice(0, -1).join(", ")} ${czech ? "a" : "and"} ${last}`;
+}
+
+/** What becomes of a tab × let go of, said from the last strip, as T3 Code's strip says it. */
+export function closeNoticeText(tab: BotBrowserTab | undefined, czech: boolean): { title: string; description: string } {
+  return {
+    title: czech ? "Karta zmizela z lišty tohoto bota." : "The tab left this bot's strip.",
+    description: tab?.agent
+      ? czech ? "Pracuje v ní bot, takže zůstává otevřená." : "The bot works in it, so it stays open."
+      : tab && tab.alsoHeldBy.length > 0
+        ? czech ? `Dál je ${placesOf(tab.alsoHeldBy, true)}.` : `It stays ${placesOf(tab.alsoHeldBy, false)}.`
+        : czech ? "Zavře se v Prostředí." : "It closes in the Environment.",
+  };
 }
 
 export interface BrowserTabRequest {
@@ -103,11 +156,15 @@ export interface BrowserTabRequest {
 
 interface PanelState {
   strips: ReadonlyMap<string, BotBrowserStrip>;
-  /** The tab a link or a sign-in asked the panel to show, per bot, until the panel takes it. */
+  /** The tab a link, a sign-in or the bot's new window asked the panel to show, per bot, until the panel takes it. */
   requests: ReadonlyMap<string, BrowserTabRequest>;
+  /** The bot whose panel a request opened last: in a room, the panel shows that member's tabs. */
+  panelBotId: string | null;
+  /** Tabs the bot's session newly bound (the server's `lazurio-browser-tab` event), not yet taken by a chat. */
+  announced: ReadonlyArray<{ botId: string; tabId: string; nonce: number }>;
 }
 
-let state: PanelState = { strips: new Map(), requests: new Map() };
+let state: PanelState = { strips: new Map(), requests: new Map(), panelBotId: null, announced: [] };
 let nonce = 0;
 const listeners = new Set<() => void>();
 const change = (next: PanelState) => {
@@ -128,7 +185,25 @@ export function rememberBotBrowserStrip(botId: string, strip: BotBrowserStrip): 
 /** Asks the bot's panel to show `tabId`; the caller opens the panel. */
 export function requestBrowserTab(botId: string, tabId: string): void {
   nonce += 1;
-  change({ ...state, requests: new Map(state.requests).set(botId, { tabId, nonce }) });
+  change({ ...state, requests: new Map(state.requests).set(botId, { tabId, nonce }), panelBotId: botId });
+}
+
+/** The server said the bot's session newly bound a tab: a chat that shows the bot opens its panel on it. */
+export function announceBotBrowserTab(botId: string, tabId: string): void {
+  nonce += 1;
+  change({ ...state, announced: [...state.announced, { botId, tabId, nonce }].slice(-16) });
+}
+
+/** The announcements for these bots, taken: each opens a panel at most once. */
+export function takeAnnouncedTabs(botIds: ReadonlySet<string>): Array<{ botId: string; tabId: string }> {
+  const taken = state.announced.filter((entry) => botIds.has(entry.botId));
+  if (!taken.length) return [];
+  change({ ...state, announced: state.announced.filter((entry) => !botIds.has(entry.botId)) });
+  return taken;
+}
+
+export function useAnnouncedTabs(): PanelState["announced"] {
+  return useSyncExternalStore(subscribe, () => state.announced, () => state.announced);
 }
 
 export function useBotBrowserStrip(botId: string): BotBrowserStrip | undefined {
@@ -138,6 +213,11 @@ export function useBotBrowserStrip(botId: string): BotBrowserStrip | undefined {
 /** The request the bot's panel has not taken yet. */
 export function useBrowserTabRequest(botId: string): BrowserTabRequest | undefined {
   return useSyncExternalStore(subscribe, () => state.requests.get(botId), () => state.requests.get(botId));
+}
+
+/** The bot whose panel a link, a sign-in or a new window opened last. */
+export function useBrowserPanelBotId(): string | null {
+  return useSyncExternalStore(subscribe, () => state.panelBotId, () => state.panelBotId);
 }
 
 /** The panel took the request: a later opening of the panel starts where the person left it. */
@@ -152,8 +232,20 @@ export function botBrowserStrip(botId: string): BotBrowserStrip | undefined {
   return state.strips.get(botId);
 }
 
-export async function fetchBotBrowserStrip(botId: string, api: (path: string) => Promise<unknown>): Promise<BotBrowserStrip | null> {
+type Api = (path: string, init?: RequestInit) => Promise<unknown>;
+
+export async function fetchBotBrowserStrip(botId: string, api: Api): Promise<BotBrowserStrip | null> {
   const strip = parseBotBrowserStrip(await api(`/api/bots/${encodeURIComponent(botId)}/browser`));
+  if (strip) rememberBotBrowserStrip(botId, strip);
+  return strip;
+}
+
+/** The person holds (`hold`) or lets go of (`release`) a tab of the bot's strip; resolves with the strip after. */
+export async function changeBotTab(botId: string, tabId: string, action: "hold" | "release", api: Api): Promise<BotBrowserStrip | null> {
+  const strip = parseBotBrowserStrip(await api(`/api/bots/${encodeURIComponent(botId)}/browser/${action}`, {
+    method: "POST",
+    body: JSON.stringify({ tabId }),
+  }));
   if (strip) rememberBotBrowserStrip(botId, strip);
   return strip;
 }
