@@ -86,11 +86,7 @@ entry:
   instances can hold different keys without colliding.
 - The driver lists the endpoint's `/models` when it can and keeps your
   `model` as a custom option either way.
-- OpenAI-compatible instances support structured tools and image input. With a
-  model that accepts both, the harness can mount the approved host, Local VM,
-  The existing platform, computer-selection and approval checks still apply.
-  Boat turns retain the selected API model in direct chats, rooms and cloud
-  routines, as they do for every engine with computer tools.
+- OpenAI-compatible instances support structured tools and image input.
 - Set `config.tools` to `false` for a model without tool support. Image support
   also depends on the chosen model; the driver cannot add vision to a text-only
   model. See [tool verification](verification/openai-tools.md) for scope and tests.

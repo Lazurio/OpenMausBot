@@ -414,8 +414,8 @@ Server menu to switch back until the server is updated.
 After pairing, **Share this computer?** offers **Choose access** or **Not now**.
 Nothing is shared automatically. In **Settings → Servers → Computer
 access**, choose read-only folders and optionally allow edits. Unrestricted
-terminal and screen/app control are separate opt-ins, confirmed in a native
-dialog. They can access information outside the selected folders. Share only
+terminal access is a separate opt-in, confirmed in a native dialog. It can
+access information outside the selected folders. Share only
 with a workspace you trust; its bots and AI providers may receive shared content.
 A folder read takes a file of up to 2 MiB and a write at most 256 KiB;
 transfers do not follow links or delete files. Local screen control also needs OS permissions and a supported
@@ -785,8 +785,8 @@ its own, listed and revocable with `openmausbot sessions`. What it may do is
 the code's scope: a code from `openmausbot pair` carries `admin` and the app
 shows everything; a code from `openmausbot pair --client` (also what the
 guided phone setup mints) can chat, approve and read, and the app hides
-creating bots and sections, changing models, generating avatars, connecting
-apps and cloud desktops — those stay with the owner. A server reinstalled at
+creating bots and sections, changing models, generating avatars and connecting
+apps — those stay with the owner. A server reinstalled at
 the same address has a new identity; the app then asks to pair again rather
 than present the old session to it.
 

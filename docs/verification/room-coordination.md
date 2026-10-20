@@ -123,10 +123,7 @@ credential, a connection, a team-setup decision, a sign-in) parks that
 member's root and no other member's; the room keeps accepting messages while
 it waits; the person's act on the card runs the member again with the lane's
 line, as in a direct chat. Stop in the room settles a parked member's cards as
-stopped: a card completed afterwards saves its facts and starts nothing. The
-computer wait ceiling queues the member's root to continue when the seat
-frees, as it does a direct root ([computer-wait](computer-wait.md)); a goal
-step parked that way is routed around by its run and never run a second time.
+stopped: a card completed afterwards saves its facts and starts nothing.
 A restart reruns a member's cut turn once in place (the room shows "Resuming
 after a restart" from the member and no interrupted line), never one that
 already acted outward, and never a goal step whose run ended with the restart.

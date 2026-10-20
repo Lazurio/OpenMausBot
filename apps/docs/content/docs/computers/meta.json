@@ -1,4 +1,5 @@
 {
   "title": "Computers",
   "icon": "Monitor",
+  "pages": ["index"]
 }

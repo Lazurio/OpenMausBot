@@ -37,6 +37,7 @@ codebase already enforces; a task that violates one is wrong even if its tests p
   (`server/redact.ts`) before it reaches disk.
 - **The capability rule.** Never offer a control, tool, or attachment a driver
   cannot actually mount. `ProviderAdapter.capabilities` exists for this — see
+  `agentsMcp`, `images` in `server/contracts.ts`.
   A new integration means a new capability flag, and the UI reads the flag.
 - **Unknown config round-trips.** A config written by a newer build must load in an
   older one and degrade to "unavailable" rather than throwing. `InstanceConfig.driver`

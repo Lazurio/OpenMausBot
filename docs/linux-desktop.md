@@ -9,22 +9,9 @@ installed builds do not require Node, pnpm, Swift, or a terminal at runtime.
 - Local Claude, Codex, Grok, Gemini, and other configured agent CLIs.
 - Chat, streaming turns, approvals, bot-to-bot communication, and local data storage.
 - External documentation and OAuth links in the default browser.
-- An explicit, view-only local screen preview on GNOME Xorg and GNOME Wayland. The Wayland path uses the
-  native portal chooser and keeps the selected PipeWire stream open until the user stops sharing.
-- Explicit opt-in local computer control on GNOME Xorg using the bundled, pinned Cua Driver without its
-  decorative full-screen cursor overlay.
-- A fail-closed local-control state on GNOME Wayland while its separate real-seat input-safety gate in issue #345
-  is resolved.
 
-The local preview does **not** give the bot control of this computer by itself. On Xorg, local control requires both
-the global **Enable local control** choice and assigning a bot to **This computer**; every action still enters the
-approval flow. On Wayland, local control is disabled and legacy opt-ins are cleared automatically. Automatic Wayland
-helper installation, Linux dictation, and ARM64 remain unavailable and fail closed; follow their
-progress in [issue #29](https://github.com/milind-soni/OpenMausBot/issues/29) and the safety hold in
-[issue #345](https://github.com/milind-soni/OpenMausBot/issues/345). Bundled
-CUA supply-chain work is tracked in [issue #113](https://github.com/milind-soni/OpenMausBot/issues/113). Xorg is tracked in
-[issue #79](https://github.com/milind-soni/OpenMausBot/issues/79), and guarded GNOME/Wayland support in
-[issue #109](https://github.com/milind-soni/OpenMausBot/issues/109).
+Linux dictation and ARM64 remain unavailable and fail closed; follow their progress in
+[issue #29](https://github.com/milind-soni/OpenMausBot/issues/29).
 
 ## Download packages
 
@@ -150,19 +137,12 @@ The shell and chat work in both GNOME session types.
 pnpm typecheck
 pnpm test
 pnpm check:electron
-pnpm build:cua:linux          # networked, checksum-pinned staging
-dbus-run-session -- xvfb-run -a pnpm smoke:cua-x11-input
-pnpm package:linux:offline    # CUA staging is offline; builder caches must already be available
+pnpm package:linux
 node scripts/verify-linux-package.mjs
-pnpm smoke:linux-package
 ```
 
-The verifier checks `.deb` metadata, desktop identity, the exact dormant Cua resource tree and provenance,
-SquashFS/DEB directory modes, runtime path policy, and matching binary hashes across all artifacts. The local smoke
-launches the unpacked app and AppImage without `--no-sandbox`; CI first reproduces a `0.1.7` in-place DEB upgrade and
-then runs the same smoke against `/opt/OpenMausBot/openmausbot`. These lanes prove the embedded server and UI are
-no Cua executable starts on Xorg or simulated Wayland. Low-level runtime tests retain the future private-daemon
-contract without activating it in a packaged app. Only a real-seat acceptance matrix can authorize re-enablement.
+The verifier checks `.deb` metadata, desktop identity, SquashFS/DEB directory modes, runtime path policy, and
+matching binary hashes across all artifacts.
 
 ## Troubleshooting
 
@@ -171,23 +151,6 @@ contract without activating it in a packaged app. Only a real-seat acceptance ma
 Run the CLI directly in a terminal, finish its sign-in flow, then restart OpenMausBot. If it lives outside the
 common directories above, use `OMB_EXTRA_PATH` while testing and report the install location so it can be
 considered for automatic discovery.
-
-### A bot needs computer tools
-
-Choose **Cloud** (Boat) and add a Boat token in App Settings, or use Local VM. Linux **This computer** remains disabled
-on Wayland. On Xorg, enable it from the **Local control** card first.
-
-### Local control is not ready
-
-On Xorg, press **Try again** and use the reason shown in the card. The bundled package requires no manual driver
-installation or `chmod`; an upgraded DEB repairs its exact package-owned directory modes automatically. On Wayland,
-the card directs you to Ubuntu on Xorg and intentionally offers no enable button.
-
-### Screen preview does not start
-
-On Xorg, confirm the session has an active display with `echo "$XDG_SESSION_TYPE"`; it should print `x11`.
-On Wayland, confirm `xdg-desktop-portal` and the GNOME portal backend are running, then click **Try again** to
-open a new chooser. Cancelling or stopping sharing never causes an automatic second prompt.
 
 ### The AppImage does not start
 

@@ -164,12 +164,11 @@ openmausbot export --thread 3f2a… --out ./rehearsal --root ROOT_ID
 | `job.json` | The job tree: every piece of work, who did it, how it ended and what it said |
 | `transcripts/` | Every conversation of the job, as `.json` and `.md`, secrets removed, at most 2,000 messages each |
 | `files/` | The files the replies link to or attach (a report, screenshots), per conversation |
-| `screens/` | Screen captures the server kept |
 
 Each file is fetched under its own reply's permission, exactly as the app
 opens a link; a link to something outside that conversation's folders is
 skipped and listed in `manifest.json`. A reply that links a folder brings the
-files directly in it. Limits: `--max-files 200`, `--max-screens 100`,
+files directly in it. Limits: `--max-files 200`,
 `--max-bytes 500MB` (counted on what is written, so a file that runs past it
 is skipped). A folder with files in it is refused unless `--force`, which
 replaces what an earlier export wrote there: the files its `manifest.json`
@@ -183,8 +182,7 @@ openmausbot events --job 3f2a… --until-settled > events.jsonl
 
 One JSON line per event: messages as they are written and changed, threads,
 bots and rooms. `--kind` names the kinds to print instead of those
-(`--kind message,runtime` is messages and token-level events); `--screens`
-adds live screen frames. `--thread ID` (repeatable) keeps one conversation's
+(`--kind message,runtime` is messages and token-level events). `--thread ID` (repeatable) keeps one conversation's
 events; `--job ID` follows every conversation of that job as it grows, and
 `--until-settled` ends when the job does, with its exit code. After a dropped
 connection it resumes from where it was; the server's first line says whether

@@ -71,8 +71,7 @@ already have:
   custom CLI binary (a versioned build or wrapper) in **Settings → Engines**.
 - **Local first.** One small harness server on `127.0.0.1` owns every agent process. Transcripts, keys, and
   events live in `~/.openmausbot`, not a cloud.
-  available on macOS and Ubuntu Xorg after explicit opt-in. Ubuntu Wayland host control remains disabled while
-  issue #345 is resolved.
+- **Agents with hands.** Each bot works on this computer: its shell and files, plus any CLI tool installed on it.
 
 ## The open-source alternative to Grok Bot, Muse, dots and Cue
 
@@ -109,12 +108,10 @@ providers dimmed with the reason. Switch a bot's model mid-conversation.
 </td>
 <td width="50%" valign="top">
 
-### 🖥️ Every bot gets a computer
+### 🖥️ Bots work on this computer
 
-Open the Computer panel and the bot's cloud desktop spins up on its own — live screen preview while it
-works, "Open desktop" to take over in your browser, or point the bot at *this Mac* instead.
-
-<img src="docs/screenshots/computer-panel.png" alt="Computer panel with live screen preview" width="100%">
+Each bot works through the shell and files of the computer running OpenMausBot. On a Lazurio Environment it
+also works in the Environment browser, in tabs of its own that you see and use in the right panel.
 
 </td>
 </tr>
@@ -124,7 +121,7 @@ works, "Open desktop" to take over in your browser, or point the bot at *this Ma
 ### 🙋 Bots ask before they act
 
 Shell commands, file edits, and questions surface as inline cards — Allow / Deny / answer in chat. A
-permission broker turns every risky action into a decision you make, for cloud and local computers alike.
+permission broker turns every risky action into a decision you make.
 
 <img src="docs/screenshots/approval-card.png" alt="Approval and question cards in chat" width="100%">
 
@@ -211,7 +208,7 @@ This adds speech synthesis to the existing call flow; microphone transcription r
 
 **Also in the box:** streaming replies with tool-run activity chips · native macOS dictation from the
 composer mic (on-device Apple speech recognition — desktop app) · SupaMaus cursor mascots with role-aware
-expressions · screenshots of the bot's work folded into the transcript.
+expressions.
 
 ## Powered By
 
@@ -224,7 +221,6 @@ expressions · screenshots of the bot's work folded into the transcript.
 ![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)
 ![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-0F172A?logo=tailwindcss&logoColor=38BDF8)
-![Cua](https://img.shields.io/badge/Cua%20Driver-1f2937)
 ![ElevenLabs](https://img.shields.io/badge/ElevenLabs-000000?logo=elevenlabs&logoColor=white)
 ![Fish Audio](https://img.shields.io/badge/Fish%20Audio-2563eb)
 ![GitHub Sponsors](https://img.shields.io/badge/GitHub%20Sponsors-ea4aaa)
@@ -236,7 +232,6 @@ expressions · screenshots of the bot's work folded into the transcript.
 | **Claude · Codex · Grok** | The agents behind every bot, run through their local CLIs |
 | **Electron** | Desktop shells for macOS, Windows, and Ubuntu |
 | **React + Vite + Tailwind CSS** | The chat app UI and its build |
-| **Cua Driver** | Native computer use on your own machine |
 | **ElevenLabs · Fish Audio** | Hosted voices for bots that talk back |
 | **GitHub Sponsors** | One-time and monthly project support |
 
@@ -249,7 +244,7 @@ protocol into one canonical runtime event stream (logged per-thread as NDJSON).
 ```mermaid
 flowchart LR
     subgraph app ["App — React + Tailwind (5199)"]
-        UI[Chat UI · model picker · computer panel]
+        UI[Chat UI · model picker]
     end
     subgraph server ["Harness server (127.0.0.1:8799)"]
         REG[Driver registry] --> BUS[Event bus → SSE]
@@ -332,7 +327,7 @@ Package the desktop application:
 ```sh
 pnpm package:mac      # macOS: DMG + ZIP; requires Swift/Xcode tools
 pnpm package:win      # Windows: installer + ZIP
-pnpm package:linux    # Ubuntu x64: .deb + AppImage + verified CUA runtime
+pnpm package:linux    # Ubuntu x64: .deb + AppImage
 ```
 
 ### Desktop capability status
@@ -340,21 +335,10 @@ pnpm package:linux    # Ubuntu x64: .deb + AppImage + verified CUA runtime
 | Capability | macOS | Ubuntu 24.04 Xorg | Ubuntu 24.04 Wayland |
 |---|---|---|---|
 | Packaged app, embedded harness, local agent CLIs | Supported | Beta | Beta |
-| Explicit preview-only local screen capture | Supported | Beta | Beta |
-| Bot control of this computer | Supported | Beta, explicit opt-in | Disabled: Wayland safety gate |
 | Native on-device dictation | Supported | Planned | Planned |
 
-The Linux preview is user-initiated and never enables local bot control or Auto routing. On Xorg, the reviewed Cua
-Driver 0.19.3 runtime starts only after explicit opt-in and without its full-screen cursor overlay. On Wayland the
-issues [#29](https://github.com/milind-soni/OpenMausBot/issues/29),
-[#345](https://github.com/milind-soni/OpenMausBot/issues/345), and
-[#113](https://github.com/milind-soni/OpenMausBot/issues/113).
-
-The Linux packager downloads only the tag-pinned upstream archive during the build, verifies its size, SHA-256,
-complete member allowlist, and inner executable hashes, then packages only the CLI and cursor-theme sidecar. The
-installed app never downloads or self-updates native automation code. Cua's MIT notice, Inter's SIL OFL, a generated
-third-party license report, and a CycloneDX inventory ship with the runtime. See
-[`third_party/cua-driver/`](third_party/cua-driver/) for the reviewed provenance record.
+Linux dictation is planned; see the [Ubuntu Desktop guide](docs/linux-desktop.md) and tracking
+issue [#29](https://github.com/milind-soni/OpenMausBot/issues/29).
 
 These credentials are optional — local chat works without them. Paste a key once in **App Settings** (gear
 in the sidebar footer) when you want to enable its integration:
