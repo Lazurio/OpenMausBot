@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { denyReason, isBrowserControlAccess, isCloudDesktopAccess, isCompanionNotice } from "../src/routes.ts";
+import { denyReason, isBrowserControlAccess, isCompanionNotice } from "../src/routes.ts";
 
 const ask = (method: string, path: string, authenticated = true) =>
   denyReason({ method, path, authenticated });
@@ -69,13 +69,7 @@ describe("what the app may do", () => {
     ["PATCH", "/api/bots/bot_123/profile"],
     ["PATCH", "/api/bots/bot_123/model"],
     ["POST", "/api/bots/bot_123/avatar/generate"],
-    ["POST", "/api/bots/bot_123/computer/join"],
     ["POST", "/api/bots/bot_123/secret-cards/message_1/provide"],
-    ["POST", "/api/bots/bot_123/computer/control"],
-    ["POST", "/api/bots/bot_123/computer/screenshot"],
-    ["POST", "/api/bots/bot_123/computer/viewer-close"],
-    ["POST", "/api/bots/bot_123/local-computer/screenshot"],
-    ["POST", "/api/bots/bot_123/local-computer/join"],
     ["POST", "/api/groups/room-1/messages"],
     ["POST", "/api/groups/room-1/interrupt"],
     ["DELETE", "/api/groups/room-1/queue/queue_1"],
@@ -86,7 +80,6 @@ describe("what the app may do", () => {
     ["PATCH", "/api/groups/room-1/tasks/th_1"],
     ["DELETE", "/api/groups/room-1/tasks/th_1"],
     ["GET", "/api/threads/th_1/messages"],
-    ["GET", "/api/threads/th_1/messages/msg_2/image"],
     ["GET", "/api/threads/th_1/messages/msg_2/app"],
     ["POST", "/api/bots/bot_123/apps/msg_2/rpc"],
     ["POST", "/api/bots/bot_123/apps/msg_2/context"],
@@ -137,7 +130,6 @@ describe("what it may not", () => {
       ["PATCH", "/api/config"],
       ["GET", "/api/devices"],
       ["GET", "/api/companion"],
-      ["POST", "/api/local-computer/start"],
       ["POST", "/api/webhooks"],
       ["POST", "/api/webhooks/wh_1/rotate"],
       ["POST", "/api/teams/import"],
@@ -198,35 +190,11 @@ describe("what it may not", () => {
     expect(ask("GET", "/index.html")?.status).toBe(404);
   });
 
-  it("opens and previews only an explicitly granted cloud viewer", () => {
-    expect(allowed("POST", "/api/bots/bot_123/computer/join")).toBe(true);
-    expect(allowed("POST", "/api/bots/bot_123/computer/control")).toBe(true);
-    expect(allowed("POST", "/api/bots/bot_123/computer/screenshot")).toBe(true);
-    expect(allowed("POST", "/api/bots/bot_123/computer/viewer-close")).toBe(true);
-    expect(allowed("GET", "/api/bots/bot_123/computer")).toBe(false);
-    expect(allowed("GET", "/api/bots/bot_123/computer/control")).toBe(false);
-    expect(allowed("GET", "/api/bots/bot_123/computer/viewer-close")).toBe(false);
-    expect(allowed("POST", "/api/bots/bot_123/computer/provision")).toBe(false);
-    expect(allowed("POST", "/api/bots/bot_123/computer/sleep")).toBe(false);
-    expect(allowed("POST", "/api/bots/bot_123/computer/exec")).toBe(false);
-  });
-
-  it("previews a Local VM without reaching its lifecycle", () => {
-    expect(allowed("POST", "/api/bots/bot_123/local-computer/screenshot")).toBe(true);
-    expect(isCloudDesktopAccess("POST", "/api/bots/bot_123/local-computer/screenshot")).toBe(true);
-    expect(allowed("GET", "/api/bots/bot_123/local-computer/screenshot")).toBe(false);
-    expect(allowed("GET", "/api/bots/bot_123/local-computer")).toBe(false);
-    for (const action of ["run", "stop", "remove"]) {
-      expect(allowed("POST", `/api/bots/bot_123/local-computer/${action}`)).toBe(false);
+  it("opens no computer, preview or viewer route", () => {
+    for (const path of ["computer/join", "computer/control", "computer/screenshot", "computer/viewer-close", "local-computer/screenshot", "local-computer/join"]) {
+      expect(allowed("POST", `/api/bots/bot_123/${path}`), path).toBe(false);
     }
-    expect(allowed("POST", "/api/local-computer/screenshot")).toBe(false);
-  });
-
-  it("joins a Local VM's live desktop only behind computer access", () => {
-    expect(allowed("POST", "/api/bots/bot_123/local-computer/join")).toBe(true);
-    expect(isCloudDesktopAccess("POST", "/api/bots/bot_123/local-computer/join")).toBe(true);
-    expect(allowed("GET", "/api/bots/bot_123/local-computer/join")).toBe(false);
-    expect(allowed("POST", "/api/local-computer/join")).toBe(false);
+    expect(allowed("GET", "/api/threads/th_1/messages/msg_2/image")).toBe(false);
   });
 
   it("allows only the exact encrypted credential submission verb", () => {
@@ -315,7 +283,7 @@ describe("what it may not", () => {
     expect(allowed("GET", "/api/bots/bot_123/computer")).toBe(false);
     expect(allowed("GET", "/api/botsandthensome")).toBe(false);
     expect(allowed("GET", "/api/events/all")).toBe(false);
-    expect(allowed("GET", "/api/threads/th_1/messages/msg_2/image/../../../config")).toBe(false);
+    expect(allowed("GET", "/api/threads/th_1/messages/../../../config")).toBe(false);
     expect(allowed("GET", "/api/bots%2f..%2fwebhooks")).toBe(false);
   });
 
@@ -347,7 +315,6 @@ describe("browser control", () => {
     expect(isBrowserControlAccess("POST", "/api/bots/b1/browser/action")).toBe(true);
     expect(isBrowserControlAccess("GET", "/api/bots/b1/messages")).toBe(false);
     expect(isBrowserControlAccess("POST", "/api/bots/b1/computer/join")).toBe(false);
-    expect(isCloudDesktopAccess("GET", "/api/bots/b1/browser/live")).toBe(false);
   });
 
   it("anchors the bot id so a traversal cannot reach another route", () => {

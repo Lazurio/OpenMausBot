@@ -28,7 +28,7 @@ const stand = async (harness: Server): Promise<string> => {
   const sidecar = createServer(
     createProxyHandler({
       harnessPort,
-      authenticate: () => ({ cloudDesktopAccess: true, browserControlAccess: false }),
+      authenticate: () => ({ browserControlAccess: false }),
       redeem: () => ({ error: "not in this test" }),
       serverName: () => "Ada's computer",
     }),
@@ -91,7 +91,7 @@ describe("an upstream that fails mid-stream", () => {
     );
 
     const escaped = await watchingForCrashes(async () => {
-      const res = await fetch(`${base}/api/threads/t1/messages/m1/image`, {
+      const res = await fetch(`${base}/api/attachments/avatar-1.png`, {
         headers: { authorization: "Bearer omb_x" },
       });
       expect(res.status).toBe(200);
@@ -114,7 +114,7 @@ describe("an upstream that fails mid-stream", () => {
     const sidecar = createServer(
       createProxyHandler({
         harnessPort,
-        authenticate: () => ({ cloudDesktopAccess: true, browserControlAccess: false }),
+        authenticate: () => ({ browserControlAccess: false }),
         redeem: () => ({ error: "not in this test" }),
         serverName: () => "Ada's computer",
       }),

@@ -141,7 +141,7 @@ beforeAll(async () => {
   sidecar = createServer(
     createProxyHandler({
       harnessPort: HARNESS_PORT,
-      authenticate: (t) => (t === TOKEN ? { id: "d1", cloudDesktopAccess: true, browserControlAccess: false } : null),
+      authenticate: (t) => (t === TOKEN ? { id: "d1", browserControlAccess: false } : null),
       redeem: (code, deviceName) =>
         code === "424242"
           ? { token: TOKEN, device: { id: "d1", name: String(deviceName) } }
@@ -201,7 +201,7 @@ describe("the sidecar in front of an unmodified harness", () => {
     const connections = createConnectedDeviceTracker();
     const delayedProxy = createServer(createProxyHandler({
       harnessPort: delayedHarnessPort,
-      authenticate: () => valid ? { id: "phone-delayed", cloudDesktopAccess: false, browserControlAccess: false } : null,
+      authenticate: () => valid ? { id: "phone-delayed", browserControlAccess: false } : null,
       redeem: () => ({ error: "not pairing" }),
       serverName: () => "Test computer",
       connected: connections.open,
@@ -250,7 +250,7 @@ describe("the sidecar in front of an unmodified harness", () => {
     expect((await device("PUT", "/api/config", { body: { xai: { apiKey: "x" } } })).status).toBe(403);
     expect((await device("GET", "/api/devices")).status).toBe(403);
     expect((await device("GET", "/api/companion")).status).toBe(403);
-    expect((await device("POST", "/api/local-computer/start")).status).toBe(403);
+    expect((await device("POST", "/api/local-computer/start")).status).toBe(404);
     expect((await device("GET", "/api/internal/peers")).status).toBe(404);
     expect((await device("GET", "/")).status).toBe(404);
     expect((await device("GET", "/api/config")).status).toBe(200);
@@ -531,7 +531,7 @@ describe("the sidecar in front of an unmodified harness", () => {
     const orphan = createServer(
       createProxyHandler({
         harnessPort: 1,
-        authenticate: () => ({ cloudDesktopAccess: true, browserControlAccess: false }),
+        authenticate: () => ({ browserControlAccess: false }),
         redeem: () => ({ error: "no" }),
         serverName: () => "Test computer",
       }),
@@ -557,7 +557,7 @@ describe("the sidecar in front of an unmodified harness", () => {
     const stalled = createServer(
       createProxyHandler({
         harnessPort: mutePort,
-        authenticate: () => ({ cloudDesktopAccess: true, browserControlAccess: false }),
+        authenticate: () => ({ browserControlAccess: false }),
         redeem: () => ({ error: "no" }),
         serverName: () => "Test computer",
         headersTimeoutMs: 300,
@@ -598,7 +598,7 @@ describe("the sidecar in front of an unmodified harness", () => {
     const relay = createServer(
       createProxyHandler({
         harnessPort: slowPort,
-        authenticate: () => ({ cloudDesktopAccess: true, browserControlAccess: false }),
+        authenticate: () => ({ browserControlAccess: false }),
         redeem: () => ({ error: "no" }),
         serverName: () => "Test computer",
       }),
@@ -648,7 +648,7 @@ describe("the sidecar in front of an unmodified harness", () => {
     const relay = createServer(
       createProxyHandler({
         harnessPort: floodPort,
-        authenticate: () => ({ cloudDesktopAccess: true, browserControlAccess: false }),
+        authenticate: () => ({ browserControlAccess: false }),
         redeem: () => ({ error: "no" }),
         serverName: () => "Test computer",
       }),
@@ -684,7 +684,7 @@ describe("live companion endpoint refresh", () => {
       createProxyHandler({
         // No harness on port 1: a 200 proves the sidecar answered locally.
         harnessPort: 1,
-        authenticate: (token) => token === TOKEN ? { cloudDesktopAccess: false, browserControlAccess: false } : null,
+        authenticate: (token) => token === TOKEN ? { browserControlAccess: false } : null,
         redeem: () => ({ error: "not used" }),
         serverName: () => "Test computer",
         endpoints: () => endpoints,
@@ -1005,7 +1005,7 @@ describe("revoking a capability mid-stream", () => {
 
     const handler = createProxyHandler({
       harnessPort: upstreamPort,
-      authenticate: () => ({ id: "phone-1", cloudDesktopAccess: false, browserControlAccess: true }),
+      authenticate: () => ({ id: "phone-1", browserControlAccess: true }),
       redeem: () => null,
       endpoints: () => [],
     } as never);
