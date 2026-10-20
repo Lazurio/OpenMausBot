@@ -188,7 +188,9 @@
     "\\/messages\\/([\\w-]+)\\/image",
     "controlling the server's own desktop",
     "desktop computer use",
-    "or computer use"
+    "or computer use",
+    "opt-in local control",
+    "tools, computer control"
   ],
   "routes": [
     {

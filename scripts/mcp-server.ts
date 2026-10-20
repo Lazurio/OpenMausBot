@@ -1343,7 +1343,7 @@ export async function processMcpMessage(
           name: "openmausbot-mcp",
           version: "1.1.0",
         },
-        instructions: "Use bounded read tools before mutating the OpenMausBot team. Approval grants, deleting bots, rooms or conversations, and computer lifecycle are intentionally unavailable.",
+        instructions: "Use bounded read tools before mutating the OpenMausBot team. Approval grants and deleting bots, rooms or conversations are intentionally unavailable.",
       });
     }
 
