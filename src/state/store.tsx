@@ -40,6 +40,7 @@ import type { WebhookAttempt, WebhookIngressStatus, WebhookTrigger } from "@/lib
 import { restrictedCopyRequest } from "@/lib/bot-duplicate";
 import { botShowsUnread } from "@/lib/bot-unread";
 import { firstUnreadMessageId, threadOpensUnread, threadReadCursor } from "@/lib/unread-divider";
+import { announceBotBrowserTab } from "@/lib/lazurio-browser-panel";
 import { parseComputerHelp } from "@/lib/computer-control";
 import { answerResponse, dismissResponse } from "@/lib/card-answer";
 import { currentCall } from "@/lib/call";
@@ -3233,6 +3234,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           break;
         case "data":
           rawDispatch({ type: "dataSheet", sheet: frame.sheet });
+          break;
+        case "lazurio-browser-tab":
+          announceBotBrowserTab(frame.botId, frame.tabId);
           break;
         case "bot.deleted":
           botPatchQueue.cancel(frame.botId);
