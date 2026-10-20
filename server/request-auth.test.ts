@@ -108,7 +108,7 @@ describe("scopes", () => {
       ["GET", "/api/auth/session"], ["POST", "/api/auth/stream-ticket"], ["POST", "/api/auth/logout"],
       ["GET", "/api/bots/x/slack-management"],
       ["POST", "/api/bots/x/sign-in-cards/m/done"], ["POST", "/api/bots/x/sign-in-cards/m/cancel"],
-      ["GET", "/api/bots/x/browser/live"], ["POST", "/api/bots/x/browser/action"],
+      ["GET", "/api/bots/x/browser"], ["POST", "/api/bots/x/browser/window"],
       ["POST", "/api/bots/x/queue/q/steer"], ["POST", "/api/groups/g/queue/q/steer"],
     ] as const) expect(requiredScope(method, path), `${method} ${path}`).toBe("client");
     for (const [method, path] of [
