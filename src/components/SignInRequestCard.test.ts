@@ -16,7 +16,7 @@ const answerSignIn = vi.fn();
 const here = { value: true };
 vi.mock("@/lib/sign-in", () => ({ answerSignIn: (...args: unknown[]) => answerSignIn(...args), signInHostIsHere: () => here.value }));
 
-import { SignInBanner, SignInRequestCard } from "./SignInRequestCard";
+import { SignInRequestCard } from "./SignInRequestCard";
 
 const card = (signIn: Record<string, unknown> = {}): Message => ({
   id: "card-1",
@@ -122,19 +122,5 @@ describe("SignInRequestCard once settled", () => {
     const html = view({ superseded: true });
     expect(html).toContain("Superseded by a newer request");
     expect(html).not.toMatch(/>Done<|>Open<|>Cancel</);
-  });
-});
-
-describe("SignInBanner", () => {
-    let root!: ReactNode;
-    return { html: renderToStaticMarkup(createElement(Capture)), nodes: elements(root) };
-  };
-
-  it("names the asking bot and the site, and answers the card", async () => {
-    const { html, nodes } = banner();
-    expect(html).toContain("<b>Pepper</b> needs you to sign in to example.com");
-    button(nodes, "Done").props.onClick!();
-    await settle();
-    expect(answerSignIn).toHaveBeenCalledExactlyOnceWith(help, "done");
   });
 });

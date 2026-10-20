@@ -13,7 +13,6 @@ import { ApprovalChip } from "../ComposerPlusMenu";
 import { useDesktopCapabilities } from "../DesktopCapabilities";
 import { DefaultBotHideRow } from "../DefaultBotControls";
 import { SoulField } from "../SoulField";
-import { useBotApps } from "../bot-settings/useBotApps";
 import type { useBotSettingsDerived } from "../bot-settings/useBotSettingsDerived";
 import { useThreadApproval } from "../thread-approval";
 import type { SimplePageId } from "./page-registry";
@@ -26,7 +25,6 @@ const ACTS_LABEL: Record<ApprovalMode, () => string> = {
   full: () => t("botSettings.simple.justDoIt"),
   auto: () => t("botSettings.simple.decide"),
   edits: () => t("approvalMode.edits.label"),
-  custom: () => t("botPanel.acts.custom"),
 };
 
 export function SettingsPage({ bot, derived, editingInstructions = false, onEditInstructions }: {
@@ -38,7 +36,6 @@ export function SettingsPage({ bot, derived, editingInstructions = false, onEdit
 }) {
   const { dispatch } = useStore();
   const { capabilities, ready } = useDesktopCapabilities();
-  const apps = useBotApps(bot);
   const approval = useThreadApproval(currentTaskBot(bot));
   const storedCallMode = useCallMode();
   const [jobDraft, setJobDraft] = useState<string | null>(null);
@@ -49,14 +46,13 @@ export function SettingsPage({ bot, derived, editingInstructions = false, onEdit
     setJobDraft(null);
   };
 
-  // Antigravity's old Auto still executes as Ask: show that without changing the saved mode or granting Full.
-  const displayedMode: ApprovalMode = engine?.driverKind === "antigravityAgent" && approvalMode === "auto" ? "ask" : approvalMode;
+  const displayedMode: ApprovalMode = approvalMode;
   const actsOptions: SegmentOption<ApprovalMode>[] = [
     { value: "ask", label: ACTS_LABEL.ask(), tooltip: t("botSettings.simple.askHint") },
     { value: "full", label: ACTS_LABEL.full(), tooltip: t("botSettings.simple.fullHint") },
     ...(displayedMode === "ask" || displayedMode === "full"
       ? []
-      : [{ value: displayedMode, label: ACTS_LABEL[displayedMode](), disabled: true, tooltip: displayedMode === "custom" ? t("botPanel.acts.customHint") : undefined }]),
+      : [{ value: displayedMode, label: ACTS_LABEL[displayedMode](), disabled: true }]),
   ];
   const chooseActs = (mode: ApprovalMode) => {
     if (mode === approvalMode || (mode !== "ask" && mode !== "full")) return;
@@ -75,7 +71,6 @@ export function SettingsPage({ bot, derived, editingInstructions = false, onEdit
   }));
 
   const soulOpen = editingInstructions || Boolean(bot.soulDrift);
-  const enabledApps = apps.apps.filter((app) => app.scope !== null).map((app) => app.label);
 
   return (
     <div data-panel-settings>
@@ -155,13 +150,6 @@ export function SettingsPage({ bot, derived, editingInstructions = false, onEdit
       </Card>
 
       <Card anchor="uses">
-        <NavRow
-          data-panel-page="apps"
-          icon={AppWindow}
-          title={t("botPanel.appsRow")}
-          value={enabledApps.length > 0 ? enabledApps.join(", ") : t("botPanel.appsNoneYet")}
-          onClick={() => onOpen?.("apps")}
-        />
         <label data-panel-row="job" className={cn(rowCls, "cursor-text")}>
           <RowIcon icon={Tag} />
           <span className="shrink-0 text-[14px] font-medium text-ink">{t("botSettings.simple.job")}</span>

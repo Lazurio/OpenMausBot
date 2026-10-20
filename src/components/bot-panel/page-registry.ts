@@ -11,7 +11,7 @@ export const TAB_LABEL: Record<PanelTab, LocaleKey> = {
 };
 
 export type PageId =
-  | "settings" | "where"
+  | "settings"
   | "setup" | "model" | "instructions" | "approvals" | "always" | "routines"
   | "memory" | "skills"
   | "folder" | "android"
@@ -19,7 +19,7 @@ export type PageId =
   | "overview" | "prompt" | "history";
 
 /** The pages Simple mode draws; a link to any other page lands where its section does. */
-export const SIMPLE_PAGES = ["settings", "apps", "routines", "memory", "skills", "folder", "browser", "where"] as const satisfies readonly PageId[];
+export const SIMPLE_PAGES = ["settings", "routines", "memory", "skills", "folder"] as const satisfies readonly PageId[];
 export type SimplePageId = (typeof SIMPLE_PAGES)[number];
 
 export function isSimplePage(page: PageId): page is SimplePageId {
@@ -34,24 +34,19 @@ export interface PageMeta {
 
 export const PAGES: Record<PageId, PageMeta> = {
   settings: { title: "botPanel.page.settings", home: "details" },
-  where: { title: "computer.simple.whereWorks", home: "computer" },
   setup: { title: "botSetup.ideas", home: "details" },
   model: { title: "model.simple.model", home: "details" },
   instructions: { title: "botSettings.simple.instructions", home: "details" },
   approvals: { title: "botPanel.page.approvals", home: "details" },
   routines: { title: "botSettings.simple.routines", home: "details" },
-  apps: { title: "botPanel.appsRow", home: "details", intro: "botPanel.apps.intro" },
   memory: { title: "botPanel.memoryRow", home: "library", intro: "botPanel.memory.intro" },
   skills: { title: "botSettings.simple.skills", home: "library", intro: "botSettings.simple.skillsHint" },
-  browser: { title: "settings.sites.title", home: "computer" },
   folder: { title: "computer.files.folder", home: "library", intro: "botPanel.folder.intro" },
   android: { title: "botPanel.page.android", home: "computer" },
   voice: { title: "botPanel.page.voice", home: "details" },
   blurb: { title: "botPanel.page.blurb", home: "details" },
   team: { title: "botPanel.page.team", home: "details" },
   chiefteams: { title: "botPanel.page.chiefTeams", home: "details" },
-  mcp: { title: "connectors.tab.mcp", home: "details" },
-  tools: { title: "botAccess.tools.title", home: "details" },
   webhooks: { title: "botPanel.page.webhooks", home: "details" },
   always: { title: "botPanel.page.always", home: "details" },
   visibility: { title: "botSettings.visibility.title", home: "details" },

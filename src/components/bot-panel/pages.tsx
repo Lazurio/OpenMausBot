@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { FolderOpen, Plus } from "lucide-react";
 
-import { appSwitchPatch } from "@/lib/bot-app-access";
 import { skillsLibraryEnabled } from "@/lib/feature-flags";
 import { t } from "@/lib/i18n";
 import { MEMORY_INDEX, saveMemoryDoc } from "@/lib/memory";
@@ -10,15 +9,12 @@ import type { Routine } from "@/lib/routines";
 import { shortPath } from "@/lib/short-path";
 import { useStore, type Bot } from "@/state/store";
 import { useDesktopCapabilities } from "../DesktopCapabilities";
-import { ServiceIcon } from "../PluginsPanel";
 import { RoutineEditor } from "../RoutinesPage";
 import { useWorkingFolder } from "../bot-settings/AccessSection";
 import { useBotEditor } from "../bot-settings/BotEditorContext";
 import { SkillReviewDialog, useManagedSkills, type ManagedSkill } from "../bot-settings/SkillsSection";
-import { useBotApps, type BotApp } from "../bot-settings/useBotApps";
 import type { useBotSettingsDerived } from "../bot-settings/useBotSettingsDerived";
 import { RoutineList } from "../routines/RoutineList";
-import { useOpenComputer, WherePage } from "./ComputerTab";
 import { SettingsPage } from "./SettingsPage";
 import { memoryNotes, withMemoryNote, withoutMemoryNote } from "./memory-notes";
 import type { SimplePageId } from "./page-registry";
@@ -38,60 +34,6 @@ const SKILLS_SITE = "https://skills.sh";
 
 function errorText(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
-}
-
-export function AppsPage({ bot, derived }: PageContext) {
-  const { dispatch } = useStore();
-  const apps = useBotApps(bot);
-  const { patch, canUseConnectedApps } = derived;
-
-  const toggle = (app: BotApp) => {
-    const next = appSwitchPatch(bot, apps.connectedSlugs, app.slug, app.scope === null);
-    if (Object.keys(next).length > 0) patch(next);
-  };
-  const note = !canUseConnectedApps
-    ? t("botSettings.simple.appsCannot", { name: bot.name })
-    : apps.phase === "loading"
-      ? t("common.checking")
-      : apps.phase === "unknown"
-        ? t("botSettings.simple.appsUnknown")
-        : apps.apps.length === 0
-          ? t("botSettings.simple.appsNone")
-          : null;
-
-  return (
-    <>
-      <Card>
-        {note && <NoteRow>{note}</NoteRow>}
-        {canUseConnectedApps && apps.apps.map((app) => (
-          <div key={app.slug} data-simple-app={app.slug} className={rowCls}>
-            <ServiceIcon key={`${app.card.logo}:${app.card.domain}`} card={app.card} className="size-7 shrink-0" />
-            <div className="min-w-0 flex-1 truncate text-[14px] font-medium text-ink">{app.label}</div>
-            <BotSwitch
-              color={bot.color}
-              checked={app.scope !== null}
-              aria-label={t("botSettings.simple.appToggle", { name: bot.name, app: app.label })}
-              disabled={Boolean(bot.busy)}
-              onClick={() => toggle(app)}
-              className="disabled:cursor-not-allowed"
-            />
-          </div>
-        ))}
-      </Card>
-      <Card>
-        <LinkRow
-          data-panel-link="add-app"
-          icon={Plus}
-          onClick={() => {
-            dispatch({ type: "toggleSettings", open: false });
-            dispatch({ type: "togglePlugins", open: true, surface: "apps" });
-          }}
-        >
-          {t("botPanel.apps.connectAnother")}
-        </LinkRow>
-      </Card>
-    </>
-  );
 }
 
 export function RoutinesPage({ bot, derived }: PageContext) {
@@ -374,11 +316,6 @@ export function FolderPage({ bot }: PageContext) {
   );
 }
 
-export function BrowserPage({ bot, derived }: PageContext) {
-  const openComputer = useOpenComputer(bot);
-  return <BrowserLogins bot={bot} browserEnabled={derived.browserEnabled} onOpenBrowser={() => openComputer("browser")} />;
-}
-
 export function PageBody({ page, onOpen, editingInstructions, onEditInstructions, ...context }: PageContext & {
   page: SimplePageId;
   onOpen?: (page: SimplePageId) => void;
@@ -388,10 +325,6 @@ export function PageBody({ page, onOpen, editingInstructions, onEditInstructions
   switch (page) {
     case "settings":
       return <SettingsPage {...context} onOpen={onOpen} editingInstructions={editingInstructions} onEditInstructions={onEditInstructions} />;
-    case "where":
-      return <WherePage {...context} />;
-    case "apps":
-      return <AppsPage {...context} />;
     case "routines":
       return <RoutinesPage {...context} />;
     case "memory":
@@ -400,7 +333,5 @@ export function PageBody({ page, onOpen, editingInstructions, onEditInstructions
       return <SkillsPage {...context} />;
     case "folder":
       return <FolderPage {...context} />;
-    case "browser":
-      return <BrowserPage {...context} />;
   }
 }

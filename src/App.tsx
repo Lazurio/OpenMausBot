@@ -251,12 +251,6 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
           ? <RemoteAgentSettingsPanel bot={bot} overlay={state.computerOpen && !twoSidePanelsFit} />
           : <BotSettingsDialog key={`settings:${bot.id}`} bot={bot} overlay={(state.inspectorOpen || state.computerOpen || (notificationFeed && state.notificationsOpen)) && !twoSidePanelsFit} />
       )}
-      {state.computerOpen && bot && (
-        remoteClient ? (
-          <RemoteDesktopPanel key={`computer:${bot.id}`} bot={bot} />
-        ) : (
-        )
-      )}
       {roomPanelOpen && group && (
         <RoomPanel key={`room:${group.id}`} group={group} overlay={notificationFeed && state.notificationsOpen && !twoSidePanelsFit} />
       )}

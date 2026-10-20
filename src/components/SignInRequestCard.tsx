@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Check, Loader2, LockKeyhole, LogIn, RefreshCw, X } from "lucide-react";
 
-import type { ComputerHelpRef } from "../../shared/wire";
 import { signInOutcome } from "../../shared/sign-in-request";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { answerSignIn, signInHostIsHere } from "@/lib/sign-in";
 import type { Message } from "@/state/store";
+import { LazurioSignInWhere } from "./LazurioBrowser";
 import { ASK_CHIP, ASK_CHIP_IDLE, ASK_PRIMARY_BUTTON, ASK_QUIET_BUTTON, AskCard, AskSettledLine, returnFocusToComposer } from "./AskCard";
 
 const WHERE = {
@@ -111,50 +111,5 @@ export function SignInRequestCard({
       </p>
       {error && <p role="alert" className="mt-2 text-[12px] text-danger">{error}</p>}
     </AskCard>
-  );
-}
-
-export function SignInBanner({
-  help,
-  askerName,
-  onError,
-}: {
-  help: ComputerHelpRef;
-  askerName: string;
-  onError?: (message: string | null) => void;
-}) {
-  const [pending, setPending] = useState<"done" | "cancel" | null>(null);
-  const answer = async (choice: "done" | "cancel") => {
-    if (pending) return;
-    setPending(choice);
-    onError?.(null);
-    try { await answerSignIn(help, choice); }
-    catch (cause) { onError?.(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setPending(null); }
-  };
-  return (
-    <div className="mt-3 rounded-xl border border-warning/25 bg-warning/10 p-4 text-start" data-testid="sign-in-banner">
-      <div className="text-[13px] leading-relaxed text-warning">
-        <b>{askerName}</b> {t("signIn.banner", { site: help.site })}
-      </div>
-      <div className="mt-2 flex gap-2">
-        <button
-          type="button"
-          onClick={() => void answer("done")}
-          disabled={pending !== null}
-        >
-          {pending === "done" ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-          {t("signIn.done")}
-        </button>
-        <button
-          type="button"
-          onClick={() => void answer("cancel")}
-          disabled={pending !== null}
-          className="rounded-lg bg-control px-3 py-2 text-[13px] text-ink hover:bg-raised-hover disabled:opacity-50"
-        >
-          {t("signIn.cancel")}
-        </button>
-      </div>
-    </div>
   );
 }

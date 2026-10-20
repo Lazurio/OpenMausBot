@@ -34,6 +34,7 @@ import { CODEX_USAGE_URL, codexUsageLimitReached } from "../../shared/codex-usag
 import { ClaudeUpdatePrompt } from "./ClaudeUpdatePrompt";
 import { MacCuaRecoveryActions } from "./MacCuaRecoveryActions";
 import { macCuaPermissionMessage, missingMacCuaPermissions } from "@/lib/mac-cua-permissions";
+import { LazurioBrowserButton, useLazurioBrowserPanel } from "./LazurioBrowser";
 import { failedTurnCause, signedOutEngine } from "@/lib/failed-turn";
 import { plainErrorLine } from "@/lib/plain-error";
 import { isPureLeakedSystemHarnessMessage, stripLeakedSystemHarnessMessages } from "../../shared/system-message-guard.ts";
