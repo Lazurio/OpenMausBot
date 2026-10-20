@@ -7,7 +7,6 @@ import { z } from "zod";
 
 import { BOT_PROFILE_LIMITS, fitsOnOneLine } from "../../shared/bot-profile.ts";
 import { parseSkillMd } from "../../shared/skill-md.ts";
-import { parseToolScope, type ToolScope } from "../../shared/tool-scope.ts";
 import { usageError } from "./args.ts";
 
 export const TEAM_BRIEF_MAX_BYTES = 24_000;
@@ -48,7 +47,9 @@ const botFields = {
   computer: z.unknown().optional(),
   cwd: z.string().min(1).optional(),
   browser: z.union([z.boolean(), z.object({ enabled: z.boolean(), profile: z.string().trim().min(1).max(100).optional() }).strict()]).optional(),
-  tools: z.object({ allow: z.array(z.string()).optional(), deny: z.array(z.string()).optional() }).strict().optional(),
+  // Lazurio overlay (DEV-6673, LAZURIO.md principle 3): every bot gets the Environment's tools; an older file's
+  // tools is read and ignored with a warning.
+  tools: z.unknown().optional(),
   skills: z.array(z.object({ file: z.string().trim().min(1), enabled: z.boolean().optional() }).strict()).optional(),
 };
 
@@ -97,8 +98,6 @@ export interface DesiredBot {
   computer?: "auto" | "off" | "browser" | "local" | "vm" | "cloud";
   cwd?: string;
   browser?: { enabled: boolean; profile?: string };
-  /** null: no selection, so every tool (a file's `tools: {}` or `{ deny: [] }`). */
-  tools?: ToolScope | null;
   skills: DesiredSkill[];
 }
 export interface DesiredRoom { name: string; team?: string; members: string[]; brief?: string; responder?: string }
@@ -118,10 +117,6 @@ const ENGINE_KIND: Record<string, string> = {
   claude: "claude", openai: "openai", openrouter: "openrouter", xai: "xai", groq: "groq", mistral: "mistral", cerebras: "cerebras",
   openaiCompatible: "openai-compatible",
 };
-
-export function everyTool(scope: { allow?: unknown; deny?: unknown } | null | undefined): boolean {
-  return !scope || (!Array.isArray(scope.allow) && !(Array.isArray(scope.deny) && scope.deny.length > 0));
-}
 
 /** Tidied by the server's system's rules, never this computer's (a Windows laptop would turn /work/room into C:\work\room). */
 export function serverFolder(raw: string): string | undefined {
@@ -212,12 +207,6 @@ export function checkTeamFile(input: TeamFileInput, file: string, dir: string): 
     const soul = kept(text(dir, bot.soul, `${where} soul`), `${where}: its soul`);
     const description = kept(bot.description, `${where}: its description`);
     if (soul !== undefined && Buffer.byteLength(soul.trimEnd(), "utf8") > BOT_PROFILE_LIMITS.soul) throw usageError(`${where}: soul is over ${BOT_PROFILE_LIMITS.soul} bytes`);
-    let tools: ToolScope | null | undefined;
-    if (bot.tools) {
-      const scope = parseToolScope(bot.tools);
-      if (!scope.ok) throw usageError(`${where}: tools: ${scope.error} (selectors look like native:Bash or mcp:server:tool; docs/tool-selection.md)`);
-      tools = everyTool(scope.scope) ? null : scope.scope!;
-    }
     const skills = (bot.skills ?? []).flatMap((skill) => {
       const body = kept(readRelative(dir, skill.file, `${where} skill`), `${where}: ${skill.file}`);
       if (body === undefined) return [];
@@ -228,6 +217,7 @@ export function checkTeamFile(input: TeamFileInput, file: string, dir: string): 
     });
     if (new Set(skills.map((skill) => skill.name)).size !== skills.length) throw usageError(`${where}: two skills share a name`);
     if (bot.computer !== undefined) warnings.push(`${where}: computer is ignored; bots work on this computer`);
+    if (bot.tools !== undefined) warnings.push(`${where}: tools is ignored; every bot gets the tools of this computer`);
     const slash = bot.model?.indexOf("/") ?? -1;
     const browser = bot.browser === undefined ? undefined : typeof bot.browser === "boolean" ? { enabled: bot.browser } : bot.browser;
     return {
@@ -236,7 +226,6 @@ export function checkTeamFile(input: TeamFileInput, file: string, dir: string): 
       ...(bot.chief !== undefined ? { chief: bot.chief } : {}), manages: bot.manages ?? [], ...(soul !== undefined ? { soul } : {}),
       ...(bot.model ? { model: { instanceId: bot.model.slice(0, slash), model: bot.model.slice(slash + 1) } } : {}),
       ...(bot.effort ? { effort: bot.effort } : {}), ...(bot.approval ? { approval: bot.approval } : {}),
-      ...(tools !== undefined ? { tools } : {}), skills,
     };
   });
   const chiefs = new Map<string, string>();

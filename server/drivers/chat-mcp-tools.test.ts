@@ -1,11 +1,10 @@
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { crc32 } from "node:zlib";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { augmentedPath } from "../env-path.ts";
 import { ChatToolSessionError, mountChatTools, type ChatToolSession } from "./chat-mcp-tools.ts";
-import type { ToolScope } from "../../shared/tool-scope.ts";
 import { wideSchema } from "../testing/oversized-tool-schema.ts";
 import { schemaBytes, toolSchemaProfile } from "../tool-schema-profile.ts";
 
@@ -65,7 +64,6 @@ function fixture(body = "", toolSchema: Record<string, unknown> = schema) {
   return {
     dir, receipt, controller, server,
     read: () => JSON.parse(readFileSync(receipt, "utf8")) as { pid: number; path: string; omb: Record<string, string>; calls: Array<{ method: string; params?: { name?: string; arguments?: unknown } }> },
-    async mount(computerUse = false, localComputer = false, toolScope?: ToolScope) {
       sessions.push(session);
       return session;
     },
@@ -90,46 +88,13 @@ afterEach(async () => {
 });
 
 describe("Chat MCP session", () => {
-  it("starts no server when the owner selected no MCP tools", async () => {
+  it("mounts Data without computer access and preserves tool arguments", async () => {
     const f = fixture();
-    const session = await f.mount(false, false, { allow: ["native:ask_user"] });
-    expect(session.definitions).toEqual([]);
-    expect(existsSync(f.receipt)).toBe(false);
-  });
-
-  it.each([undefined, { allow: ["mcp:data:write"] }])("mounts Data without computer access and preserves selected tool arguments (%j)", async (scope) => {
-    const f = fixture();
-    const session = await mountChatTools({ data: f.server }, f.controller.signal, false, scope);
+    const session = await mountChatTools({ data: f.server }, f.controller.signal, false);
     sessions.push(session);
     expect(session.definitions).toEqual([{ type: "function", function: { name: "data_write", description: "Fixture write", parameters: schema } }]);
     await expect(session.execute("data_write", { value: "query receipt" }, f.controller.signal)).resolves.toEqual({ text: "recorded:query receipt", ok: true });
     expect(f.read().calls.at(-1)).toMatchObject({ method: "tools/call", params: { name: "write", arguments: { value: "query receipt" } } });
-  });
-
-  it("does not start Data when the owner's tool selection excludes it", async () => {
-    const f = fixture();
-    const session = await mountChatTools({ data: f.server }, f.controller.signal, false, { allow: ["native:ask_user"] });
-    sessions.push(session);
-    expect(session.definitions).toEqual([]);
-    expect(existsSync(f.receipt)).toBe(false);
-  });
-
-  it("filters original identities before catalog limits, alias conversion and schema compilation", async () => {
-    const f = fixture(`if (message.method === "tools/list") {
-      reply(message, {tools:[
-        {name:"read-notes",inputSchema:schema},
-        {name:"read_notes",inputSchema:{$ref:"https://example.invalid/private"}},
-        ...Array.from({length:129}, (_,i) => ({name:"excluded"+i,inputSchema:{type:"object"},description:"withheld-description"}))
-      ]}); return;
-    }`);
-    expect(f.read().calls.filter((call) => call.method === "tools/call")).toEqual([]);
-    expect(f.read().calls.filter((call) => call.method === "tools/call").map((call) => call.params)).toEqual([{ name: "read-notes", arguments: { value: "allowed" } }]);
-  });
-
-  it("rejects corrupt selection before starting any MCP process", async () => {
-    const f = fixture();
-    await expect(f.mount(false, false, { allow: null } as never)).rejects.toThrow(/tool selection/i);
-    expect(existsSync(f.receipt)).toBe(false);
   });
 
   it("discovers without executing, preserves schemas and validates before forwarding original arguments", async () => {
@@ -619,10 +584,12 @@ describe("Chat MCP schema validation", () => {
   it("honors the configured per-call timeout instead of the fixed default", async () => {
     const delayed = `if (message.method === "tools/call") { setTimeout(() => reply(message, {content:[{type:"text",text:"recorded:"+message.params.arguments.value}]}), 400); return; }`;
     const f = fixture(delayed);
+    const short = await mountChatTools({ data: f.server }, f.controller.signal, false, 100);
     sessions.push(short);
     await expect(short.execute("data_write", { value: "x" }, f.controller.signal)).rejects.toThrow("MCP request timed out");
     await expect(f.read().calls.filter((call) => call.method === "tools/call")).toHaveLength(1);
 
+    const long = await mountChatTools({ data: f.server }, f.controller.signal, false, 5_000);
     sessions.push(long);
     await expect(long.execute("data_write", { value: "y" }, f.controller.signal)).resolves.toMatchObject({ ok: true, text: "recorded:y" });
   });

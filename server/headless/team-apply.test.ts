@@ -91,9 +91,9 @@ function workspace(seed: { bots?: Rec[]; groups?: Rec[]; sections?: string[]; co
 
 const lead: DesiredBot = {
   name: "Room Lead", team: "Launch Room", chief: true, manages: [], title: "Launch rehearsal lead", soul: "Lead the rehearsal.\n",
+  model: { instanceId: "claude", model: "claude-sonnet-5" }, approval: "full", cwd: "/work/room",
   skills: [{ name: "launch-report", description: "Write it.", text: "---\nname: launch-report\ndescription: Write it.\n---\nBody\n", enabled: true, file: "skills/launch-report/SKILL.md" }],
 };
-  browser: { enabled: true, profile: "guest" }, tools: { deny: ["mcp:mail:*"] }, skills: [] };
 const priya: DesiredBot = { name: "Priya", team: "Launch Room", manages: [], title: "Skeptical buyer", approval: "full",
 const file = (patch: Partial<TeamFile> = {}): TeamFile => ({
   path: "/files/launch-room.yaml", engines: [], warnings: [],
@@ -123,7 +123,6 @@ describe("team apply", () => {
       "POST /api/bots", "PATCH /api/bots/bot-1", "POST /api/bots", "PATCH /api/bots/bot-2",
       "POST /api/bots/bot-1/skill-template", "PATCH /api/bots/bot-1", "tool create_channel",
     ]);
-      browserProfile: "guest", toolScope: { deny: ["mcp:mail:*"] } });
     expect(approvalModeFor(state.bots.find((bot) => bot.name === "Priya")!)).toBe("full");
     expect(state.bots.find((bot) => bot.name === "Room Lead")).toMatchObject({ chiefOfStaff: true, managedSections: [], soul: "Lead the rehearsal.", cwd: "/work/room" });
 
@@ -240,17 +239,6 @@ describe("team apply", () => {
       .rejects.toThrow('"Priya" is still working after 0s, so it was not changed');
   });
 
-  it("refuses a tool selection the bot's engine cannot hold, before anything is written", async () => {
-    const { client, writes } = workspace();
-    // Claude limits MCP tools only: a built-in one in the selection would stop every turn it runs
-    for (const visitor of [{ ...priya, tools: { deny: ["native:Bash"] } }, { ...priya, model: { instanceId: "claude", model: "claude-haiku-5" }, tools: { deny: ["native:Bash"] } }]) {
-      await expect(reconcile(client, file({ bots: [lead, visitor] }), options({ apply: false })))
-        .rejects.toThrow('bot "Priya": claudeAgent: native tool selection is not supported by this engine');
-    }
-    expect(writes).toEqual([]);
-    expect((await reconcile(client, file(), options({ apply: false }))).created).toBe(4);
-  });
-
   it("refuses an engine or model the server does not have", async () => {
     const { client } = workspace();
     await expect(reconcile(client, file({ bots: [{ ...priya, model: { instanceId: "codex", model: "gpt-6" } }] }), options({ apply: false })))
@@ -263,19 +251,10 @@ describe("team apply", () => {
 describe("botPatch", () => {
   const echo = { id: "b1", name: "Priya", section: "Launch Room", title: "Skeptical buyer", description: "", approvalMode: "full",
 
-  const same: DesiredBot = { ...priya, tools: { deny: ["native:Write", "native:Bash"] } };
+  const same: DesiredBot = priya;
 
-  it("finds nothing to change when the echo already matches, whatever the order of tool selectors", () => {
+  it("finds nothing to change when the echo already matches", () => {
     expect(botPatch({ ...same, model: { instanceId: "claude", model: "claude-sonnet-5" } }, echo, "Launch Room")).toEqual({ patch: {}, changes: [] });
-    expect(botPatch(priya, echo, "Launch Room")).toEqual({ patch: { toolScope: { deny: ["mcp:mail:*"] } }, changes: ["tools changed"] });
-  });
-
-  it("reads every way of selecting every tool as the same, and clears a selection to get there", () => {
-    const everything: DesiredBot = { ...same, tools: null };
-    expect(botPatch(everything, { ...echo, toolScope: undefined }, "Launch Room")).toEqual({ patch: {}, changes: [] });
-    expect(botPatch(everything, { ...echo, toolScope: { deny: [] } }, "Launch Room")).toEqual({ patch: {}, changes: [] });
-    expect(botPatch(everything, echo, "Launch Room")).toEqual({ patch: { toolScope: null }, changes: ["tools: every tool"] });
-    expect(botPatch({ ...same, tools: { allow: [] } }, { ...echo, toolScope: undefined }, "Launch Room").patch).toEqual({ toolScope: { allow: [] } });
   });
 
   // Lazurio overlay (DEV-6673 M3): every bot works on this computer, so the file confirms Auto there, as upstream does for "local".

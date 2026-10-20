@@ -30,31 +30,13 @@ createInterface({ input: process.stdin }).on("line", (line) => {
 });
 `;
 
-const SCOPED_UPSTREAM = `
+/** Answers every request with what it sees of the gate's settings and of its own configuration. */
+const ENV_UPSTREAM = `
 const { createInterface } = require("node:readline");
-const { appendFileSync, readFileSync, writeFileSync } = require("node:fs");
-const script = JSON.parse(readFileSync(process.env.SCRIPT, "utf8"));
-writeFileSync(process.env.SCRIPT + ".started", "started");
-let delayedList;
-const send = (id, result) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\\n");
-const catalog = (params) => params?.cursor === "second"
-  ? { tools: [{ name: "write", inputSchema: { type: "object" } }] }
-  : { tools: [{ name: "read", inputSchema: { type: "object" } }, { name: "write", inputSchema: { type: "object" } }], nextCursor: "second" };
 createInterface({ input: process.stdin }).on("line", (line) => {
   const msg = JSON.parse(line);
-  if (msg.method === "tools/list") {
-    if (script.malformedFrame) return process.stdout.write("not-json\\n");
-    if (script.malformedCatalog) return send(msg.id, { tools: [{ inputSchema: { type: "object" } }] });
-    if (msg.params?.collision) { delayedList = msg; return; }
-    return send(msg.id, catalog(msg.params));
-  }
-  if (msg.method === "tools/call") {
-    appendFileSync(process.env.SCRIPT + ".calls", msg.params.name + "\\n");
-    send(msg.id, { content: [{ type: "text", text: script.text ?? "executed" }] });
-    if (delayedList) { send(delayedList.id, catalog()); delayedList = undefined; }
-    return;
-  }
-  send(msg.id, { scope: process.env.OMB_GATE_TOOL_SCOPE ?? null, upstreamOnly: process.env.UPSTREAM_ONLY });
+  const result = { gateName: process.env.OMB_GATE_NAME ?? null, upstream: process.env.OMB_GATE_UPSTREAM ?? null, upstreamOnly: process.env.UPSTREAM_ONLY };
+  process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }) + "\\n");
 });
 `;
 
@@ -95,12 +77,12 @@ describe("mcp-gate", () => {
   let lines: string[];
   let waiting: Array<(line: string) => void>;
 
-  const start = (reply: unknown, env: Record<string, string> = {}, source = UPSTREAM, args: string[] = []) => {
+  const start = (reply: unknown, env: Record<string, string> = {}, source = UPSTREAM) => {
     const script = join(scratch, "reply.json");
     writeFileSync(script, JSON.stringify(reply));
     const upstreamJs = join(scratch, "upstream.cjs");
     writeFileSync(upstreamJs, source);
-    gate = spawn(process.execPath, ["--experimental-strip-types", "--no-warnings", GATE, ...args], {
+    gate = spawn(process.execPath, ["--experimental-strip-types", "--no-warnings", GATE], {
       stdio: ["pipe", "pipe", "pipe"],
       env: {
         ...process.env,
@@ -165,15 +147,6 @@ describe("mcp-gate", () => {
     start({ content: [{ type: "text", text: "ok" }] });
     send({ jsonrpc: "2.0", id: 7, method: "tools/list" });
     expect(JSON.parse(await nextLine())).toEqual({ jsonrpc: "2.0", id: 7, result: { echoed: "tools/list", params: null } });
-  });
-
-  it.each([undefined, "not-json", "{}", '{"OMB_GATE_NAME":"notes","OMB_GATE_TOOL_SCOPE":"{}"}'])("refuses missing or corrupt private gate settings before spawning upstream: %s", value => {
-    const key = `OMB_GATE_CONFIG_${"a".repeat(64)}`;
-    start({}, value === undefined ? {} : { [key]: value }, SCOPED_UPSTREAM, ["--config-env", key]);
-    return once(gate!, "close").then(([code]) => {
-      expect(code).toBe(1);
-      expect(existsSync(join(scratch, "reply.json.started"))).toBe(false);
-    });
   });
 
   it("leaves a small tool result exactly as the server sent it", async () => {
@@ -241,11 +214,9 @@ describe("mcp-gate", () => {
   });
 
   it("keeps the upstream server's own environment and hides the gate's", async () => {
-    start({ content: [{ type: "text", text: "ok" }] });
+    start({}, {}, ENV_UPSTREAM);
     send({ jsonrpc: "2.0", id: 3, method: "peek" });
-    await nextLine();
-    // The upstream started at all, so it read SCRIPT from the env the gate passed through.
-    expect(JSON.parse(JSON.stringify(process.env.OMB_GATE_UPSTREAM ?? null))).toBe(null);
+    expect(JSON.parse(await nextLine()).result).toEqual({ gateName: null, upstream: null, upstreamOnly: "yes" });
   });
 
   it("spawns an upstream named as a bare command on PATH", async () => {
@@ -277,117 +248,6 @@ describe("mcp-gate", () => {
     expect(answer.result.someOtherShape.length).toBe(40_000);
   });
 
-  const selected = { OMB_GATE_TOOL_SCOPE: JSON.stringify({ allow: ["mcp:shop:read"] }), OMB_GATE_BUDGET: "0" };
-
-  it("filters each catalog page and rejects a withheld call before upstream execution", async () => {
-    start({}, selected, SCOPED_UPSTREAM);
-    send({ jsonrpc: "2.0", id: 1, method: "tools/list" });
-    expect(JSON.parse(await nextLine())).toEqual({ jsonrpc: "2.0", id: 1, result: {
-      tools: [{ name: "read", inputSchema: { type: "object" } }], nextCursor: "second",
-    } });
-    send({ jsonrpc: "2.0", id: 2, method: "tools/list", params: { cursor: "second" } });
-    expect(JSON.parse(await nextLine()).result).toEqual({ tools: [] });
-    expect((await call("write", 3)).error).toMatchObject({ code: -32602 });
-    expect(existsSync(join(scratch, "reply.json.calls"))).toBe(false);
-    expect((await call("read", 4)).result.content[0].text).toBe("executed");
-    expect(readFileSync(join(scratch, "reply.json.calls"), "utf8")).toBe("read\n");
-  });
-
-  it("keeps numeric and string IDs separate when list and call answers arrive out of order", async () => {
-    start({}, selected, SCOPED_UPSTREAM);
-    send({ jsonrpc: "2.0", id: 1, method: "tools/list", params: { collision: true } });
-    send({ jsonrpc: "2.0", id: "1", method: "tools/call", params: { name: "read", arguments: {} } });
-    expect(JSON.parse(await nextLine())).toMatchObject({ id: "1", result: { content: [{ text: "executed" }] } });
-    expect(JSON.parse(await nextLine())).toMatchObject({ id: 1, result: { tools: [{ name: "read" }] } });
-  });
-
-  it("enforces deny precedence without trimming when the result budget is zero", async () => {
-    const text = "z".repeat(40_000);
-    start({ text }, { OMB_GATE_BUDGET: "0", OMB_GATE_TOOL_SCOPE: JSON.stringify({ allow: ["mcp:shop:*"], deny: ["mcp:shop:write"] }) }, SCOPED_UPSTREAM);
-    expect((await call("write")).error).toMatchObject({ code: -32602 });
-    expect((await call("read", 2)).result.content[0].text).toBe(text);
-    expect(existsSync(join(scratch, "spill"))).toBe(false);
-  });
-
-  it.each(["{", "null", '{"allow":null}'])("exits on invalid scope %s before starting the upstream", async (scope) => {
-    start({}, { OMB_GATE_TOOL_SCOPE: scope }, SCOPED_UPSTREAM);
-    const closed = once(gate!, "close");
-    gate!.stdin.end();
-    const [code] = await closed;
-    expect(code).toBe(1);
-    expect(existsSync(join(scratch, "reply.json.started"))).toBe(false);
-    expect(lines).toEqual([]);
-  });
-
-  it("never exposes malformed tool definitions in a restricted connection", async () => {
-    start({ malformedCatalog: true }, selected, SCOPED_UPSTREAM);
-    send({ jsonrpc: "2.0", id: 1, method: "tools/list" });
-    const reply = JSON.parse(await nextLine());
-    expect(reply.error).toMatchObject({ code: -32603 });
-    expect(reply.result).toBeUndefined();
-  });
-
-  it("closes a restricted connection instead of forwarding an unreadable upstream frame", async () => {
-    start({ malformedFrame: true }, selected, SCOPED_UPSTREAM);
-    const closed = once(gate!, "close");
-    send({ jsonrpc: "2.0", id: 1, method: "tools/list" });
-    gate!.stdin.end();
-    expect((await closed)[0]).toBe(1);
-    expect(lines).toEqual([]);
-  });
-
-  it("rejects invalid call parameters and unreadable client frames locally", async () => {
-    start({}, selected, SCOPED_UPSTREAM);
-    send({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: ["read"] } });
-    expect(JSON.parse(await nextLine()).error).toMatchObject({ code: -32602 });
-    gate!.stdin.write("not-json\n");
-    expect(JSON.parse(await nextLine()).error).toMatchObject({ code: -32700 });
-    expect(existsSync(join(scratch, "reply.json.calls"))).toBe(false);
-  });
-
-  const DIRECTORY_UPSTREAM = `
-const { createInterface } = require("node:readline");
-const { appendFileSync } = require("node:fs");
-const send = (id, result) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\\n");
-createInterface({ input: process.stdin }).on("line", (line) => {
-  const msg = JSON.parse(line);
-  if (msg.method === "tools/list") return send(msg.id, { tools: ["search_tools", "describe_tool", "call_tool", "read"].map((name) => ({ name, inputSchema: { type: "object" } })) });
-  if (msg.method === "tools/call") {
-    appendFileSync(process.env.SCRIPT + ".calls", JSON.stringify(msg.params) + "\\n");
-    return send(msg.id, { content: [{ type: "text", text: "d".repeat(4_000) }] });
-  }
-  send(msg.id, {});
-});
-`;
-  const ran = () => existsSync(join(scratch, "reply.json.calls"))
-    ? readFileSync(join(scratch, "reply.json.calls"), "utf8").trim().split("\n").map((line) => JSON.parse(line).name as string) : [];
-  const callWith = async (name: string, args: unknown, id: number) => {
-    send({ jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: args } });
-    return JSON.parse(await nextLine());
-  };
-
-  it("checks call_tool against the tool it runs only when its upstream is the tool directory", async () => {
-    const scope = { OMB_GATE_TOOL_SCOPE: JSON.stringify({ allow: ["mcp:shop:read"] }), OMB_GATE_BUDGET: "600" };
-    start({}, { ...scope, OMB_GATE_DIRECTORY: "1" }, DIRECTORY_UPSTREAM);
-    send({ jsonrpc: "2.0", id: 1, method: "tools/list" });
-    expect(JSON.parse(await nextLine()).result.tools.map((tool: { name: string }) => tool.name)).toEqual(["search_tools", "describe_tool", "call_tool", "read", "query_result"]);
-    expect((await callWith("call_tool", { name: "write", arguments: {} }, 2)).error).toMatchObject({ code: -32602 });
-    expect(ran()).toEqual([]);
-    expect((await callWith("describe_tool", { name: "read" }, 3)).result.content[0].text).toHaveLength(4_000);
-    expect((await callWith("call_tool", { arguments: {} }, 4)).result.content[0].text).toHaveLength(4_000);
-    expect((await callWith("call_tool", { name: "read", arguments: {} }, 5)).result.content[0].text).toContain("TRUNCATED by OpenMausBot");
-    expect(ran()).toEqual(["describe_tool", "call_tool", "call_tool"]);
-  });
-
-  it("treats those names as ordinary tools for any other upstream", async () => {
-    start({}, { OMB_GATE_TOOL_SCOPE: JSON.stringify({ allow: ["mcp:shop:read"] }), OMB_GATE_BUDGET: "600" }, DIRECTORY_UPSTREAM);
-    send({ jsonrpc: "2.0", id: 1, method: "tools/list" });
-    expect(JSON.parse(await nextLine()).result.tools.map((tool: { name: string }) => tool.name)).toEqual(["read", "query_result"]);
-    expect((await callWith("call_tool", { name: "read", arguments: {} }, 2)).error).toMatchObject({ code: -32602 });
-    expect((await callWith("describe_tool", { name: "read" }, 3)).error).toMatchObject({ code: -32602 });
-    expect(ran()).toEqual([]);
-  });
-
   it("fits each listed schema to the engine's provider profile, and lists tools as they came without one", async () => {
     const catalog = { tools: [{ name: "small", inputSchema: { type: "object", properties: { q: { type: "string" } } } },
       { name: "create_page", description: "Create a page.", inputSchema: createPageSchema() }] };
@@ -414,7 +274,6 @@ createInterface({ input: process.stdin }).on("line", (line) => {
     };
 
     it("lists query_result beside the server's tools only while it trims", async () => {
-      start({ text: full }, {}, SCOPED_UPSTREAM);
       start({ text: full }, {}, PAGED_UPSTREAM);
       send({ jsonrpc: "2.0", id: 1, method: "tools/list" });
       const first = JSON.parse(await nextLine()).result;
@@ -426,14 +285,12 @@ createInterface({ input: process.stdin }).on("line", (line) => {
     });
 
     it("never lists it when the budget is zero", async () => {
-      start({ text: full }, { OMB_GATE_BUDGET: "0" }, SCOPED_UPSTREAM);
       start({ text: full }, { OMB_GATE_BUDGET: "0" }, PAGED_UPSTREAM);
       send({ jsonrpc: "2.0", id: 1, method: "tools/list", params: { cursor: "second" } });
       expect(JSON.parse(await nextLine()).result.tools.map((tool: { name: string }) => tool.name)).toEqual(["write"]);
     });
 
     it("holds the whole result and answers a query locally with just the selection", async () => {
-      start({ text: full }, {}, SCOPED_UPSTREAM);
       start({ text: full }, {}, PAGED_UPSTREAM);
       const shaped: string = (await call("read")).result.content[0].text;
       expect(shaped.startsWith("⚠️ SHAPED by OpenMausBot:")).toBe(true);
@@ -449,7 +306,6 @@ createInterface({ input: process.stdin }).on("line", (line) => {
     });
 
     it("cuts a query answer to the same budget, so the whole thing never comes back", async () => {
-      start({ text: full }, { OMB_GATE_BUDGET: "2000" }, SCOPED_UPSTREAM);
       start({ text: full }, { OMB_GATE_BUDGET: "2000" }, PAGED_UPSTREAM);
       await call("read");
       const answer = await query({ result: "r1", query: "@" }, 2);
@@ -458,26 +314,10 @@ createInterface({ input: process.stdin }).on("line", (line) => {
     });
 
     it("answers a bad handle or query as a tool error without touching upstream", async () => {
-      start({ text: full }, {}, SCOPED_UPSTREAM);
       start({ text: full }, {}, PAGED_UPSTREAM);
       expect((await query({ result: "r9", query: "@" }, 1)).result).toMatchObject({ isError: true });
       expect((await query({ query: "@" }, 2)).result).toMatchObject({ isError: true });
       expect(existsSync(join(scratch, "reply.json.calls"))).toBe(false);
     });
-
-    it("keeps query_result listed and callable under a tool selection that never names it", async () => {
-      start({ text: full }, { OMB_GATE_TOOL_SCOPE: JSON.stringify({ allow: ["mcp:shop:read"] }) }, SCOPED_UPSTREAM);
-      send({ jsonrpc: "2.0", id: 1, method: "tools/list", params: { cursor: "second" } });
-      expect(JSON.parse(await nextLine()).result.tools.map((tool: { name: string }) => tool.name)).toEqual(["query_result"]);
-      await call("read", 2);
-      const answer = await query({ result: "r1", query: "length(products)" }, 3);
-      expect(answer.result.content[0].text).toBe("300");
-    });
-  });
-
-  it("strips policy from the upstream environment without losing its own configuration", async () => {
-    start({}, selected, SCOPED_UPSTREAM);
-    send({ jsonrpc: "2.0", id: 1, method: "peek" });
-    expect(JSON.parse(await nextLine()).result).toEqual({ scope: null, upstreamOnly: "yes" });
   });
 });

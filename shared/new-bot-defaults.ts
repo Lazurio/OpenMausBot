@@ -1,6 +1,5 @@
 import type { WireBot } from "./wire";
 import type { RoutineInput } from "./routines";
-import type { ToolScope } from "./tool-scope";
 
 /** Data shared by the default template and an individual creation draft. */
 export type BotDefaultsProfile = Partial<Pick<WireBot,
@@ -12,7 +11,6 @@ export type BotDefaultsProfile = Partial<Pick<WireBot,
   cwd?: string | null;
   peers?: string[] | null;
   browserProfile?: string | null;
-  toolScope?: ToolScope | null;
   parkDirectMessages?: boolean;
   helperModel?: boolean;
 };

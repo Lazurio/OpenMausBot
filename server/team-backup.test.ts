@@ -60,19 +60,18 @@ function fixture() {
 describe("additive portable team backups", () => {
   beforeEach(() => rmSync(DATA_DIR, { recursive: true, force: true }));
 
-  it("carries tool restrictions through backup and import without restoring execution grants", () => {
-    const { store, routines, chief, scout } = fixture();
-    const scope = { allow: ["native:read", "mcp:notes:read"], deny: ["mcp:notes:write"] };
-    store.patchBot(chief.id, { toolScope: scope } as never);
-    store.patchBot(scout.id, { toolScope: { allow: [] } } as never);
+  // Lazurio overlay (DEV-6673, LAZURIO.md principle 3): every bot gets the Environment's tools.
+  it("imports a backup that still carries a per-bot tool selection without it", () => {
+    const { store, routines, chief } = fixture();
     const backup = createTeamBackup(store, routines.listRoutines(), "Selected tools");
-    expect(backup.bots.find((bot) => bot.key === chief.id)).toHaveProperty("toolScope", scope);
-    const restored = importTeamBackup(store, routines, backup, selection());
+    expect(backup.bots.find((bot) => bot.key === chief.id)).not.toHaveProperty("toolScope");
+    const old = structuredClone(backup) as unknown as { bots: Array<{ toolScope: unknown }> };
+    old.bots[0].toolScope = { allow: [] };
+    const parsed = parseTeamBackup(old);
+    expect(parsed.bots[0]).not.toHaveProperty("toolScope");
+    const restored = importTeamBackup(store, routines, parsed, selection());
+    expect(restored.bots.find((bot) => bot.name === "Mira 2")).not.toHaveProperty("toolScope");
     expect(approvalModeFor(restored.bots.find((bot) => bot.name === "Mira 2")!)).toBe("full");
-    expect(restored.bots.find((bot) => bot.name === "Scout 2")).toHaveProperty("toolScope", { allow: [] });
-    const invalid = structuredClone(backup) as unknown as { bots: Array<{ toolScope: unknown }> };
-    invalid.bots[0].toolScope = { allow: null };
-    expect(() => parseTeamBackup(invalid)).toThrow();
   });
 
   it("backs up and restores a silver bot in silver", () => {

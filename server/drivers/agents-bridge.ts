@@ -1,7 +1,7 @@
 // The agents tool bridge: a turn lists a few tools plus find_tool and use_tool, which runs a hidden one.
 // Security invariant: a bridged call is never judged more permissively than the same call made directly.
 // use_tool hands the name back to the proxy's one unknown-tool check and callTool path, and a tool judged
-// by its name (an outbound tool, a tool selection, an engine's own rules) never runs through it.
+// by its name (an outbound tool, an engine's own rules) never runs through it.
 import { isOutboundTool } from "../../shared/outbound.ts";
 import { READ_ONLY_ANNOTATIONS } from "../agent-tool-policy.ts";
 import { bm25Ranker } from "../mcp-directory.ts";
@@ -95,16 +95,7 @@ export function bridgedCallTitle(title: string, input: unknown, isCatalogTool: (
   return inner !== undefined && isCatalogTool(inner) ? `${prefix}${inner}` : title;
 }
 
-/** Security: an agents server spec forced to list its whole catalog, for a mount whose tool selection
- * matches the name in the call. */
-export function unbridgedServer<Spec extends { env?: Record<string, string> }>(server: Spec): Spec {
-  return server.env && Object.hasOwn(server.env, TOOL_BRIDGE_ENV) && server.env[TOOL_BRIDGE_ENV] !== "0"
-    ? { ...server, env: { ...server.env, [TOOL_BRIDGE_ENV]: "0" } }
-    : server;
-}
-
-/** Whether a turn's agents integration was asked to bridge. A selection may still mount it unbridged,
- * so anything a turn is told on the strength of this must hold either way. */
+/** Whether a turn's agents integration was asked to bridge. */
 export function agentsToolBridged(agents: { env?: Record<string, string | undefined> } | undefined): boolean {
   return agents?.env?.[TOOL_BRIDGE_ENV] === "1";
 }

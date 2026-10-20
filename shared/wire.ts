@@ -3,7 +3,6 @@
  * the shape. */
 import type { DataBroadcast } from "./data-surface.ts";
 import type { ApprovalMode } from "./approval-mode.ts";
-import type { ToolScope } from "./tool-scope.ts";
 import type { CommandAllowlistCandidate } from "./command-allowlist.ts";
 import type { TurnDigest } from "./digest.ts";
 import type { BotAvatarCrop } from "./bot-avatar.ts";
@@ -345,8 +344,6 @@ export interface WireBot extends DefaultBotFields {
   cacheKeepWarm?: boolean;
   /** false: the workspace's helper model never writes this bot's background texts. Absent or true: allowed. */
   helperModel?: boolean;
-  /** Owner-selected original tool identities. An empty allowlist permits none. */
-  toolScope?: ToolScope;
   /** Id of a named browser profile; absent = the bot's own private session. */
   browserProfile?: string;
   playbooks?: InstalledPlaybook[];

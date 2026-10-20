@@ -41,7 +41,6 @@ defaults:
   approval: full
   browser: { enabled: true, profile: guest }
   cwd: /work/visitors/
-  tools: { deny: ["native:Bash"] }
 teams:
   - { name: Launch Room, prune: true, brief: "We rehearse." }
 bots:
@@ -51,7 +50,6 @@ bots:
     model: claude/claude-sonnet-5-5
     effort: medium
     browser: false
-    tools: { deny: [] }
     soul: { file: souls/lead.md }
     skills: [{ file: skills/launch-report/SKILL.md }]
   - name: Priya
@@ -61,12 +59,10 @@ rooms:
 `));
     expect(team.bots[0]).toEqual({
       name: "Room Lead", team: "Launch Room", chief: true, manages: ["Support"], soul: "Lead the rehearsal.\n",
-      cwd: "/work/visitors", browser: { enabled: false }, tools: null,
       model: { instanceId: "claude", model: "claude-sonnet-5-5" }, effort: "medium", approval: "full",
       skills: [{ name: "launch-report", description: "Write the report.", text: expect.stringContaining("Body."), enabled: true, file: "skills/launch-report/SKILL.md" }],
     });
     expect(team.bots[1]).toMatchObject({ name: "Priya", team: "Launch Room", model: { instanceId: "claude", model: "claude-haiku-5-5" },
-      browser: { enabled: true, profile: "guest" }, tools: { deny: ["native:Bash"] }, soul: "You are Priya.", skills: [], manages: [] });
     expect(team.bots[1]).not.toHaveProperty("chief");
     expect(team.teams).toEqual([{ name: "Launch Room", brief: "We rehearse.", prune: true }]);
     expect(team.rooms).toEqual([{ name: "Rehearsal", members: ["Room Lead", "Priya"], responder: "Room Lead" }]);
@@ -112,6 +108,11 @@ rooms:
     const team = loadTeamFile(file(JSON.stringify({ version: 1, bots: [{ name: "Solo", computer: "cloud" }] }), "older.json"));
     expect(team.bots).toEqual([{ name: "Solo", manages: [], skills: [] }]);
     expect(team.warnings).toEqual([expect.stringMatching(/Solo.*computer is ignored; bots work on this computer/)]);
+  // Lazurio overlay (DEV-6673, LAZURIO.md principle 3): every bot gets the Environment's tools.
+  it("still reads an older file that selects tools, ignores it and says so", () => {
+    const team = loadTeamFile(file(JSON.stringify({ version: 1, defaults: { tools: { deny: ["native:Bash"] } }, bots: [{ name: "Solo" }] }), "older.json"));
+    expect(team.bots).toEqual([{ name: "Solo", manages: [], skills: [] }]);
+    expect(team.warnings).toEqual([expect.stringMatching(/Solo.*tools is ignored; every bot gets the tools of this computer/)]);
   });
 
   it.each([
@@ -126,7 +127,6 @@ rooms:
     ["a home folder", "bots: [{ name: A, cwd: ~/work }]", "~ is not expanded the same way on the server"],
     ["Custom approval", "bots: [{ name: A, approval: custom }]", "custom was removed"],
     ["a soul file that is not there", "bots: [{ name: A, soul: { file: souls/nobody.md } }]", "souls/nobody.md could not be read (ENOENT)"],
-    ["a bad tool selector", 'bots: [{ name: A, tools: { deny: ["Bash"] } }]', "selectors look like native:Bash"],
     ["a room member listed twice", "bots: [{ name: A }]\nrooms: [{ name: R, members: [A, a] }]", "a member is listed twice"],
     ["a responder from outside the room", "bots: [{ name: A }]\nrooms: [{ name: R, members: [A], responder: B }]", "responder must be everyone, mentions, or one of its members"],
     ["a title on two lines", 'bots: [{ name: A, title: "Buyer\\nand critic" }]', "bots[0].title: a title must fit on one line"],

@@ -29,6 +29,7 @@ function expectMemoryInTurn(request: ChatRequest, text: string) {
   expect(turn.slice(-text.length)).toBe(text);
 }
 
+it.each(["openaiCompat", "groq", "meta"] as const)("%s keeps a tool call written as text, delivers memory per turn, and honours tools off", async instanceId => {
   const requests: ChatRequest[] = [];
   let scenario = "text";
   const upstream = createServer(async (req, res) => {
@@ -119,16 +120,14 @@ function expectMemoryInTurn(request: ChatRequest, text: string) {
       expect(first.all).not.toContain("update it with your file tools");
       expect(first.all).not.toContain("File locations for this bot");
       expect(first.all).not.toContain("read its exact SKILL.md path above with your file tools");
-      if (mode === "tools-off" || mode === "scope-empty") {
       expect(requests).toHaveLength(before + 1);
       expect(settled.status).toBe("settled");
       if (mode === "text") expect(messages.messages.some((message: any) => message.text?.includes("fixture-call"))).toBe(true);
+      if (mode === "tools-off") {
         expect(requests[before]).not.toHaveProperty("tools");
-        if (mode === "tools-off") {
-          expect(first.all).not.toContain("Use memory_update");
-          expect(first.all).not.toContain("session_search tool");
-          expect(first.all).not.toContain("The user also added an MCP server");
-        }
+        expect(first.all).not.toContain("Use memory_update");
+        expect(first.all).not.toContain("session_search tool");
+        expect(first.all).not.toContain("The user also added an MCP server");
         expect(messages.messages.some((message: any) => message.tool || message.card)).toBe(false);
       }
       evidence.push({ scenario: mode, status: settled.status, completionRequests: requests.length - before });

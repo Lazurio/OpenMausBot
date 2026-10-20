@@ -3,9 +3,7 @@ import { spawn } from "node:child_process";
 import { mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
-import { allowsTool, parseToolScope, type ToolScope } from "../shared/tool-scope.ts";
 
-import { bridgedCallTarget } from "./drivers/agents-bridge.ts";
 import { resolveCliSpawn } from "./env-path.ts";
 import { QUERY_TOOL, QUERY_TOOL_NAME, ResultStore, answerQuery, describeShape, exampleQuery } from "./mcp-shape.ts";
 import { fitToolList } from "./mcp-tool-schema.ts";
@@ -21,7 +19,6 @@ const SPILL_DIR = process.env.OMB_GATE_SPILL_DIR || "";
 const rawBudget = Number(process.env.OMB_GATE_BUDGET);
 const BUDGET = Number.isFinite(rawBudget) && rawBudget >= 0 ? rawBudget : DEFAULT_RESULT_BUDGET;
 const SPILL_MAX_AGE_MS = 24 * 60 * 60_000;
-const SPILL_HINT = gateEnv.OMB_GATE_SPILL_HINT === "1";
 const SPILL_HINT = process.env.OMB_GATE_SPILL_HINT === "1";
 const SCHEMA_PROFILE = toolSchemaProfileFromEnv(process.env);
 const TOOL_LIMIT = toolLimitFromEnv(process.env);
@@ -29,17 +26,6 @@ const TOOL_LIMIT = toolLimitFromEnv(process.env);
 function fail(message: string): never {
   process.stderr.write(`mcp-gate(${NAME}): ${message}\n`);
   process.exit(1);
-}
-
-function toolScope(): ToolScope | undefined {
-  const raw = gateEnv.OMB_GATE_TOOL_SCOPE;
-  if (raw === undefined) return;
-  let value: unknown;
-  try { value = JSON.parse(raw); } catch { fail("invalid tool selection JSON"); }
-  const parsed = parseToolScope(value);
-  if (!parsed.ok || parsed.scope === undefined) fail("invalid tool selection; check the bot's Access settings");
-  if (!/^[a-z][a-z0-9_-]{0,31}$/.test(NAME)) fail("invalid MCP server identity for tool selection");
-  return parsed.scope;
 }
 
 function isRecord(value: unknown): value is Json {
@@ -51,10 +37,6 @@ function requestKey(id: unknown): string | undefined {
     ? `${typeof id}:${id}` : undefined;
 }
 
-function rejectRequest(id: unknown, code: number, message: string): void {
-  process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", id: requestKey(id) ? id : null, error: { code, message } })}\n`);
-}
-
 interface Upstream {
   command: string;
   args?: string[];
@@ -64,7 +46,6 @@ interface Upstream {
 function upstreamSpec(): Upstream {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(gateEnv.OMB_GATE_UPSTREAM ?? "");
     parsed = JSON.parse(process.env.OMB_GATE_UPSTREAM ?? "");
   } catch {
     fail("OMB_GATE_UPSTREAM is not valid JSON");
@@ -185,8 +166,6 @@ function trimCallResult(result: Json, tool: string): boolean {
   return trimmed;
 }
 
-// Validate before starting a process: corrupt policy must never become pass-through.
-const scope = toolScope();
 const spec = upstreamSpec();
 if (SPILL_DIR) sweepSpill(SPILL_DIR);
 
@@ -237,10 +216,7 @@ createInterface({ input: process.stdin }).on("line", (line) => {
     try {
       const parsed: unknown = JSON.parse(line);
       if (isRecord(parsed)) message = parsed;
-    } catch {
-      if (scope) return rejectRequest(null, -32700, "Invalid JSON-RPC frame");
-    }
-    if (scope && (!message || message.jsonrpc !== "2.0")) return rejectRequest(message?.id, -32600, "Invalid JSON-RPC frame");
+    } catch {}
   }
   const id = requestKey(message?.id);
   const params = isRecord(message?.params) ? message.params : undefined;
@@ -265,17 +241,13 @@ createInterface({ input: child.stdout }).on("line", (line) => {
   try {
     const parsed: unknown = JSON.parse(line);
     if (isRecord(parsed)) message = parsed;
-  } catch {
-    if (scope) fail("unreadable upstream frame on a restricted connection");
-  }
-  if (!message || (scope && message.jsonrpc !== "2.0")) {
-    if (scope) fail("invalid upstream frame on a restricted connection");
+  } catch {}
+  if (!message) {
     process.stdout.write(`${line}\n`);
     return;
   }
   const id = typeof message.method === "string" ? undefined : requestKey(message.id);
   const request = id === undefined ? undefined : pending.get(id);
-  if (scope && id !== undefined && !request) fail("unrequested upstream response on a restricted connection");
   if (id !== undefined) pending.delete(id);
   const result = message.result;
   if (SCHEMA_PROFILE && request?.kind === "list" && message.error === undefined && isRecord(result) && Array.isArray(result.tools)) {

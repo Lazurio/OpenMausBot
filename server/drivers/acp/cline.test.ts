@@ -11,7 +11,6 @@ import { removeTempDir } from "../../testing/cleanup.ts";
 import { BUILT_IN_DRIVERS } from "../builtIn.ts";
 import { ClineAgentDriver } from "./cline.ts";
 import { supportsApprovalMode } from "../../../shared/approval-mode.ts";
-import { assertToolScopeSupported } from "../../../shared/tool-scope-support.ts";
 
 const FAKE_CLI = join(dirname(fileURLToPath(import.meta.url)), "../../testing/fake-acp-cli.ts");
 
@@ -102,15 +101,15 @@ describe("Cline ACP driver", () => {
     writeFileSync(ambient, before);
     vi.stubEnv("CLINE_MCP_SETTINGS_PATH", ambient);
     const { instance, recorder } = await create();
-    const run = async (threadId: string, integrations?: Parameters<typeof instance.adapter.sendTurn>[0]["integrations"], toolScope?: Parameters<typeof instance.adapter.sendTurn>[0]["toolScope"]) => {
-      const { turnId } = await instance.adapter.sendTurn({ threadId, text: "hello", integrations, toolScope });
+    const run = async (threadId: string, integrations?: Parameters<typeof instance.adapter.sendTurn>[0]["integrations"]) => {
+      const { turnId } = await instance.adapter.sendTurn({ threadId, text: "hello", integrations });
       await recorder.until((event) => event.type === "turn.completed" && event.turnId === turnId);
       const path = JSON.parse(readFileSync(join(scratch, "launch.json"), "utf8")).env.CLINE_MCP_SETTINGS_PATH as string;
       return { path, settings: JSON.parse(readFileSync(path, "utf8")) };
     };
     const first = await run("cline-one", {
       agents: { command: "fixture-mcp", args: [], env: { TOKEN: "first-fixture-token" } },
-    }, { allow: ["native:*", "mcp:agents:*"] });
+    });
     expect(Object.keys(first.settings.mcpServers)).toEqual(["agents"]);
     expect(JSON.stringify(first.settings)).toContain("first-fixture-token");
     expect(first.path).not.toBe(ambient);
@@ -118,7 +117,7 @@ describe("Cline ACP driver", () => {
     expect(second.path).not.toBe(first.path);
     expect(second.settings).toEqual({ mcpServers: {} });
     expect(readFileSync(first.path, "utf8")).toContain("first-fixture-token");
-    const revoked = await run("cline-one", { agents: { command: "fixture-mcp", args: [], env: { TOKEN: "second-fixture-token" } } }, { allow: ["native:*"] });
+    const revoked = await run("cline-one");
     expect(revoked.path).toBe(first.path);
     expect(revoked.settings).toEqual({ mcpServers: {} });
     expect(readFileSync(ambient, "utf8")).toBe(before);
@@ -223,10 +222,5 @@ describe("Cline ACP driver", () => {
       config: { cli: join(scratch, "missing-cline"), fullAuto: false },
     });
     expect(await instance.snapshot()).toMatchObject({ state: "unavailable" });
-  });
-
-  it("supports MCP selection without claiming it can suppress native Cline tools", () => {
-    expect(assertToolScopeSupported("clineAgent", { allow: ["native:*", "mcp:agents:*" ] })).toBeDefined();
-    expect(() => assertToolScopeSupported("clineAgent", { allow: ["mcp:agents:*" ] })).toThrow(/native tool selection/);
   });
 });

@@ -1132,7 +1132,7 @@ describe("ACP turns (fake CLI)", () => {
     ]);
   });
 
-  it.each([false, true])("mounts Data through the existing stdio transport unless excluded (excluded=%s)", async (excluded) => {
+  it("mounts Data through the existing stdio transport", async () => {
     await create();
     const dump = join(scratch, "data.json");
     process.env.FAKE_ACP_DUMP = dump;
@@ -1141,10 +1141,10 @@ describe("ACP turns (fake CLI)", () => {
     expect(instance.adapter.capabilities.dataMcp).toBe(true);
     await instance.adapter.sendTurn({
       threadId: "t-data", text: "Update the existing result.", system: BUILT_IN_DATA_SYSTEM_PROMPT,
-      integrations: { data }, ...(excluded ? { toolScope: { allow: ["native:*"] } } : {}),
+      integrations: { data },
     });
     expect(await recorder.until((event) => event.type === "turn.completed")).toMatchObject({ ok: true });
-    expect(JSON.parse(readFileSync(`${dump}.mcp.json`, "utf8"))).toEqual(excluded ? [] : [{
+    expect(JSON.parse(readFileSync(`${dump}.mcp.json`, "utf8"))).toEqual([{
       name: "data", ...data, env: [{ name: "OMB_DATA_TOKEN", value: "synthetic-turn-capability" }],
     }]);
     const prompt = JSON.parse(readFileSync(`${dump}.prompt.json`, "utf8")) as Array<{ type: string; text?: string }>;

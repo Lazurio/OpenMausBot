@@ -6,12 +6,10 @@ import { stripControlPlaneEnv } from "../config.ts";
 import type { SendTurnInput } from "../contracts.ts";
 import { augmentedPath } from "../env-path.ts";
 import { killCliTree, spawnCli } from "../procs.ts";
-import { bridgedCallTarget, unbridgedServer } from "./agents-bridge.ts";
 import { chatImage, type ChatImagePart } from "./chat-images.ts";
 import { compileToolSchema } from "../mcp-schema-validator.ts";
 import { fitToolList } from "../mcp-tool-schema.ts";
 import type { ToolSchemaProfile } from "../tool-schema-profile.ts";
-import { allowsTool, canUseMcpServer, parseToolScope, type ToolScope } from "../../shared/tool-scope.ts";
 
 export interface ChatToolDefinition {
   type: "function";
@@ -272,7 +270,6 @@ export async function mountChatTools(integrations: SendTurnInput["integrations"]
       // Harness mounts are known by descriptor, never by a name a configured server could claim. A grant
       // hashes the descriptor (no credential kept); machine bridges mint a bearer per turn, so theirs last a turn.
       const launch = createHash("sha256").update(JSON.stringify(descriptor)).digest("hex");
-      return { name, client, launch, builtInBrowser: descriptor === integrations?.browser, agents: descriptor === agentsServer,
         hostComputer: descriptor === integrations?.localComputer && integrations?.localComputer?.scope === "local-computer", tools };
     }));
     for (const mount of mounts) {
@@ -319,9 +316,6 @@ export async function mountChatTools(integrations: SendTurnInput["integrations"]
     if (closed || signal.aborted) throw new ChatToolSessionError("MCP session closed");
     const tool = registered.get(name);
     if (!tool) throw new Error("The requested tool was not advertised for this turn");
-    const excluded = (runs: string | undefined) => scope !== undefined && runs !== undefined
-      && !allowsTool(scope, { kind: "mcp", server: tool.server, name: runs });
-    // Security: should a bridged agents server answer here, use_tool is also judged by the tool it names.
     omitBlankDefaults(tool.builtInBrowser, tool.name, args);
     if (!object(args) || !tool.schema(args)) throw new Error("Tool arguments do not match the advertised input schema; use its required fields and types");
   };

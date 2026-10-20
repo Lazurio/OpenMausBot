@@ -16,7 +16,6 @@ import { expect, it } from "vitest";
 import { launchVerificationServer, runControlOmb } from "../scripts/control-omb.ts";
 import type { WireMessage } from "../shared/wire.ts";
 import { createToolBridge, type BridgeTool } from "./drivers/agents-bridge.ts";
-import { gateServer } from "./mcp-gate-config.ts";
 import { AGENTS_TOOL_BRIDGE_PROMPT } from "./system-prompt.ts";
 import { turnEvidence } from "./turn-outcome.ts";
 import { waitForExit } from "./testing/cleanup.ts";
@@ -180,17 +179,6 @@ it("keeps a turn on the whole catalog until the switch is on, then mounts the br
       expect(refusalOf(refused)).toContain("only a section's Chief of Staff can change another bot's profile");
       expect(refused.result).toEqual((await call(ask, "propose_profile", other)).result);
     });
-    // A tool selection saved after this turn decided to bridge is the one in
-    // force when the turn is mounted (a room turn reads it last). The mount
-    // then starts this very integration unbridged behind its gate: the whole
-    // catalog but what the selection leaves out, and no way round it.
-      const names = namesOf(await ask("tools/list"));
-      expect((await use(ask, "list_triggers")).error).toEqual({ code: -32602, message: "Unknown tool: use_tool" });
-      // and what the selection allows still reaches the harness
-      expect(textOf(await call(ask, "list_triggers", {}))).toMatch(/^This bot has no triggers\. Current time: /);
-    });
-    // the prompt this turn was given is still true of that mount: it speaks of the bridge tools only if they are listed
-    expect(after.systemPrompt).toContain(" If find_tool and use_tool are in your tool list, ");
     await control(["interrupt", "--bot", bot.id]);
     await control(["wait", "--bot", bot.id, "--timeout", "30"]);
 
@@ -205,32 +193,11 @@ it("keeps a turn on the whole catalog until the switch is on, then mounts the br
   });
 }, hostTimeout(90_000));
 
-it("leaves every gate and limit where it was: a tool selection, a Chief-only tool and the per-turn thread limit hold for a bridged call as for a direct one", async () => {
+it("leaves every gate and limit where it was: a Chief-only tool and the per-turn thread limit hold for a bridged call as for a direct one", async () => {
   await withFixture(async ({ api, control, launched }) => {
     expect((await api("PATCH", "/api/config", { features: { agentsToolBridge: true } })).status).toBe(200);
 
-    // A bot with a tool selection keeps the whole catalog behind its gate,
-    // which refuses the excluded tool by its own name; there is no bridge to
-    // carry the call past it.
-    const { bot: selected } = await control(["new-bot", "--name", "Selected bridge fixture"]);
-    expect((await api("PATCH", `/api/bots/${selected.id}`, { toolScope })).status).toBe(200);
-    await control(["send", "--bot", selected.id, "--text", "Stay active."]);
-    const gatedTurn = await launched();
-    // With a selection the engine is handed the gate, which starts the proxy.
-    const gate = gatedTurn.mcpConfig.mcpServers.agents!;
-    expect(JSON.parse(gate.env.OMB_GATE_TOOL_SCOPE!)).toEqual(toolScope);
-    expect((JSON.parse(gate.env.OMB_GATE_UPSTREAM!) as McpServer).env.OMB_AGENTS_TOOL_BRIDGE).toBe("0");
-    expect(gatedTurn.systemPrompt).not.toContain("find_tool");
-    await withServer(gate, async (ask) => {
-      const list = await ask("tools/list");
-      // the whole catalog but the one tool the selection leaves out, and no way round it
-      expect(namesOf(list)).toEqual(expect.arrayContaining(["coordinate_bots", "create_trigger", "list_rooms", "post_to_room"]));
-      expect((await use(ask, "list_triggers")).error).toEqual({ code: -32602, message: "Unknown tool: use_tool" });
-    });
-    await control(["interrupt", "--bot", selected.id]);
-    await control(["wait", "--bot", selected.id, "--timeout", "30"]);
-
-    // A bot with no selection is bridged.
+    // The bot's turn is bridged.
     const { bot } = await control(["new-bot", "--name", "Limits bridge fixture"]);
     await control(["send", "--bot", bot.id, "--text", "Stay active."]);
     const turn = await launched();

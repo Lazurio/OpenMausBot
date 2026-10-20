@@ -1,8 +1,6 @@
 import { join } from "node:path";
-import { parseToolScope, type ToolScope } from "../shared/tool-scope.ts";
 
 import { DATA_DIR } from "./config.ts";
-import { unbridgedServer } from "./drivers/agents-bridge.ts";
 import { DEFAULT_RESULT_BUDGET, QUERY_TOOL_NAME } from "./mcp-trim.ts";
 import { REMOTE_MCP_CONFIG_ENV, remoteMcpSpec } from "./mcp-http.ts";
 import { SPAWNED_PROXIES } from "./proxy-paths.ts";
@@ -84,6 +82,7 @@ export interface StdioServerOptions {
   nodeEnv?: Record<string, string>;
   execPath?: string;
   sourceEnv?: NodeJS.ProcessEnv | Record<string, string | undefined>;
+  directory?: { name: string };
   configEnvName?: string;
 }
 
@@ -114,10 +113,8 @@ export function gateServer(input: {
   server: unknown;
   threadId: string;
   budget: number;
-  toolScope?: ToolScope;
   nodeEnv?: Record<string, string>;
   execPath?: string;
-  configEnvName?: string;
   sourceEnv?: NodeJS.ProcessEnv | Record<string, string | undefined>;
   gateRemote?: boolean;
   /** The engine's provider limits each listed tool schema, so the gate fits them to its profile. */
@@ -148,12 +145,10 @@ export function gateServer(input: {
   };
   return {
     command: input.execPath ?? process.execPath,
-    args: [SPAWNED_PROXIES.mcpGate, ...(input.configEnvName ? ["--config-env", input.configEnvName] : [])],
     args: [SPAWNED_PROXIES.mcpGate],
     env: {
       ...input.nodeEnv,
       ...(schemaProfile ? { [TOOL_SCHEMA_PROFILE_ENV]: schemaProfile } : {}),
-      ...(input.configEnvName ? { [input.configEnvName]: JSON.stringify(env) } : env),
       ...env,
     },
   };

@@ -3,13 +3,7 @@
 import { connect } from "node:net";
 import { randomUUID } from "node:crypto";
 import { parseAskQuestions, questionAnswersByQuestion, type AskQuestion } from "../shared/ask-question.ts";
-import { allowsTool, parseToolScope } from "../shared/tool-scope.ts";
 import { REFUSED_NEXT_STEP } from "./reply-habits.ts";
-
-const selection = parseToolScope(process.env.OMB_PERMISSION_TOOL_SCOPE === undefined
-  ? undefined : (() => { try { return JSON.parse(process.env.OMB_PERMISSION_TOOL_SCOPE); } catch { return null; } })());
-if (!selection.ok) throw new Error(selection.error);
-const allowQuestion = allowsTool(selection.scope, { kind: "mcp", server: "ogb", name: "ask_user" });
 
 const socketPath = process.argv[2] ?? "";
 
@@ -155,13 +149,11 @@ async function handle(msg: any) {
       },
     });
   }
-  // approve is the CLI's private permission callback, not an execution grant.
-  if (msg.method === "tools/list") return send({ jsonrpc: "2.0", id: msg.id, result: { tools: TOOLS.filter((tool) => tool.name === "approve" || allowQuestion) } });
+  if (msg.method === "tools/list") return send({ jsonrpc: "2.0", id: msg.id, result: { tools: TOOLS } });
   if (msg.method === "tools/call") {
     const name = msg.params?.name;
     const args = msg.params?.arguments ?? {};
     const reply = (text: string) => send({ jsonrpc: "2.0", id: msg.id, result: { content: [{ type: "text", text }] } });
-    if (name === "ask_user" && !allowQuestion) return reply("OpenMausBot: this question tool is excluded by the bot's tool selection.");
     if (name === "approve" && args.tool_name === ASK_USER_QUESTION) {
       return reply(await answerNativeQuestions(args.input));
     }

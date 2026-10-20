@@ -3,13 +3,17 @@ import { newBotDefaultsSchema, resolveBotCreationDefaults } from "./new-bot-defa
 import { parseConfigPatch } from "./config.ts";
 
 describe("new-bot templates", () => {
-  it("preserves restricted and empty tool defaults while allowing an explicit owner reset", () => {
-    const defaults = newBotDefaultsSchema.parse({ profile: { toolScope: { allow: ["native:read", "native:read"] } } });
-    expect(defaults.profile).toEqual({ toolScope: { allow: ["native:read"] } });
-    expect(resolveBotCreationDefaults(defaults, {}).profile).toEqual({ toolScope: { allow: ["native:read"] } });
-    expect(resolveBotCreationDefaults(defaults, { settings: { toolScope: { allow: [] } } }).profile).toEqual({ toolScope: { allow: [] } });
-    expect(resolveBotCreationDefaults(defaults, { settings: { toolScope: null } }).profile).toEqual({ toolScope: null });
-    expect(newBotDefaultsSchema.safeParse({ profile: { toolScope: { deny: ["mcp:*:read"] } } }).success).toBe(false);
+  // Lazurio overlay (DEV-6673, LAZURIO.md principle 3): every bot gets the Environment's tools, so a saved per-bot
+  // tool selection loads and drops, and a write or a creation that names one is refused.
+  it("still loads saved defaults with a tool selection, and drops it", () => {
+    const defaults = newBotDefaultsSchema.parse({ profile: { notifications: false, toolScope: { allow: ["native:read"] } } });
+    expect(defaults.profile).toEqual({ notifications: false });
+    expect(resolveBotCreationDefaults(defaults, {}).profile).toEqual({ notifications: false });
+    expect(() => parseConfigPatch({ newBotDefaults: { profile: { notifications: false, toolScope: { allow: [] } } } })).toThrow(/removed/);
+    for (const toolScope of [{ allow: [] }, null]) {
+      expect(() => resolveBotCreationDefaults(defaults, { settings: { toolScope } }), JSON.stringify(toolScope)).toThrow(/removed/);
+      expect(() => resolveBotCreationDefaults(defaults, { toolScope }), JSON.stringify(toolScope)).toThrow(/removed/);
+    }
   });
   it("stores Full as a plain preference, with no consent field, and creates new bots with it", () => {
     const defaults = newBotDefaultsSchema.parse({ profile: { name: "", approvalMode: "full" } });
@@ -23,8 +27,6 @@ describe("new-bot templates", () => {
 
   it("takes the helper-model switch in the request that creates a bot, as a boolean and nothing else", () => {
     expect(resolveBotCreationDefaults(undefined, { settings: { helperModel: false } }).profile).toEqual({ helperModel: false });
-    // beside a tool selection, as the sidebar's Duplicate sends them
-    expect(resolveBotCreationDefaults(undefined, { settings: { toolScope: { allow: [] }, helperModel: false } }).profile).toEqual({ toolScope: { allow: [] }, helperModel: false });
     for (const wrong of ["false", 0, null]) {
       expect(() => resolveBotCreationDefaults(undefined, { settings: { helperModel: wrong } }), JSON.stringify(wrong)).toThrow();
     }

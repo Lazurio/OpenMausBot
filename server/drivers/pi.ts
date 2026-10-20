@@ -35,7 +35,7 @@ import type {
 } from "../contracts.ts";
 import { EFFORT_LEVELS } from "../../shared/wire.ts";
 import { newEventId, newId } from "../contracts.ts";
-import { ASK_USER_TOOL, MAX_QUESTION_TEXT, parseAskQuestions, parseChoices, questionAnswersByQuestion } from "../../shared/ask-question.ts";
+import { MAX_QUESTION_TEXT, parseAskQuestions, parseChoices, questionAnswersByQuestion } from "../../shared/ask-question.ts";
 import {
   decodeInjectId,
   encodeInjectId,
@@ -548,9 +548,6 @@ export const PiDriver: ProviderDriver<PiConfig> = {
     const sendTurn = async (turn: SendTurnInput) => {
       if (startupModelRefresh) await startupModelRefresh;
       const { threadId } = turn;
-      const selection = parseToolScope(turn.toolScope);
-      if (!selection.ok) throw new Error(selection.error);
-      const toolScope = selection.scope;
       if (active.has(threadId)) throw new Error("a turn is already running on this thread");
       const fullAuto = turn.approvalMode === undefined ? config.fullAuto : false;
       // Host control always routes through the permission card, full-auto or not.
@@ -576,11 +573,9 @@ export const PiDriver: ProviderDriver<PiConfig> = {
       // The MCP config carries credentials: a 0600 temp file removed at settle, never argv.
       // Written on every turn: the extension also carries ask_user.
       const mcpServers = buildMcpServers(turn);
-      const askUser = toolScope === undefined || allowsTool(toolScope, { kind: "native", name: ASK_USER_TOOL });
       const mcpTempDir = mkdtempSync(join(tmpdir(), "omb-pi-mcp-"));
-      const scopeReadyPath = toolScope !== undefined ? join(mcpTempDir, "scope-ready.json") : undefined;
       try {
-        writeFileSync(join(mcpTempDir, "mcp.json"), JSON.stringify({ mcpServers: mcpServers ?? {}, toolScope, scopeReadyPath, approvalMode: turn.approvalMode, askUser }), { mode: 0o600 });
+        writeFileSync(join(mcpTempDir, "mcp.json"), JSON.stringify({ mcpServers: mcpServers ?? {}, approvalMode: turn.approvalMode }), { mode: 0o600 });
       } catch (err) {
         // A partial file could still hold credentials.
         try {
@@ -942,20 +937,6 @@ export const PiDriver: ProviderDriver<PiConfig> = {
           send({ type: "set_thinking_level", level: piThinkingLevel(turn.effort) });
           await levelPromise;
         } catch {}
-      }
-
-      if (scopeReadyPath) {
-        let ready = false;
-        try {
-          const receipt = JSON.parse(readFileSync(scopeReadyPath, "utf8")) as { ok?: unknown; toolScope?: unknown };
-          ready = receipt.ok === true && JSON.stringify(receipt.toolScope) === JSON.stringify(toolScope);
-        } catch { /* Missing or malformed readiness is never a grant. */ }
-        if (!ready) {
-          const message = "Pi tool selection enforcement is unavailable. Update Pi and check the OpenMausBot extension before retrying.";
-          emit({ ...base(threadId, turnId), type: "runtime.error", message });
-          settle(false);
-          throw new Error(message);
-        }
       }
 
       const halves = promptHalves(turn);

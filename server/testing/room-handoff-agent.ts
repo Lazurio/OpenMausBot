@@ -104,11 +104,7 @@ export async function runRoomHandoffAgent(argv: string[], planPath: string, prom
   progress?: (text: string) => void): Promise<string> {
   const arg = (flag: string) => argv[argv.indexOf(flag) + 1];
   const mounted = launch ? [] : Object.values(JSON.parse(readAtLaunch(arg("--mcp-config"))).mcpServers as Record<string, AgentsIntegration>);
-  // With a tool selection every server sits behind the gate, which names its upstream in OMB_GATE_UPSTREAM.
-  const agentEnv = (server: AgentsIntegration): Record<string, string> => {
-    if (server.env?.OMB_COMMS_TOKEN || server.env?.OMB_BOT_ID) return server.env;
-    try { return (JSON.parse(server.env?.OMB_GATE_UPSTREAM ?? "") as AgentsIntegration).env ?? {}; } catch { return {}; }
-  };
+  const agentEnv = (server: AgentsIntegration): Record<string, string> => server.env ?? {};
   const integration = launch?.integration ?? mounted.find(s => agentEnv(s).OMB_COMMS_TOKEN) ?? mounted.find(s => agentEnv(s).OMB_BOT_ID);
   if (!integration) {
     // `${planPath}.gates.json` [{ promptIncludes, gateFile }] holds a delegated reply until its gate exists.

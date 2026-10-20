@@ -22,7 +22,7 @@ function routes(box?: () => BoxReport) {
   const health = createCloudHealth({
     store: { onChange: () => () => {}, botByThread: () => null, bots: [] }, bus: { subscribe: () => () => {} },
     engines: () => [], dataDir: DATA_DIR, eventsDir: DATA_DIR, version: "0.1.0", image: undefined, connectors: () => null,
-    browser: () => ({ available: true, installing: false, interrupted: 0 }), box, now,
+    box, now,
   });
   const handle = createCloudSignedRoutes({ secret, sessions, health, box, now });
   const sign = (target: string, method = "GET", key = secret) => {

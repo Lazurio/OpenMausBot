@@ -3,7 +3,6 @@ import { profilePatchSchema, fitsOnOneLine } from "./bot-profile.ts";
 import { EFFORT_LEVELS, MAUS_COLOR_NAMES } from "../shared/wire.ts";
 import { isModelVariant } from "./contracts.ts";
 import { normalizeCronSchedule } from "../shared/routine-schedule.ts";
-import { parseToolScope, type ToolScope } from "../shared/tool-scope.ts";
 import { removedBotSetting, removedBotSettingError } from "./lazurio-removed-config.ts";
 
 const strings = (max: number, length: number) => z.array(z.string().max(length)).max(max);
@@ -38,8 +37,6 @@ export const botDefaultsProfileSchema = z.preprocess(withoutRemovedDefaults, pro
   peers: strings(1000, 100).nullable().optional(),
   browser: z.boolean().optional(),
   browserProfile: z.string().max(100).nullable().optional(),
-  toolScope: z.custom<ToolScope>((value) => value !== undefined && parseToolScope(value).ok, "Invalid tool selection")
-    .transform((value) => { const parsed = parseToolScope(value); return parsed.ok ? parsed.scope! : value; }).nullable().optional(),
   parkDirectMessages: z.boolean().optional(),
   /** At creation, so a copy of a bot kept off the helper model is off it from its first moment. */
   helperModel: z.boolean().optional(),

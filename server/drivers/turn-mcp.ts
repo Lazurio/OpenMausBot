@@ -1,7 +1,6 @@
-// family and Muse Code so the owner's tool selection applies alike.
 // The stdio MCP servers a turn hands an agent (the harness proxies), shared by the ACP
+// family and Muse Code.
 import type { SendTurnInput } from "../contracts.ts";
-import { canUseMcpServer } from "../../shared/tool-scope.ts";
 import { harnessMcpTokenEnv } from "../harness-mcp-token.ts";
 import { gateServer } from "../mcp-gate-config.ts";
 import { AGENTS_ENV_HEADER, OWN_MCP_HTTP_PATH } from "../routes/own-mcp-http-path.ts";

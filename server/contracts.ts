@@ -1,7 +1,6 @@
 // Ported from upstream's provider contracts with Promises for Effect and listeners for Stream; shapes and names are kept.
 
 import type { ApprovalMode } from "../shared/approval-mode.ts";
-import type { ToolScope } from "../shared/tool-scope.ts";
 import type { EffortLevel } from "../shared/wire.ts";
 import type {
   DriverKind, InstanceId, ModelVariantOption, RuntimeEventListener, ThreadId, TurnId,
@@ -108,8 +107,6 @@ export interface SendTurnInput {
   /** The conversation's level right now, which the person may change while the turn runs. A driver that gates its own
    * tool calls reads it before each one; a native engine keeps `approvalMode` until its next turn. */
   approvalModeNow?: () => ApprovalMode;
-  /** Fresh owner selection, independent of execution approval and resume state. */
-  toolScope?: ToolScope;
   /** A guest turn: no shell or command execution, no reads outside its folder. Sent only to drivers whose guestTurns is "confined". */
   guestConfined?: boolean;
   /** Why this turn is confined, in the owner's words, for a refusal to end with. */

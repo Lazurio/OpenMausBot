@@ -658,11 +658,9 @@ it("T12 a turn the watchdog stops after it posted a credential card fails as sta
   expect(provided.status, JSON.stringify(provided.body)).toBe(200);
   expect(provided.body).toEqual({ provided: true, resumed: false });
   await answerStartsNothing(f, job);
-}, { fake: STALL_CLOCK }), hostTimeout(60_000));
-
+}, { fake: STALL_CLOCK, browser: true }), hostTimeout(60_000));
 
 it("T12 a turn the watchdog stops after it posted a sign-in card fails as stalled and stops the card", () => scenario(async (f) => {
-  await browserPlace(f);
   f.script(f.clive.id, { key: "C0", match: ["T12S-JOB"], steps: [{ tool: "request_sign_in", arguments: { site: "https://example.com/dashboard", reason: "The dashboard is behind a login." } }],
     gateFile: f.gate("c0"), reply: "T12S-LATE: never shown." });
   const job = f.clive.activeTaskId;

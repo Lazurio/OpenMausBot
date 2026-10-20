@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { audienceBrowserSuffix } from "../browser/audience.ts";
 import { audienceHome, audienceHomeKey, audienceHomes, homedSpawn } from "./layout.ts";
 
 const linux = describe.skipIf(process.platform === "win32");
@@ -11,9 +10,9 @@ const serverHome = "/data", dataDir = "/data/.openmausbot";
 const bob = audienceHome(dataDir, "member:p_bob"), owner = audienceHome(dataDir, "member:p_olive");
 
 linux("an audience's engine home", () => {
-  it("is keyed like the audience's browser: the team's, a group chat's or a person's, never another's", () => {
+  it("is keyed by the audience: the team's, a group chat's or a person's, never another's", () => {
     expect(audienceHomeKey("team")).toBe("team");
-    expect(audienceHomeKey("member:p_bob")).toBe(audienceBrowserSuffix("member:p_bob").slice(2));
+    expect(audienceHomeKey("member:p_bob")).toMatch(/^member-[0-9a-f]{16}$/);
     expect(audienceHomeKey("room:r1")).toMatch(/^room-[0-9a-f]{16}$/);
     expect(audienceHome(dataDir, "team")).toBe("/data/.openmausbot/engine-homes/team");
     expect(new Set([bob, owner, audienceHome(dataDir, "room:r1"), audienceHome(dataDir, "team")]).size).toBe(4);

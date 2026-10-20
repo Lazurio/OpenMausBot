@@ -3,8 +3,7 @@
 // JSON-RPC 2.0 over stdio, one frame per line, without Content-Length framing.
 import { Type, type TObjectOptions, type TSchema, type TSchemaOptions } from "typebox";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
-import { allowsTool, canUseMcpServer, parseToolScope, type ToolIdentity } from "../../shared/tool-scope.ts";
+import { readFileSync } from "node:fs";
 import { ASK_USER_TOOL, formatQuestionAnswers, MAX_OPTIONS, MAX_QUESTIONS, parseAskQuestions } from "../../shared/ask-question.ts";
 
 interface McpServerDef {
@@ -17,11 +16,7 @@ interface McpServerDef {
 
 interface McpConfig {
   mcpServers?: Record<string, McpServerDef>;
-  toolScope?: unknown;
-  scopeReadyPath?: string;
   approvalMode?: string;
-  /** Register the ask_user tool: the driver sets it when the turn may ask. */
-  askUser?: boolean;
 }
 
 interface McpTool {
@@ -71,9 +66,7 @@ interface PiToolDefinition {
 /** The slice of Pi 0.84's ExtensionAPI this standalone file uses; the user's installed Pi supplies it. */
 interface PiExtensionApi {
   registerTool(definition: PiToolDefinition): void;
-  on(event: string, handler: (event?: Record<string, unknown>, context?: { abort?(): void }) => unknown): void;
-  getActiveTools?(): string[];
-  setActiveTools?(names: string[]): void;
+  on(event: "session_shutdown", handler: () => void): void;
 }
 
 const MCP_STARTUP_TIMEOUT_MS = 8_000;
@@ -514,7 +507,7 @@ const ASK_USER_NOT_ANSWERED = "The person did not answer this question. Do not g
 
 /** The shared ask_user tool over Pi's own dialogs: in RPC mode each select is one question card, asked in turn.
  * A select takes one pick, so a multiSelect call is refused rather than answered with one. */
-function askUserTool(allowed: () => boolean): PiToolDefinition {
+function askUserTool(): PiToolDefinition {
   return {
     name: ASK_USER_TOOL,
     label: "Ask the person",
@@ -531,7 +524,6 @@ function askUserTool(allowed: () => boolean): PiToolDefinition {
     }),
     exposure: "model-only",
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      if (!allowed()) throw new Error("Tool selection excludes this tool");
       const raw = (params as { questions?: unknown } | null)?.questions;
       if (Array.isArray(raw) && raw.some((entry) => (entry as { multiSelect?: unknown } | null)?.multiSelect === true)) {
         throw new Error("This engine takes one answer per question. Ask a single-choice question instead; the person can still name several things in their own words.");
@@ -574,72 +566,13 @@ export default async function (pi: PiExtensionApi): Promise<void> {
     throw new Error("OpenMausBot Pi MCP configuration could not be read");
   }
   if (!config || typeof config !== "object" || Array.isArray(config)) throw new Error("OpenMausBot Pi MCP configuration is invalid");
-  const parsed = parseToolScope(config.toolScope);
-  if (!parsed.ok) throw new Error(parsed.error);
-  const scope = parsed.scope;
-  if (scope !== undefined && (typeof pi.getActiveTools !== "function" || typeof pi.setActiveTools !== "function")) throw new Error("Pi tool selection enforcement APIs are unavailable");
 
-  const used = new Set<string>();
-  const identities = new Map<string, ToolIdentity>();
-  let enforcementFailed = false;
   const clients: StdioMcp[] = [];
-  const serverEntries = Object.entries(config.mcpServers ?? {}).filter(([name]) => scope === undefined || canUseMcpServer(scope, name));
+  const serverEntries = Object.entries(config.mcpServers ?? {});
 
-  if (scope !== undefined) {
-    const intersect = () => {
-      if (enforcementFailed) throw new Error("Pi tool selection enforcement is unavailable");
-      try {
-        const active = pi.getActiveTools!();
-        if (!Array.isArray(active) || active.some((name) => typeof name !== "string")) throw new Error("Pi tool selection enforcement returned an invalid catalog");
-        const requested = new Set(active.filter(allowed));
-        pi.setActiveTools!([...requested]);
-        const selected = pi.getActiveTools!();
-        if (!Array.isArray(selected) || selected.some((name) => !requested.has(name))) throw new Error("Pi tool selection enforcement did not apply the active-tool restriction");
-        if (config.scopeReadyPath) writeFileSync(config.scopeReadyPath, JSON.stringify({ ok: true, toolScope: scope }), { mode: 0o600 });
-        return selected;
-      } catch (error) {
-        enforcementFailed = true;
-        if (config.scopeReadyPath) {
-          try { writeFileSync(config.scopeReadyPath, JSON.stringify({ ok: false }), { mode: 0o600 }); } catch { /* A failed receipt cannot grant access. */ }
-        }
-        throw error;
-      }
-    };
-    for (const event of ["session_start", "session_switch", "model_select", "before_agent_start", "context"]) pi.on(event, () => { intersect(); });
-    pi.on("tool_call", (event) => !enforcementFailed && typeof event?.toolName === "string" && allowed(event.toolName) ? undefined : { block: true, reason: "Tool selection excludes this tool" });
-    // Providers serialize tools before this hook, so the final payload is filtered too.
-    pi.on("before_provider_request", (event, context) => {
-      let selected = new Set<string>();
-      try { selected = new Set(intersect()); } catch {
-        // Pi catches hook errors: keep the payload empty and block every later execution.
-        try { context?.abort?.(); } catch { /* The deny-all payload still applies. */ }
-      }
-      const declared = (name: string) => selected.has(name) && allowed(name);
-      const payload = event?.payload;
-      if (!payload || typeof payload !== "object") return payload;
-      const body = payload as { tools?: unknown[] };
-      if (Array.isArray(body.tools)) body.tools = body.tools.flatMap((value) => {
-        if (!value || typeof value !== "object") return [];
-        const tool = value as { name?: string; function?: { name?: string }; functionDeclarations?: Array<{ name?: string }> };
-        if (Array.isArray(tool.functionDeclarations)) {
-          const functionDeclarations = tool.functionDeclarations.filter((declaration) => typeof declaration.name === "string" && declared(declaration.name));
-          return functionDeclarations.length ? [{ ...tool, functionDeclarations }] : [];
-        }
-        const name = tool.function?.name ?? tool.name;
-        return typeof name === "string" && declared(name) ? [tool] : [];
-      });
-      return payload;
-    });
-  }
-
-  if (config.askUser === true) {
-    const identity: ToolIdentity = { kind: "native", name: ASK_USER_TOOL };
-    if (scope === undefined || allowsTool(scope, identity)) {
-      pi.registerTool(askUserTool(() => scope === undefined || (!enforcementFailed && allowsTool(scope, identity))));
-      // MCP tools are named server_tool; keep one from taking this name.
-      used.add(ASK_USER_TOOL);
-    }
-  }
+  pi.registerTool(askUserTool());
+  // MCP tools are named server_tool; keep one from taking this name.
+  const used = new Set<string>([ASK_USER_TOOL]);
 
   const mounts = await Promise.all(
     serverEntries.map(async ([serverName, def]) => {
@@ -669,7 +602,6 @@ export default async function (pi: PiExtensionApi): Promise<void> {
         continue;
       }
       const toolName = tool.name;
-      const identity: ToolIdentity = { kind: "mcp", server: serverName, name: toolName };
       const name = allocateToolName(serverName, toolName, used);
       try {
         const parameters = toTypebox(tool.inputSchema);
@@ -679,8 +611,6 @@ export default async function (pi: PiExtensionApi): Promise<void> {
           description: typeof tool.description === "string" ? tool.description : `${toolName} (MCP tool from ${serverName})`,
           parameters,
           async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-              throw new Error("Tool selection excludes this tool");
-            }
             // Host tools ask first through pi's native card (ctx.ui.confirm → extension_ui_request).
               const allowed = await ctx.ui.confirm(
                 def.scope === "local-computer" ? `Allow ${shown} on your computer?` : `Allow ${serverName}:${shown}?`,
@@ -703,7 +633,6 @@ export default async function (pi: PiExtensionApi): Promise<void> {
           },
         });
         used.add(name);
-        identities.set(name, identity);
         registered += 1;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
