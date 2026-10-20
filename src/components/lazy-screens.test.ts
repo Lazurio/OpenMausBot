@@ -133,7 +133,7 @@ describe("lazyScreen", () => {
     vi.useFakeTimers();
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const load = vi.fn(() => Promise.reject(new TypeError("Failed to fetch dynamically imported module")));
-    const Screen = lazyScreen("ComputerPanel", load);
+    const Screen = lazyScreen("LazurioBrowserPanel", load);
     render(createElement(Screen, {}));
     await vi.advanceTimersByTimeAsync(60_000);
     expect(load).toHaveBeenCalledTimes(1);
@@ -162,7 +162,7 @@ describe("preloadScreens", () => {
     });
     vi.stubGlobal("cancelIdleCallback", cancel);
     const preloads = stubPreloads();
-    expect(preloads.length).toBe(11);
+    expect(preloads.length).toBe(10);
     const stop = preloadScreens();
     for (const preload of preloads) expect(preload).not.toHaveBeenCalled();
     idle!();
@@ -234,8 +234,8 @@ describe("launch bundle", () => {
     expect(reached.has("App.tsx")).toBe(true);
     expect(reached.has("components/Sidebar.tsx")).toBe(true);
     const deferred = [
-      "ActivityPanel", "BotSettingsDialog", "ComputerPanel", "InspectorPanel", "KeyboardShortcutsModal",
-      "NewBotDialog", "RemoteAgentSettingsPanel", "remote-desktop-panel", "RoutineCalendarPage",
+      "ActivityPanel", "BotSettingsDialog", "InspectorPanel", "KeyboardShortcutsModal", "LazurioBrowserPanel",
+      "NewBotDialog", "RemoteAgentSettingsPanel", "RoutineCalendarPage",
       "RoutinesPage", "SettingsModal", "TeamMapPage", "TriggersPage", "WebhookTrigger",
     ].map((name) => `components/${name}.tsx`);
     expect(deferred.filter((file) => reached.has(file))).toEqual([]);

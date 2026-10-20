@@ -628,24 +628,25 @@ describe("the Computer tab", () => {
     expect(rendered.html).not.toContain("data-place-choice");
   });
 
-  it("leads to the folder page, and opens the full view on a tab", () => {
+  it("leads to the folder page, and opens the browser panel, with no screen of its own", () => {
     const rendered = computer(makeBot());
     expect(has(rendered, "data-panel-page", "browser")).toBe(false);
     expect(has(rendered, "data-panel-page", "logins")).toBe(false);
+    expect(has(rendered, "data-panel-action", "open-computer")).toBe(false);
+    expect(has(rendered, "data-panel-row", "data")).toBe(false);
+    expect(rendered.html).not.toContain("<img");
     click(find(rendered, "data-panel-page", "folder"));
     expect(onOpen).toHaveBeenLastCalledWith("folder");
     expect(has(rendered, "data-panel-page", "android")).toBe(false);
 
     const setItem = vi.fn();
     vi.stubGlobal("localStorage", { getItem: () => null, setItem });
-    click(find(rendered, "data-panel-row", "data"));
-    expect(setItem).toHaveBeenLastCalledWith("omb-computer-panel-view:scout", "data");
+    click(find(rendered, "data-panel-row", "browser"));
+    expect(setItem).toHaveBeenLastCalledWith("omb-browser-panel-view:scout", "browser");
     expect((fixture.dispatch as ReturnType<typeof vi.fn>).mock.calls.slice(-2)).toEqual([
       [{ type: "toggleSettings", open: false }],
       [{ type: "toggleComputer", open: true }],
     ]);
-    click(find(rendered, "data-panel-action", "open-computer"));
-    expect(setItem).toHaveBeenLastCalledWith("omb-computer-panel-view:scout", "computer");
     vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {} });
   });
 });
