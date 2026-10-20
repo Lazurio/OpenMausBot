@@ -437,7 +437,13 @@ signed-in accounts, and integrations come from the Environment.
   `--max-screens`), `/api/local-computer/interrupt`, the `local` place in
   sign-in cards and prompts, the macOS permission recovery UI, the Cua build,
   prepare and smoke scripts with their `package.json` wiring, and the
-  companion's per-device computer access with its desktop viewer relay. Bots
+  companion's per-device computer access with its desktop viewer relay. A
+  screen capture message an earlier release stored is read without its image
+  (`server/stale-screen-image.ts`, at the message store's read and in the CLI's
+  export), so no page, event, transcript or export sends those pixels, and
+  `export --force` still removes the captures an earlier export listed. The
+  documentation no longer offers viewing a computer, a Boat or a VPS, or control
+  of the host, and the manifest's forbidden strings keep those claims out. Bots
   work in their shell and in the Environment browser; programs on the
   Environment's own screen are a later Platform wave (root decision 0191 point
   42).
