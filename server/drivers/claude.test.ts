@@ -400,42 +400,6 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     scratch = mkdtempSync(join(tmpdir(), "omb-claude-test-"));
   });
 
-  it("refuses an unsupported native selection before launching, even with instance tools and Full access", async () => {
-    const dump = join(scratch, "scope-refused.json"); process.env.FAKE_CLAUDE_DUMP = dump;
-    await create("echo", {}, { tools: ["Read"], disallowedTools: ["Write"] });
-    await expect(instance.adapter.sendTurn({ threadId: "scope-refused", text: "Must not run", toolScope: { allow: ["native:Read", "native:Write"] }, approvalMode: "full", guestConfined: true })).rejects.toThrow(/native tool selection.*not supported/i);
-    expect(existsSync(dump)).toBe(false);
-  });
-
-  it("gates every eligible MCP mount while preserving guest and instance restrictions", async () => {
-    const dump = join(scratch, "scope-mcp.json"); process.env.FAKE_CLAUDE_DUMP = dump;
-    await create("echo", { FAKE_CLAUDE_VERSION: "2.1.284" }, { tools: ["Read"], disallowedTools: ["Write"] });
-    await instance.adapter.sendTurn({ threadId: "scope-mcp", text: "Fixture", approvalMode: "ask", guestConfined: true, toolScope: { allow: ["native:*", "mcp:agents:list_bots"] }, integrations: {
-      agents: { command: "node", args: ["agents"], env: {} }, browser: { command: "node", args: ["browser"], env: {} },
-    } });
-    await recorder.until((event) => event.type === "turn.completed");
-    const seen = JSON.parse(readFileSync(dump, "utf8"));
-    expect(seen.argv).toContain("--restricted");
-    expect(seen.argv[seen.argv.indexOf("--disallowedTools") + 1]).toBe("Write");
-    expect(seen.mcpConfig.mcpServers).not.toHaveProperty("browser");
-    expect(JSON.parse(seen.mcpConfig.mcpServers.agents.env.OMB_GATE_TOOL_SCOPE)).toEqual({ allow: ["native:*", "mcp:agents:list_bots"] });
-  });
-
-  it("keeps a bot's tool selection working with the person's own skills", async () => {
-    const dump = join(scratch, "scope-user-skills.json"); process.env.FAKE_CLAUDE_DUMP = dump;
-    await create();
-    await instance.adapter.sendTurn({ threadId: "scope-user-skills", text: "Fixture", userSkillsDir: join(scratch, "claude-user-skills"), toolScope: { allow: ["native:*"] } });
-    await recorder.until((event) => event.type === "turn.completed");
-    expect(JSON.parse(readFileSync(dump, "utf8")).argv).toContain("--add-dir");
-  });
-
-  it("refuses native MCP inheritance when a bot has an explicit selection", async () => {
-    const dump = join(scratch, "scope-inherited-mcp.json"); process.env.FAKE_CLAUDE_DUMP = dump;
-    await create();
-    await expect(instance.adapter.sendTurn({ threadId: "scope-inherited-mcp", text: "Must not run", mcpFromUserConfig: true, toolScope: { allow: ["native:*"] } })).rejects.toThrow(/restricted MCP configuration/);
-    expect(existsSync(dump)).toBe(false);
-  });
-
   afterEach(async () => {
     delete process.env.FAKE_CLAUDE_MODE;
     delete process.env.FAKE_CLAUDE_AUTO_UNAVAILABLE_MODELS;
@@ -1431,31 +1395,6 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     expect(JSON.stringify(seen.argv)).not.toContain("tok-docs");
   });
 
-  it("puts a selected project url server behind the gate, through the remote proxy", async () => {
-    await create();
-    const dump = join(scratch, "remote-mcp-scoped.json");
-    process.env.FAKE_CLAUDE_DUMP = dump;
-    const projectDir = join(scratch, "remote-scoped-project");
-    mkdirSync(projectDir, { recursive: true });
-    writeFileSync(join(projectDir, ".mcp.json"), JSON.stringify({ mcpServers: {
-      docs: { type: "http", url: "https://docs.example/mcp", headers: { Authorization: "Bearer tok-docs" } },
-    } }));
-    await instance.adapter.sendTurn({
-      threadId: "t-remote-mcp-scoped",
-      text: "hi",
-      cwd: projectDir,
-      toolScope: { allow: ["native:*", "mcp:docs:*"] },
-    });
-    await recorder.until((e) => e.type === "turn.completed");
-    const seen = JSON.parse(readFileSync(dump, "utf8"));
-    const docs = seen.mcpConfig.mcpServers.docs;
-    expect(docs.args[0]).toContain("mcp-gate");
-    expect(JSON.parse(docs.env.OMB_GATE_TOOL_SCOPE)).toEqual({ allow: ["native:*", "mcp:docs:*"] });
-    const upstream = JSON.parse(docs.env.OMB_GATE_UPSTREAM);
-    expect(upstream.args[0]).toContain("mcp-remote-proxy");
-    expect(JSON.stringify(seen.argv)).not.toContain("tok-docs");
-  });
-
   it("preserves only the selected account's auth settings in a private file", async () => {
     const account = join(scratch, "account");
     mkdirSync(account);
@@ -1844,10 +1783,10 @@ describe("ClaudeDriver turns (fake CLI)", () => {
       tools: ["Read", "WebFetch"],
       disallowedTools: ["Bash(git *)", "Edit"],
     });
-    const dump = join(scratch, "tool-scope.json");
+    const dump = join(scratch, "builtin-tools.json");
     process.env.FAKE_CLAUDE_DUMP = dump;
 
-    await instance.adapter.sendTurn({ threadId: "t-tool-scope", text: "inspect" });
+    await instance.adapter.sendTurn({ threadId: "t-builtin-tools", text: "inspect" });
     await recorder.until((event) => event.type === "turn.completed");
 
     const seen = JSON.parse(readFileSync(dump, "utf8"));

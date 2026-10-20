@@ -3,7 +3,6 @@ import { join } from "node:path";
 
 import { writeFileAtomic, writeFileAtomicIfChanged } from "./atomic.ts";
 import { commitBotChange, keptRevocation, saveBotsFor } from "./bots-save.ts";
-import { parseToolScope, toolScopeWidens } from "../shared/tool-scope.ts";
 import { ensureSections, readSections, changeEmptySection } from "./section-context.ts";
 import { removeBotFolder, soulFile, soulHash, writeSoulMirror } from "./bot-folder.ts";
 import type { BotProfilePatch } from "./bot-profile.ts";
@@ -502,8 +501,9 @@ export class Store {
       }
       // Lazurio overlay (DEV-6673): the desktop's two-phase approval grant is removed with Custom; a saved
       // marker is dropped, and a saved Custom level above (and on a thread) drops too, so the bot follows Full.
-      // So is the switch that made a bot ask a person before contacting another bot.
-      for (const removed of ["approvalGrant", "approvePeerComms"]) {
+      // So is the switch that made a bot ask a person before contacting another bot, and the per-bot
+      // tool selection (LAZURIO.md principle 3: every bot gets the tools the Environment provides).
+      for (const removed of ["approvalGrant", "approvePeerComms", "toolScope"]) {
         if (Object.hasOwn(b, removed)) { delete (b as unknown as Record<string, unknown>)[removed]; botsMigrated = true; }
       }
       const avatar = botAvatarProfile(b);
@@ -1427,15 +1427,13 @@ export class Store {
     profile: Partial<
       Pick<
         BotRecord,
-        "name" | "title" | "description" | "soul" | "color" | "mascotExpression" | "mascotBody" | "modelSelection" | "section" | "cwd" | "visibility" | "toolScope"
+        "name" | "title" | "description" | "soul" | "color" | "mascotExpression" | "mascotBody" | "modelSelection" | "section" | "cwd" | "visibility"
       >
     > = {},
     opts: {
       seedMessages?: boolean;
     } = {},
   ): BotRecord {
-    const toolScope = parseToolScope(profile.toolScope);
-    if (!toolScope.ok) throw new Error(toolScope.error);
     this.rememberSections([profile.section]);
     const name = profile.name?.trim() || pickBotName(this.bots.map((b) => b.name));
     const section = sectionKey(profile.section);
@@ -1453,7 +1451,6 @@ export class Store {
       ...(profile.mascotBody ? { mascotBody: profile.mascotBody } : {}),
       // Restricted from its first frame: no one else is ever told it exists.
       ...(profile.visibility && profile.visibility !== "everyone" ? { visibility: structuredClone(profile.visibility) } : {}),
-      ...(toolScope.scope ? { toolScope: toolScope.scope } : {}),
       unread: false,
       modelSelection: this.newBotSelection(profile.modelSelection),
       resumeCursors: {},
@@ -1627,17 +1624,6 @@ export class Store {
   patchBot(id: string, patch: Partial<BotRecord>): BotRecord | null {
     const bot = this.bot(id);
     if (!bot) return null;
-    if (Object.hasOwn(patch, "toolScope")) {
-      const parsed = parseToolScope(patch.toolScope);
-      if (!parsed.ok) throw new Error(parsed.error);
-      patch = { ...patch, toolScope: parsed.scope };
-    }
-    const wideningToolScope = Object.hasOwn(patch, "toolScope") && toolScopeWidens(bot.toolScope, patch.toolScope);
-    const nextToolScope = patch.toolScope;
-    if (wideningToolScope) {
-      patch = { ...patch };
-      delete patch.toolScope;
-    }
     const toAsk = patch.modelSelection ? (bot.tasks ?? []).filter((task) => task.modelSelection === undefined &&
       this.switchNeedsAsk(id, task.threadId, bot.modelSelection, patch.modelSelection!)) : [];
     // Revocations take effect in memory even when the disk write fails.
@@ -1652,11 +1638,7 @@ export class Store {
       }
       bot.unread = bot.tasks!.some(taskCountsAsBotUnread);
     }
-    if (wideningToolScope) {
-      // New authority goes live only after its durable save succeeds.
-      this.saveBots(this.bots.map((candidate) => candidate === bot ? { ...bot, toolScope: nextToolScope } : candidate));
-      bot.toolScope = nextToolScope;
-    } else this.saveBots();
+    this.saveBots();
     this.emit({ type: "bot", botId: id });
     return bot;
   }

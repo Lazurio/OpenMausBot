@@ -6,14 +6,13 @@ import { basename, dirname, join, posix, resolve } from "node:path";
 import { stringify as stringifyYaml } from "yaml";
 
 import { approvalModeFor } from "../../shared/approval-mode.ts";
-import { assertToolScopeSupported } from "../../shared/tool-scope-support.ts";
 import { lineDiff } from "../../shared/line-diff.ts";
 import { mask, redactSecretsInText } from "../../shared/redact.ts";
 import { describeMs, EXIT, flag, HeadlessError, parseDuration, usageError } from "./args.ts";
 import { explain, type HeadlessClient } from "./client.ts";
 import type { VerbContext, VerbOutcome } from "./context.ts";
 import { applyEngine, ENGINE_KINDS, readSecret } from "./engine.ts";
-import { everyTool, loadTeamFile, type DesiredBot, type TeamFile } from "./team-file.ts";
+import { loadTeamFile, type DesiredBot, type TeamFile } from "./team-file.ts";
 
 type Rec = Record<string, any>;
 const enc = encodeURIComponent;
@@ -39,8 +38,6 @@ export interface Tally {
 }
 
 const sameSet = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((item) => b.includes(item));
-const canonicalScope = (scope: Rec | null | undefined) => everyTool(scope) ? "every tool"
-  : JSON.stringify(Object.fromEntries(["allow", "deny"].filter((field) => Array.isArray(scope![field])).map((field) => [field, [...new Set(scope![field] as string[])].sort()])));
 
 const lines = (n: number) => `${n} line${n === 1 ? "" : "s"}`;
 
@@ -84,11 +81,6 @@ export function botPatch(desired: DesiredBot, echo: Rec, team: string | undefine
       patch.browserProfile = desired.browser.profile;
       changes.push(`browser profile ${echo.browserProfile ?? "its own"} → ${desired.browser.profile}`);
     }
-  }
-  if (desired.tools !== undefined && canonicalScope(echo.toolScope) !== canonicalScope(desired.tools)) {
-    // null clears the selection on the server: every tool
-    patch.toolScope = desired.tools;
-    changes.push(desired.tools === null ? "tools: every tool" : "tools changed");
   }
   return { patch, changes };
 }
@@ -186,21 +178,6 @@ export async function reconcile(client: HeadlessClient, file: TeamFile, options:
     if (old && taken && old.id !== taken.id) {
       throw new HeadlessError(`bot "${desired.name}": both "${old.name}" (its was:) and "${taken.name}" exist, so the rename would make two bots of one name`, EXIT.failed,
         "delete or rename one of them, or take was: out of the file");
-    }
-  }
-  let workspaceDefault: string | undefined;
-  for (const desired of file.bots) {
-    if (!desired.tools) continue;
-    const existing = existingFor(desired);
-    if (!desired.model && !existing) workspaceDefault ??= (await client.json<Rec>("/api/bot-defaults")).modelSelection?.instanceId;
-    const instanceId = desired.model?.instanceId ?? existing?.modelSelection?.instanceId ?? workspaceDefault;
-    const driverKind = instances.find((instance) => instance.instanceId === instanceId)?.driverKind;
-    if (typeof driverKind !== "string") continue;
-    try {
-      assertToolScopeSupported(driverKind, desired.tools);
-    } catch (error) {
-      throw new HeadlessError(`bot "${desired.name}": ${error instanceof Error ? error.message : String(error)}`, EXIT.failed,
-        "this engine limits only MCP tools (mcp:SERVER:TOOL): leave native tools out of its selection, or give the bot an engine that can limit them (docs/tool-selection.md)");
     }
   }
   const created = new Set<string>();
@@ -420,7 +397,6 @@ export async function teamExportVerb(ctx: VerbContext): Promise<VerbOutcome> {
     entry.approval = approvalModeFor(bot);
     if (bot.cwd) entry.cwd = bot.cwd;
     if (bot.browser === false || bot.browserProfile) entry.browser = { enabled: bot.browser !== false, ...(bot.browserProfile ? { profile: bot.browserProfile } : {}) };
-    if (!everyTool(bot.toolScope)) entry.tools = bot.toolScope;
     const listing: Rec[] = (await client.json<Rec>(`/api/bots/${enc(bot.id)}/skills`)).skills ?? [];
     if (listing.length) entry.skills = [];
     for (const skill of listing) {

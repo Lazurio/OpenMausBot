@@ -1,8 +1,6 @@
 import { join } from "node:path";
-import { parseToolScope, type ToolScope } from "../shared/tool-scope.ts";
 
 import { DATA_DIR } from "./config.ts";
-import { unbridgedServer } from "./drivers/agents-bridge.ts";
 import { DEFAULT_RESULT_BUDGET } from "./mcp-trim.ts";
 import { REMOTE_MCP_CONFIG_ENV, remoteMcpSpec } from "./mcp-http.ts";
 import { SPAWNED_PROXIES } from "./proxy-paths.ts";
@@ -113,47 +111,29 @@ export function gateServer(input: {
   server: unknown;
   threadId: string;
   budget: number;
-  toolScope?: ToolScope;
   nodeEnv?: Record<string, string>;
   execPath?: string;
-  configEnvName?: string;
   sourceEnv?: NodeJS.ProcessEnv | Record<string, string | undefined>;
   gateRemote?: boolean;
 }): { command: string; args: string[]; env: Record<string, string> } | null {
   const { name, server, budget } = input;
-  const parsed = parseToolScope(input.toolScope);
-  if (!parsed.ok) throw new Error(parsed.error);
-  const scoped = parsed.scope !== undefined;
-  if (budget <= 0 && !scoped) return null;
-  if (!scoped && input.gateRemote !== true && remoteMcpSpec(server)) return null;
+  if (budget <= 0) return null;
+  if (input.gateRemote !== true && remoteMcpSpec(server)) return null;
   const spec = mcpStdioServer(server, {
     nodeEnv: input.nodeEnv,
     execPath: input.execPath,
     sourceEnv: input.sourceEnv,
   });
-  if (!spec) {
-    if (scoped) throw new Error("Tool selection requires a supported MCP server.");
-    return null;
-  }
-  // Security: a selection matches the name in the call, so behind one the agents server is never bridged,
-  // whatever the turn decided earlier.
-  const upstream = scoped && name === "agents" ? unbridgedServer(spec) : spec;
-  const env = {
-    OMB_GATE_NAME: name,
-    OMB_GATE_UPSTREAM: JSON.stringify({ command: upstream.command, args: upstream.args ?? [], env: upstream.env ?? {} }),
-    OMB_GATE_SPILL_DIR: spillDir(input.threadId),
-    OMB_GATE_BUDGET: String(budget),
-    ...(scoped ? { OMB_GATE_TOOL_SCOPE: JSON.stringify(parsed.scope) } : {}),
-  };
-  if (input.configEnvName && (!scoped || !/^OMB_GATE_CONFIG_[a-f0-9]{64}$/.test(input.configEnvName))) {
-    throw new Error("Invalid private MCP gate configuration.");
-  }
+  if (!spec) return null;
   return {
     command: input.execPath ?? process.execPath,
-    args: [SPAWNED_PROXIES.mcpGate, ...(input.configEnvName ? ["--config-env", input.configEnvName] : [])],
+    args: [SPAWNED_PROXIES.mcpGate],
     env: {
       ...input.nodeEnv,
-      ...(input.configEnvName ? { [input.configEnvName]: JSON.stringify(env) } : env),
+      OMB_GATE_NAME: name,
+      OMB_GATE_UPSTREAM: JSON.stringify({ command: spec.command, args: spec.args ?? [], env: spec.env ?? {} }),
+      OMB_GATE_SPILL_DIR: spillDir(input.threadId),
+      OMB_GATE_BUDGET: String(budget),
     },
   };
 }

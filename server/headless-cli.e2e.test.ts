@@ -65,8 +65,6 @@ defaults:
   model: claude/${model}
   approval: full
   browser: { enabled: true, profile: guest }
-  # Claude limits MCP tools only; this keeps a mail server's tools from every visitor
-  tools: { deny: ["mcp:mail:*"] }
 teams:
   - name: Launch Room
     prune: true
@@ -79,7 +77,6 @@ bots:
     description: Hands the site to every visitor, then writes the launch report.
     cwd: ${join(dir, "work", "room")}
     browser: false
-    tools: { deny: [] }
     soul: Hand the site to every visitor, then write report.md and link it.
     skills:
       - file: skills/launch-report/SKILL.md
@@ -202,12 +199,13 @@ rooms:
     expect(bots.find((bot) => bot.name === "Marcus Lee")?.id).toBe(marcus.id);
     expect((await cli(["team", "apply", next, "--check"])).code).toBe(0);
 
+    // Lazurio overlay (DEV-6673, LAZURIO.md principle 3): an older file that selects tools applies, without them.
     const before = JSON.stringify(await botsNow());
-    const native = join(dir, "native.yaml");
-    writeFileSync(native, readFileSync(next, "utf8").replace('tools: { deny: ["mcp:mail:*"] }', 'tools: { deny: ["native:Bash"] }'));
-    const refused = await cli(["team", "apply", native]);
-    expect(refused.code).toBe(1);
-    expect(refused.stderr).toContain('bot "Priya": claudeAgent: native tool selection is not supported by this engine');
+    const older = join(dir, "older.yaml");
+    writeFileSync(older, readFileSync(next, "utf8").replace("  browser: { enabled: true, profile: guest }\n", '  browser: { enabled: true, profile: guest }\n  tools: { deny: ["native:Bash"] }\n'));
+    const ignored = await cli(["team", "apply", older, "--check", "--json"]);
+    expect(ignored.code, `${ignored.stdout}\n${ignored.stderr}`).toBe(0);
+    expect(json(ignored).warnings).toContain('bot "Priya": tools is ignored; every bot gets the tools of this computer');
     expect(JSON.stringify(await botsNow())).toBe(before);
   }, 120_000);
 

@@ -1,8 +1,6 @@
 // The stdio MCP servers a turn hands an agent (the harness proxies), shared by the ACP
-// family and Muse Code so the owner's tool selection applies alike.
+// family and Muse Code.
 import type { SendTurnInput } from "../contracts.ts";
-import { canUseMcpServer } from "../../shared/tool-scope.ts";
-import { gateServer } from "../mcp-gate-config.ts";
 
 export interface TurnStdioMcpServer {
   name: string;
@@ -21,11 +19,5 @@ export function turnStdioMcpServers(turn: SendTurnInput): TurnStdioMcpServer[] {
   add("data", turn.integrations?.data);
   // Cua connections expose Cua Driver's own MCP server.
   add("computer", turn.integrations?.localComputer);
-  if (turn.toolScope === undefined) return servers;
-  return servers.filter((server) => canUseMcpServer(turn.toolScope, server.name)).map((server) => {
-    const gated = gateServer({ name: server.name, server: { command: server.command, args: server.args, env: server.env },
-      threadId: turn.threadId, budget: 0, toolScope: turn.toolScope, nodeEnv: { ELECTRON_RUN_AS_NODE: "1" } });
-    if (!gated) throw new Error("Tool selection requires an MCP gate.");
-    return { name: server.name, command: gated.command, args: gated.args, env: gated.env };
-  });
+  return servers;
 }

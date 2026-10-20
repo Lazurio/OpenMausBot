@@ -84,7 +84,10 @@ async function remoteFixture(mode: "http" | "event-stream" | "sse") {
   };
 }
 
-describe("scoped remote MCP subprocess", () => {
+/** Above the largest fixture result, so the gate relays every answer whole. */
+const GATE_BUDGET = 3_000_000;
+
+describe("gated remote MCP subprocess", () => {
   let child: ChildProcessWithoutNullStreams | undefined;
   let fixture: Awaited<ReturnType<typeof remoteFixture>> | undefined;
   let scratch: string | undefined;
@@ -130,23 +133,22 @@ describe("scoped remote MCP subprocess", () => {
     scratch = undefined;
   });
 
-  it.each(["http", "event-stream", "sse"] as const)("filters and executes over %s with private headers and orderly shutdown", async (mode) => {
+  it.each(["http", "event-stream", "sse"] as const)("lists and executes over %s with private headers and orderly shutdown", async (mode) => {
     fixture = await remoteFixture(mode);
-    const gated = gateServer({ name: "notes", server: fixture.spec, budget: 0, threadId: "fixture", toolScope: { allow: ["mcp:notes:read"] } });
+    const gated = gateServer({ name: "notes", server: fixture.spec, budget: GATE_BUDGET, gateRemote: true, threadId: "fixture" });
     expect(gated!.args.join(" ")).not.toContain(TOKEN);
     expect(gated!.args.join(" ")).not.toContain(fixture.spec.url);
     start(gated!);
     await initialize();
     send({ id: 2, method: "tools/list" });
-    expect((await answer()).result).toEqual({ tools: [{ name: "read", inputSchema: { type: "object" } }], nextCursor: "next" });
+    expect((await answer()).result).toEqual({ tools: [{ name: "read", inputSchema: { type: "object" } }, { name: "write", inputSchema: { type: "object" } }], nextCursor: "next" });
     send({ id: 3, method: "tools/list", params: { cursor: "next" } });
-    expect((await answer()).result).toEqual({ tools: [] });
+    expect((await answer()).result).toEqual({ tools: [{ name: "write", inputSchema: { type: "object" } }] });
     send({ id: 4, method: "tools/call", params: { name: "write", arguments: {} } });
-    expect((await answer()).error.code).toBe(-32602);
-    expect(fixture.calls).toEqual([]);
+    expect((await answer()).result.content[0].text).toBe("read completed");
     send({ id: 5, method: "tools/call", params: { name: "read", arguments: {} } });
     expect((await answer()).result.content[0].text).toBe("read completed");
-    expect(fixture.calls).toEqual(["read"]);
+    expect(fixture.calls).toEqual(["write", "read"]);
     const stopped = once(child!, "close"); child!.stdin.end();
     expect((await stopped)[0]).toBe(0);
     await fixture.closed;
@@ -155,7 +157,7 @@ describe("scoped remote MCP subprocess", () => {
 
   it.each(["http", "sse"] as const)("cancels an in-flight %s call using its remote request ID", async (mode) => {
     fixture = await remoteFixture(mode);
-    start(gateServer({ name: "notes", server: fixture.spec, budget: 0, threadId: "fixture", toolScope: { allow: ["mcp:notes:read"] } })!);
+    start(gateServer({ name: "notes", server: fixture.spec, budget: GATE_BUDGET, gateRemote: true, threadId: "fixture" })!);
     await initialize();
     const reached = once(fixture.events, "call");
     send({ id: "held-request", method: "tools/call", params: { name: "read", arguments: { hold: true } } });
@@ -168,7 +170,7 @@ describe("scoped remote MCP subprocess", () => {
 
   it("does not expose credentials from a remote error", async () => {
     fixture = await remoteFixture("http");
-    start(gateServer({ name: "notes", server: fixture.spec, budget: 0, threadId: "fixture", toolScope: { allow: ["mcp:notes:read"] } })!);
+    start(gateServer({ name: "notes", server: fixture.spec, budget: GATE_BUDGET, gateRemote: true, threadId: "fixture" })!);
     await initialize();
     send({ id: 2, method: "tools/call", params: { name: "read", arguments: { error: true } } });
     const reply = await answer();
@@ -185,7 +187,7 @@ describe("scoped remote MCP subprocess", () => {
     [418, "Remote MCP request failed (HTTP 418)", "HTTP 418"],
   ])("names HTTP %i from the remote server without its body", async (status, said, hint) => {
     fixture = await remoteFixture("http");
-    start(gateServer({ name: "notes", server: fixture.spec, budget: 0, threadId: "fixture", toolScope: { allow: ["mcp:notes:read"] } })!);
+    start(gateServer({ name: "notes", server: fixture.spec, budget: GATE_BUDGET, gateRemote: true, threadId: "fixture" })!);
     await initialize();
     send({ id: 2, method: "tools/call", params: { name: "read", arguments: { status } } });
     const reply = await answer();
@@ -198,7 +200,7 @@ describe("scoped remote MCP subprocess", () => {
 
   it("says when the remote server cannot be reached", async () => {
     fixture = await remoteFixture("http");
-    start(gateServer({ name: "notes", server: fixture.spec, budget: 0, threadId: "fixture", toolScope: { allow: ["mcp:notes:read"] } })!);
+    start(gateServer({ name: "notes", server: fixture.spec, budget: GATE_BUDGET, gateRemote: true, threadId: "fixture" })!);
     await initialize();
     await fixture.close();
     send({ id: 2, method: "tools/call", params: { name: "read", arguments: {} } });
@@ -211,7 +213,7 @@ describe("scoped remote MCP subprocess", () => {
     fixture = await remoteFixture("http");
     scratch = mkdtempSync(join(tmpdir(), "omb-remote-bundle-"));
     await build({ entryPoints: ["mcp-gate.ts", "mcp-remote-proxy.ts"].map((name) => join(SERVER_ROOT, name)), outdir: scratch, bundle: true, platform: "node", format: "esm", logLevel: "silent" });
-    const gated = gateServer({ name: "notes", server: fixture.spec, budget: 0, threadId: "fixture", toolScope: { allow: ["mcp:notes:read"] } })!;
+    const gated = gateServer({ name: "notes", server: fixture.spec, budget: GATE_BUDGET, gateRemote: true, threadId: "fixture" })!;
     gated.args = [join(scratch, "mcp-gate.js")];
     const upstream = JSON.parse(gated.env.OMB_GATE_UPSTREAM);
     upstream.args = [join(scratch, "mcp-remote-proxy.js")];
