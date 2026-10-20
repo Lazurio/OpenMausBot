@@ -58,7 +58,13 @@ function tabOf(value: unknown, viewOrigin: string): BotBrowserTab | null {
   if (!isRecord(value) || typeof value.tabId !== "string") return null;
   const address = viewAddressOf(value.view);
   if (!address || address.origin !== viewOrigin || address.tab !== value.tabId) return null;
-  return { tabId: address.tab, view: address.view, agent: value.agent === true, alsoHeldBy: holdersOf(value.alsoHeldBy) };
+  return {
+    tabId: address.tab,
+    view: address.view,
+    agent: value.agent === true,
+    alsoHeldBy: holdersOf(value.alsoHeldBy),
+    alsoHeldElsewhere: value.alsoHeldElsewhere === true,
+  };
 }
 
 /** The server's answer as the panel reads it; null for anything else. Only views of the declared origin count. */
@@ -124,13 +130,15 @@ export function signInToReveal(
   return null;
 }
 
-/** Where else a tab is: in Apps, in a T3 Code thread, with another bot, or another strip's label. */
-export function placesOf(holders: ReadonlyArray<BotBrowserHolder>, czech: boolean): string {
+/** Where else a tab is: in Apps, in a T3 Code thread, with another bot, or another strip's label; `elsewhere`
+ * adds the strips the server names to nobody this person (a restricted bot, a T3 Code thread). */
+export function placesOf(holders: ReadonlyArray<BotBrowserHolder>, czech: boolean, elsewhere = false): string {
   const places = holders.map((holder) =>
     holder.strip === "launchpad" ? (czech ? "v Apps" : "in Apps")
       : holder.strip.startsWith("t3-") ? (czech ? `ve vlákně „${holder.label}“` : `in the thread “${holder.label}”`)
         : holder.strip.startsWith("bot-") ? (czech ? `u bota „${holder.label}“` : `with the bot “${holder.label}”`)
           : holder.label || holder.strip);
+  if (elsewhere) places.push(czech ? "jinde v Prostředí" : "elsewhere in the Environment");
   const last = places.at(-1) ?? "";
   if (places.length < 2) return last;
   return `${places.slice(0, -1).join(", ")} ${czech ? "a" : "and"} ${last}`;
@@ -142,8 +150,8 @@ export function closeNoticeText(tab: BotBrowserTab | undefined, czech: boolean):
     title: czech ? "Karta zmizela z lišty tohoto bota." : "The tab left this bot's strip.",
     description: tab?.agent
       ? czech ? "Pracuje v ní bot, takže zůstává otevřená." : "The bot works in it, so it stays open."
-      : tab && tab.alsoHeldBy.length > 0
-        ? czech ? `Dál je ${placesOf(tab.alsoHeldBy, true)}.` : `It stays ${placesOf(tab.alsoHeldBy, false)}.`
+      : tab && (tab.alsoHeldBy.length > 0 || tab.alsoHeldElsewhere)
+        ? czech ? `Dál je ${placesOf(tab.alsoHeldBy, true, tab.alsoHeldElsewhere)}.` : `It stays ${placesOf(tab.alsoHeldBy, false, tab.alsoHeldElsewhere)}.`
         : czech ? "Zavře se v Prostředí." : "It closes in the Environment.",
   };
 }

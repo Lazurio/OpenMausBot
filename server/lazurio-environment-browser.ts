@@ -51,6 +51,7 @@ import {
   browserTimes,
   browserViewUrl,
   isStrip,
+  launchpadStrip,
   parseBrowserCliAnswer,
   stripPrefixes,
   targetIdOf,
@@ -108,6 +109,21 @@ export function environmentBrowserPrompt(session: string, declared: boolean): st
   ].join(" ") + SIGN_IN_PROMPT;
 }
 
+/**
+ * Who a strip is shown to, by the rules that gate `/api/bots/<bot>` (server/bot-visibility.ts): the bots
+ * this person may see, and whether they see everything (the owner, an admin, a local service). Another
+ * strip that holds a tab is named only to whoever may see it: the Launchpad to everyone, a bot to whoever
+ * may see that bot, and a T3 Code thread or any other strip, whose audience MausBot does not know, only to
+ * whoever sees everything. Anyone else learns only that the tab is held elsewhere, without a name or an id.
+ */
+export interface StripAudience {
+  everything: boolean;
+  bot(id: string): boolean;
+}
+
+/** The audience that sees every holder: the owner, an admin, a local service. */
+export const WHOLE_AUDIENCE: StripAudience = { everything: true, bot: () => true };
+
 /** Why the person's hold or release of a tab did not happen. */
 export type BotTabRefusal = "unavailable" | "bot-not-found" | "invalid-tab" | "too-many-tabs" | "holder-unreadable" | "hold-failed";
 
@@ -155,12 +171,12 @@ export interface EnvironmentBrowser {
   lastDeclared(): boolean;
   /** The tabs a bot's strip holds, in the order they were first recorded. */
   tabs(botId: string): Promise<string[]>;
-  /** A live bot's strip with the view of each tab, for the person's panel. */
-  strip(botId: string): Promise<BotBrowserStrip>;
+  /** A live bot's strip with the view of each tab, for the person's panel, naming only the holders `audience` may see. */
+  strip(botId: string, audience: StripAudience): Promise<BotBrowserStrip>;
   /** The person's panel holds a tab in the bot's strip (Nová karta, a link, a page's new tab, Vrátit). */
-  hold(botId: string, tabId: string): Promise<BotBrowserStrip | { refused: BotTabRefusal }>;
+  hold(botId: string, tabId: string, audience: StripAudience): Promise<BotBrowserStrip | { refused: BotTabRefusal }>;
   /** The person's panel lets go of a tab of the bot's strip (×); the hub ends it once nothing holds it. */
-  release(botId: string, tabId: string): Promise<BotBrowserStrip | { refused: BotTabRefusal }>;
+  release(botId: string, tabId: string, audience: StripAudience): Promise<BotBrowserStrip | { refused: BotTabRefusal }>;
   /** The tab the bot's session worked in at the last reconciliation, when its strip holds it; null otherwise. */
   boundTab(botId: string): string | null;
   /** What a sign-in card the bot asks for in the Environment browser names: the bot's tab, on which the person's
@@ -332,19 +348,31 @@ export function startEnvironmentBrowser(seams: EnvironmentBrowserSeams): Environ
     return next;
   };
 
-  const snapshot = (botId: string, origin: string): BotBrowserStrip => {
+  const snapshot = (botId: string, origin: string, audience: StripAudience): BotBrowserStrip => {
     const own = botBrowserSession(botId);
-    const tabs = (held.get(botId) ?? []).map((tabId) => ({
-      tabId,
-      view: browserViewUrl(origin, tabId),
-      agent: working.get(own) === tabId,
-      alsoHeldBy: (holdersOf.get(tabId) ?? []).filter((holder) => holder.strip !== own).map(({ strip, label }) => ({ strip, label })),
-    }));
+    // The live bots by their strips, so a bot's holder is named only to whoever may see that bot.
+    const botOf = new Map(seams.bots().filter((bot) => !bot.hidden).map((bot) => [botBrowserSession(bot.id), bot.id]));
+    const named = (strip: string): boolean => {
+      if (audience.everything || strip === launchpadStrip) return true;
+      const bot = botOf.get(strip);
+      return bot !== undefined && audience.bot(bot);
+    };
+    const tabs = (held.get(botId) ?? []).map((tabId) => {
+      const others = (holdersOf.get(tabId) ?? []).filter((holder) => holder.strip !== own);
+      const shown = others.filter((holder) => named(holder.strip));
+      return {
+        tabId,
+        view: browserViewUrl(origin, tabId),
+        agent: working.get(own) === tabId,
+        alsoHeldBy: shown.map(({ strip, label }) => ({ strip, label })),
+        alsoHeldElsewhere: shown.length < others.length,
+      };
+    });
     return { available: true, strip: own, viewOrigin: origin, tabs, current: boundTab(botId) };
   };
 
   /** The person's change of a bot's strip, written with the contract's one write (changeHolderFile). */
-  const change = async (botId: string, tabId: string, what: "hold" | "release"): Promise<BotBrowserStrip | { refused: BotTabRefusal }> => {
+  const change = async (botId: string, tabId: string, what: "hold" | "release", audience: StripAudience): Promise<BotBrowserStrip | { refused: BotTabRefusal }> => {
     const origin = await viewOrigin();
     if (origin === null || holders === undefined) return { refused: "unavailable" };
     const tab = targetIdOf(tabId);
@@ -363,7 +391,7 @@ export function startEnvironmentBrowser(seams: EnvironmentBrowserSeams): Environ
       if (result.kind === "refused") return { refused: result.reason === "full" ? "too-many-tabs" as const : "holder-unreadable" as const };
       if (result.tabs.length) held.set(botId, result.tabs.map((recorded) => recorded.id));
       else held.delete(botId);
-      return snapshot(botId, origin);
+      return snapshot(botId, origin, audience);
     });
   };
 
@@ -423,14 +451,14 @@ export function startEnvironmentBrowser(seams: EnvironmentBrowserSeams): Environ
       await current;
       return [...(held.get(botId) ?? [])];
     },
-    async strip(botId) {
+    async strip(botId, audience) {
       const origin = await viewOrigin();
       if (origin === null) return { available: false };
       await current;
-      return snapshot(botId, origin);
+      return snapshot(botId, origin, audience);
     },
-    hold: (botId, tabId) => change(botId, tabId, "hold"),
-    release: (botId, tabId) => change(botId, tabId, "release"),
+    hold: (botId, tabId, audience) => change(botId, tabId, "hold", audience),
+    release: (botId, tabId, audience) => change(botId, tabId, "release", audience),
     boundTab,
     signInTab(botId, url) {
       const tab = lazurioAccountSite(url) ? null : boundTab(botId);
