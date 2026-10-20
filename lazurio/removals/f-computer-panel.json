@@ -45,7 +45,6 @@
     "src/components/bot-panel/ComputerTab.tsx",
     "src/components/bot-panel/pages.tsx",
     "src/components/lazy-screens.test.ts",
-    "src/components/lazy-screens.tsx",
-    "src/lib/computer-control.ts"
+    "src/components/lazy-screens.tsx"
   ]
 }
