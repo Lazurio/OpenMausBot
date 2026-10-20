@@ -4,7 +4,6 @@ import type { ConfigSection } from "@/components/ApiKeys";
 import { BOT_ROLES } from "@/lib/bot-roles";
 import { BUILT_IN_INSTANCE_DRIVERS } from "@/lib/built-in-instances";
 import { CREDENTIAL_TARGETS } from "../../shared/credential-request";
-import { TOOL_SCOPE_SUPPORT } from "../../shared/tool-scope-support";
 import {
   allow, BOT_TEMPLATE, credentialProvider, ENGINE, engineForDriver, engineSlug, KEY_PROVIDER, SECTION_PROVIDER,
 } from "./analytics-allowlist";
@@ -22,9 +21,15 @@ describe("allow", () => {
   });
 });
 
+// The driverKind of each driver in server/drivers/builtIn.ts.
+const DRIVER_KINDS = [
+  "grok", "grokAgent", "piAgent", "openai-compat", "mistral", "minimax", "cerebras", "groq", "meta",
+  "claudeAgent", "codex", "geminiAgent", "kimiAgent", "droidAgent", "cursorAgent", "opencodeGo", "qwenAgent", "hermesAgent", "clineAgent", "customAcp", "museCode",
+];
+
 describe("engine slugs", () => {
   it("names every built-in driver kind, each with its own slug", () => {
-    const slugs = Object.keys(TOOL_SCOPE_SUPPORT).map(engineForDriver);
+    const slugs = DRIVER_KINDS.map(engineForDriver);
     expect(slugs).not.toContain("other");
     expect(new Set(slugs).size).toBe(slugs.length);
     expect([...slugs].sort()).toEqual([...ENGINE].sort());

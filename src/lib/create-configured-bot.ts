@@ -25,14 +25,13 @@ export async function createConfiguredBot(
   visibility?: BotVisibility,
 ): Promise<{ bot: Bot; warnings: string[] }> {
   const template = await preparedBotTemplate(draft);
-  const { chiefOfStaff, managedSections, toolScope, ...profile } = template.profile;
+  const { chiefOfStaff, managedSections, ...profile } = template.profile;
   if (!profile.name?.trim()) throw new Error("Give the bot a name");
   const preset = draft.preset;
   const response = await request<{ bot: Bot }>("/api/bots", {
     method: "POST", body: JSON.stringify({ name: profile.name, title: profile.title,
       description: profile.description, modelSelection: profile.modelSelection, section: profile.section,
       requireAvailableModel: true, useDefaults: false, ...(visibility !== undefined ? { visibility } : {}),
-      ...(Object.hasOwn(template.profile, "toolScope") ? { settings: { toolScope } } : {}),
       ...(preset ? { preset: preset.id } : {}) }),
   });
   let bot = response.bot;

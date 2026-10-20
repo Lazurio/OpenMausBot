@@ -29,13 +29,12 @@ export class BotCreationDraft {
   }
 
   get bot(): Bot {
-    const { cwd, peers, toolScope, ...profile } = this.template.profile;
+    const { cwd, peers, ...profile } = this.template.profile;
     return {
       id: this.id, threadId: this.id, name: "", title: "", description: "", soul: "",
       color: "green", notifications: true, unread: false, messages: [],
       modelSelection: { instanceId: "", model: "" }, ...profile,
       cwd: cwd ?? undefined, peers: peers ?? undefined,
-      toolScope: toolScope ?? undefined,
     };
   }
 
