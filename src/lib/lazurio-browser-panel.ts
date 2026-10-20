@@ -170,8 +170,13 @@ interface PanelState {
   panelBotId: string | null;
   /** Tabs the bot's session newly bound (the server's `lazurio-browser-tab` event), not yet taken by a chat. */
   announced: ReadonlyArray<{ botId: string; tabId: string; nonce: number }>;
+  /** Per bot, the tabs × let go of whose release is on its way: out of the panel's strip until the server answers. */
+  releasing: ReadonlyMap<string, ReadonlySet<string>>;
 }
 
+const NOTHING_RELEASING: ReadonlySet<string> = new Set();
+
+let state: PanelState = { strips: new Map(), requests: new Map(), panelBotId: null, announced: [], releasing: new Map() };
 let nonce = 0;
 const listeners = new Set<() => void>();
 const change = (next: PanelState) => {
@@ -213,6 +218,47 @@ export function useAnnouncedTabs(): PanelState["announced"] {
   return useSyncExternalStore(subscribe, () => state.announced, () => state.announced);
 }
 
+/** The tabs of the bot's strip whose release is on its way. */
+export function useReleasingTabs(botId: string): ReadonlySet<string> {
+  const read = () => state.releasing.get(botId) ?? NOTHING_RELEASING;
+  return useSyncExternalStore(subscribe, read, read);
+}
+
+export function releasingTabs(botId: string): ReadonlySet<string> {
+  return state.releasing.get(botId) ?? NOTHING_RELEASING;
+}
+
+function markReleasing(botId: string, tabId: string, on: boolean): void {
+  const current = state.releasing.get(botId) ?? NOTHING_RELEASING;
+  if (current.has(tabId) === on) return;
+  const tabs = new Set(current);
+  if (on) tabs.add(tabId);
+  else tabs.delete(tabId);
+  const releasing = new Map(state.releasing);
+  if (tabs.size) releasing.set(botId, tabs);
+  else releasing.delete(botId);
+  change({ ...state, releasing });
+}
+
+/** The tabs the panel shows: the server's strip without the tabs whose release is on its way, then the person's
+ * holds on their way that the strip does not have yet. */
+export function shownTabs(
+  strip: Extract<BotBrowserStrip, { available: true }>,
+  releasing: ReadonlySet<string>,
+  ownTabs: ReadonlyArray<BotBrowserTab>,
+): BotBrowserTab[] {
+  return [
+    ...strip.tabs.filter((tab) => !releasing.has(tab.tabId)),
+    ...ownTabs.filter((own) => !strip.tabs.some((tab) => tab.tabId === own.tabId)),
+  ];
+}
+
+/** Whether a tab the panel was asked to show (a link, a sign-in, the bot's new window) needs the person's hold:
+ * the strip does not hold it, or × is letting it go. */
+export function requestNeedsHold(strip: BotBrowserStrip | undefined, releasing: ReadonlySet<string>, tabId: string): boolean {
+  return !stripHolds(strip, tabId) || releasing.has(tabId);
+}
+
 export function useBotBrowserStrip(botId: string): BotBrowserStrip | undefined {
   return useSyncExternalStore(subscribe, () => state.strips.get(botId), () => state.strips.get(botId));
 }
@@ -247,13 +293,34 @@ export async function fetchBotBrowserStrip(botId: string, api: Api): Promise<Bot
   return strip;
 }
 
+/** The person holds (`hold`) or lets go of (`release`) a tab of the bot's strip; resolves with the strip after.
+ * A hold takes the tab out of the releasing ones at once (Vrátit, a request for it, a page's new tab). */
 export async function changeBotTab(botId: string, tabId: string, action: "hold" | "release", api: Api): Promise<BotBrowserStrip | null> {
+  if (action === "hold") markReleasing(botId, tabId, false);
   const strip = parseBotBrowserStrip(await api(`/api/bots/${encodeURIComponent(botId)}/browser/${action}`, {
     method: "POST",
     body: JSON.stringify({ tabId }),
   }));
   if (strip) rememberBotBrowserStrip(botId, strip);
   return strip;
+}
+
+/**
+ * × on a tab: it leaves the panel's strip while the release is on its way, and the server's answer decides
+ * after. On success the strip after is the server's, without the tab, so a tab the bot binds again later
+ * shows again; on a failure the tab comes back as the server still holds it. Resolves with whether the
+ * release landed.
+ */
+export async function releaseBotTab(botId: string, tabId: string, api: Api): Promise<boolean> {
+  markReleasing(botId, tabId, true);
+  try {
+    await changeBotTab(botId, tabId, "release", api);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    markReleasing(botId, tabId, false);
+  }
 }
 
 /** The sign-in cards that already opened the panel once in this page. */

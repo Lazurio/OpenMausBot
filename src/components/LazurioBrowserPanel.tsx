@@ -22,11 +22,15 @@ import {
   fetchBotBrowserStrip,
   newTabChoiceOf,
   readBrowserPanelView,
+  releaseBotTab,
+  requestNeedsHold,
   resolveBrowserPanelView,
+  shownTabs,
   stripHolds,
   takeBrowserTabRequest,
   useBotBrowserStrip,
   useBrowserTabRequest,
+  useReleasingTabs,
   viewOfTab,
   writeBrowserPanelView,
   type BrowserPanelView,
@@ -203,7 +207,7 @@ export function LazurioBrowserPanel({ bot: profileBot }: { bot: Bot }) {
                   title={label}
                   onClick={() => choose(option)}
                   className={cn(
-                    "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-[12.5px] transition-colors",
+                    "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-[13px] transition-colors",
                     selected ? "bg-raised text-ink shadow-sm" : "text-ink-secondary hover:text-ink",
                   )}
                 >
@@ -265,6 +269,8 @@ function BotBrowser({ botId, requested, onView }: {
   const [titles, setTitles] = useState<Record<string, string>>({});
   /** Tabs the person holds whose hold has not landed, or did not: the strip shows them meanwhile. */
   const [ownTabs, setOwnTabs] = useState<BotBrowserTab[]>([]);
+  /** Tabs × let go of whose release is on its way, out of the strip until the server answers. */
+  const releasing = useReleasingTabs(botId);
   const [notice, setNotice] = useState<Notice | null>(null);
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const newTabCount = useRef(0);
@@ -301,6 +307,10 @@ function BotBrowser({ botId, requested, onView }: {
   const release = async (tab: BotBrowserTab) => {
     setOwnTabs((current) => current.filter((own) => own.tabId !== tab.tabId));
     setNotice({ kind: "closed", tab, ...closeNoticeText(tab, words.czech) });
+    // A failed release brings the tab back, so the notice that it left goes too.
+    if (!await releaseBotTab(botId, tab.tabId, api)) {
+      setNotice((current) => current?.kind === "closed" && current.tab.tabId === tab.tabId ? null : current);
+    }
   };
 
   /** The latest `hold`, for the effects below: it reads the strip of the render that runs it. */
@@ -319,7 +329,10 @@ function BotBrowser({ botId, requested, onView }: {
     if (!requested || !available || handled.current === requested.nonce) return;
     handled.current = requested.nonce;
     setSelected(requested.tabId);
+    if (requestNeedsHold(available, releasing, requested.tabId)) void holdLatest.current(requested.tabId);
+  }, [requested, available, releasing]);
 
+  const tabs = available ? shownTabs(available, releasing, ownTabs) : [];
   const entries: Entry[] = [...tabs.map((tab): Entry => ({ kind: "tab", tab })), ...newTabs.map((id): Entry => ({ kind: "new", id }))];
   const active = entries.find((entry) => entryId(entry) === selected)
     ?? entries.find((entry) => entry.kind === "tab" && entry.tab.tabId === available?.current)
@@ -497,12 +510,12 @@ function BotBrowser({ botId, requested, onView }: {
       )}
       {notice && (
         <div role="status" data-testid="bot-browser-notice" className="absolute inset-x-3 bottom-3 flex items-start gap-3 rounded-xl border border-hairline/60 bg-menu px-4 py-3 shadow-lg">
-          <div className="min-w-0 flex-1 text-[12.5px] leading-snug">
+          <div className="min-w-0 flex-1 text-[13px] leading-snug">
             <div className="font-medium text-ink">{notice.kind === "closed" ? notice.title : words.notKept}</div>
             <div className="mt-0.5 text-ink-secondary">{notice.kind === "closed" ? notice.description : words.notKeptBody(notice.full)}</div>
           </div>
           {notice.kind === "closed" && (
-            <button type="button" onClick={() => undo(notice.tab)} className="shrink-0 rounded-lg bg-control px-3 py-1.5 text-[12.5px] font-medium text-ink hover:bg-raised-hover">
+            <button type="button" onClick={() => undo(notice.tab)} className="shrink-0 rounded-lg bg-control px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-raised-hover">
               {words.undo}
             </button>
           )}
@@ -537,7 +550,7 @@ function PanelNotice({ title, body, testId }: { title: string; body: string; tes
     <div className="flex flex-1 flex-col items-center justify-center gap-2 px-8 text-center" data-testid={testId}>
       <Globe size={22} className="text-ink-secondary" aria-hidden="true" />
       <div className="text-[14px] font-medium text-ink">{title}</div>
-      <p className="max-w-sm text-[12.5px] leading-snug text-ink-secondary">{body}</p>
+      <p className="max-w-sm text-[13px] leading-snug text-ink-secondary">{body}</p>
     </div>
   );
 }

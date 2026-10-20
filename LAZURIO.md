@@ -265,6 +265,12 @@ upstream's Computer panel and its own live view of the screen are removed
 - **× lets a tab go** (`POST …/browser/release`), with **Vrátit** for 7 s
   (`browserTimes.undoMs`, inside the hub's 8 s): the notice says what becomes
   of the tab, as T3 Code's strip does (the bot works in it, another place
+  holds it, or it closes in the Environment). The tab is out of the strip only
+  while the release is on its way: the server's answer decides after, so a tab
+  the bot binds again shows again, a failed release brings the tab back, and a
+  link, a sign-in or the bot's new window that asks for it meanwhile holds it
+  again. A link to a tab and a tab a page opens are held the same way, and a
+  tab whose view says it ended leaves the strip.
 - **The panel opens by itself** where it sits beside the chat (not on a
   phone's width), on the tab, when the bot's session opens a new window or
   tab (0195 point 15: the server announces it on MausBot's existing event

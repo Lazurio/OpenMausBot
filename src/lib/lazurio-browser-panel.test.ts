@@ -7,13 +7,20 @@ import { describe, expect, it } from "vitest";
 import { lazurioAccountSite } from "../../shared/lazurio-browser";
 import {
   announceBotBrowserTab,
+  botBrowserStrip,
   browserPanelViews,
+  changeBotTab,
   closeNoticeText,
+  fetchBotBrowserStrip,
   newTabChoiceOf,
   parseBotBrowserStrip,
   placesOf,
   readBrowserPanelView,
+  releaseBotTab,
+  releasingTabs,
+  requestNeedsHold,
   resolveBrowserPanelView,
+  shownTabs,
   signInToReveal,
   takeAnnouncedTabs,
   viewTabOfLink,
@@ -154,6 +161,83 @@ describe("× on a strip tab", () => {
       .toBe("It stays in Apps and elsewhere in the Environment.");
     expect(parseBotBrowserStrip({ available: true, strip: "bot-scout", viewOrigin: VIEW, tabs: [tab(TAB_A, { alsoHeldElsewhere: true })], current: null }))
       .toMatchObject({ tabs: [{ alsoHeldElsewhere: true }] });
+  });
+});
+
+describe("× and the server's strip", () => {
+  const answer = (tabIds: string[]) => ({ available: true, strip: "bot-closer", viewOrigin: VIEW, tabs: tabIds.map((id) => tab(id)), current: null });
+  const shown = (botId: string) => {
+    const now = botBrowserStrip(botId);
+    return now?.available ? shownTabs(now, releasingTabs(botId), []).map((entry) => entry.tabId) : [];
+  };
+  /** A fake server: GET answers `server` at once; holds and releases are written one at a time in the order they come,
+   * as the server's holder writes are, and a release waits for `settle`, then lets the tab go or fails. */
+  const fakeServer = (server: { tabs: string[]; fail?: boolean }) => {
+    let settle!: () => void;
+    const settled = new Promise<void>((done) => { settle = done; });
+    let writes: Promise<unknown> = Promise.resolve();
+    const api = (path: string, init?: RequestInit) => {
+      if (!init?.method) return Promise.resolve(answer(server.tabs));
+      const { tabId } = JSON.parse(String(init.body)) as { tabId: string };
+      const write = writes.then(async () => {
+        if (path.endsWith("/release")) {
+          await settled;
+          if (server.fail) throw new Error("hold-failed");
+          server.tabs = server.tabs.filter((id) => id !== tabId);
+        } else if (!server.tabs.includes(tabId)) server.tabs = [...server.tabs, tabId];
+        return answer(server.tabs);
+      });
+      writes = write.catch(() => {});
+      return write;
+    };
+    return { api, settle };
+  };
+
+  it("hides the tab while the release is on its way, and shows it again once the bot binds it again", async () => {
+    const server = { tabs: [TAB_A, TAB_B] };
+    const { api, settle } = fakeServer(server);
+    await fetchBotBrowserStrip("closer", api);
+    const release = releaseBotTab("closer", TAB_A, api);
+    expect(shown("closer")).toEqual([TAB_B]);
+    // A reading that still has the tab, taken before the server let it go, does not bring it back meanwhile.
+    await fetchBotBrowserStrip("closer", api);
+    expect(shown("closer")).toEqual([TAB_B]);
+    settle();
+    expect(await release).toBe(true);
+    expect(releasingTabs("closer").size).toBe(0);
+    expect(shown("closer")).toEqual([TAB_B]);
+    // The bot's session binds the tab again: the server's strip has it, and the panel shows it.
+    server.tabs = [TAB_B, TAB_A];
+    await fetchBotBrowserStrip("closer", api);
+    expect(shown("closer")).toEqual([TAB_B, TAB_A]);
+  });
+
+  it("brings the tab back when the release fails", async () => {
+    const server = { tabs: [TAB_A], fail: true };
+    const { api, settle } = fakeServer(server);
+    await fetchBotBrowserStrip("failing", api);
+    const release = releaseBotTab("failing", TAB_A, api);
+    expect(shown("failing")).toEqual([]);
+    settle();
+    expect(await release).toBe(false);
+    expect(releasingTabs("failing").size).toBe(0);
+    expect(shown("failing")).toEqual([TAB_A]);
+  });
+
+  it("lets a request for the tab hold it again while × is letting it go", async () => {
+    const server = { tabs: [TAB_A] };
+    const { api, settle } = fakeServer(server);
+    await fetchBotBrowserStrip("asked", api);
+    const release = releaseBotTab("asked", TAB_A, api);
+    // The bot's new window or a sign-in asks for the tab the server still holds: it needs the person's hold.
+    expect(requestNeedsHold(botBrowserStrip("asked"), releasingTabs("asked"), TAB_A)).toBe(true);
+    const hold = changeBotTab("asked", TAB_A, "hold", api);
+    expect(shown("asked")).toEqual([TAB_A]);
+    settle();
+    await release;
+    await hold;
+    expect(shown("asked")).toEqual([TAB_A]);
+    expect(requestNeedsHold(botBrowserStrip("asked"), releasingTabs("asked"), TAB_A)).toBe(false);
   });
 });
 
