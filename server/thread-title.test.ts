@@ -48,7 +48,7 @@ describe("titleConversationExcerpt", () => {
 
   it("is empty when there is nothing to name the thread from", () => {
     expect(titleConversationExcerpt([])).toBe("");
-    expect(titleConversationExcerpt([message("bot", "   "), message("bot", "frame", { kind: "screen" })])).toBe("");
+    expect(titleConversationExcerpt([message("bot", "   "), message("bot", "frame", { kind: "activity" })])).toBe("");
   });
 });
 

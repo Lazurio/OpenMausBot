@@ -53,11 +53,11 @@ export const VERB_HELP: Record<string, string> = {
   "new-channel": "openmausbot new-channel NAME --members A,B [--team T]\n  Make a room from bots, by name or id.",
   "set-model": "openmausbot set-model BOT --model INSTANCE/MODEL [--effort E] [--task ID] [--dry-run]\n  Change an idle bot's model (or one idle conversation's, with --task).",
   edit: "openmausbot edit BOT --message ID (TEXT | --text TEXT) [--task ID] [--dry-run]\n  Rewrite an earlier message of yours and have the bot answer again from there.",
-  export: `openmausbot export TARGET --out DIR [--root ID] [--since MS] [--max-files 200] [--max-screens 100] [--max-bytes 500MB] [--force]
+  export: `openmausbot export TARGET --out DIR [--root ID] [--since MS] [--max-files 200] [--max-bytes 500MB] [--force]
   Write a conversation's job to DIR: the job tree, every transcript (secrets removed),
-  the files its replies link to, and screen captures. --root keeps one job.
+  and the files its replies link to. --root keeps one job.
   ${T}`,
-  events: `openmausbot events [--thread ID]… [--job THREAD_ID [--until-settled]] [--kind K,…] [--since CURSOR] [--screens] [--jsonl]
+  events: `openmausbot events [--thread ID]… [--job THREAD_ID [--until-settled]] [--kind K,…] [--since CURSOR] [--jsonl]
   The server's live events, one JSON line each: messages, threads, bots and rooms, or the kinds --kind names
   (--kind message,runtime adds token-level events to messages).
   --job follows the threads of one conversation's job; --until-settled ends with it.`,

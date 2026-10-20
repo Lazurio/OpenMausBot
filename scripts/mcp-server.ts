@@ -704,7 +704,6 @@ function projectMessage(message: Record<string, any>) {
     ...(card ? { card } : {}),
     ...(secret ? { secret } : {}),
     ...(signIn ? { signIn } : {}), ...(message.widget ? { widget: message.widget } : {}),
-    ...(message.kind === "screen" ? { hasImage: Boolean(message.hasImage || message.png) } : {}),
   };
 }
 

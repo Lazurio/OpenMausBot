@@ -7,7 +7,7 @@ import { changedInstanceIds, engineLaunches } from "./config.ts";
 // Runs the real cleanup functions sliced from index.ts: importing index.ts would start a server.
 const source = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
 function section(start: string, end: string) {
-  // Line-anchored: `function bindTurnComputer(` also matches inside `async function bindTurnComputer(`.
+  // Line-anchored: a marker must not match inside a longer declaration.
   const lineStart = (marker: string, from: number) => {
     if (from === 0 && source.startsWith(marker)) return 0;
     const at = source.indexOf(`\n${marker}`, from);
@@ -19,8 +19,7 @@ function section(start: string, end: string) {
 }
 const code = ts.transpileModule([
   section("async function interruptDirectThread(", "/** Stop left teammates"),
-  section("async function interruptParkedTurn(", "async function interruptAllDirectThreads("),
-  section("function releaseTurnResources(", "async function bindTurnComputer("),
+  section("function releaseTurnResources(", "function botForThread("),
   section("async function stopCompanyInstances(", "async function persistProviderInstance("),
 ].join("\n"), { compilerOptions: { target: ts.ScriptTarget.ESNext } }).outputText;
 const reloadProvidersCode = ts.transpileModule(
@@ -41,13 +40,12 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
   const groups = new Map<string, { id: string; busyBotId: string | null }>();
   const owners = new Map<string, Owner>(), generations = new Map<string, string>();
   const directBots = new Map<string, Bot>(), speakers = new Map<string, Speaker>();
-  const approvals = new Set<string>(), screens = new Set<string>(), watched = new Set<string>();
-  const autoVmClaims = new Map<string, { owner: { threadId: string; generation: string } }>();
+  const approvals = new Set<string>(), watched = new Set<string>();
   const started = new Map<string, ReturnType<typeof deferred>>(), interrupted = new Map<string, ReturnType<typeof deferred>>();
   const interruptCalls: string[] = [], cancelled: string[] = [], revoked: string[] = [], messages: string[] = [], settled: string[] = [], detached: string[] = [];
   const roomStops: Array<{ threadId: string; status: string; detail: string; byHarness?: boolean }> = [];
   const causes: Array<{ threadId: string; cause: string; interrupted: boolean }> = [];
-  // What Stop does and a computer-wait park must not: stop the request, its teammates, the person's message.
+  // What Stop does: stop the request, its teammates, the person's message.
   const directRequestOwners = new Map<string, { messageId?: string; stopped: boolean; generations: Set<string> }>();
   const stopAwaiting: string[] = [], patched: Array<[string, string, object]> = [];
   const stoppedCards: string[] = [];
@@ -58,8 +56,7 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
     generations.set(threadId, `company-${threadId}`);
     if (kind === "direct") directBots.set(threadId, bot);
     else { speakers.set(threadId, { botId: threadId, name: "Company turn" }); groups.set(threadId, { id: threadId, busyBotId: threadId }); }
-    approvals.add(threadId); screens.add(threadId); watched.add(threadId);
-    autoVmClaims.set(threadId, { owner: { threadId, generation: `company-${threadId}` } });
+    approvals.add(threadId); watched.add(threadId);
     started.set(threadId, deferred()); interrupted.set(threadId, deferred());
   }
   const context = vm.createContext({
@@ -87,8 +84,7 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
     turnResourceOwners: owners, directTurnGenerationByThread: generations, directTurnBots: directBots, groupSpeakers: speakers,
     activeGroupSpeaker: (groupId: string) => speakers.get(groupId),
     directRequestOwners,
-    autoVmClaims,
-    turnResources: { release() {} }, settlingResourceOwners: new Map(), turnComputerResources: new Map(),
+    turnResources: { release() {} }, settlingResourceOwners: new Map(),
     coordinator: { stopAwaitingDirect: (threadId: string) => { stopAwaiting.push(threadId); return []; } },
     noteTeammatesLeftRunning() {}, stopParkedCards: (threadId: string) => stoppedCards.push(threadId),
     cancelDirectTurnDispatch: (_botId: string, threadId: string) => cancelled.push(threadId),
@@ -97,7 +93,6 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
       if (outcome) roomStops.push({ threadId, ...outcome });
     },
     revokeInternalCapabilitiesForThread: (threadId: string) => revoked.push(threadId),
-    stopScreenPoller: (_botId: string, threadId: string) => screens.delete(threadId),
     watchdog: { settle: (threadId: string) => watched.delete(threadId) },
     closeOpenApprovals: (threadId: string) => approvals.delete(threadId),
     finalizeDelegationWatch() {}, routines: { failThread() {} },
@@ -106,14 +101,12 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
   context.runningTurnInstance = (bot: Bot) => context.registry.get(bot.modelSelection.instanceId);
   vm.runInContext(code, context, { filename: "index.ts (Company cleanup ownership fixture)" });
   return {
-    bots, tasks, groups, owners, directBots, speakers, approvals, screens, watched,
-    autoVmClaims,
+    bots, tasks, groups, owners, directBots, speakers, approvals, watched,
     interruptCalls, cancelled, revoked, messages, settled, detached, roomStops, causes,
     directRequestOwners, stopAwaiting, patched,
     context,
     stop: () => context.stopCompanyInstances(["company"]) as Promise<void>,
     interrupt: (threadId: string) => context.interruptDirectThread(threadId, threadId) as Promise<void>,
-    park: (threadId: string) => context.interruptParkedTurn(threadId, threadId) as Promise<void>,
     started: (threadId: string) => started.get(threadId)!.promise,
     finish: (threadId: string) => interrupted.get(threadId)!.resolve(),
     replace: (threadId: string, replaceSpeaker = true) => {
@@ -123,17 +116,14 @@ function fixture(kind: "direct" | "group", threadIds = ["first"]) {
       generations.set(threadId, `personal-${threadId}`);
       if (kind === "direct") directBots.set(threadId, bot);
       else if (replaceSpeaker) speakers.set(threadId, { botId: threadId, name: "Personal turn" });
-      approvals.add(threadId); screens.add(threadId); watched.add(threadId);
-      autoVmClaims.set(threadId, { owner: { threadId, generation: `personal-${threadId}` } });
+      approvals.add(threadId); watched.add(threadId);
     },
   };
 }
 
 function expectPersonalResources(f: ReturnType<typeof fixture>, threadId: string) {
   expect(f.owners.get(threadId)?.generation).toBe(`personal-${threadId}`);
-  expect(f.autoVmClaims.get(threadId)?.owner?.generation).toBe(`personal-${threadId}`);
   expect(f.approvals.has(threadId)).toBe(true);
-  expect(f.screens.has(threadId)).toBe(true);
   expect(f.watched.has(threadId)).toBe(true);
   expect(f.messages).not.toContain(threadId);
 }
@@ -208,7 +198,6 @@ for (const kind of ["direct", "group"] as const) {
     const f = fixture(kind), stopping = f.stop();
     await f.started("first"); f.finish("first"); await stopping;
     expect(f.owners.has("first")).toBe(false);
-    expect(f.autoVmClaims.has("first")).toBe(false);
     expect(f.approvals.has("first")).toBe(false);
     expect(f.watched.has("first")).toBe(false);
     if (kind === "direct") {
@@ -224,19 +213,7 @@ for (const kind of ["direct", "group"] as const) {
   });
 }
 
-it("interruptParkedTurn ends the engine's turn without stopping the request or its teammates", async () => {
-  const f = fixture("direct");
-  f.directRequestOwners.set("first", { messageId: "m1", stopped: false, generations: new Set(["company-first"]) });
-  const parked = f.park("first");
-  await f.started("first"); f.finish("first"); await parked;
-  expect(f.interruptCalls).toEqual(["first"]);
-  expect(f.cancelled).toEqual(["first"]);
-  expect(f.revoked).toEqual(["first"]);
-  expect(f.approvals.has("first")).toBe(false);
-  expect(f.directRequestOwners.get("first")).toMatchObject({ stopped: false });
-  expect(f.stopAwaiting).toEqual([]);
-  expect(f.patched).toEqual([]);
-
+it("interruptDirectThread stops the request, its teammates and the person's message", async () => {
   const g = fixture("direct");
   g.directRequestOwners.set("first", { messageId: "m1", stopped: false, generations: new Set(["company-first"]) });
   const stopped = g.interrupt("first");
@@ -244,12 +221,6 @@ it("interruptParkedTurn ends the engine's turn without stopping the request or i
   expect(g.directRequestOwners.get("first")).toMatchObject({ stopped: true });
   expect(g.stopAwaiting).toEqual(["first"]);
   expect(g.patched).toEqual([["first", "m1", { requestCancelled: true }]]);
-});
-
-it("interruptParkedTurn cannot close a replacement generation's approval after awaiting its adapter", async () => {
-  const f = fixture("direct"), parked = f.park("first");
-  await f.started("first"); f.replace("first"); f.finish("first"); await parked;
-  expectPersonalResources(f, "first");
 });
 
 it("quitting disposes Company instances without interrupting turns or writing connection-changed cards", async () => {
@@ -318,7 +289,7 @@ function reloadFixture() {
     liveTurnByThread: new Map(),
     stoppedTurnText: (threadId: string, _turnId: string | undefined, cause: string) => `${cause} (${threadId})`,
     stoppedTurnOutcome: ({ reason }: { reason: string }) => reason,
-    stopScreenPoller() {}, releaseTurnResources() {}, endForeignTurns() {},
+    releaseTurnResources() {}, endForeignTurns() {},
     watchdog: { settle() {} }, closeOpenApprovals() {}, directTurnBots: new Map(),
     finalizeDelegationWatch: (_threadId: string, _ok: boolean, _reply: string, why: string) => log.push(`delegation:${why}`),
     routines: { failThread() {} }, failedTurnTool: (name: string) => ({ name, ok: false }),

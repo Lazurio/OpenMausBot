@@ -5,7 +5,7 @@ import type { IncomingMessage } from "node:http";
 import { afterEach, expect, it } from "vitest";
 import {
   CLOUD_BROWSER_SIGN_IN_MAX_TTL_S, CLOUD_HOME_MARKER, CLOUD_IGNORED_KEYS, CLOUD_PAIRING_MAX_TTL_S, CLOUD_PAIRING_NONCE_MS, CLOUD_PAIRING_SKEW_S, cloudHomeConfiguration, cloudHomeConfigured,
-  cloudHomeHost, cloudHomeOffersPlace, cloudHomePlaceRefusal, cloudPairingSignature, cloudRequestSignature, createCloudPairing, firstCloudTurnPatch, prepareCloudHomeVolume,
+  cloudHomeHost, cloudPairingSignature, cloudRequestSignature, createCloudPairing, firstCloudTurnPatch, prepareCloudHomeVolume,
   withoutIgnoredCloudKeys,
 } from "./cloud-home.ts";
 import { cloudHomeChildEnvironments, codeTrustProblem, passwdIds, spawnWithSecrets } from "./cloud-home-start.ts";
@@ -89,20 +89,6 @@ it("never echoes a secret or token in its refusal", () => {
     try { cloudHomeConfiguration(env); expect.unreachable(); }
     catch (error) { expect(String(error)).not.toContain(secret); expect(String(error)).not.toContain(token); }
   }
-});
-
-
-it("offers the built-in browser, never this computer", () => {
-  expect((["local", "browser"] as const).filter(cloudHomeOffersPlace)).toEqual(["browser"]);
-  expect(cloudHomePlaceRefusal("browser")).toBeUndefined();
-});
-
-it("refuses this computer with what is true there, not a setup step", () => {
-  const local = cloudHomePlaceRefusal("local")!;
-  expect(local).toBe("This computer isn't a place on My Cloud.");
-  expect(local).not.toMatch(/configure|Computer panel|install|set (?:it|one) up|Works on|Local VM/i);
-  // A failed turn shows the first 160 characters of its error.
-  expect(local.length).toBeLessThanOrEqual(160);
 });
 
 

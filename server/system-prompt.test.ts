@@ -9,7 +9,6 @@ import {
   CLOUD_HOME_PLACE,
   cloudHomePrompt,
   userProfileSystemPrompt,
-  computerPrompt,
   mentionPrompt,
   CREDENTIAL_PROMPT,
   LEARN_PROMPT,
@@ -19,16 +18,6 @@ import {
   WEBHOOK_PROMPT,
   SIGN_IN_PROMPT,
 } from "./system-prompt.ts";
-
-describe("computerPrompt", () => {
-  it("gives this computer its own paragraph plus the sign-in policy, and silence to none", () => {
-    expect(computerPrompt(null)).toBe("");
-    const prompt = computerPrompt("local");
-    expect(prompt.endsWith(SIGN_IN_PROMPT)).toBe(true);
-    expect(prompt).toContain("act on the user's computer");
-    expect(prompt).not.toMatch(/Cua sandbox|cloud computer|VPS|Local VM/);
-  });
-});
 
 describe("buildSystemPrompt", () => {
   it("keeps shared context stable and omits an empty user profile", () => {
@@ -104,24 +93,8 @@ describe("buildSystemPrompt", () => {
   });
 });
 
-describe("computerPrompt", () => {
-  it("distinguishes background window control from foreground desktop input", () => {
-    const prompt = computerPrompt("local");
-    expect(prompt).toContain("background delivery");
-    expect(prompt).toContain("do not bring OpenMausBot");
-    expect(prompt).toContain("in the Environment browser as your Browser instructions say");
-    expect(prompt).toContain("Do not silently retry a background refusal");
-    expect(prompt).toContain("including through shell scripts, AppleScript/System Events");
-    expect(prompt).toContain("If a background action unexpectedly changes focus");
-  });
-  it("is empty with no computer", () => {
-    expect(computerPrompt(null)).toBe("");
-  });
-
-  it("shares the authorized sign-in policy across the computer and the Environment browser", () => {
-    expect(computerPrompt("local")).toContain("act on the user's computer");
-    expect(computerPrompt("local").endsWith(SIGN_IN_PROMPT)).toBe(true);
-    expect(computerPrompt("local").startsWith(" ")).toBe(true);
+describe("SIGN_IN_PROMPT", () => {
+  it("gives the Environment browser the authorized sign-in policy", () => {
     expect(environmentBrowserPrompt("bot-x", true).endsWith(SIGN_IN_PROMPT)).toBe(true);
     expect(environmentBrowserPrompt("bot-x", false)).not.toContain("request_sign_in");
   });
@@ -136,10 +109,9 @@ describe("computerPrompt", () => {
     expect(SIGN_IN_PROMPT).toContain("then continue the task");
     expect(SIGN_IN_PROMPT).toContain("call request_sign_in with the site and a short reason and end your turn");
     expect(SIGN_IN_PROMPT).toContain("never to send you the password or code");
-    for (const prompt of [computerPrompt("local"), environmentBrowserPrompt("bot-x", true)]) {
-      expect(prompt).not.toContain("At a sign-in, password");
-      expect(prompt).not.toMatch(/never type (?:their|the user's) (?:password|credentials)/i);
-    }
+    const prompt = environmentBrowserPrompt("bot-x", true);
+    expect(prompt).not.toContain("At a sign-in, password");
+    expect(prompt).not.toMatch(/never type (?:their|the user's) (?:password|credentials)/i);
   });
 
   it("sends the bot to request_sign_in when it is not signed in, never to a password store of its own", () => {

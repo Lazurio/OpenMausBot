@@ -25,7 +25,7 @@ export function questionRequestFor(
 export function openQuestionRequest(
   msg: { id?: unknown; params?: unknown },
   request: AcpQuestionRequest,
-  turn: { asks: Map<string, QuestionFinish>; controlsHost: boolean; flushAssistantText: () => void },
+  turn: { asks: Map<string, QuestionFinish>; flushAssistantText: () => void },
   send: (message: unknown) => void,
   emit: (event: RuntimeEvent) => void,
   base: () => Pick<RuntimeEvent, "eventId" | "provider" | "threadId" | "turnId" | "createdAt">,
@@ -62,6 +62,5 @@ export function openQuestionRequest(
     summary: askQuestionSummary(parsed.questions),
     questions: parsed.questions,
     ...(choices ? { choices } : {}),
-    approvalScope: turn.controlsHost ? "local-computer" : undefined,
   });
 }

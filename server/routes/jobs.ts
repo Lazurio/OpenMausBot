@@ -35,7 +35,7 @@ export function createJobRoutes(deps: JobRouteDeps): RouteHandler {
     if (bot) {
       const task = store.taskByThread(bot.id, threadId);
       return {
-        kind: "bot", busy: task?.busy === true || task?.activity === "working" || task?.activity === "parked.computer",
+        kind: "bot", busy: task?.busy === true || task?.activity === "working",
         ...(task?.activity ? { activity: task.activity } : {}), queued: hasQueuedSteeredMessages(bot.id, threadId) ? 1 : 0,
       };
     }
