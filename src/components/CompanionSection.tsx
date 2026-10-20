@@ -259,22 +259,6 @@ export function CompanionSection({ profileEmail = "", focusRequest = 0 }: { prof
                           <Trash2 size={14} />
                         </button>
                       </div>
-                      <div className="mt-3 flex items-center justify-between gap-3 border-t border-hairline/30 pt-3">
-                        <div>
-                          <div className="text-[12px] text-ink">{t("remote.devices.allowView")}</div>
-                          <div className="mt-0.5 text-[11px] text-ink-secondary">{t("remote.devices.allowViewDetail")}</div>
-                        </div>
-                        <Switch
-                          checked={device.cloudDesktopAccess}
-                          aria-label={t("remote.devices.viewAria", { name: device.name })}
-                          disabled={c.busy}
-                          onClick={() =>
-                            void c.act((companion) =>
-                              companion.cloudDesktop(device.id, !device.cloudDesktopAccess),
-                            )
-                          }
-                        />
-                      </div>
                     </li>
                   ))}
                 </ul>

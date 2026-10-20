@@ -47,7 +47,6 @@ import type { WebhookAttempt, WebhookIngressStatus, WebhookTrigger } from "@/lib
 import { duplicateBotProfile, restrictedCopyRequest } from "@/lib/bot-duplicate";
 import { botShowsUnread } from "@/lib/bot-unread";
 import { firstUnreadMessageId, threadOpensUnread, threadReadCursor } from "@/lib/unread-divider";
-import { parseComputerHelp } from "@/lib/computer-control";
 import { announceBotBrowserTab } from "@/lib/lazurio-browser-panel";
 import { answerResponse, dismissResponse } from "@/lib/card-answer";
 import { forgetLiveTurns, noteRuntimeTurn, sendStop } from "@/lib/stop-turn";
@@ -86,7 +85,6 @@ export interface OptionCardData extends Pick<WireOptionCard, "fixedOptions" | "w
   allowKey?: string;
   allowSession?: boolean;
   commandAllowlist?: { command: string; cwd: string; providerInstanceId: string };
-  approvalScope?: "local-computer";
   autoApplied?: boolean;
   undone?: boolean;
   routineRequest?: RoutineRequestCardData;
@@ -113,7 +111,6 @@ export interface SecretRequestCardData {
   stopped?: boolean;
 }
 
-export type ComputerControlState = { held: boolean; helpReason: string | null; help?: import("../../shared/wire").ComputerHelpRef | null };
 
 export interface Message extends Pick<import("../../shared/wire").WireMessage, "widget" | "app" | "fromApp" | "pointed" | "routedBy" | "quickModel" | "automation" | "sender" | "setupSuggestion" | "helperIntro" | "helperFollowup" | "setupOffer" | "setupChoices" | "setupChoicesPending" | "setupRequest" | "relay" | "inbox" | "sentDirectly" | "doneWhen"> {
   id: string;
@@ -139,9 +136,6 @@ export interface Message extends Pick<import("../../shared/wire").WireMessage, "
   turnTerminal?: boolean;
   turnCompletedAt?: number;
   optimisticThreadOrderAt?: number;
-  hasImage?: boolean;
-  png?: string;
-  mime?: string;
   at: number;
   parentId?: string | null;
   replyToId?: string;
@@ -288,7 +282,7 @@ export interface Bot extends DefaultBotFields {
   avatarFocusY?: number;
   unread: boolean;
   busy?: boolean;
-  activity?: "working" | "waiting-on-you" | "idle" | "no-signal" | "dead" | "parked.computer";
+  activity?: "working" | "waiting-on-you" | "idle" | "no-signal" | "dead";
   turnStartedAt?: number | null;
   modelSelection: ModelSelection;
   cwd?: string;
@@ -476,14 +470,12 @@ export interface InstanceInfo {
   aiTestError?: string;
   models: { default: string; options: Array<{ id: string; label: string; custom?: boolean; loaded?: boolean; provider?: string; variants?: ModelVariantOption[] }> };
   capabilities?: {
-    computerMcp?: boolean;
     agentsMcp?: boolean;
     dataMcp?: boolean;
     images?: boolean;
     effortLevels?: readonly EffortLevel[];
     modelVariants?: boolean;
     queueing?: boolean;
-    localComputerMcp?: boolean;
     approvalReview?: boolean;
     backgroundText?: boolean;
   };
@@ -505,7 +497,6 @@ export type AppSettingsSection =
   | "engines"
   | "companion"
   | "remote"
-  | "computer"
   | "usage"
   | "people"
   | "activity"
@@ -578,7 +569,6 @@ export interface AppState {
   botSettingsSectionStored: boolean;
   botSettingsExpandRemembered: boolean;
   deletingBots: Record<string, true>;
-  computerControl: Record<string, ComputerControlState>;
   dataSheets: Record<string, DataSheet>;
   dataTables: Record<string, DataTable[]>;
   dataResultFocus: { botId: string; id: string; requestId: number; consumed: boolean } | null;
@@ -611,7 +601,6 @@ export type Action =
       bots: Bot[];
       groups: Group[];
       sections?: string[];
-      computerControl: Record<string, ComputerControlState>;
       botQueuedMessages?: AppState["pendingQueued"];
       resumeId?: string;
     }
@@ -742,7 +731,6 @@ export type Action =
   | { type: "messageAdded"; threadId: string; message: Message }
   | { type: "messagePatched"; threadId: string; message: Message }
   | { type: "optimisticMessageRemoved"; threadId: string; sendId: string; restoreLeafId?: string | null }
-  | ({ type: "computerControl"; botId: string } & ComputerControlState)
   | { type: "dataSheet"; sheet: DataSheet; tables?: DataTable[] }
   | { type: "dataView"; view: AppState["dataView"] }
   | { type: "loadDataSheet"; botId: string; onError?: (message: string) => void }
@@ -883,7 +871,6 @@ export function reducer(state: AppState, action: Action): AppState {
           return merged;
         }),
         sections: action.sections ?? [],
-        computerControl: action.computerControl,
         selectedId,
         hydrated: true as const,
         backgroundThreadEvents: {},
@@ -1305,14 +1292,6 @@ export function reducer(state: AppState, action: Action): AppState {
         messages: b.messages.map((m) => (m.id === action.message.id ? action.message : m)),
       }));
     }
-    case "computerControl":
-      return {
-        ...state,
-        computerControl: {
-          ...state.computerControl,
-          [action.botId]: { held: action.held, helpReason: action.helpReason, help: action.help ?? null },
-        },
-      };
     case "modelVariantRuntime": {
       const event = action.event;
       if (!event.turnId) return state;
@@ -1800,7 +1779,6 @@ export const initialState: AppState = {
   botSettingsSectionStored: false,
   botSettingsExpandRemembered: false,
   deletingBots: {},
-  computerControl: {},
   dataSheets: {},
   dataTables: {},
   dataResultFocus: null,
@@ -2865,14 +2843,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         })
         .catch(() => {});
       const chat = () =>
-        api(`/api/bots?messages=${MESSAGE_PAGE_SIZE}`).then(({ bots, groups, sections, computerControl, botQueuedMessages }) => {
+        api(`/api/bots?messages=${MESSAGE_PAGE_SIZE}`).then(({ bots, groups, sections, botQueuedMessages }) => {
           if (!alive) return;
           rawDispatch({
             type: "hydrate",
             bots,
             groups: groups ?? [],
             sections: sections ?? [],
-            computerControl: computerControl ?? {},
             botQueuedMessages,
             resumeId: readLastConversation() ?? undefined,
           });
@@ -3026,15 +3003,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           if (action) rawDispatch(action);
           break;
         }
-        case "computer-control":
-          rawDispatch({
-            type: "computerControl",
-            botId: frame.botId,
-            held: frame.held === true,
-            helpReason: typeof frame.helpReason === "string" ? frame.helpReason : null,
-            help: parseComputerHelp(frame.help),
-          });
-          break;
         case "data":
           rawDispatch({ type: "dataSheet", sheet: frame.sheet });
           break;

@@ -34,11 +34,9 @@ const answers: Record<string, unknown> = {
 const { StoreProvider, useStore } = await import("./store");
 const { listenLiveFrames } = await import("@/lib/live-events");
 
-let renders = 0;
 let seen!: AppState;
 function Probe() {
   seen = useStore().state;
-  renders++;
   return null;
 }
 let root: Root;
@@ -70,19 +68,6 @@ describe("live frames the store does not keep", () => {
   it("come from the app's one stream", () => {
     expect(seen.bots.map((candidate) => candidate.id)).toEqual(["bot"]);
     expect(FixtureEventSource.opened.map((source) => source.url)).toEqual(["/api/events"]);
-  });
-
-  it("hand a screen frame to its listener without touching app state", async () => {
-    const heard: ServerFrame[] = [];
-    const stop = listenLiveFrames({ onFrame: (frame) => heard.push(frame) });
-    const before = seen;
-    const rendered = renders;
-    await send({ kind: "screen", botId: "bot", threadId: "thread", png: "AAAA", mime: "image/jpeg" });
-    stop();
-    expect(heard).toEqual([{ kind: "screen", botId: "bot", threadId: "thread", png: "AAAA", mime: "image/jpeg" }]);
-    expect(renders).toBe(rendered);
-    expect(seen).toBe(before);
-    expect("screens" in seen).toBe(false);
   });
 
   it("hand runtime events to listeners as they arrive", async () => {

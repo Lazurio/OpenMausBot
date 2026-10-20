@@ -10,7 +10,7 @@ import { ReactAction, ReactionChips } from "@/components/Reactions";
 import { useBotMessageMenu, userMessageMenu } from "@/components/message-menu";
 import { useSpeech } from "@/lib/tts/useSpeech";
 import { localSystemVoiceActive } from "@/lib/local-voice";
-import { useCaptionChrome, useDesktopCapabilities } from "@/components/DesktopCapabilities";
+import { useCaptionChrome } from "@/components/DesktopCapabilities";
 import {
   api,
   currentTaskBot,
@@ -32,8 +32,6 @@ import { EngineSetup, signedOutHeadline, useLazurioSignIn } from "./EngineSetup"
 import { openExternalLink } from "@/lib/app-links";
 import { CODEX_USAGE_URL, codexUsageLimitReached } from "../../shared/codex-usage-limit";
 import { ClaudeUpdatePrompt } from "./ClaudeUpdatePrompt";
-import { MacCuaRecoveryActions } from "./MacCuaRecoveryActions";
-import { macCuaPermissionMessage, missingMacCuaPermissions } from "@/lib/mac-cua-permissions";
 import { LazurioBrowserButton, useLazurioBrowserPanel } from "./LazurioBrowser";
 import { failedTurnCause, signedOutEngine } from "@/lib/failed-turn";
 import { plainErrorLine } from "@/lib/plain-error";
@@ -79,7 +77,6 @@ import { SignInRequestCard } from "./SignInRequestCard";
 import { AutomationCaption, RoutineRunRow } from "./RoutineRunCard"; import { InboxAnswers, InboxCaption, RelayLabel } from "./InboxLine";
 import { CallRecordRow } from "./CallRecordRow";
 import { AttachmentGallery, collectMessageFiles, replyAttachmentGroup, splitMessageAttachments } from "./AttachmentGallery";
-import { ScreenFrame } from "./ScreenFrame";
 import { CompactionChip, DigestChip } from "./DigestChip";
 import { RenameTitle } from "./RenameTitle"; import { ChatHeadRole, chiefOfStaffBadge } from "./BotRole";
 import { BotActivityPicker } from "./TaskPicker"; import { ChatHeadPill } from "./ChatHeadPill";
@@ -195,9 +192,7 @@ export function ErrorRow({
           <AlertTriangle size={15} className="mt-0.5 shrink-0" />
           <span className="min-w-0 break-words">{headline}</span>
         </div>
-        {headline !== message && <details className="mt-2 text-[12px] text-ink-secondary"><summary className="cursor-pointer">{macCuaReason ? t("computer.mac.permission.driverDetail") : t("chat.error.details")}</summary><p className="mt-1 break-words">{message}</p></details>}
-        {macCuaReason &&
-          <MacCuaRecoveryActions reason={message} />}
+        {headline !== message && <details className="mt-2 text-[12px] text-ink-secondary"><summary className="cursor-pointer">{t("chat.error.details")}</summary><p className="mt-1 break-words">{message}</p></details>}
         {usageUrl ? (
           <a href={usageUrl} target="_blank" rel="noopener noreferrer" className="ui-button ui-button-md mt-2 border-transparent bg-ink text-app hover:brightness-110" onClick={(event) => { if (window.ogb?.openExternal) { event.preventDefault(); void openExternalLink(usageUrl); } }}>{t("chat.error.manageUsage")}</a>
         ) : claudeUpdateInstance ? (
@@ -725,8 +720,6 @@ const MessagesList = memo(function MessagesList({
               return showToolCalls ? <DigestChip message={m} /> : null;
             case "compaction":
               return <CompactionChip message={m} />;
-            case "screen":
-              return <ScreenFrame threadId={threadId} message={m} />;
             default: {
               const peer = peerLine(m) ?? peerRequest(m, botId);
               const user = m.role === "user" && !peer;

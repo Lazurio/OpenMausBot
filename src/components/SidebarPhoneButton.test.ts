@@ -15,7 +15,6 @@ const device = (lastSeenAt: number) => ({
   name: "iPhone",
   createdAt: lastSeenAt,
   lastSeenAt,
-  cloudDesktopAccess: false,
 });
 
 describe("sidebar phone status", () => {

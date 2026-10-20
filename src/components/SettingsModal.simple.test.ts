@@ -255,7 +255,6 @@ describe("Settings in Simple mode", () => {
     ["companion", "computer"],
     ["remote", "computer"],
     ["desktopWorkspaces", "computer"],
-    ["computer", "computer"],
     ["usage", "billing"],
     ["updates", "updates"],
   ])("lands a deep link to %s on %s", (section, page) => {

@@ -52,7 +52,11 @@ it("a plain visit reveals nothing", () => {
   expect(f.revealed).toEqual([]);
 });
 
+it("lists a paired device with no computer view or browser control access to grant", () => {
+  f.state = { enabled: true, devices: [{ id: "phone-1", name: "Ada", lastSeenAt: Date.now() }], port: 8810 };
   const markup = renderToStaticMarkup(createElement(() => CompanionSection({})));
+  expect(markup).toContain("Ada");
+  expect(markup).not.toContain("Computer view access");
   expect(markup).not.toContain("Browser control access");
 });
 

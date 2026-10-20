@@ -4,16 +4,10 @@ import { Check, Loader2, LockKeyhole, LogIn, RefreshCw, X } from "lucide-react";
 import { signInOutcome } from "../../shared/sign-in-request";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
-import { answerSignIn, signInHostIsHere } from "@/lib/sign-in";
+import { answerSignIn } from "@/lib/sign-in";
 import type { Message } from "@/state/store";
 import { LazurioSignInWhere } from "./LazurioBrowser";
 import { ASK_CHIP, ASK_CHIP_IDLE, ASK_PRIMARY_BUTTON, ASK_QUIET_BUTTON, AskCard, AskSettledLine, returnFocusToComposer } from "./AskCard";
-
-const WHERE = {
-  browser: "signIn.where.browser",
-  local: "signIn.where.local",
-  host: "signIn.where.host",
-} as const;
 
 export function SignInRequestCard({
   botId,
@@ -28,13 +22,10 @@ export function SignInRequestCard({
 }) {
   const card = message.signIn!;
   const [pending, setPending] = useState<"done" | "cancel" | null>(null);
-  const [explained, setExplained] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const error = localError ?? card.error;
   const outcome = signInOutcome(card);
-  const ref = { botId, threadId, messageId: message.id, place: card.place };
-  const here = signInHostIsHere();
-
+  const ref = { botId, threadId, messageId: message.id };
 
   const answer = async (choice: "done" | "cancel") => {
     if (pending) return;
@@ -82,7 +73,6 @@ export function SignInRequestCard({
     );
   }
 
-  const where = WHERE[card.place === "local" && !here ? "host" : card.place];
   return (
     <AskCard
       ariaLabel={t("signIn.cardLabel", { name: botName, site: card.site })}

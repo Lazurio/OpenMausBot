@@ -16,7 +16,6 @@ import {
   type Message,
 } from "@/state/store";
 import { BotAvatar } from "./Avatar";
-import { ScreenFrame } from "./ScreenFrame";
 import { RoomHoldsBanner } from "./RoomHoldsBanner";
 import { ThreadChip } from "./ThreadChip";
 import { ToolActivity } from "./ToolActivity";
@@ -459,8 +458,6 @@ export const Transcript = memo(function Transcript({
             roomActivityVisible(m, showToolCalls) ? (
               m.dataResult ? <DataResultChip message={m} /> : isStatusActivity(m) ? <StatusActivityRow message={m} /> : <RoomToolChip message={m} roomId={group.id} live={liveTools.has(m.id)} />
             ) : null
-          ) : m.kind === "screen" ? (
-            <ScreenFrame threadId={group.threadId} message={m} />
           ) : m.kind === "compaction" ? (
             <CompactionChip message={m} />
           ) : m.kind === "digest" ? (

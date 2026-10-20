@@ -377,7 +377,6 @@ export function SettingsModal() {
       case "backups": return <><WorkspaceBackupSettings /><CompanyBackupSettings /></>;
       case "companion":
         return <>{remoteAccess.client}{remoteAccess.domain}{remoteAccess.pairing}{remoteAccess.companion}</>;
-      case "computer":
       case "usage":
         return <UsageSection />;
       case "skills":

@@ -45,7 +45,6 @@ function desktop() {
         };
         return companion;
       }),
-      cloudDesktop: vi.fn(async () => companion),
       revoke: vi.fn(async () => companion),
     },
     companionAccount: {
