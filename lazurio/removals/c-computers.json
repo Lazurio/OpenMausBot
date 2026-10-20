@@ -226,7 +226,15 @@
     "selected-computer actions",
     "a bridge into a VM or a Boat",
     "No Boat key",
-    "cloud-targeted"
+    "cloud-targeted",
+    "cloud-computer agent",
+    "computer lifecycle",
+    "Cloud VM runner",
+    "computer/VM lifecycle",
+    "model/computer",
+    "transcripts, and computers",
+    "Grok, cloud computer)",
+    "memory, or computer access"
   ],
   "routes": [
     {
@@ -299,6 +307,8 @@
     }
   ],
   "changes": [
+    "CONTRIBUTING.md",
+    "README.md",
     "apps/docs/content/docs/computers/index.mdx",
     "apps/docs/content/docs/computers/meta.json",
     "apps/docs/content/docs/features/automation.mdx",
@@ -310,6 +320,7 @@
     "docs/approval-levels.md",
     "docs/headless-cli.md",
     "docs/linux-desktop.md",
+    "docs/mcp-server.md",
     "docs/team-incidents.md",
     "docs/verification/README.md",
     "docs/verification/desktop-server-connection.md",

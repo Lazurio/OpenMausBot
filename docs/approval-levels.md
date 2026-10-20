@@ -130,7 +130,7 @@ offers **Always allow**. This is an explicit standing grant for that exact bot,
 provider instance, MCP server, tool name, and current server configuration. A
 different tool still asks; editing the server command, URL, headers, or
 credentials invalidates the grant. It is not offered for create/update/delete
-tools, computer control, a sandbox change, an unconfigured server, or a guest's
+tools, a sandbox change, an unconfigured server, or a guest's
 turn. A custom MCP server controls its own tool names, so only remember tools
 from a server you trust. The grant applies to the bot's current and future
 conversations, including newly delegated work. Saved entries are visible and
