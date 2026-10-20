@@ -95,16 +95,6 @@ export function piThinkingLevel(effort: EffortLevel): (typeof EFFORT_LEVELS)[num
 
 export function buildMcpServers(turn: SendTurnInput): Record<string, unknown> | null {
   const servers: Record<string, unknown> = {};
-  if (turn.integrations?.localComputer) {
-    const local = turn.integrations.localComputer;
-    servers.computer = {
-      command: local.command,
-      args: local.args,
-      env: local.env,
-      // Host control carries scope so the extension gates every call behind a permission card.
-      ...(local.scope ? { scope: local.scope } : {}),
-    };
-  }
   if (turn.integrations?.agents) servers.agents = { ...turn.integrations.agents };
   if (turn.integrations?.phone) servers.phone = { ...turn.integrations.phone };
   if (turn.integrations?.dweb) {
@@ -459,7 +449,7 @@ export async function updatePiModelCatalog(
 
 export interface PiConfig {
   cli: string;
-  /** Full-auto: never ask before an action. Host control is unavailable in this mode. */
+  /** Full-auto: never ask before an action. */
   fullAuto: boolean;
 }
 
@@ -577,12 +567,6 @@ export const PiDriver: ProviderDriver<PiConfig> = {
       if (startupModelRefresh) await startupModelRefresh;
       const { threadId } = turn;
       if (active.has(threadId)) throw new Error("a turn is already running on this thread");
-      const fullAuto = turn.approvalMode === undefined ? config.fullAuto : false;
-      // Host control always routes through the permission card, full-auto or not.
-      const controlsHost = turn.integrations?.localComputer?.scope === "local-computer";
-      if (controlsHost && fullAuto) {
-        throw new Error("local computer control requires the interactive approval broker");
-      }
       const turnId = newId();
       const pending = new Map<string, (decision: { behavior: "allow" | "deny" | "answer"; message?: string }) => void>();
       const askTimers = new Set<ReturnType<typeof setTimeout>>();
@@ -1068,10 +1052,8 @@ export const PiDriver: ProviderDriver<PiConfig> = {
           sessionModelSwitch: "in-session",
           // pi core has no MCP client of its own.
           agentsMcp: true,
-          computerMcp: true,
           phoneMcp: true,
           dataMcp: true,
-          localComputerMcp: true,
           images: true,
           nativeImageInput: true,
           // pi rejects an unsupported level and the turn keeps the engine default.

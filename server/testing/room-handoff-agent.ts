@@ -77,19 +77,8 @@ async function browserToolCall(server: AgentsIntegration, name: string, args: un
   }
 }
 
-async function screenCalls(server: AgentsIntegration, count: number): Promise<Array<{ ms: number; state: unknown }>> {
-  const calls: Array<{ ms: number; state: unknown }> = [];
-  for (let call = 0; call < count; call += 1) {
-    const at = Date.now();
-    const response = await fetch(server.env.OMB_CONTROL_URL!, { headers: { authorization: `Bearer ${server.env.OMB_CONTROL_TOKEN}` } });
-    calls.push({ ms: Date.now() - at, state: response.ok ? await response.json() : { status: response.status } });
-  }
-  return calls;
-}
-
 /** Plan fields: `launch` replaces Claude's argv files; `progress`/`progressAfterGate` stream around the
- * gate; `approve` asks through Claude's permission-prompt tool (`replyIfDenied` otherwise);
- * `screenCalls` calls the mounted computer that many times. */
+ * gate; `approve` asks through Claude's permission-prompt tool (`replyIfDenied` otherwise). */
 export async function runRoomHandoffAgent(argv: string[], planPath: string, prompt?: unknown,
   launch?: { integration: AgentsIntegration; system: string; evidence?: Record<string, unknown> },
   progress?: (text: string) => void): Promise<string> {
@@ -177,7 +166,6 @@ export async function runRoomHandoffAgent(argv: string[], planPath: string, prom
   let gateTimer: ReturnType<typeof setInterval> | undefined;
   const evidence: unknown[] = [];
   let approval: { behavior: string; message?: string } | undefined;
-  let screen: Array<{ ms: number; state: unknown }> | undefined;
   try {
     return await Promise.race([failed, (async () => {
       await call("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "room-fixture", version: "1" } });
@@ -191,15 +179,11 @@ export async function runRoomHandoffAgent(argv: string[], planPath: string, prom
         if (Boolean(response.error || response.result?.isError) !== Boolean(step.expectError)) throw new Error(`Unexpected tool outcome: ${JSON.stringify(response)}`);
       }
       // A person's answer, like a test gate, is owned by the parent test's timeout.
-      if (plan.gateFile || plan.approve || plan.screenCalls) clearTimeout(timer);
+      if (plan.gateFile || plan.approve) clearTimeout(timer);
       const mounted = launch ? {} : JSON.parse(readAtLaunch(arg("--mcp-config"))).mcpServers as Record<string, AgentsIntegration>;
       if (plan.approve) {
         if (!mounted.ogb || !argv.includes("--permission-prompt-tool")) throw new Error("A scripted approval needs Claude's permission-prompt tool");
         approval = await askPermission(mounted.ogb, plan.approve);
-      }
-      if (plan.screenCalls) {
-        if (!mounted.computer?.env?.OMB_CONTROL_URL) throw new Error("Scripted screen calls need a mounted computer");
-        screen = await screenCalls(mounted.computer, plan.screenCalls);
       }
       if (typeof plan.progress === "string") progress?.(plan.progress);
       // `writeFiles` { name: content }: files the turn writes in its working folder.
@@ -228,6 +212,6 @@ export async function runRoomHandoffAgent(argv: string[], planPath: string, prom
       model: argv.includes("--model") ? arg("--model") : undefined,
       permissionMode: argv.includes("--permission-mode") ? arg("--permission-mode") : undefined,
       snapshotMode: argv.includes("--system-prompt-snapshot") ? arg("--system-prompt-snapshot") : undefined,
-      resumed, system, prompt, evidence, ...(entry ? { planKey: entry.key } : {}), ...(approval ? { approval } : {}), ...(screen ? { screen } : {}), ...launch?.evidence }) + "\n");
+      resumed, system, prompt, evidence, ...(entry ? { planKey: entry.key } : {}), ...(approval ? { approval } : {}), ...launch?.evidence }) + "\n");
   }
 }

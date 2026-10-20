@@ -79,34 +79,11 @@ describe("TurnWatchdog", () => {
     expect(dog.waiting("t1")).toBe(false);
     dog.setWaitingOnHuman("t1", true);
     expect(dog.waiting("t1")).toBe(true);
-    dog.setWaitingOnComputer("t1", true);
     dog.setWaitingOnHuman("t1", false);
-    expect(dog.waiting("t1")).toBe(true);
-    dog.setWaitingOnComputer("t1", false);
     expect(dog.waiting("t1")).toBe(false);
     dog.setWaitingOnHuman("t1", true);
     dog.settle("t1");
     expect(dog.waiting("t1")).toBe(false);
-  });
-
-  it("lets the computer wait's own deadline govern, then restarts the stall clock", () => {
-    const { dog, stalls, tick } = rig();
-    dog.watch("t1", "bot1");
-    dog.setWaitingOnComputer("t1", true);
-    tick(STALL * 100);
-    dog.sweep();
-    expect(stalls).toHaveLength(0);
-    dog.setWaitingOnHuman("t1", false);
-    tick(STALL * 100);
-    dog.sweep();
-    expect(stalls).toHaveLength(0);
-    dog.setWaitingOnComputer("t1", false);
-    tick(STALL - 1);
-    dog.sweep();
-    expect(stalls).toHaveLength(0);
-    tick(2);
-    dog.sweep();
-    expect(stalls).toHaveLength(1);
   });
 
   it("re-watching a thread replaces the previous turn", () => {

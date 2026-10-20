@@ -1,14 +1,11 @@
-// A turn whose thread emits nothing for stallMs is wedged; waiting on a person or a computer is not a stall.
+// A turn whose thread emits nothing for stallMs is wedged; waiting on a person is not a stall.
 export interface WatchedTurn {
   threadId: string;
   botId: string;
   startedAt: number;
   lastEventAt: number;
   waitingOnHuman: boolean;
-  waitingOnComputer: boolean;
 }
-
-const parked = (turn: WatchedTurn): boolean => turn.waitingOnHuman || turn.waitingOnComputer;
 
 export interface TurnWatchdogOptions {
   stallMs: number;
@@ -45,7 +42,7 @@ export class TurnWatchdog {
 
   watch(threadId: string, botId: string): void {
     const at = this.now();
-    this.turns.set(threadId, { threadId, botId, startedAt: at, lastEventAt: at, waitingOnHuman: false, waitingOnComputer: false });
+    this.turns.set(threadId, { threadId, botId, startedAt: at, lastEventAt: at, waitingOnHuman: false });
   }
 
   touch(threadId: string): void {
@@ -60,13 +57,6 @@ export class TurnWatchdog {
     turn.lastEventAt = this.now();
   }
 
-  setWaitingOnComputer(threadId: string, waiting: boolean): void {
-    const turn = this.turns.get(threadId);
-    if (!turn) return;
-    turn.waitingOnComputer = waiting;
-    turn.lastEventAt = this.now();
-  }
-
   settle(threadId: string): void {
     this.turns.delete(threadId);
   }
@@ -77,13 +67,13 @@ export class TurnWatchdog {
 
   waiting(threadId: string): boolean {
     const turn = this.turns.get(threadId);
-    return turn !== undefined && parked(turn);
+    return turn !== undefined && turn.waitingOnHuman;
   }
 
   sweep(): void {
     const at = this.now();
     for (const turn of this.turns.values()) {
-      if (parked(turn)) continue;
+      if (turn.waitingOnHuman) continue;
       if (at - turn.lastEventAt < this.opts.stallMs) continue;
       this.turns.delete(turn.threadId);
       this.opts.onStall(turn);

@@ -41,7 +41,7 @@ async function mintTestCapability(
   baseUrl: string,
   botId: string,
   threadId: string,
-  options: { kind?: "agents" | "computer"; skillAuthoring?: boolean; deliversSavedFiles?: boolean } = {},
+  options: { kind?: "agents" | "data"; skillAuthoring?: boolean; deliversSavedFiles?: boolean } = {},
 ): Promise<string> {
   const response = await fetch(`${baseUrl}/api/testing/internal-capability`, {
     method: "POST",
@@ -835,7 +835,7 @@ describe("harness HTTP API", () => {
   afterEach(async () => {
     // One shared server and store: drain busy holds between tests so a leak fails in its own test, not the next one's 409.
     const deadline = Date.now() + 15_000;
-    let stuck = { bots: [] as string[], groups: [] as string[], computers: [] as string[] };
+    let stuck = { bots: [] as string[], groups: [] as string[] };
     while (Date.now() < deadline) {
       const state = (await api("GET", "/api/bots?messages=0")).body;
       // A bare interrupt reaches only the bot's default thread, so interrupt each busy task's thread explicitly.
@@ -848,10 +848,8 @@ describe("harness HTTP API", () => {
         bots: bots.filter((bot) => bot.busy).map((bot) => bot.id),
         groups: (state.groups as Array<{ id: string; busyBotId?: string | null }>)
           .filter((group) => group.busyBotId).map((group) => group.id),
-        computers: Object.entries((state.computerControl ?? {}) as Record<string, { held?: boolean }>)
-          .filter(([, snapshot]) => snapshot?.held).map(([id]) => id),
       };
-      if (!stuck.bots.length && !stuck.groups.length && !stuck.computers.length) break;
+      if (!stuck.bots.length && !stuck.groups.length) break;
       for (const id of stuck.groups) await api("POST", `/api/groups/${id}/interrupt`, {}).catch(() => undefined);
       for (const id of stuck.bots) {
         const busyThreads = bots.find((bot) => bot.id === id)?.tasks
@@ -864,13 +862,12 @@ describe("harness HTTP API", () => {
           await api("POST", `/api/bots/${id}/interrupt`, {}).catch(() => undefined);
         }
       }
-      for (const id of stuck.computers) await api("POST", `/api/bots/${id}/computer/control`, { action: "release" }).catch(() => undefined);
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    if (stuck.bots.length || stuck.groups.length || stuck.computers.length) {
+    if (stuck.bots.length || stuck.groups.length) {
       throw new Error(
         "leaked busy holds past this test (drain timed out): " +
-        `bots=[${stuck.bots.join(", ")}] groups=[${stuck.groups.join(", ")}] computers=[${stuck.computers.join(", ")}]`,
+        `bots=[${stuck.bots.join(", ")}] groups=[${stuck.groups.join(", ")}]`,
       );
     }
   });
@@ -2196,7 +2193,7 @@ describe("harness HTTP API", () => {
         expect(expired.body.error).toMatch(/expired/);
         held.close();
         held = undefined;
-        token = await mintTestCapability(BASE, chief.id, chief.threadId, { kind: "computer" });
+        token = await mintTestCapability(BASE, chief.id, chief.threadId, { kind: "data" });
         expect((await chiefRoomRequest(BASE, token, route, body)).status).toBe(403);
       }
       const token = await mintTestCapability(BASE, chief.id, chief.threadId);
@@ -4083,13 +4080,11 @@ describe("harness HTTP API", () => {
         title: `${bot.name} needs you to sign in to example.com`,
         body: "The monthly report is behind a login.",
       });
-      await stream.until((frame) => frame.kind === "computer-control" && frame.botId === bot.id && frame.help?.messageId === firstCard.messageId);
       expect(notices()).toHaveLength(1);
 
       const second = await request("www.example.com", "Still behind a login.");
       expect(second.status).toBe(201);
       const secondCard = await second.json() as { messageId: string };
-      await stream.until((frame) => frame.kind === "computer-control" && frame.help?.messageId === secondCard.messageId);
       await expect.poll(() => notices().length).toBe(2);
       const card = async (id: string) => (await api("GET", `/api/threads/${bot.threadId}/messages`)).body.messages
         .find((message: { id: string }) => message.id === id);
@@ -4108,7 +4103,7 @@ describe("harness HTTP API", () => {
       const resumed = await readJsonFileWhenReady<{ prompt: unknown }>(fakeClaudeDump, 10_000);
       expect(JSON.stringify(resumed.prompt)).toContain("the person finished signing in to example.com. Check you are signed in, then continue");
       expect((await card(secondCard.messageId)).signIn).toMatchObject({ done: true, resumed: true });
-      await stream.until((frame) => frame.kind === "computer-control" && frame.botId === bot.id && frame.helpReason === null && !frame.help);
+      expect(stream.frames.some((frame) => frame.kind === "computer-control")).toBe(false);
       expect(await answer(secondCard.messageId, "done")).toMatchObject({ status: 200, body: { done: true, resumed: true } });
       expect((await answer(secondCard.messageId, "cancel")).status).toBe(409);
       // This suite's engine hangs every turn; stop the resumed one.
@@ -4204,7 +4199,7 @@ describe("harness HTTP API", () => {
         body: JSON.stringify({ fromBotId: bot.id, fromThreadId: bot.threadId, site: "example.com" }),
       });
       expect(response.status).toBe(409);
-      expect((await response.json() as { error: string }).error).toMatch(/no browser or computer/);
+      expect((await response.json() as { error: string }).error).toMatch(/no browser for the person/);
       const messages = (await api("GET", `/api/threads/${bot.threadId}/messages`)).body.messages;
       expect(messages.some((message: { kind: string }) => message.kind === "signin")).toBe(false);
     } finally {
@@ -5282,16 +5277,6 @@ describe("harness HTTP API", () => {
       }, { timeout: 5_000 }).toBeFalsy();
       await api("DELETE", `/api/bots/${bot.id}`).catch(() => undefined);
     }
-  });
-
-  it("offers an idempotent stop boundary for active local turns", async () => {
-    const unsupported = await api("POST", "/api/local-computer/interrupt");
-    expect(unsupported).toEqual({
-      status: 415,
-      body: { error: "content-type must be application/json" },
-    });
-    const stopped = await api("POST", "/api/local-computer/interrupt", {});
-    expect(stopped).toEqual({ status: 200, body: { ok: true } });
   });
 
   it("a new bot opens with one greeting and no quiz card", async () => {
@@ -8514,12 +8499,6 @@ describe("message pages", () => {
     }
   });
 
-  it("404s an image on a message that has none", async () => {
-    const full = await seedRoom(1);
-    const res = await fetch(`${BASE}/api/threads/${full.threadId}/messages/${full.messages[0].id}/image`);
-    expect(res.status).toBe(404);
-  });
-
   it("downloads only a file linked by the exact stored bot message", async () => {
     const threadId = "test-linked-file-room-thread";
     const linkedFile = join(home, ".openmausbot", "workspaces", "test-bot-a", "phone report.md");
@@ -8665,16 +8644,6 @@ describe("message pages", () => {
       `/api/threads/${threadId}/messages/user-outside-file-message/file`,
       { path: join(home, ".openmausbot", "workspaces", "test-bot-a", "phone report.md") },
     )).status).toBe(403);
-  });
-
-  it("404s an image on a conversation that does not exist, without inventing one", async () => {
-    // messagesFor caches a ThreadState for any id, so an unguarded route would let a client grow that map.
-    const before = (await api("GET", "/api/bots")).body.bots.length;
-    const res = await fetch(`${BASE}/api/threads/not-a-thread/messages/not-a-message/image`);
-    expect(res.status).toBe(404);
-    expect(((await res.json()) as { error: string }).error).toBe("no such conversation");
-    expect((await api("GET", "/api/threads/not-a-thread/messages")).status).toBe(404);
-    expect((await api("GET", "/api/bots")).body.bots.length).toBe(before);
   });
 });
 
@@ -8939,100 +8908,5 @@ describe("instance CLI override API", () => {
       await slowConfigWrite.catch(() => undefined);
       await api("PUT", "/api/config", { tts: { key: "" } }).catch(() => undefined);
     }
-  });
-});
-
-describe("computer control API (who is driving)", () => {
-  let botId = "";
-
-  beforeAll(async () => {
-    const created = await api("POST", "/api/bots", {});
-    botId = created.body.bot.id;
-  });
-
-  it("starts disengaged", async () => {
-    const res = await api("GET", `/api/bots/${botId}/computer/control`);
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ held: false, helpReason: null, heldSinceMs: null });
-  });
-
-  it("take → held, broadcast on the wire, release → disengaged", async () => {
-    const sse = await openSse(`${BASE}/api/events`);
-    try {
-      const took = await api("POST", `/api/bots/${botId}/computer/control`, { action: "take" });
-      expect(took.status).toBe(200);
-      expect(took.body.held).toBe(true);
-      const frame = await sse.until(
-        (f) => f.kind === "computer-control" && f.botId === botId && f.held === true,
-      );
-      expect(frame.helpReason).toBeNull();
-      const hydrated = await api("GET", "/api/bots");
-      expect(hydrated.body.computerControl[botId]).toEqual({ held: true, helpReason: null });
-      const released = await api("POST", `/api/bots/${botId}/computer/control`, { action: "release" });
-      expect(released.body.held).toBe(false);
-    } finally {
-      sse.close();
-    }
-  });
-
-  it("atomically owns and conditionally releases a workspace lease without returning its id", async () => {
-    const owner = "lease_5b6bbbd2-b88b-4c50-a748-ec87f332662f";
-    const other = "lease_ed602995-306f-480a-8817-e8d8c8fe7d90";
-    const took = await api("POST", `/api/bots/${botId}/computer/control`, {
-      action: "take",
-      controlLeaseId: owner,
-    });
-    expect(took.body).toMatchObject({ held: true, owned: true, acquired: true });
-    expect(JSON.stringify(took.body)).not.toContain(owner);
-
-    const blocked = await api("POST", `/api/bots/${botId}/computer/control`, {
-      action: "take",
-      controlLeaseId: other,
-    });
-    expect(blocked.body).toMatchObject({ held: true, owned: false, acquired: false });
-
-    const wrongRelease = await api("POST", `/api/bots/${botId}/computer/control`, {
-      action: "release",
-      controlLeaseId: other,
-    });
-    expect(wrongRelease.body).toMatchObject({ held: true, released: false });
-
-    const released = await api("POST", `/api/bots/${botId}/computer/control`, {
-      action: "release",
-      controlLeaseId: owner,
-    });
-    expect(released.body).toMatchObject({ held: false, released: true });
-    expect(JSON.stringify(released.body)).not.toContain(owner);
-  });
-
-  it("rejects malformed workspace leases without echoing them", async () => {
-    const invalid = "bad lease value";
-    const res = await api("POST", `/api/bots/${botId}/computer/control`, {
-      action: "take",
-      controlLeaseId: invalid,
-    });
-    expect(res.status).toBe(400);
-    expect(JSON.stringify(res.body)).not.toContain(invalid);
-  });
-
-  it("refuses an unknown action and an unknown bot", async () => {
-    const bad = await api("POST", `/api/bots/${botId}/computer/control`, { action: "hijack" });
-    expect(bad.status).toBe(400);
-    const ghost = await api("GET", "/api/bots/nope/computer/control");
-    expect(ghost.status).toBe(404);
-  });
-
-  it("refuses a form-shaped POST — control mutations are JSON-only", async () => {
-    const res = await fetch(`${BASE}/api/bots/${botId}/computer/control`, {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: "action=take",
-    });
-    expect(res.status).toBe(415);
-  });
-
-  it("keeps the internal who-is-driving endpoint behind the boot token", async () => {
-    const res = await fetch(`${BASE}/api/internal/computer-control?botId=${botId}`);
-    expect(res.status).toBe(401);
   });
 });

@@ -127,7 +127,7 @@ describe("events against a server", () => {
     expect(await ran).toBe(130);
     expect(out.map((line) => JSON.parse(line))).toEqual([
       { kind: "hello", resumed: false }, { kind: "message", threadId: "t1", n: 1 }, { kind: "hello", resumed: true }, { kind: "message", threadId: "t1", n: 2 }]);
-    expect(asked).toEqual(["/api/events?screens=off", "/api/events?screens=off&since=c2", "/api/events?screens=off&since=c2"]);
+    expect(asked).toEqual(["/api/events", "/api/events?since=c2", "/api/events?since=c2"]);
     expect(err.map((line) => JSON.parse(line).event)).toEqual(["reconnecting", "reconnecting"]);
   }, 15_000);
 });

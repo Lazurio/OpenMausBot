@@ -16,7 +16,5 @@ export function turnStdioMcpServers(turn: SendTurnInput): TurnStdioMcpServer[] {
   };
   add("agents", turn.integrations?.agents);
   add("data", turn.integrations?.data);
-  // Cua connections expose Cua Driver's own MCP server.
-  add("computer", turn.integrations?.localComputer);
   return servers;
 }

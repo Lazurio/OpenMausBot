@@ -18,7 +18,6 @@ export interface ExportOptions {
   since?: number;
   root?: string;
   maxFiles?: number;
-  maxScreens?: number;
   maxBytes?: number;
   force?: boolean;
 }
@@ -75,7 +74,6 @@ function markdownOf(title: string, messages: readonly Rec[], botName: string): s
       : message.from?.name ?? botName;
     if (message.kind === "text" && message.text) lines.push(`**${who}:**`, "", String(message.text), "");
     else if (message.kind === "activity" && message.tool) lines.push(`> ${message.tool.name}`, "");
-    else if (message.kind === "screen") lines.push("> [screen capture]", "");
     else if (message.kind === "options" && message.card) lines.push(`> ${message.card.title}${message.card.answered ? ` — answered: ${message.card.answered}` : ""}`, "");
   }
   return lines.join("\n");
@@ -89,7 +87,7 @@ function removeEarlierExport(out: string): void {
   } catch {
     return;
   }
-  const listed = [manifest.transcripts, manifest.files, manifest.screens].flatMap((entries) => Array.isArray(entries) ? entries as Rec[] : [])
+  const listed = [manifest.transcripts, manifest.files].flatMap((entries) => Array.isArray(entries) ? entries as Rec[] : [])
     .map((entry) => entry?.file).filter((file): file is string => typeof file === "string");
   const written = [...listed, ...listed.filter((file) => /^transcripts[\\/].*\.json$/.test(file)).map((file) => file.replace(/\.json$/, ".md")), "job.json", "manifest.json"];
   for (const file of written) {
@@ -133,12 +131,11 @@ export async function exportJob(client: HeadlessClient, options: ExportOptions, 
   const out = exportFolder(options.out, options.force === true);
   if (options.force) removeEarlierExport(out);
   const maxFiles = options.maxFiles ?? 200;
-  const maxScreens = options.maxScreens ?? 100;
   const maxBytes = options.maxBytes ?? 500_000_000;
   const job = await readJob(client, options.threadId, { since: String(options.since ?? 0), full: "1" });
   const nodes: Rec[] = (job.nodes ?? []).filter((node: Rec) => !options.root || node.rootId === options.root);
   if (options.root && !nodes.length) throw usageError(`no job with root ${options.root} in this conversation`, "openmausbot export TARGET without --root writes all of it");
-  for (const dir of ["transcripts", "files", "screens"]) mkdirSync(join(out, dir), { recursive: true });
+  for (const dir of ["transcripts", "files"]) mkdirSync(join(out, dir), { recursive: true });
 
   const threads = new Map<string, string>([[options.threadId, "conversation"]]);
   const botNames = new Map<string, string>();
@@ -148,7 +145,6 @@ export async function exportJob(client: HeadlessClient, options: ExportOptions, 
   }
   const transcripts: Rec[] = [];
   const files: Rec[] = [];
-  const screens: Rec[] = [];
   const skipped: Rec[] = [];
   const taken = new Set<string>();
   let bytes = 0;
@@ -225,28 +221,16 @@ export async function exportJob(client: HeadlessClient, options: ExportOptions, 
         await saveLinked(threadId, name, message.id, link);
       }
     }
-
-    for (const message of kept) {
-      if (message.kind !== "screen") continue;
-      const about = { threadId, messageId: message.id };
-      if (screens.length >= maxScreens) { skipped.push({ ...about, reason: `more than --max-screens ${maxScreens}` }); continue; }
-      const response = await client.raw(`/api/threads/${enc(threadId)}/messages/${enc(message.id)}/image`).catch(() => null);
-      if (response?.status === 404) { await response.body?.cancel(); continue; }
-      if (!response?.ok) { skipped.push({ ...about, reason: await refusal(response) }); continue; }
-      const type = response.headers.get("content-type") ?? "image/png";
-      const ext = type.includes("jpeg") ? ".jpg" : type.includes("webp") ? ".webp" : ".png";
-      await keep(response, join(out, "screens", name), `${String(screens.length + 1).padStart(3, "0")}-${message.id}${ext}`, about, screens);
-    }
   }
 
   writeFileSync(join(out, "job.json"), `${JSON.stringify(redactDeep({ ...job, nodes }), null, 2)}\n`, { mode: 0o600 });
   const manifest = {
     ok: true, out, exportedAt: new Date().toISOString(), server: client.baseUrl, threadId: options.threadId,
     state: job.state, reason: job.reason, ...(options.root ? { root: options.root } : {}),
-    transcripts, files, screens, skipped, bytes,
+    transcripts, files, skipped, bytes,
   };
   writeFileSync(join(out, "manifest.json"), `${JSON.stringify(redactDeep(manifest), null, 2)}\n`, { mode: 0o600 });
-  output.progress({ event: "exported", out, transcripts: transcripts.length, files: files.length, screens: screens.length, skipped: skipped.length });
+  output.progress({ event: "exported", out, transcripts: transcripts.length, files: files.length, skipped: skipped.length });
   return manifest;
 }
 
@@ -259,7 +243,6 @@ export async function exportVerb(ctx: VerbContext): Promise<VerbOutcome> {
     ...(rawSince !== undefined ? { since: parseCount(rawSince, "--since", 0, Number.MAX_SAFE_INTEGER, 0) } : {}),
     ...(flag(ctx.flags, "root") ? { root: flag(ctx.flags, "root")!.trim() } : {}),
     maxFiles: parseCount(flag(ctx.flags, "max-files"), "--max-files", 200, 100_000, 0),
-    maxScreens: parseCount(flag(ctx.flags, "max-screens"), "--max-screens", 100, 100_000, 0),
     maxBytes: flag(ctx.flags, "max-bytes") ? parseSize(flag(ctx.flags, "max-bytes")!, "--max-bytes") : 500_000_000,
     force: ctx.flags.force === true,
   };
@@ -275,7 +258,7 @@ export async function exportVerb(ctx: VerbContext): Promise<VerbOutcome> {
   const manifest = await exportJob(client, { ...options, threadId }, ctx.output);
   return {
     result: manifest, exitCode: EXIT.done,
-    human: [`Exported to ${manifest.out}: ${manifest.transcripts.length} transcripts, ${manifest.files.length} files, ${manifest.screens.length} screen captures.`,
+    human: [`Exported to ${manifest.out}: ${manifest.transcripts.length} transcripts, ${manifest.files.length} files.`,
       ...(manifest.skipped.length ? [`Skipped ${manifest.skipped.length} (see manifest.json).`] : [])],
   };
 }

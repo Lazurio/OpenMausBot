@@ -113,12 +113,12 @@ const VERBS: Record<string, { options: ParseArgsOptionsConfig; positionals: numb
   edit: { options: { ...TARGET, ...TEXT, message: { type: "string" }, "dry-run": { type: "boolean" } }, positionals: 2 },
   export: {
     options: { ...TARGET, out: { type: "string" }, root: { type: "string" }, since: { type: "string" }, "max-files": { type: "string" },
-      "max-screens": { type: "string" }, "max-bytes": { type: "string" }, force: { type: "boolean" } },
+      "max-bytes": { type: "string" }, force: { type: "boolean" } },
     positionals: 1,
   },
   events: {
     options: { thread: { type: "string", multiple: true }, job: { type: "string" }, "until-settled": { type: "boolean" },
-      kind: { type: "string" }, since: { type: "string" }, screens: { type: "boolean" },
+      kind: { type: "string" }, since: { type: "string" },
       // the output is always JSON lines; --jsonl says so and changes nothing
       jsonl: { type: "boolean" } },
     positionals: 0,

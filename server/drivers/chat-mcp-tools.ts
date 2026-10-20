@@ -29,7 +29,7 @@ export interface ChatToolSession {
 }
 
 type Server = { command: string; args: string[]; env: Record<string, string> };
-type RegisteredTool = { client: ChatMcpClient; server: string; launch: string; agents: boolean; hostComputer: boolean; name: string; schema: ValidateFunction };
+type RegisteredTool = { client: ChatMcpClient; server: string; launch: string; agents: boolean; name: string; schema: ValidateFunction };
 function chatToolName(server: string, tool: string): string {
   return `${server}_${tool}`.toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 64) || "mcp_tool";
 }
@@ -211,7 +211,6 @@ function boundedText(value: string): string {
 
 export async function mountChatTools(integrations: SendTurnInput["integrations"], signal: AbortSignal, computerUse = false, callTimeoutMs: number = DEFAULT_CALL_MS): Promise<ChatToolSession> {
   const servers: Array<[string, Server]> = [];
-  if (computerUse && integrations?.localComputer) servers.push(["computer", integrations.localComputer]);
   if (integrations?.agents) servers.push(["agents", integrations.agents]);
   if (integrations?.data) servers.push(["data", integrations.data]);
   if (servers.length > 32) throw new Error("MCP server count exceeds the 32-server limit");
@@ -244,13 +243,12 @@ export async function mountChatTools(integrations: SendTurnInput["integrations"]
       // Harness mounts are known by descriptor, never by a name a configured server could claim. A grant
       // hashes the descriptor (no credential kept); machine bridges mint a bearer per turn, so theirs last a turn.
       const launch = createHash("sha256").update(JSON.stringify(descriptor)).digest("hex");
-      return { name, client, launch, agents: descriptor === integrations?.agents,
-        hostComputer: descriptor === integrations?.localComputer && integrations?.localComputer?.scope === "local-computer", tools };
+      return { name, client, launch, agents: descriptor === integrations?.agents, tools };
     }));
     for (const mount of mounts) {
       if (signal.aborted || closed) throw aborted();
       if (mount.status === "rejected") throw mount.reason;
-      const { name: server, client, launch, agents, hostComputer, tools } = mount.value;
+      const { name: server, client, launch, agents, tools } = mount.value;
       const staged: Array<{ tool: RegisteredTool; definition: ChatToolDefinition }> = [];
       {
         const originalNames = new Set<string>();
@@ -274,7 +272,7 @@ export async function mountChatTools(integrations: SendTurnInput["integrations"]
           let name = base;
           const taken = (candidate: string) => registered.has(candidate) || staged.some((entry) => entry.definition.function.name === candidate);
           for (let index = 2; taken(name); index += 1) { const suffix = `_${index}`; name = base.slice(0, 64 - suffix.length) + suffix; }
-          staged.push({ tool: { client, server, launch, agents, hostComputer, name: tool.name, schema },
+          staged.push({ tool: { client, server, launch, agents, name: tool.name, schema },
             definition: { type: "function", function: { name, description, parameters } } });
         }
         if (Buffer.byteLength(JSON.stringify([...definitions, ...staged.map((entry) => entry.definition)])) > CATALOG_BYTES) throw new Error("MCP tool catalog exceeds the 1MB limit");
@@ -295,7 +293,7 @@ export async function mountChatTools(integrations: SendTurnInput["integrations"]
   const view = (name: string, args: Record<string, unknown>): ChatToolCallView => {
     const tool = registered.get(name);
     if (tool?.agents) return { title: name, input: args, ask: false };
-    const grant = tool && !tool.hostComputer ? JSON.stringify([tool.server, tool.launch, tool.name]) : undefined;
+    const grant = tool ? JSON.stringify([tool.server, tool.launch, tool.name]) : undefined;
     return { title: name, input: args, ask: true, ...(grant ? { grant } : {}) };
   };
   return {

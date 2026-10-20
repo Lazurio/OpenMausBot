@@ -25,8 +25,6 @@ const messages: Record<string, unknown[]> = {
   [LEAD]: [
     { id: "u1", role: "user", kind: "text", text: `Rehearse it. The key is ${KEY}` },
     { id: "m1", role: "bot", kind: "text", text: "Report: [report](report.md), [raw](big.bin), [shots](shots/), [secret](../../etc/passwd)" },
-    { id: "s1", role: "bot", kind: "screen" },
-    { id: "s2", role: "bot", kind: "screen" },
   ],
   [PRIYA]: [{ id: "p1", role: "bot", kind: "text", text: "Pricing was hidden.\n\n![step 1](priya-1.png)" }],
 };
@@ -46,13 +44,6 @@ function answer(req: IncomingMessage, res: ServerResponse, raw: string) {
   }
   const exported = /^\/api\/threads\/([\w-]+)\/export$/.exec(url.pathname);
   if (exported && url.searchParams.get("format") === "json") return send(200, { name: "Rehearsal", threadId: exported[1], messages: messages[exported[1]!] ?? [] });
-  const image = /^\/api\/threads\/([\w-]+)\/messages\/(s\d)\/image$/.exec(url.pathname);
-  if (image) {
-    // s2's pixels are gone: the server no longer keeps them
-    if (image[2] === "s2") return send(404, { error: "no image on that message" });
-    res.writeHead(200, { "content-type": "image/png", "content-length": "4" });
-    return res.end("PNG!");
-  }
   const file = /^\/api\/threads\/([\w-]+)\/messages\/([\w-]+)\/file$/.exec(url.pathname);
   if (file && req.method === "POST") {
     const body = JSON.parse(raw) as { path: string; entry?: string; listFolder?: boolean };
@@ -109,7 +100,7 @@ const run = async (argv: string[]) => {
 };
 
 describe("export", () => {
-  it("writes the job, every transcript, the linked files and folders and the screens, within the byte limit", async () => {
+  it("writes the job, every transcript and the linked files and folders, within the byte limit", async () => {
     const out = join(dir, "first");
     const { code, result } = await run(["export", "--thread", LEAD, "--out", out, "--max-bytes", "2KB", "--json"]);
     expect(code).toBe(0);
@@ -126,8 +117,8 @@ describe("export", () => {
       { threadId: LEAD, messageId: "m1", link: "../../etc/passwd", reason: "that bot message does not link to this file" },
     ]);
     expect(readdirSync(join(out, "files/conversation-lead-thr"))).toEqual(["report.md", "shots"]);
-    expect(result.screens).toEqual([{ threadId: LEAD, messageId: "s1", file: "screens/conversation-lead-thr/001-s1.png", bytes: 4 }]);
-    expect(result.bytes).toBe(32);
+    expect(result).not.toHaveProperty("screens");
+    expect(result.bytes).toBe(28);
     expect(result.transcripts.map((transcript: { file: string }) => transcript.file)).toEqual([
       "transcripts/conversation-lead-thr.json", "transcripts/priya-visit-priya-th.json"]);
     for (const file of ["transcripts/conversation-lead-thr.json", "transcripts/conversation-lead-thr.md", "job.json", "manifest.json"]) {
@@ -151,19 +142,17 @@ describe("export", () => {
   it("leaves nothing of an earlier job beside the new one under --force, and nothing it did not write is touched", async () => {
     const out = join(dir, "replaced");
     const lead = messages[LEAD]!;
-    messages[LEAD] = [...lead, { id: "m2", role: "bot", kind: "text", text: "Earlier: [old](old.md)" }, { id: "s3", role: "bot", kind: "screen" }];
+    messages[LEAD] = [...lead, { id: "m2", role: "bot", kind: "text", text: "Earlier: [old](old.md)" }];
     try {
       expect((await run(["export", "--thread", LEAD, "--out", out, "--json"])).code).toBe(0);
     } finally {
       messages[LEAD] = lead;
     }
     expect(existsSync(join(out, "files/conversation-lead-thr/old.md"))).toBe(true);
-    expect(existsSync(join(out, "screens/conversation-lead-thr/002-s3.png"))).toBe(true);
     writeFileSync(join(out, "notes.txt"), "mine");
     const forced = await run(["export", "--thread", LEAD, "--out", out, "--force", "--json"]);
     expect(forced.code).toBe(0);
     expect(existsSync(join(out, "files/conversation-lead-thr/old.md"))).toBe(false);
-    expect(readdirSync(join(out, "screens/conversation-lead-thr"))).toEqual(["001-s1.png"]);
     expect(readFileSync(join(out, "notes.txt"), "utf8")).toBe("mine");
     const manifest = JSON.parse(readFileSync(join(out, "manifest.json"), "utf8"));
     expect(manifest.files.map((file: { file: string }) => file.file)).not.toContain("files/conversation-lead-thr/old.md");

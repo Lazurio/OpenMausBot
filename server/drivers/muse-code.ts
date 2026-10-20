@@ -598,14 +598,12 @@ export const MuseCodeDriver: ProviderDriver<MuseConfig> = {
       capabilities: {
         sessionModelSwitch: "in-session",
         agentsMcp: true,
-        computerMcp: true,
         dataMcp: true,
         images: true,
         nativeImageInput: true,
         effortLevels: EFFORT_LEVELS,
         queueing: true,
         strictResume: true,
-        localComputerMcp: true,
       },
       async sendTurn(turn) {
         const state = threadOf(turn.threadId);

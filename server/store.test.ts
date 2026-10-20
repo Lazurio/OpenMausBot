@@ -714,7 +714,7 @@ describe("Store", () => {
       if (change.type === "message.patch") patches.push(change.message.id);
     });
 
-    const artifact = store.insertMessageAfter(bot.threadId, turnEnd.id, { role: "bot", kind: "screen", png: "abc" });
+    const artifact = store.insertMessageAfter(bot.threadId, turnEnd.id, { role: "bot", kind: "activity", tool: { name: "late artifact", ok: true } });
 
     const path = store.activePath(bot.threadId).map((m) => m.id);
     expect(path.slice(-3)).toEqual([turnEnd.id, artifact.id, followUp.id]);
@@ -729,7 +729,7 @@ describe("Store", () => {
     const store = new Store(selection);
     const bot = store.createBot();
     const turnEnd = store.appendMessage(bot.threadId, { role: "bot", kind: "text", text: "done" });
-    const artifact = store.insertMessageAfter(bot.threadId, turnEnd.id, { role: "bot", kind: "screen", png: "abc" });
+    const artifact = store.insertMessageAfter(bot.threadId, turnEnd.id, { role: "bot", kind: "activity", tool: { name: "late artifact", ok: true } });
     expect(store.activePath(bot.threadId).at(-1)?.id).toBe(artifact.id);
     expect(new Store(selection).activePath(bot.threadId).at(-1)?.id).toBe(artifact.id);
 
@@ -1452,21 +1452,6 @@ describe("Store change stream", () => {
     expect(events.map((e) => e.type)).toEqual(["message.patch", "message", "thread", "thread", "message.patch"]);
     expect(events[2]).toMatchObject({ type: "thread", threadId: bot.threadId, activeLeafId: (events[1] as any).message.id });
     expect(events[3]).toMatchObject({ type: "thread", threadId: bot.threadId, activeLeafId: first.id });
-  });
-
-  it("announces screen frames whose pixels are pruned", () => {
-    const store = new Store(selection);
-    const bot = store.createBot();
-    const first = store.appendMessage(bot.threadId, { role: "bot", kind: "screen", png: "frame-1" });
-    for (let i = 2; i <= 4; i += 1) {
-      store.appendMessage(bot.threadId, { role: "bot", kind: "screen", png: `frame-${i}` });
-    }
-    const events = record(store);
-    const newest = store.appendMessage(bot.threadId, { role: "bot", kind: "screen", png: "frame-5" });
-    expect(events).toEqual([
-      { type: "message.patch", threadId: bot.threadId, message: { ...first, png: undefined } },
-      { type: "message", threadId: bot.threadId, message: newest },
-    ]);
   });
 
   it("createTask records which bot opened a thread, and the record survives a reload", () => {
