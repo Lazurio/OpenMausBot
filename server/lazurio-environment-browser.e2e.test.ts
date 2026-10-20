@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { randomBytes } from "node:crypto";
 
+import { launchVerificationServer, type VerificationServer } from "../scripts/control-omb.ts";
 
 const TAB_A = "A1".repeat(16);
 const TAB_B = "B2".repeat(16);
@@ -69,11 +70,13 @@ describe.skipIf(process.platform === "win32")("a Lazurio server on an Environmen
   it("gives the bot's panel its strip, each tab with its Platform view", async () => {
     const bot = (await call("POST", "/api/bots", { name: "Panel" })).body.bot;
     expect((await call("GET", `/api/bots/${bot.id}/browser`)).body).toEqual({
+      available: true, strip: `bot-${bot.id}`, viewOrigin: "https://browser.vm-01.example.lazurio.io", tabs: [], current: null,
     });
     bind(bot.id, TAB_A);
     expect((await call("PATCH", `/api/bots/${bot.id}`, { title: "Reads pages" })).status).toBe(200);
     await expect.poll(async () => (await call("GET", `/api/bots/${bot.id}/browser`)).body, { timeout: 10_000 }).toEqual({
       available: true,
+      strip: `bot-${bot.id}`,
       viewOrigin: "https://browser.vm-01.example.lazurio.io",
       current: TAB_A,
     });
@@ -81,7 +84,36 @@ describe.skipIf(process.platform === "win32")("a Lazurio server on an Environmen
     expect((await call("GET", "/api/bots/no-such-bot/browser")).status).toBe(404);
   });
 
+  it("holds a tab the person chose and lets it go on ×, and announces a tab the bot's session newly opens", async () => {
+    const bot = (await call("POST", "/api/bots", { name: "Holds" })).body.bot;
+    const events = new AbortController();
+    const frames: string[] = [];
+    const stream = fetch(`${fixture.info.url}/api/events`, { headers: { origin: fixture.info.url }, signal: events.signal }).then(async (response) => {
+      const reader = response.body!.getReader();
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) return;
+        frames.push(new TextDecoder().decode(value));
+      }
+    }).catch(() => {});
+    try {
+      const held = await call("POST", `/api/bots/${bot.id}/browser/hold`, { tabId: TAB_B.toLowerCase() });
+      expect(held.status).toBe(200);
+      expect(tabsOf(bot.id)).toEqual([TAB_B]);
+      expect((await call("POST", `/api/bots/${bot.id}/browser/hold`, { tabId: "nope" })).status).toBe(400);
+      expect((await call("GET", `/api/bots/${bot.id}/browser/hold`)).status).toBe(405);
+      expect((await call("POST", `/api/bots/${bot.id}/browser/release`, { tabId: TAB_B })).body.tabs).toEqual([]);
+      expect(existsSync(holder(bot.id))).toBe(false);
+
+      bind(bot.id, TAB_A);
+      await expect.poll(() => tabsOf(bot.id), { timeout: 10_000 }).toEqual([TAB_A]);
+      await expect.poll(() => frames.join(""), { timeout: 10_000 }).toContain(JSON.stringify({ kind: "lazurio-browser-tab", botId: bot.id, tabId: TAB_A }).slice(1, -1));
+    } finally {
+      events.abort();
+      await stream;
+    }
     expect((await call("PATCH", `/api/bots/${bot.id}`, { hidden: true })).status).toBe(200);
+    expect((await call("POST", `/api/bots/${bot.id}/browser/hold`, { tabId: TAB_B })).status).toBe(404);
   });
 
   it("names the bot's tab on a sign-in it asks for there, which opens the person's panel on it; never for a Lazurio account", async () => {
@@ -164,9 +196,11 @@ describe.skipIf(process.platform === "win32")("a Lazurio server without a declar
     await fixture?.close();
   });
 
+  it("answers the bot's panel that there is no browser, and holds nothing", async () => {
     const headers = { "content-type": "application/json", origin: fixture.info.url };
     const bot = (await (await fetch(`${fixture.info.url}/api/bots`, { method: "POST", headers, body: JSON.stringify({ name: "No panel" }) })).json() as any).bot;
     expect(await (await fetch(`${fixture.info.url}/api/bots/${bot.id}/browser`, { headers })).json()).toEqual({ available: false });
+    expect((await fetch(`${fixture.info.url}/api/bots/${bot.id}/browser/hold`, { method: "POST", headers, body: JSON.stringify({ tabId: TAB_A }) })).status).toBe(409);
   });
 
   it("tells its bots plainly that the Environment browser is unavailable", async () => {

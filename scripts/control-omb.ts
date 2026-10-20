@@ -285,6 +285,9 @@ export async function launchVerificationServer(
   if (enterprise) Object.assign(childEnv, { OMB_ENTERPRISE_DIR: enterprise.dir, OMB_LICENSE_KEY: enterprise.licenseKey });
   if (staticDir) childEnv.OMB_STATIC_DIR = staticDir;
   // Lazurio overlay (DEV-6673 M4a): OMB_TEST_ENVIRONMENT_BROWSER=1 stands in for a Lazurio Environment that
+  // declares its browser: a fake Platform CLI at ~/.local/bin/lazurio answers `browser link --json` and
+  // `browser done --json` (each call logged to ~/lazurio-calls.log), and a runtime directory holds the bots'
+  // strips. No browser runs. OMB_TEST_INTERNAL_CAPABILITY_KEY lets a test act as a bot's turn (request_sign_in).
   if (parentEnv.OMB_TEST_ENVIRONMENT_BROWSER === "1") {
     const bin = join(dataDir, ".local", "bin");
     mkdirSync(bin, { recursive: true });

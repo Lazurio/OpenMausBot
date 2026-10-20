@@ -887,6 +887,8 @@ export type ServerFrame =
   | { kind: "runtime"; event: RuntimeEvent }
   | { kind: "screen"; botId: string; threadId: string; png: string; mime?: string; surface?: "browser" | "computer" }
   | { kind: "computer-control"; botId: string; held: boolean; helpReason: string | null; help?: ComputerHelpRef | null }
+  /** Lazurio: a tab the bot's session newly bound in the Environment browser; the person's panel opens on it. */
+  | { kind: "lazurio-browser-tab"; botId: string; tabId: string }
   /** A bot's data sheet changed. Whole sheet each time. */
   | DataBroadcast
   | { kind: "bot.deleted"; botId: string }
