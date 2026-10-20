@@ -24,7 +24,7 @@ import { VoiceSection } from "../bot-settings/VoiceSection";
 import type { useBotHistory, useBotOverview } from "../bot-settings/useBotOverview";
 import type { useBotSettingsDerived } from "../bot-settings/useBotSettingsDerived";
 import { teamNames, useBotActions } from "./bot-actions";
-import { useOpenComputer } from "./ComputerTab";
+import { useOpenBrowserPanel } from "./ComputerTab";
 import { PAGES, sectionTarget, setupTarget, type PageId, type PanelTarget } from "./page-registry";
 import { buttonCls, Card, ItemRow, LinkRow, NavRow, NoteRow, rowCls } from "./rows";
 
@@ -150,12 +150,12 @@ function PromptPage({ overview }: Pick<PageContext, "overview">) {
 }
 
 function FolderPage({ bot, derived }: Pick<PageContext, "bot" | "derived">) {
-  const openComputer = useOpenComputer(bot);
+  const openPanel = useOpenBrowserPanel(bot);
   return (
     <>
       <AccessSection bot={bot} derived={derived} parts={["folder"]} />
       <Card>
-        <LinkRow data-panel-link="files" icon={FolderOpen} onClick={() => openComputer("files")}>{t("botPanel.changedFiles")}</LinkRow>
+        <LinkRow data-panel-link="files" icon={FolderOpen} onClick={() => openPanel("files")}>{t("botPanel.changedFiles")}</LinkRow>
       </Card>
     </>
   );
