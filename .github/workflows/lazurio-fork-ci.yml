@@ -124,6 +124,23 @@ jobs:
             scripts/check-skin-contrast.mjs
             src/lib/bot-identity.test.ts
             src/lib/user-bubble-tone.test.ts
+            # Routines and webhooks from the openmausbot command and its MCP
+            # server (DEV-6676): the routine, webhook and bot verbs, their
+            # flags, help and usage lines and the verb list test, dryRun shared
+            # with the other verbs, the MCP server listing and dispatching the
+            # tools of the Lazurio file scripts/mcp-automations.ts (three more
+            # lines: the file-size ratchet's count for it, listed above, moves
+            # with it), and the documents of the command line, the MCP server
+            # and its verification.
+            scripts/mcp-server.ts
+            server/cli-usage.ts
+            server/headless/args.ts
+            server/headless/args.test.ts
+            server/headless/commands.ts
+            server/headless/main.ts
+            docs/headless-cli.md
+            docs/mcp-server.md
+            docs/verification/headless-cli.md
           )
           # Lazurio ships the open-source edition: upstream's enterprise/
           # folder (OpenMausBot Enterprise License, no redistribution or

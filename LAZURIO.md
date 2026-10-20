@@ -211,6 +211,20 @@ Cursor keeping upstream's card, and the card outside Lazurio.
   start on it and nothing needs setting; Full also survives an engine
   change. Questions and missing credentials still reach a person; GitHub
   rights and branch rules stay the limit.
+- **Automations from the command line**: `openmausbot routine`, `webhook`
+  and `bot list|show`, and the same routine and webhook operations as tools
+  of `openmausbot mcp`
+  ([`docs/headless-cli.md`](docs/headless-cli.md#routines-and-webhooks)).
+  Agents and Buddy manage MausBot's automations through this CLI, as a person
+  does on the Automate page, in every Environment they reach: the Environment
+  is the boundary (Lazurio decision 0172), and the server trusts a caller on
+  its own computer as its owner, named by the port of the Machine's MausBot
+  (`--port` or `OMB_PORT`). On an Environment the command is the release's
+  `cli.js` under `~/.local/share/lazurio/mausbot/current/`, run with the
+  Environment's `node`. A webhook's secret is printed only with
+  `--show-secret`, or saved to a file only its owner can read. Each command
+  calls its MCP tool (`scripts/mcp-automations.ts`), which uses the app's own
+  routes. Upstream-friendly; propose it upstream.
 - **The Lazurio shell slot** in `index.html` and the sidebar
   ([below](#the-lazurio-shell)); nothing renders outside Lazurio.
 
