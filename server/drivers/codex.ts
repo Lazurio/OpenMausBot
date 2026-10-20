@@ -556,9 +556,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         };
         if (turn.integrations?.agents) {
           // OpenMausBot's own coordination tools never ask: "auto" quiets only read-only tools.
-        }
-        if (turn.integrations?.localComputer) {
-        }
           mount("agents", turn.integrations.agents, "approve");
         }
         if (turn.integrations?.data) mount("data", turn.integrations.data);
@@ -762,7 +759,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         }
       };
 
-      const controlsHost = turn.integrations?.localComputer?.scope === "local-computer";
       const handleServerRequest = (msg: any) => {
         const method = msg.method as string;
         const params = msg.params ?? {};
@@ -884,7 +880,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
           )),
           choices,
           ...(protocolQuestions ? { questions: protocolQuestions.map((pair) => pair.question) } : {}),
-          approvalScope: controlsHost ? "local-computer" : undefined,
           requiresExplicitApproval: isAdditionalPermission || (
             (method === "execCommandApproval" || method === "item/commandExecution/requestApproval") &&
             (params.additionalPermissions != null || params.networkApprovalContext != null)
@@ -1476,8 +1471,6 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         sessionModelSwitch: "unsupported",
         guestTurns: "confined",
         queueing: true,
-        computerMcp: true,
-        localComputerMcp: true,
         agentsMcp: true,
         phoneMcp: true,
         dataMcp: true,

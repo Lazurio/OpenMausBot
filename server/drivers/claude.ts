@@ -1023,10 +1023,6 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
         : turn.approvalMode === "full" ? "bypassPermissions"
           : turn.approvalMode === "auto" ? "auto"
             : turn.approvalMode === "edits" ? "acceptEdits" : "default";
-      const controlsHost = turn.integrations?.localComputer?.scope === "local-computer";
-      if (controlsHost && permissionMode === "bypassPermissions" && turn.approvalMode !== "full") {
-        throw new Error("local computer control requires the interactive approval broker");
-      }
       // Before any broker or process, so a bad attachment leaves nothing live.
       const promptMsg = claudeUserMessage(turn.text, turn.images);
       const turnId = logicalTurnId ?? newId();
@@ -1090,15 +1086,6 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
       // Pre-allowed: a headless acceptEdits run silently denies anything unlisted.
       const mcpServers: Record<string, unknown> = {};
       const allowed: string[] = [];
-      if (turn.integrations?.localComputer) {
-        const local = turn.integrations.localComputer;
-        mcpServers.computer = {
-          command: local.command,
-          args: local.args,
-          env: local.env,
-        };
-        if (!controlsHost) allowed.push("mcp__computer");
-      }
       // Pre-allowed, or the CLI's own ListAgents look-alike shadows it.
       if (turn.integrations?.agents) {
         // Claude waits for always-loaded tools before building the prompt.
@@ -1264,13 +1251,11 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
           args.push("--append-system-prompt-file", systemPromptPath);
         }
         if (socketPath) {
-          const askTools = new Map<string, string | undefined>();
           broker = await createPermissionBroker({
             socketPaths: brokerSocketCandidates(threadId, botId),
             isActive: () => Boolean(sessions.get(threadId)?.turn),
             onAsk: (ask) => {
               const eventTurnId = sessions.get(threadId)?.turn?.turnId ?? turnId;
-              askTools.set(ask.id, typeof ask.tool === "string" ? ask.tool : undefined);
               const nativeMode = sessions.get(threadId)?.nativePermissionMode ?? null;
               const nativeReview =
                 permissionMode === "auto" && nativeMode !== null
@@ -1288,11 +1273,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
                 ...shellRequest(ask.kind === "permission" && ask.tool === "Bash" ? ask.input.command : undefined, commandCwd),
                 requiresExplicitApproval: ask.kind === "permission" && ask.tool === "Bash" && ask.input.dangerouslyDisableSandbox === true || undefined,
                 nativeReview,
-                allowSession: ask.kind === "permission" && !(controlsHost && typeof ask.tool === "string" && ask.tool.startsWith("mcp__computer")) ? true : undefined,
-                approvalScope:
-                  typeof ask.tool === "string" && controlsHost && ask.tool.startsWith("mcp__computer")
-                    ? "local-computer"
-                    : undefined,
+                allowSession: ask.kind === "permission" ? true : undefined,
                 questions: questions ?? undefined,
                 choices: questions ? questionChoices(questions) : parseChoices(ask.input?.choices),
               });
@@ -1305,10 +1286,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
                 requestId: resolved.id,
                 behavior: resolved.behavior,
                 source: resolved.source,
-                approvalScope:
-                  controlsHost && typeof askTools.get(resolved.id) === "string" && askTools.get(resolved.id)!.startsWith("mcp__computer") ? "local-computer" : undefined,
               });
-              askTools.delete(resolved.id);
             },
           });
           if (broker.socketPath !== socketPath && mcpConfigPath) {
@@ -2034,7 +2012,6 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
           sessionModelSwitch: "in-session",
           guestTurns: "confined",
           agentsMcp: true,
-          computerMcp: true,
           phoneMcp: true,
           dataMcp: true,
           images: true,
@@ -2047,7 +2024,6 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
           get strictResume() {
             return cliVersionChecked && cliVersion !== null && claudeCliSupports(cliVersion, "--system-prompt-snapshot");
           },
-          localComputerMcp: true,
           hooks: true,
         },
         sendTurn: (turn) => authRecovery.send(turn, sendTurn),

@@ -43,6 +43,7 @@ async function mintTestCapability(
   baseUrl: string,
   botId: string,
   threadId: string,
+  options: { kind?: "agents" | "data"; skillAuthoring?: boolean; deliversSavedFiles?: boolean } = {},
 ): Promise<string> {
   const response = await fetch(`${baseUrl}/api/testing/internal-capability`, {
     method: "POST",
@@ -842,7 +843,7 @@ describe("harness HTTP API", () => {
   afterEach(async () => {
     // One shared server and store: drain busy holds between tests so a leak fails in its own test, not the next one's 409.
     const deadline = Date.now() + 15_000;
-    let stuck = { bots: [] as string[], groups: [] as string[], computers: [] as string[] };
+    let stuck = { bots: [] as string[], groups: [] as string[] };
     while (Date.now() < deadline) {
       const state = (await api("GET", "/api/bots?messages=0")).body;
       // A bare interrupt reaches only the bot's default thread, so interrupt each busy task's thread explicitly.
@@ -855,10 +856,8 @@ describe("harness HTTP API", () => {
         bots: bots.filter((bot) => bot.busy).map((bot) => bot.id),
         groups: (state.groups as Array<{ id: string; busyBotId?: string | null }>)
           .filter((group) => group.busyBotId).map((group) => group.id),
-        computers: Object.entries((state.computerControl ?? {}) as Record<string, { held?: boolean }>)
-          .filter(([, snapshot]) => snapshot?.held).map(([id]) => id),
       };
-      if (!stuck.bots.length && !stuck.groups.length && !stuck.computers.length) break;
+      if (!stuck.bots.length && !stuck.groups.length) break;
       for (const id of stuck.groups) await api("POST", `/api/groups/${id}/interrupt`, {}).catch(() => undefined);
       for (const id of stuck.bots) {
         const busyThreads = bots.find((bot) => bot.id === id)?.tasks
@@ -871,13 +870,12 @@ describe("harness HTTP API", () => {
           await api("POST", `/api/bots/${id}/interrupt`, {}).catch(() => undefined);
         }
       }
-      for (const id of stuck.computers) await api("POST", `/api/bots/${id}/computer/control`, { action: "release" }).catch(() => undefined);
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    if (stuck.bots.length || stuck.groups.length || stuck.computers.length) {
+    if (stuck.bots.length || stuck.groups.length) {
       throw new Error(
         "leaked busy holds past this test (drain timed out): " +
-        `bots=[${stuck.bots.join(", ")}] groups=[${stuck.groups.join(", ")}] computers=[${stuck.computers.join(", ")}]`,
+        `bots=[${stuck.bots.join(", ")}] groups=[${stuck.groups.join(", ")}]`,
       );
     }
   });
@@ -2240,6 +2238,7 @@ describe("harness HTTP API", () => {
         expect(expired.body.error).toMatch(/expired/);
         held.close();
         held = undefined;
+        token = await mintTestCapability(BASE, chief.id, chief.threadId, { kind: "data" });
         expect((await chiefRoomRequest(BASE, token, route, body)).status).toBe(403);
       }
       const token = await mintTestCapability(BASE, chief.id, chief.threadId);
@@ -2950,257 +2949,6 @@ describe("harness HTTP API", () => {
     expect(wrongType.status).toBe(400);
 
     const saved = await fetch(`${BASE}/api/attachments`, {
-      method: "POST",
-      headers: { "content-type": "image/png" },
-      body: new Uint8Array(png),
-    });
-    expect(saved.status).toBe(201);
-    const { path: savedPath, mime, bytes } = (await saved.json()) as { path: string; mime: string; bytes: number };
-    expect(mime).toBe("image/png");
-    expect(bytes).toBe(png.byteLength);
-    expect(savedPath).toContain("attachments");
-
-    const name = savedPath.split(/[\\/]/).pop();
-    const served = await fetch(`${BASE}/api/attachments/${name}`);
-    expect(served.status).toBe(200);
-    expect(served.headers.get("content-type")).toBe("image/png");
-    expect(Buffer.from(await served.arrayBuffer()).equals(png)).toBe(true);
-
-    const traversal = await fetch(`${BASE}/api/attachments/..%2F..%2Fconfig.json`);
-    expect(traversal.status).toBe(404);
-    const unknown = await fetch(`${BASE}/api/attachments/00000000-0000-0000-0000-000000000000.png`);
-    expect(unknown.status).toBe(404);
-
-    const tooBig = await fetch(`${BASE}/api/attachments`, {
-      method: "POST",
-      headers: { "content-type": "image/png" },
-      body: Buffer.alloc(IMAGE_MAX_BYTES + 1),
-    });
-    expect(tooBig.status).toBe(413);
-
-    const uploadId = "11111111-1111-4111-8111-111111111111";
-    const idempotent = await fetch(`${BASE}/api/attachments?uploadId=${uploadId}`, {
-      method: "POST",
-      headers: { "content-type": "image/png" },
-      body: new Uint8Array(png),
-    });
-    expect(idempotent.status).toBe(201);
-    const idempotentResult = (await idempotent.json()) as { path: string };
-    const retry = await fetch(`${BASE}/api/attachments?uploadId=${uploadId}`, {
-      method: "POST",
-      headers: { "content-type": "image/png" },
-      body: new Uint8Array(png),
-    });
-    expect(retry.status).toBe(201);
-    expect((await retry.json() as { path: string }).path).toBe(idempotentResult.path);
-
-    const conflictingRetry = await fetch(`${BASE}/api/attachments?uploadId=${uploadId}`, {
-      method: "POST",
-      headers: { "content-type": "image/png" },
-      body: new Uint8Array([1, 2, 3]),
-    });
-    expect(conflictingRetry.status).toBe(409);
-
-    const malformedId = await fetch(`${BASE}/api/attachments?uploadId=..%2Fescape`, {
-      method: "POST",
-      headers: { "content-type": "image/png" },
-      body: new Uint8Array(png),
-    });
-    expect(malformedId.status).toBe(400);
-  });
-
-  it("serves audio attachments with single-range 206s and keeps images full", async () => {
-    // Seeded the way the voice-note route saves one, under a generated-style name.
-    const audio = Buffer.from("0123456789abcdefghij");
-    const audioName = "voice-note-range-fixture.mp3";
-    mkdirSync(join(home, ".openmausbot", "attachments"), { recursive: true });
-    writeFileSync(join(home, ".openmausbot", "attachments", audioName), audio);
-    const size = audio.byteLength;
-
-    const bounded = await fetch(`${BASE}/api/attachments/${audioName}`, { headers: { range: "bytes=2-7" } });
-    expect(bounded.status).toBe(206);
-    expect(bounded.headers.get("content-type")).toBe("audio/mpeg");
-    expect(bounded.headers.get("content-range")).toBe(`bytes 2-7/${size}`);
-    expect(bounded.headers.get("content-length")).toBe("6");
-    expect(Buffer.from(await bounded.arrayBuffer()).equals(audio.subarray(2, 8))).toBe(true);
-
-    const openEnded = await fetch(`${BASE}/api/attachments/${audioName}`, { headers: { range: "bytes=12-" } });
-    expect(openEnded.status).toBe(206);
-    expect(openEnded.headers.get("content-range")).toBe(`bytes 12-${size - 1}/${size}`);
-    expect(Buffer.from(await openEnded.arrayBuffer()).equals(audio.subarray(12))).toBe(true);
-
-    const suffix = await fetch(`${BASE}/api/attachments/${audioName}`, { headers: { range: "bytes=-4" } });
-    expect(suffix.status).toBe(206);
-    expect(suffix.headers.get("content-range")).toBe(`bytes ${size - 4}-${size - 1}/${size}`);
-    expect(Buffer.from(await suffix.arrayBuffer()).equals(audio.subarray(size - 4))).toBe(true);
-
-    const pastEof = await fetch(`${BASE}/api/attachments/${audioName}`, { headers: { range: `bytes=${size}-` } });
-    expect(pastEof.status).toBe(416);
-    expect(pastEof.headers.get("content-range")).toBe(`bytes */${size}`);
-
-    for (const bad of ["bytes=0-1,3-4", "bytes=x-y", "chunks=0-9"]) {
-      const ignored = await fetch(`${BASE}/api/attachments/${audioName}`, { headers: { range: bad } });
-      expect(ignored.status).toBe(200);
-      expect(Buffer.from(await ignored.arrayBuffer()).equals(audio)).toBe(true);
-    }
-  });
-
-  it("keeps a channel image in its transcript while sending native pixels to the responder", async () => {
-    const created = await api("POST", "/api/bots", {
-      modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
-      requireAvailableModel: true,
-    });
-    expect(created.status).toBe(201);
-    const bot = created.body.bot;
-    let room: any;
-    try {
-      room = (await api("POST", "/api/groups", {
-        name: "Native image room",
-        memberIds: [bot.id],
-        setup: {
-          bulletin: "",
-          defaultResponder: { kind: "member", botId: bot.id },
-        },
-      })).body.group;
-      const png = Buffer.from(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-        "base64",
-      );
-      const uploaded = await fetch(`${BASE}/api/attachments`, {
-        method: "POST",
-        headers: { "content-type": "image/png" },
-        body: new Uint8Array(png),
-      });
-      expect(uploaded.status).toBe(201);
-      const { path: imagePath } = await uploaded.json() as { path: string };
-      const text = `Describe this image\n\n<attached-image path="${imagePath}" name="tiny.png" />`;
-
-      rmSync(fakeClaudeDump, { force: true });
-      expect((await api("POST", `/api/groups/${room.id}/messages`, { text })).status).toBe(202);
-      const dump = await readJsonFileWhenReady<{
-        prompt: { message: { content: Array<{ type: string; text?: string; source?: { data?: string } }> } };
-      }>(fakeClaudeDump);
-      expect(dump.prompt.message.content[0]).toMatchObject({
-        type: "image",
-        source: { type: "base64", media_type: "image/png", data: png.toString("base64") },
-      });
-      expect(dump.prompt.message.content.at(-1)).toMatchObject({
-        type: "text",
-        text: expect.stringContaining("Describe this image"),
-      });
-      expect(JSON.stringify(dump.prompt)).not.toContain("attached-image");
-      expect(JSON.stringify(dump.prompt)).not.toContain(imagePath);
-
-      const current = (await api("GET", "/api/bots?messages=20")).body.groups.find(
-        (candidate: { id: string }) => candidate.id === room.id,
-      );
-      expect(current.messages.find((message: { role: string }) => message.role === "user")?.text)
-        .toBe(text);
-    } finally {
-      if (room) await api("POST", `/api/groups/${room.id}/interrupt`, {}).catch(() => undefined);
-      if (room) await api("DELETE", `/api/groups/${room.id}`).catch(() => undefined);
-      await api("POST", `/api/bots/${bot.id}/interrupt`, {}).catch(() => undefined);
-      await api("DELETE", `/api/bots/${bot.id}`).catch(() => undefined);
-    }
-  });
-
-  it("sends an earlier image as native pixels again when an edit rewinds the chat", async () => {
-    const created = await api("POST", "/api/bots", {
-      modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
-      requireAvailableModel: true,
-    });
-    expect(created.status).toBe(201);
-    const bot = created.body.bot;
-    try {
-      const png = Buffer.from(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-        "base64",
-      );
-      const uploaded = await fetch(`${BASE}/api/attachments`, {
-        method: "POST",
-        headers: { "content-type": "image/png" },
-        body: new Uint8Array(png),
-      });
-      expect(uploaded.status).toBe(201);
-      const { path: imagePath } = await uploaded.json() as { path: string };
-      type Dump = { prompt: { message: { content: string | Array<{ type: string; source?: { data?: string } }> } } };
-      const imageBlocks = (dump: Dump) => {
-        const { content } = dump.prompt.message;
-        return typeof content === "string" ? [] : content.filter((part) => part.type === "image");
-      };
-
-      rmSync(fakeClaudeDump, { force: true });
-      expect((await api("POST", `/api/bots/${bot.id}/messages`, {
-        text: `Describe this screenshot\n\n<attached-image path="${imagePath}" name="tiny.png" />`,
-      })).status).toBe(202);
-      expect(imageBlocks(await readJsonFileWhenReady<Dump>(fakeClaudeDump, 20_000))).toHaveLength(1);
-      await releaseTurn(bot.id);
-
-      rmSync(fakeClaudeDump, { force: true });
-      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "what colour is it" })).status).toBe(202);
-      await readJsonFileWhenReady(fakeClaudeDump);
-      await releaseTurn(bot.id);
-      const followUp = (await api("GET", `/api/threads/${bot.threadId}/messages`)).body.messages
-        .find((message: { role: string; text?: string }) => message.role === "user" && message.text === "what colour is it");
-
-      rmSync(fakeClaudeDump, { force: true });
-      expect((await api("POST", `/api/bots/${bot.id}/messages/${followUp.id}/edit`, { text: "what shape is it" })).status)
-        .toBe(202);
-      const rewound = await readJsonFileWhenReady<Dump>(fakeClaudeDump);
-      expect(JSON.stringify(rewound.prompt)).toContain("Describe this screenshot");
-      expect(imageBlocks(rewound)).toEqual([
-        expect.objectContaining({ source: expect.objectContaining({ data: png.toString("base64") }) }),
-      ]);
-      expect(JSON.stringify(rewound.prompt)).not.toContain("attached-image");
-      expect(JSON.stringify(rewound.prompt)).not.toContain(imagePath);
-      await releaseTurn(bot.id);
-    } finally {
-      await api("POST", `/api/bots/${bot.id}/interrupt`, {}).catch(() => undefined);
-      await api("DELETE", `/api/bots/${bot.id}`);
-    }
-  });
-
-  it("streams shared documents safely into the local attachments directory", async () => {
-    const contents = Buffer.from("name,score\nAda,10\n");
-    const saved = await fetch(`${BASE}/api/files?name=${encodeURIComponent("scores.exe")}`, {
-      method: "POST",
-      headers: { "content-type": "text/csv; charset=utf-8" },
-      body: contents,
-    });
-    expect(saved.status).toBe(201);
-    const result = (await saved.json()) as { path: string; name: string; mime: string; bytes: number };
-    expect(result).toMatchObject({ name: "scores.csv", mime: "text/csv", bytes: contents.byteLength });
-    expect(result.path).toMatch(/[\\/]attachments[\\/][0-9a-f-]+\.csv$/);
-    expect(readFileSync(result.path).equals(contents)).toBe(true);
-    if (process.platform !== "win32") {
-      expect(statSync(dirname(result.path)).mode & 0o777).toBe(0o700);
-      expect(statSync(result.path).mode & 0o777).toBe(0o600);
-    }
-
-    const unsupported = await fetch(`${BASE}/api/files?name=payload.zip`, {
-      method: "POST",
-      headers: { "content-type": "application/zip" },
-      body: Buffer.from("archive"),
-    });
-    expect(unsupported.status).toBe(400);
-
-    const missingName = await fetch(`${BASE}/api/files`, {
-      method: "POST",
-      headers: { "content-type": "text/plain" },
-      body: Buffer.from("hello"),
-    });
-    expect(missingName.status).toBe(400);
-
-    for (const name of ["..%2F..%2Fsecret.txt", "..%5C..%5Csecret.txt", "..%252F..%252Fsecret.txt"]) {
-      const traversal = await fetch(`${BASE}/api/files?name=${name}`, {
-        method: "POST",
-        headers: { "content-type": "text/plain" },
-        body: Buffer.from("hello"),
-      });
-      expect(traversal.status, name).toBe(400);
-    }
-
-    const empty = await fetch(`${BASE}/api/files?name=empty.pdf`, {
       method: "POST",
       headers: { "content-type": "image/png" },
       body: new Uint8Array(png),
@@ -4420,13 +4168,11 @@ describe("harness HTTP API", () => {
         title: `${bot.name} needs you to sign in to example.com`,
         body: "The monthly report is behind a login.",
       });
-      await stream.until((frame) => frame.kind === "computer-control" && frame.botId === bot.id && frame.help?.messageId === firstCard.messageId);
       expect(notices()).toHaveLength(1);
 
       const second = await request("www.example.com", "Still behind a login.");
       expect(second.status).toBe(201);
       const secondCard = await second.json() as { messageId: string };
-      await stream.until((frame) => frame.kind === "computer-control" && frame.help?.messageId === secondCard.messageId);
       await expect.poll(() => notices().length).toBe(2);
       const card = async (id: string) => (await api("GET", `/api/threads/${bot.threadId}/messages`)).body.messages
         .find((message: { id: string }) => message.id === id);
@@ -4445,7 +4191,7 @@ describe("harness HTTP API", () => {
       const resumed = await readJsonFileWhenReady<{ prompt: unknown }>(fakeClaudeDump, 10_000);
       expect(JSON.stringify(resumed.prompt)).toContain("the person finished signing in to example.com. Check you are signed in, then continue");
       expect((await card(secondCard.messageId)).signIn).toMatchObject({ done: true, resumed: true });
-      await stream.until((frame) => frame.kind === "computer-control" && frame.botId === bot.id && frame.helpReason === null && !frame.help);
+      expect(stream.frames.some((frame) => frame.kind === "computer-control")).toBe(false);
       expect(await answer(secondCard.messageId, "done")).toMatchObject({ status: 200, body: { done: true, resumed: true } });
       expect((await answer(secondCard.messageId, "cancel")).status).toBe(409);
       // This suite's engine hangs every turn; stop the resumed one.
@@ -4541,7 +4287,7 @@ describe("harness HTTP API", () => {
         body: JSON.stringify({ fromBotId: bot.id, fromThreadId: bot.threadId, site: "example.com" }),
       });
       expect(response.status).toBe(409);
-      expect((await response.json() as { error: string }).error).toMatch(/no browser or computer/);
+      expect((await response.json() as { error: string }).error).toMatch(/no browser for the person/);
       const messages = (await api("GET", `/api/threads/${bot.threadId}/messages`)).body.messages;
       expect(messages.some((message: { kind: string }) => message.kind === "signin")).toBe(false);
     } finally {
@@ -5620,16 +5366,6 @@ describe("harness HTTP API", () => {
     }
   });
 
-  it("offers an idempotent stop boundary for active local turns", async () => {
-    const unsupported = await api("POST", "/api/local-computer/interrupt");
-    expect(unsupported).toEqual({
-      status: 415,
-      body: { error: "content-type must be application/json" },
-    });
-    const stopped = await api("POST", "/api/local-computer/interrupt", {});
-    expect(stopped).toEqual({ status: 200, body: { ok: true } });
-  });
-
   it("a new bot opens with one greeting and no quiz card", async () => {
     const bot = (await api("POST", "/api/bots", { name: "Fresh" })).body.bot;
     try {
@@ -5846,29 +5582,17 @@ describe("harness HTTP API", () => {
     expect(after.body.bots[0].messages.length).toBe(before);
   });
 
-    it("reads the line as a typed /setup would, with the Data tab's context after the words, and an edit of it sets up again", async () => {
-      const bot = await blankBot("Edited setup");
-      try {
-        expect((await api("POST", `/api/bots/${bot.id}/setup-request`, { threadId: bot.threadId })).status).toBe(200);
-        rmSync(fakeClaudeDump, { force: true });
-        expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "sort my inbox", threadId: bot.threadId, dataContext: { cardId: "c_1" } })).status).toBe(202);
-        const first = await readJsonFileWhenReady<Seen>(fakeClaudeDump, 15_000);
-        await releaseTurn(bot.id);
-        expect(userText(first)).toContain("Set yourself up for this job: sort my inbox\n\n<data-context>");
-        expect(userText(first)).toContain('"cardId":"c_1"');
-        const line = (await messages(bot.threadId)).find((row) => row.role === "user");
-        rmSync(fakeClaudeDump, { force: true });
-        expect((await api("POST", `/api/bots/${bot.id}/messages/${line.id}/edit`, { text: "sort my inbox and my calendar", threadId: bot.threadId })).status).toBe(202);
-        const edited = await readJsonFileWhenReady<Seen>(fakeClaudeDump, 15_000);
-        await releaseTurn(bot.id);
-        expect(edited.systemPrompt).toContain("The user explicitly asked you to set yourself up");
-        expect(userText(edited)).toContain("Set yourself up for this job: sort my inbox and my calendar");
-        expect((await messages(bot.threadId)).find((row) => row.role === "user" && row.text === "sort my inbox and my calendar")).toMatchObject({ setupRequest: true });
-      } finally {
-        await api("POST", `/api/bots/${bot.id}/interrupt`);
-        await api("DELETE", `/api/bots/${bot.id}`);
-      }
-    });
+  it("switches the active branch and reports the new leaf", async () => {
+    const { body } = await api("GET", "/api/bots");
+    const bot = body.bots[0];
+    expect(bot.activeLeafId).toBe(bot.messages.at(-1).id);
+
+    const res = await api("POST", `/api/bots/${bot.id}/active-branch`, { messageId: bot.messages[0].id });
+    expect(res.status).toBe(200);
+    expect(res.body.activeLeafId).toBe(bot.messages.at(-1).id);
+
+    const missing = await api("POST", `/api/bots/${bot.id}/active-branch`, { messageId: "nope" });
+    expect(missing.status).toBe(404);
   });
 
   it("saves config keys write-only and reports booleans", async () => {
@@ -5893,55 +5617,43 @@ describe("harness HTTP API", () => {
     }
   });
 
-  it("never lets an out-of-band SOUL.md edit reach the prompt, and surfaces it as drift instead", async () => {
-    const bot = (await api("POST", "/api/bots", { name: "Kiwi", title: "Tracker" })).body.bot;
+  it.each(["fish", "xai"])("clears incompatible default and per-agent voices when switching to %s", async (provider) => {
+    let botId = "";
     try {
-      expect((await api("PATCH", `/api/bots/${bot.id}`, {
-        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
-        soul: "Record text.",
+      expect((await api("PUT", "/api/config", {
+        tts: { provider: "elevenlabs", voice: "eleven-default" },
       })).status).toBe(200);
-      // An edit made directly to the mirror file, bypassing the app entirely.
-      writeFileSync(join(home, ".openmausbot", "bots", bot.id, "SOUL.md"), "File text.");
-      rmSync(fakeClaudeDump, { force: true });
-      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "hello" })).status).toBe(202);
-      const seen = await readJsonFileWhenReady<{ systemPrompt?: string }>(fakeClaudeDump, 15_000);
-      const systemPrompt: string = seen.systemPrompt ?? "";
-      expect(systemPrompt).toContain("Record text.");
-      expect(systemPrompt).not.toContain("File text.");
-      const bots = (await api("GET", "/api/bots")).body.bots;
-      expect(bots.find((candidate: { id: string }) => candidate.id === bot.id)?.soulDrift).toBe(true);
+      const created = await api("POST", "/api/bots");
+      botId = created.body.bot.id;
+      expect((await api("PATCH", `/api/bots/${botId}/profile`, {
+        voice: "eleven-agent",
+      })).status).toBe(200);
+
+      const changed = await api("PUT", "/api/config", { tts: { provider } });
+      expect(changed.status).toBe(200);
+      expect(changed.body.tts).toMatchObject({ provider, voice: "", ready: false });
+      const bot = (await api("GET", "/api/bots?messages=0")).body.bots.find(
+        (candidate: { id: string }) => candidate.id === botId,
+      );
+      expect(bot).not.toHaveProperty("voice");
+      const disk = JSON.parse(readFileSync(join(home, ".openmausbot", "config.json"), "utf8"));
+      expect(disk.tts).toMatchObject({ provider, voice: "" });
     } finally {
-      await api("POST", `/api/bots/${bot.id}/interrupt`);
-      await api("DELETE", `/api/bots/${bot.id}`);
+      if (botId) await api("DELETE", `/api/bots/${botId}`).catch(() => undefined);
+      await api("PUT", "/api/config", { tts: { provider: "elevenlabs", voice: "" } }).catch(() => undefined);
     }
   });
 
-  it("mounts the verification skill only for the latest channel request", async () => {
-    const bot = (await api("POST", "/api/bots", {
-      modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
-      requireAvailableModel: true,
-    })).body.bot;
-    let room: any;
+  it("saves the Fish Audio model and keeps it across provider switches", async () => {
     try {
-      room = (await api("POST", "/api/groups", {
-        name: "Verification skill room",
-        memberIds: [bot.id],
-        setup: { bulletin: "", defaultResponder: { kind: "member", botId: bot.id } },
-      })).body.group;
+      const fish = await api("PUT", "/api/config", { tts: { provider: "fish" } });
+      expect(fish.status).toBe(200);
+      expect(fish.body.tts).toMatchObject({ provider: "fish", fishModel: "s2.1-pro" });
 
-      rmSync(fakeClaudeDump, { force: true });
-      expect((await api("POST", `/api/groups/${room.id}/messages`, {
-        text: "/create-verification-skill for my mobile app",
-      })).status).toBe(202);
-      let seen = await readJsonFileWhenReady<{ systemPrompt?: string }>(fakeClaudeDump);
-      let system = seen.systemPrompt ?? "";
-      expect(system).toContain('<openmaus-skill id="create-verification-skill"');
-      expect(system).toContain('<openmaus-skill id="phone-harness"');
-      expect((await api("POST", `/api/groups/${room.id}/interrupt`, {})).status).toBe(200);
-      await expect.poll(async () => {
-        const state = (await api("GET", "/api/bots?messages=0")).body;
-        return state.bots.find((candidate: { id: string }) => candidate.id === bot.id)?.busy;
-      }, { timeout: 5_000 }).toBe(false);
+      const free = await api("PUT", "/api/config", { tts: { fishModel: "s2.1-pro-free" } });
+      expect(free.status).toBe(200);
+      expect(free.body.tts).toMatchObject({ provider: "fish", fishModel: "s2.1-pro-free" });
+      expect((await api("PUT", "/api/config", { tts: { fishModel: "s1" } })).status).toBe(400);
 
       const away = await api("PUT", "/api/config", { tts: { provider: "elevenlabs" } });
       expect(away.body.tts).not.toHaveProperty("fishModel");
@@ -5988,88 +5700,74 @@ describe("harness HTTP API", () => {
       if (botId) await api("DELETE", `/api/bots/${botId}`).catch(() => undefined);
       await api("PUT", "/api/config", { tts: { provider: "elevenlabs", voice: "" } }).catch(() => undefined);
     }
-
-    await api("PATCH", "/api/config", { features: { skillAuthoring: true, showToolCalls: false } });
   });
 
-  it("refuses to delete a bot while it owns an active channel turn", async () => {
+  it("round-trips the UI language and clears it back to system", async () => {
+    const set = await api("PUT", "/api/config", { language: "de" });
+    expect(set.status).toBe(200);
+    expect(set.body.language).toBe("de");
+    const after = await api("GET", "/api/config");
+    expect(after.body.language).toBe("de");
+
+    const cleared = await api("PUT", "/api/config", { language: "" });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.language).toBe("");
+  });
+
+  it("keeps an active turn alive when the UI language changes", async () => {
     const bot = (await api("POST", "/api/bots", {
       modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
       requireAvailableModel: true,
     })).body.bot;
-    const room = (await api("POST", "/api/groups", {
-      name: "Deletion safety",
-      memberIds: [bot.id],
-      setup: { bulletin: "", defaultResponder: { kind: "member", botId: bot.id } },
-    })).body.group;
     try {
       rmSync(fakeClaudeDump, { force: true });
-      expect((await api("POST", `/api/groups/${room.id}/messages`, { text: "keep working" })).status).toBe(202);
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "stay active" })).status).toBe(202);
       await expect.poll(() => existsSync(fakeClaudeDump), { timeout: 5_000 }).toBe(true);
 
-      const deletion = await api("DELETE", `/api/bots/${bot.id}`);
-      expect(deletion.status).toBe(409);
-      expect(deletion.body.error).toMatch(/stop.*channel/i);
-      expect((await api("GET", "/api/bots?messages=0")).body.bots.some(
+      const saved = await api("PATCH", "/api/config", { language: "de" });
+      expect(saved.status).toBe(200);
+      expect(saved.body.language).toBe("de");
+
+      const active = (await api("GET", "/api/bots?messages=50")).body.bots.find(
         (candidate: { id: string }) => candidate.id === bot.id,
-      )).toBe(true);
+      );
+      expect(active?.busy).toBe(true);
+      expect(active?.messages.some((message: { tool?: { name?: string } }) =>
+        message.tool?.name?.includes("provider settings changed"),
+      )).toBe(false);
     } finally {
-      await api("POST", `/api/groups/${room.id}/interrupt`, {}).catch(() => undefined);
-      await api("DELETE", `/api/groups/${room.id}`).catch(() => undefined);
+      await api("POST", `/api/bots/${bot.id}/interrupt`, {}).catch(() => undefined);
+      await expect.poll(async () => {
+        const state = (await api("GET", "/api/bots?messages=0")).body;
+        return state.bots.find((candidate: { id: string }) => candidate.id === bot.id)?.busy;
+      }, { timeout: 5_000 }).toBeFalsy();
       await api("DELETE", `/api/bots/${bot.id}`).catch(() => undefined);
+      await api("PATCH", "/api/config", { language: "" }).catch(() => undefined);
     }
   });
 
-  it("creates, edits, lists, and deletes scheduled multi-bot calls", async () => {
-    const first = (await api("POST", "/api/bots", { name: "Call host" })).body.bot;
-    const second = (await api("POST", "/api/bots", { name: "Call guest" })).body.bot;
-    let callId = "";
-    try {
-      const invalidCreate = await api("POST", "/api/calendar-calls", {
-        name: "",
-        botIds: [],
-        schedule: { type: "once", at: Date.now() + 60_000 },
-      });
-      expect(invalidCreate.status).toBe(400);
+  it("validates and persists the global room turn timeout", async () => {
+    const before = await api("GET", "/api/config");
+    expect(before.status).toBe(200);
+    expect(before.body.rooms).toEqual({ turnTimeoutMinutes: 5 });
 
-      const created = await api("POST", "/api/calendar-calls", {
-        name: "Weekly bot sync",
-        description: "Review priorities.",
-        botIds: [first.id, second.id],
-        schedule: { type: "once", at: Date.now() + 60_000 },
-        durationMinutes: 30,
-        attachments: [],
-      });
-      expect(created.status).toBe(201);
-      callId = created.body.call.id;
-      expect(created.body.call).toMatchObject({
-        name: "Weekly bot sync",
-        botIds: [first.id, second.id],
-        durationMinutes: 30,
-      });
-
-      const edited = await api("PATCH", `/api/calendar-calls/${callId}`, {
-        schedule: { type: "daily", time: "11:15", weekdays: [1, 2, 3, 4, 5] },
-      });
-      expect(edited.status).toBe(200);
-      expect(edited.body.call.schedule).toEqual({ type: "daily", time: "11:15", weekdays: [1, 2, 3, 4, 5] });
-      const fiveMinutePatch = await api("PATCH", `/api/calendar-calls/${callId}`, { durationMinutes: 5 });
-      expect(fiveMinutePatch.status).toBe(200);
-      expect(fiveMinutePatch.body.call.durationMinutes).toBe(5);
-      const invalidPatch = await api("PATCH", `/api/calendar-calls/${callId}`, { durationMinutes: 4 });
-      expect(invalidPatch.status).toBe(400);
-      expect((await api("GET", "/api/calendar-calls")).body.calls).toEqual(
-        expect.arrayContaining([expect.objectContaining({ id: callId, name: "Weekly bot sync", durationMinutes: 5 })]),
-      );
-
-      expect((await api("DELETE", `/api/calendar-calls/${callId}`)).status).toBe(200);
-      callId = "";
-      expect((await api("PATCH", "/api/calendar-calls/missing", { name: "Nope" })).status).toBe(404);
-    } finally {
-      if (callId) await api("DELETE", `/api/calendar-calls/${callId}`).catch(() => undefined);
-      await api("DELETE", `/api/bots/${first.id}`).catch(() => undefined);
-      await api("DELETE", `/api/bots/${second.id}`).catch(() => undefined);
+    for (const turnTimeoutMinutes of [0, 1.5, 1441, "20", null]) {
+      const invalid = await api("PUT", "/api/config", { rooms: { turnTimeoutMinutes } });
+      expect(invalid.status).toBe(400);
+      expect(invalid.body.error).toContain("rooms.turnTimeoutMinutes");
     }
+
+    const saved = await api("PUT", "/api/config", { rooms: { turnTimeoutMinutes: 20 } });
+    expect(saved.status).toBe(200);
+    expect(saved.body.rooms).toEqual({ turnTimeoutMinutes: 20 });
+
+    const after = await api("GET", "/api/config");
+    expect(after.body.rooms).toEqual({ turnTimeoutMinutes: 20 });
+
+    const disk = JSON.parse(readFileSync(join(home, ".openmausbot", "config.json"), "utf8"));
+    expect(disk.rooms).toEqual({ turnTimeoutMinutes: 20 });
+
+    await api("PUT", "/api/config", { rooms: { turnTimeoutMinutes: 5 } });
   });
 
   it("cards asks when Claude's reviewer never started", async () => {
@@ -6114,95 +5812,73 @@ describe("harness HTTP API", () => {
       const messages = async (): Promise<Msg[]> =>
         (await api("GET", "/api/bots?messages=40")).body.bots.find((candidate: { id: string }) => candidate.id === bot.id).messages;
 
-      await expect.poll(async () => {
-        const snapshot = await api("GET", "/api/bots?messages=50");
-        const room = snapshot.body.groups.find((candidate: { memberIds: string[] }) =>
-          candidate.memberIds.length === 2 &&
-          candidate.memberIds.includes(first.id) &&
-          candidate.memberIds.includes(second.id)
-        );
-        return room?.messages.find((message: { sendId?: string }) =>
-          message.sendId?.startsWith(`calendar_${callId}_`)
-        )?.text;
-      }, { timeout: 5_000 }).toBe(
-        '@everyone Review the launch plan.\n\n<attached-file path="/tmp/a&quot;&amp;&lt;&gt;.txt" name="Launch brief.txt" />',
-      );
+      const first = raise("ask-wc", "wc -l notes.md");
+      const card = await expect.poll(async () => (await messages()).find((m) => m.card?.subtitle === "wc -l notes.md")?.card).toBeTruthy()
+        .then(async () => (await messages()).find((m) => m.card?.subtitle === "wc -l notes.md")!.card!);
+      expect(card.title).toBe("Approval needed");
+      expect(card.heldCode).toBe("approval.held.native");
+      expect(card.allowKey).toBeUndefined();
+      expect(card.allowSession).toBe(true);
+      expect((await messages()).some((m) => m.tool?.name.startsWith("auto-approved"))).toBe(false);
+      await expect.poll(async () => (await messages()).filter((m) => m.tool?.name.startsWith("Approve for me: Claude's automatic reviewer is not available")).length).toBe(1);
+      const notices = (await messages()).filter((m) => m.tool?.name.startsWith("Approve for me: Claude's automatic reviewer is not available"));
+      expect(notices).toHaveLength(1);
+      expect(notices[0].tool!.name).toContain("claude-haiku-4-5");
+      expect(notices[0].tool!.name).toContain("asks before each action");
 
-      const snapshot = await api("GET", "/api/bots?messages=50");
-      const room = snapshot.body.groups.find((candidate: { memberIds: string[] }) =>
-        candidate.memberIds.length === 2 &&
-        candidate.memberIds.includes(first.id) &&
-        candidate.memberIds.includes(second.id)
-      );
-      expect(room).toMatchObject({ defaultResponder: { kind: "everyone" } });
-      roomId = room.id;
+      expect((await api("POST", `/api/bots/${bot.id}/respond`, { requestId: card.requestId, behavior: "allow", always: true })).status).toBe(200);
+      await expect(first).resolves.toMatchObject({ behavior: "allow", always: true });
 
-      await expect.poll(async () => {
-        const refreshed = await api("GET", "/api/bots?messages=50");
-        const current = refreshed.body.groups.find((candidate: { id: string }) => candidate.id === roomId);
-        return current?.messages
-          .filter((message: { from?: { botId?: string } }) => message.from?.botId)
-          .map((message: { from: { botId: string } }) => message.from.botId)
-          .sort();
-      }, { timeout: 5_000 }).toEqual([first.id, second.id].sort());
+      const second = raise("ask-ls", "ls memory");
+      await expect.poll(async () => (await messages()).find((m) => m.card?.subtitle === "ls memory")?.card?.title).toBe("Approval needed");
+      expect((await messages()).filter((m) => m.tool?.name.startsWith("Approve for me: Claude's automatic reviewer"))).toHaveLength(1);
+      const secondCard = (await messages()).find((m) => m.card?.subtitle === "ls memory")!.card!;
+      expect((await api("POST", `/api/bots/${bot.id}/respond`, { requestId: secondCard.requestId, behavior: "allow" })).status).toBe(200);
+      const plain = await second;
+      expect(plain).toMatchObject({ behavior: "allow" });
+      expect(plain).not.toHaveProperty("always");
 
-      const joined = await api("POST", `/api/calendar-calls/${callId}/room`, {});
-      expect(joined.status).toBe(200);
-      expect(joined.body.group.id).toBe(roomId);
-      expect(room.messages.filter((message: { sendId?: string }) =>
-        message.sendId?.startsWith(`calendar_${callId}_`)
-      )).toHaveLength(1);
+      const widen = raise("ask-widen", "ls /", { dangerouslyDisableSandbox: true });
+      await expect.poll(async () => (await messages()).find((m) => m.card?.subtitle === "ls /")?.card?.title).toBe("Approval needed");
+      const widenCard = (await messages()).find((m) => m.card?.subtitle === "ls /")!.card!;
+      expect(widenCard.allowSession).toBeUndefined();
+      expect((await api("POST", `/api/bots/${bot.id}/respond`, { requestId: widenCard.requestId, behavior: "allow", always: true })).status).toBe(200);
+      const once = await widen;
+      expect(once).toMatchObject({ behavior: "allow" });
+      expect(once).not.toHaveProperty("always");
     } finally {
-      if (callId) await api("DELETE", `/api/calendar-calls/${callId}`).catch(() => undefined);
-      if (roomId) {
-        await api("POST", `/api/groups/${roomId}/interrupt`, {}).catch(() => undefined);
-        await api("DELETE", `/api/groups/${roomId}`).catch(() => undefined);
-      }
-      await api("DELETE", `/api/bots/${first.id}`).catch(() => undefined);
-      await api("DELETE", `/api/bots/${second.id}`).catch(() => undefined);
+      for (const conn of conns) conn.destroy();
+      await api("POST", `/api/bots/${bot.id}/interrupt`);
+      await api("DELETE", `/api/bots/${bot.id}`);
     }
   });
 
-  it("refuses to delete a bot while one of its routines is active", async () => {
-    const bot = (await api("POST", "/api/bots", {
-      modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
-      requireAvailableModel: true,
-    })).body.bot;
-    const routine = (await api("POST", "/api/routines", {
-      name: "Deletion safety routine",
-      prompt: "Keep running until interrupted.",
-      botId: bot.id,
-      runOn: "maus",
-      enabled: false,
-      schedule: { type: "daily", time: "10:00", weekdays: [1] },
-    })).body.routine;
-    let runId = "";
+  it("mounts the verification skill into a real turn when its trigger appears", async () => {
+    const bot = (await api("POST", "/api/bots", {})).body.bot;
     try {
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
+        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+      })).status).toBe(200);
       rmSync(fakeClaudeDump, { force: true });
-      const queued = await api("POST", `/api/routines/${routine.id}/run`);
-      expect(queued.status).toBe(201);
-      runId = queued.body.run.id;
-      await expect.poll(async () => {
-        const runs = (await api("GET", "/api/routines")).body.runs;
-        return runs.find((run: { id: string }) => run.id === runId)?.status;
-      }, { timeout: 5_000 }).toBe("running");
-
-      const deletion = await api("DELETE", `/api/bots/${bot.id}`);
-      expect(deletion.status).toBe(409);
-      expect(deletion.body.error).toMatch(/active routine/i);
-      expect((await api("GET", "/api/bots?messages=0")).body.bots.some(
-        (candidate: { id: string }) => candidate.id === bot.id,
-      )).toBe(true);
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, {
+        text: "/create-verification-skill for my notes app",
+      })).status).toBe(202);
+      const seen = await readJsonFileWhenReady<{ systemPrompt?: string }>(fakeClaudeDump, 15_000);
+      const system = seen.systemPrompt ?? "";
+      expect(system).toContain('<openmaus-skill id="create-verification-skill"');
+      expect(system).toContain("skill_manage");
     } finally {
-      if (runId) await api("POST", `/api/routine-runs/${runId}/cancel`).catch(() => undefined);
-      await api("DELETE", `/api/routines/${routine.id}`).catch(() => undefined);
-      await api("DELETE", `/api/bots/${bot.id}`).catch(() => undefined);
+      await api("POST", `/api/bots/${bot.id}/interrupt`);
+      await api("DELETE", `/api/bots/${bot.id}`);
     }
   });
 
   it("mounts the data-dashboards skill, with the folder that holds its template, when the person asks for a dashboard", async () => {
     const bot = (await api("POST", "/api/bots", {})).body.bot;
     try {
+      expect((await api("PATCH", `/api/bots/${bot.id}`, {
+        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+      })).status).toBe(200);
       rmSync(fakeClaudeDump, { force: true });
       expect((await api("POST", `/api/bots/${bot.id}/messages`, {
         text: "Build me a sales dashboard from orders.csv",
@@ -6274,9 +5950,23 @@ describe("harness HTTP API", () => {
       expect((await api("PATCH", `/api/bots/${bot.id}`, {
         modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
       })).status).toBe(200);
+      rmSync(fakeClaudeDump, { force: true });
+      expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "hello" })).status).toBe(202);
+      let system = (await readJsonFileWhenReady<{ systemPrompt: string }>(fakeClaudeDump, 15_000)).systemPrompt;
+      expect(system.startsWith("You are Blank, a personal bot in OpenMausBot.")).toBe(true);
+      expect(system).not.toContain("at most four questions");
+      expect(system).toContain("propose_profile");
+
       const preview = await api("GET", `/api/bots/${bot.id}/system-prompt`);
       expect(preview.body.sections.map((s: { id: string }) => s.id)).not.toContain("setup");
 
+      expect((await api("POST", `/api/bots/${bot.id}/interrupt`)).status).toBe(200);
+      // Interrupt only requests a stop; the child can still be shutting down.
+      await expect.poll(async () => {
+        const state = (await api("GET", "/api/bots?messages=0")).body;
+        return state.bots.find((candidate: { id: string }) => candidate.id === bot.id)?.busy;
+      }, { timeout: 5_000 }).toBe(false);
+      expect((await api("PATCH", `/api/bots/${bot.id}`, { description: "Files bugs." })).status).toBe(200);
       rmSync(fakeClaudeDump, { force: true });
       expect((await api("POST", `/api/bots/${bot.id}/messages`, { text: "hello again" })).status).toBe(202);
       system = (await readJsonFileWhenReady<{ systemPrompt: string }>(fakeClaudeDump, 15_000)).systemPrompt;
@@ -6337,18 +6027,55 @@ describe("harness HTTP API", () => {
       .find((candidate: { id: string }) => candidate.id === botId)?.tasks?.find((one: { threadId: string }) => one.threadId === threadId);
     const turn = async (botId: string, text: string, threadId?: string) => {
       rmSync(fakeClaudeDump, { force: true });
-      expect((await api("POST", path, { text: "describe your computer tools" })).status).toBe(202);
-      return (await readJsonFileWhenReady<{ systemPrompt: string }>(fakeClaudeDump, 15_000)).systemPrompt;
+      expect((await api("POST", `/api/bots/${botId}/messages`, { text, ...(threadId ? { threadId } : {}) })).status).toBe(202);
+      const seen = await readJsonFileWhenReady<Seen>(fakeClaudeDump, 15_000);
+      await releaseTurn(botId);
+      return seen;
     };
-    try {
-      expect((await api("PATCH", `/api/bots/${bot.id}`, {
-        modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
-      })).status).toBe(200);
-      if (target === "room") {
-        room = (await api("POST", "/api/groups", { name: "Computer paragraph", memberIds: [bot.id] })).body.group;
-        expect((await api("PATCH", `/api/groups/${room.id}/setup`, { action: "skip" })).status).toBe(200);
+
+    it("answers the press at once with the bot's own line and no model, and keeps the waiting mark on the server", async () => {
+      const bot = await blankBot("Press");
+      try {
+        expect(bot.messages[0]).toMatchObject({ role: "bot", kind: "text", text: "Hi, I'm Press. What would you like me to do?", setupOffer: true });
+        rmSync(fakeClaudeDump, { force: true });
+        const pressed = await api("POST", `/api/bots/${bot.id}/setup-request`, { threadId: bot.threadId });
+        expect(pressed.status).toBe(200);
+        const rows = await messages(bot.threadId);
+        expect(rows.map((row) => [row.role, row.setupOffer ?? null])).toEqual([["bot", true], ["bot", null]]);
+        expect(rows[1].text).toMatch(/^Great\. Tell me what you'd like help with/);
+        expect(await task(bot.id, bot.threadId)).toMatchObject({ setupRequest: { at: rows[1].at } });
+        expect((await api("POST", `/api/bots/${bot.id}/setup-request`, { threadId: bot.threadId })).body).toEqual({ ok: true, already: true });
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        expect(existsSync(fakeClaudeDump)).toBe(false);
+      } finally {
+        await api("DELETE", `/api/bots/${bot.id}`);
       }
-      const messagesPath = room ? `/api/groups/${room.id}/messages` : `/api/bots/${bot.id}/messages`;
+    });
+
+    it("runs the person's next line as setup while the chat keeps their words; other conversations and a cancel leave it alone", async () => {
+      const bot = await blankBot("Next line");
+      try {
+        expect((await api("POST", `/api/bots/${bot.id}/setup-request`, { threadId: bot.threadId })).status).toBe(200);
+        const other = (await api("POST", `/api/bots/${bot.id}/tasks`, { title: "Elsewhere" })).body.task;
+        const elsewhere = await turn(bot.id, "hello over here", other.threadId);
+        expect(elsewhere.systemPrompt).not.toContain("The user explicitly asked you to set yourself up");
+        expect(await task(bot.id, bot.threadId)).toMatchObject({ setupRequest: expect.any(Object) });
+
+        const setup = await turn(bot.id, "sort my inbox every morning", bot.threadId);
+        expect(setup.systemPrompt).toContain("The user explicitly asked you to set yourself up");
+        expect(userText(setup)).toContain("Set yourself up for this job: sort my inbox every morning");
+        expect(userText(setup)).not.toContain("/setup");
+        const line = (await messages(bot.threadId)).find((row) => row.role === "user");
+        expect(line).toMatchObject({ text: "sort my inbox every morning", setupRequest: true });
+        expect((await task(bot.id, bot.threadId))?.setupRequest).toBeUndefined();
+
+        const after = await turn(bot.id, "thanks", bot.threadId);
+        expect(after.systemPrompt).not.toContain("The user explicitly asked you to set yourself up");
+      } finally {
+        await api("POST", `/api/bots/${bot.id}/interrupt`);
+        await api("DELETE", `/api/bots/${bot.id}`);
+      }
+    });
 
     it("forgets the request when its chip is closed", async () => {
       const bot = await blankBot("Cancelled");
@@ -6462,6 +6189,7 @@ describe("harness HTTP API", () => {
     try {
       expect((await api("PATCH", `/api/bots/${bot.id}`, {
         modelSelection: { instanceId: "claude", model: "claude-sonnet-5" },
+        soul: "Record text.",
       })).status).toBe(200);
       // An edit made directly to the mirror file, bypassing the app entirely.
       writeFileSync(join(home, ".openmausbot", "bots", bot.id, "SOUL.md"), "File text.");
@@ -6640,6 +6368,10 @@ describe("harness HTTP API", () => {
       expect((await api("GET", "/api/calendar-calls")).body.calls).toEqual(
         expect.arrayContaining([expect.objectContaining({ id: callId, name: "Weekly bot sync", durationMinutes: 5 })]),
       );
+
+      expect((await api("DELETE", `/api/calendar-calls/${callId}`)).status).toBe(200);
+      callId = "";
+      expect((await api("PATCH", "/api/calendar-calls/missing", { name: "Nope" })).status).toBe(404);
     } finally {
       if (callId) await api("DELETE", `/api/calendar-calls/${callId}`).catch(() => undefined);
       await api("DELETE", `/api/bots/${first.id}`).catch(() => undefined);
@@ -9120,12 +8852,6 @@ describe("message pages", () => {
     }
   });
 
-  it("404s an image on a message that has none", async () => {
-    const full = await seedRoom(1);
-    const res = await fetch(`${BASE}/api/threads/${full.threadId}/messages/${full.messages[0].id}/image`);
-    expect(res.status).toBe(404);
-  });
-
   it("downloads only a file linked by the exact stored bot message", async () => {
     const threadId = "test-linked-file-room-thread";
     const linkedFile = join(home, ".openmausbot", "workspaces", "test-bot-a", "phone report.md");
@@ -9284,16 +9010,6 @@ describe("message pages", () => {
       `/api/threads/${threadId}/messages/user-outside-file-message/file`,
       { path: join(home, ".openmausbot", "workspaces", "test-bot-a", "phone report.md") },
     )).status).toBe(403);
-  });
-
-  it("404s an image on a conversation that does not exist, without inventing one", async () => {
-    // messagesFor caches a ThreadState for any id, so an unguarded route would let a client grow that map.
-    const before = (await api("GET", "/api/bots")).body.bots.length;
-    const res = await fetch(`${BASE}/api/threads/not-a-thread/messages/not-a-message/image`);
-    expect(res.status).toBe(404);
-    expect(((await res.json()) as { error: string }).error).toBe("no such conversation");
-    expect((await api("GET", "/api/threads/not-a-thread/messages")).status).toBe(404);
-    expect((await api("GET", "/api/bots")).body.bots.length).toBe(before);
   });
 });
 
@@ -9547,108 +9263,16 @@ describe("instance CLI override API", () => {
   });
 
   it("rejects overlapping provider configuration writes", async () => {
-  });
-});
-
-describe("computer control API (who is driving)", () => {
-  let botId = "";
-
-  beforeAll(async () => {
-    const created = await api("POST", "/api/bots", {});
-    botId = created.body.bot.id;
-  });
-
-  it("starts disengaged", async () => {
-    const res = await api("GET", `/api/bots/${botId}/computer/control`);
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ held: false, helpReason: null, heldSinceMs: null });
-  });
-
-  it("take → held, broadcast on the wire, release → disengaged", async () => {
-    const sse = await openSse(`${BASE}/api/events`);
     // The stub holds this voice key check for 150 ms.
     const slowConfigWrite = api("PUT", "/api/config", { tts: { key: "sk_slow" } });
     try {
-      const took = await api("POST", `/api/bots/${botId}/computer/control`, { action: "take" });
-      expect(took.status).toBe(200);
-      expect(took.body.held).toBe(true);
-      const frame = await sse.until(
-        (f) => f.kind === "computer-control" && f.botId === botId && f.held === true,
-      );
-      expect(frame.helpReason).toBeNull();
-      const hydrated = await api("GET", "/api/bots");
-      expect(hydrated.body.computerControl[botId]).toEqual({ held: true, helpReason: null });
-      const released = await api("POST", `/api/bots/${botId}/computer/control`, { action: "release" });
-      expect(released.body.held).toBe(false);
       await new Promise((resolve) => setTimeout(resolve, 30));
       const overlapping = await api("PATCH", "/api/instances/ghost", { cli: "/tmp/ghost-overlap" });
       expect(overlapping.status).toBe(409);
       expect((await slowConfigWrite).status).toBe(200);
     } finally {
-      sse.close();
       await slowConfigWrite.catch(() => undefined);
       await api("PUT", "/api/config", { tts: { key: "" } }).catch(() => undefined);
     }
-  });
-
-  it("atomically owns and conditionally releases a workspace lease without returning its id", async () => {
-    const owner = "lease_5b6bbbd2-b88b-4c50-a748-ec87f332662f";
-    const other = "lease_ed602995-306f-480a-8817-e8d8c8fe7d90";
-    const took = await api("POST", `/api/bots/${botId}/computer/control`, {
-      action: "take",
-      controlLeaseId: owner,
-    });
-    expect(took.body).toMatchObject({ held: true, owned: true, acquired: true });
-    expect(JSON.stringify(took.body)).not.toContain(owner);
-
-    const blocked = await api("POST", `/api/bots/${botId}/computer/control`, {
-      action: "take",
-      controlLeaseId: other,
-    });
-    expect(blocked.body).toMatchObject({ held: true, owned: false, acquired: false });
-
-    const wrongRelease = await api("POST", `/api/bots/${botId}/computer/control`, {
-      action: "release",
-      controlLeaseId: other,
-    });
-    expect(wrongRelease.body).toMatchObject({ held: true, released: false });
-
-    const released = await api("POST", `/api/bots/${botId}/computer/control`, {
-      action: "release",
-      controlLeaseId: owner,
-    });
-    expect(released.body).toMatchObject({ held: false, released: true });
-    expect(JSON.stringify(released.body)).not.toContain(owner);
-  });
-
-  it("rejects malformed workspace leases without echoing them", async () => {
-    const invalid = "bad lease value";
-    const res = await api("POST", `/api/bots/${botId}/computer/control`, {
-      action: "take",
-      controlLeaseId: invalid,
-    });
-    expect(res.status).toBe(400);
-    expect(JSON.stringify(res.body)).not.toContain(invalid);
-  });
-
-  it("refuses an unknown action and an unknown bot", async () => {
-    const bad = await api("POST", `/api/bots/${botId}/computer/control`, { action: "hijack" });
-    expect(bad.status).toBe(400);
-    const ghost = await api("GET", "/api/bots/nope/computer/control");
-    expect(ghost.status).toBe(404);
-  });
-
-  it("refuses a form-shaped POST — control mutations are JSON-only", async () => {
-    const res = await fetch(`${BASE}/api/bots/${botId}/computer/control`, {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: "action=take",
-    });
-    expect(res.status).toBe(415);
-  });
-
-  it("keeps the internal who-is-driving endpoint behind the boot token", async () => {
-    const res = await fetch(`${BASE}/api/internal/computer-control?botId=${botId}`);
-    expect(res.status).toBe(401);
   });
 });

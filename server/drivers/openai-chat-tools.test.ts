@@ -454,10 +454,11 @@ describe("optional built-in question compatibility", () => {
   });
 });
 
-describe("OpenAI-compatible computer images", () => {
+describe("OpenAI-compatible tool images", () => {
   const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jBv0AAAAASUVORK5CYII=";
+  it("delivers screenshots after tool results and preserves approval", async () => {
     const f = await fixture((_body, response, round) => {
-      if (round === 1) sse(response, [chunk({ tool_calls: [{ ...toolCall(), function: { ...toolCall().function, name: `${prefix}_write` } }] }, "tool_calls")]);
+      if (round === 1) sse(response, [chunk({ tool_calls: [{ ...toolCall(), function: { ...toolCall().function, name: "data_write" } }] }, "tool_calls")]);
       else answer(response, "Inspected the fixture screenshot.");
     });
     writeFileSync(join(f.directory, "mcp.mjs"), MCP_SCRIPT.replace(
@@ -466,6 +467,7 @@ describe("OpenAI-compatible computer images", () => {
     ));
     const imagePath = join(f.directory, "input.png");
     writeFileSync(imagePath, Buffer.from(png, "base64"));
+    await f.start({ integrations: { data: f.server }, images: [{ path: imagePath, mime: "image/png", bytes: Buffer.from(png, "base64").length }] });
     await f.decide();
     expect(await f.completed()).toMatchObject({ ok: true });
     expect(f.effects()).toHaveLength(1);
@@ -479,12 +481,15 @@ describe("OpenAI-compatible computer images", () => {
       { type: "text", text: "Screenshot result from tool call call_write:" },
       { type: "image_url", image_url: { url: `data:image/png;base64,${png}` } },
     ] });
+    expect(f.instance.adapter.capabilities).toMatchObject({ nativeImageInput: true });
   });
 
   it.each([
     ["gpt-oss-120b", false],
     ["qwen-3.8-27b", true],
+  ] as const)("Cerebras %s keeps the tools and receives screenshots only if it can see images", async (model, sees) => {
     const f = await fixture((_body, response, round) => {
+      if (round === 1) sse(response, [chunk({ tool_calls: [{ ...toolCall(), function: { ...toolCall().function, name: "data_write" } }] }, "tool_calls")]);
       else answer(response, "Read the page.");
     }, "cerebras");
     writeFileSync(join(f.directory, "mcp.mjs"), MCP_SCRIPT.replace(
@@ -493,6 +498,7 @@ describe("OpenAI-compatible computer images", () => {
     ));
     const imagePath = join(f.directory, "input.png");
     writeFileSync(imagePath, Buffer.from(png, "base64"));
+    await f.start({ model, integrations: { data: f.server }, images: [{ path: imagePath, mime: "image/png", bytes: Buffer.from(png, "base64").length }] });
     await f.decide();
     expect(await f.completed()).toMatchObject({ ok: true });
     expect(f.effects()).toHaveLength(1);
@@ -548,8 +554,8 @@ describe("OpenAI-compatible computer images", () => {
   it("keeps every tool response ahead of screenshots in a multiple-call batch", async () => {
     const f = await fixture((_body, response, round) => {
       if (round === 1) sse(response, [chunk({ tool_calls: [
-        toolCall("computer_write", '{"name":"first","value":"done"}', "first"),
-        { ...toolCall("computer_write", '{"name":"second","value":"done"}', "second"), index: 1 },
+        toolCall("data_write", '{"name":"first","value":"done"}', "first"),
+        { ...toolCall("data_write", '{"name":"second","value":"done"}', "second"), index: 1 },
       ] }, "tool_calls")]);
       else answer(response);
     });
@@ -560,6 +566,7 @@ describe("OpenAI-compatible computer images", () => {
     const stop = f.instance.adapter.onEvent(event => {
       if (event.type === "request.opened") void f.instance.adapter.respondToRequest(f.threadId, event.requestId!, { behavior: "allow" });
     });
+    await f.start({ integrations: { data: f.server } });
     expect(await f.completed()).toMatchObject({ ok: true });
     stop();
     expect(f.effects()).toHaveLength(2);
@@ -573,11 +580,12 @@ describe("OpenAI-compatible computer images", () => {
     ]);
   });
 
-  it("does not execute a denied computer action", async () => {
+  it("does not execute a denied tool action", async () => {
     const f = await fixture((_body, response, round) => {
-      if (round === 1) sse(response, [chunk({ tool_calls: [{ ...toolCall(), function: { ...toolCall().function, name: "computer_write" } }] }, "tool_calls")]);
+      if (round === 1) sse(response, [chunk({ tool_calls: [{ ...toolCall(), function: { ...toolCall().function, name: "data_write" } }] }, "tool_calls")]);
       else answer(response, "The action was denied.");
     });
+    await f.start({ integrations: { data: f.server } });
     await f.decide("deny");
     expect(await f.completed()).toMatchObject({ ok: false });
     expect(f.effects()).toEqual([]);

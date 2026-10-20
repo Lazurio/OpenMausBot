@@ -219,33 +219,6 @@ describe("ClaudeDriver.decodeConfig", () => {
     expect(permissionSocketPath("t-perm-dup-1")).not.toBe(permissionSocketPath("t-perm-dup-2"));
   });
 
-  it("advertises per-bot local CUA but rejects legacy bypass turns without a mode", async () => {
-    const bypass = await ClaudeDriver.create({
-      instanceId: "claude-bypass",
-      displayName: "Claude Bypass",
-      environment: {},
-      enabled: true,
-      config: { cli: FAKE_CLI, permissionMode: "bypassPermissions" },
-    });
-    expect(bypass.adapter.capabilities.localComputerMcp).toBe(true);
-    await expect(
-      bypass.adapter.sendTurn({
-        threadId: "t-bypass-local",
-        text: "click",
-        integrations: {
-          localComputer: {
-            command: "/cua-driver",
-            args: ["mcp"],
-            env: {},
-            platform: "linux",
-            scope: "local-computer",
-          },
-        },
-      }),
-    ).rejects.toThrow(/interactive approval broker/);
-    await bypass.dispose();
-  });
-
   it("gives each collision test a distinct broker pipe path", () => {
     const paths = COLLISION_THREAD_IDS.map((threadId) => permissionSocketPath(threadId));
     expect(new Set(paths).size).toBe(COLLISION_THREAD_IDS.length);
@@ -2073,37 +2046,6 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     expect(existsSync(dirname(configPath))).toBe(false);
   });
 
-  it("mounts local CUA without pre-allowing its computer namespace", async () => {
-    await create();
-    const dump = join(scratch, "local-dump.json");
-    process.env.FAKE_CLAUDE_DUMP = dump;
-    await instance.adapter.sendTurn({
-      threadId: "t-local",
-      text: "inspect the desktop",
-      integrations: {
-        localComputer: {
-          command: "/opt/cua driver/cua-driver",
-          args: ["mcp", "--embedded", "--socket", "/run/user/1000/driver.sock"],
-          env: { CUA_DRIVER_EMBEDDED: "1" },
-          platform: "linux",
-          generation: "generation-1",
-          scope: "local-computer",
-        },
-      },
-    });
-    await recorder.until((event) => event.type === "turn.completed");
-
-    const seen = JSON.parse(readFileSync(dump, "utf8"));
-    expect(seen.mcpConfig.mcpServers.computer).toEqual({
-      command: "/opt/cua driver/cua-driver",
-      args: ["mcp", "--embedded", "--socket", "/run/user/1000/driver.sock"],
-      env: { CUA_DRIVER_EMBEDDED: "1" },
-    });
-    const allowed = seen.argv[seen.argv.indexOf("--allowedTools") + 1];
-    expect(allowed).not.toContain("mcp__computer");
-    expect(instance.adapter.capabilities.localComputerMcp).toBe(true);
-  });
-
   it("resumes with --resume when a cursor exists and reports that session id", async () => {
     await create();
     const dump = join(scratch, "dump.json");
@@ -3169,15 +3111,6 @@ describe("ClaudeDriver turns (fake CLI)", () => {
       threadId: "t-perm-abc",
       text: "go",
       approvalMode: "ask",
-      integrations: {
-        localComputer: {
-          command: "/cua-driver",
-          args: ["mcp"],
-          env: {},
-          platform: "linux",
-          scope: "local-computer",
-        },
-      },
     });
     await recorder.until((e) => e.type === "session.started");
 
@@ -3203,35 +3136,11 @@ describe("ClaudeDriver turns (fake CLI)", () => {
       summary: "rm -rf scratch",
       requestId: "ask-1",
     });
-    expect(opened).toHaveProperty("approvalScope", undefined);
-
     expect(opened).toHaveProperty("allowSession", true);
     await expect(instance.adapter.respondToRequest("t-perm-abc", "ask-1", { behavior: "allow", always: true })).resolves.toBe("allowed-once");
     expect(await answered).toMatchObject({ behavior: "allow", always: true });
     const resolved = await recorder.until((e) => e.type === "request.resolved");
     expect(resolved).toMatchObject({ behavior: "allow", source: "user" });
-    expect(resolved).toHaveProperty("approvalScope", undefined);
-
-    const answered2 = new Promise<{ behavior: string }>((resolve) => {
-      let buf = "";
-      conn.on("data", (c) => {
-        buf += c;
-        const nl = buf.indexOf("\n");
-        if (nl !== -1) resolve(JSON.parse(buf.slice(0, nl)));
-      });
-    });
-    conn.write(
-      JSON.stringify({ t: "ask", id: "ask-2", tool: "mcp__computer__screenshot", input: {} }) + "\n",
-    );
-    const opened2 = await recorder.until((e) => e.requestId === "ask-2" && e.type === "request.opened");
-    expect(opened2).toHaveProperty("approvalScope", "local-computer");
-    expect(opened2).toHaveProperty("allowSession", undefined);
-    await expect(instance.adapter.respondToRequest("t-perm-abc", "ask-2", { behavior: "allow" })).resolves.toBe("allowed-once");
-    const plain = await answered2;
-    expect(plain).toMatchObject({ behavior: "allow" });
-    expect(plain).not.toHaveProperty("always");
-    const resolved2 = await recorder.until((e) => e.requestId === "ask-2" && e.type === "request.resolved");
-    expect(resolved2).toHaveProperty("approvalScope", "local-computer");
 
     conn.end();
     await instance.adapter.interruptTurn("t-perm-abc");

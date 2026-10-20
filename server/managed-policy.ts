@@ -9,16 +9,18 @@ const policySchema = z.object({
   companyModelsOnly: z.boolean(),
   allowedEngines: z.union([z.literal("all"), z.array(z.string().regex(/^[A-Za-z][A-Za-z0-9-]{0,63}$/)).max(64)]),
   mcp: z.object({ allowCustom: z.boolean(), allowlist: z.array(z.string().trim().min(1).max(200)).max(100) }).strict(),
+  // Lazurio overlay: the desktop parent still sends which computers bots may use; bots have no computer of MausBot's own, so it is dropped.
+  computers: z.object({}),
   remoteAccess: z.boolean(),
 }).strict();
-export type ManagedPolicy = z.infer<typeof policySchema>;
-export type ComputerKind = keyof ManagedPolicy["computers"];
+export type ManagedPolicy = Omit<z.infer<typeof policySchema>, "computers">;
 
 export function parseManagedPolicy(raw: unknown, now = Date.now()): ManagedPolicy | null {
   if (raw === null) return null;
   const parsed = policySchema.safeParse(raw);
   if (!parsed.success) throw new Error("Invalid organisation policy from the desktop parent.");
-  return parsed.data.expiresAt > now ? parsed.data : null;
+  const { computers: _computers, ...policy } = parsed.data;
+  return policy.expiresAt > now ? policy : null;
 }
 
 /** `*` stands for one or more whole labels, never part of one. */
@@ -44,10 +46,6 @@ export function mcpEntryMatches(entry: string, name: string, url?: string): bool
   if (!hostMatches(labels, target.hostname.split("."))) return false;
   const path = pattern.pathname.split("*").map(part => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*");
   return new RegExp(`^${path}$`).test(target.pathname);
-}
-
-export function computerKindForResource(resource: string): ComputerKind | undefined {
-  if (resource === "computer:host") return "thisComputer";
 }
 
 export class ManagedDesktopPolicy {
@@ -99,13 +97,6 @@ export class ManagedDesktopPolicy {
     const policy = this.current();
     if (!policy || this.mcpAllowed(name, url)) return;
     return `${policy.organizationName} allows only MCP servers it has approved. Ask your administrator to add this server to the approved list.`;
-  }
-
-  computerAllowed(kind: ComputerKind): boolean { return this.current()?.computers[kind] ?? true; }
-  computerRefusal(kind: ComputerKind): string | undefined {
-    const policy = this.current();
-    if (!policy || policy.computers[kind]) return;
-    return `${policy.organizationName} does not allow bots to use ${computerLabels[kind]}.`;
   }
 
   remoteAccessRefusal(): string | undefined {

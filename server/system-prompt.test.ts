@@ -9,7 +9,6 @@ import {
   CLOUD_HOME_PLACE,
   cloudHomePrompt,
   userProfileSystemPrompt,
-  computerPrompt,
   mentionPrompt,
   CREDENTIAL_PROMPT,
   LEARN_PROMPT,
@@ -22,11 +21,6 @@ import {
   SIGN_IN_PROMPT,
 } from "./system-prompt.ts";
 import { REPLY_HABITS_PROMPT } from "./reply-habits.ts";
-
-describe("computerPrompt", () => {
-    expect(computerPrompt(null)).toBe("");
-  });
-});
 
 describe("buildSystemPrompt", () => {
   it("keeps shared context stable and omits an empty user profile", () => {
@@ -153,9 +147,9 @@ describe("SIGN_IN_PROMPT", () => {
     expect(SIGN_IN_PROMPT).toContain("then continue the task");
     expect(SIGN_IN_PROMPT).toContain("call request_sign_in with the site and a short reason and end your turn");
     expect(SIGN_IN_PROMPT).toContain("never to send you the password or code");
-      expect(prompt).not.toContain("At a sign-in, password");
-      expect(prompt).not.toMatch(/never type (?:their|the user's) (?:password|credentials)/i);
-    }
+    const prompt = environmentBrowserPrompt("bot-x", true);
+    expect(prompt).not.toContain("At a sign-in, password");
+    expect(prompt).not.toMatch(/never type (?:their|the user's) (?:password|credentials)/i);
   });
 
   it("lets the bot type a code from the person's own inbox into the site it was sent for, and nowhere else", () => {

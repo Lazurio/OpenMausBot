@@ -47,6 +47,7 @@ export interface OverviewFacts {
   runs: Array<{ routineId: string; status: string; finishedAt?: number; startedAt?: number; scheduledFor: number }>;
   webhooks: Array<{ name: string; enabled: boolean }>;
   skills: Array<{ name: string; description: string; enabled: boolean }>;
+  engine: { agentsMcp?: boolean } | null;
   cloudHome?: boolean;
   sectionPeers: number;
   timeZone: string;

@@ -52,9 +52,7 @@ export async function eventsVerb(ctx: VerbContext): Promise<VerbOutcome> {
   const job = flag(ctx.flags, "job")?.trim();
   const untilSettled = ctx.flags["until-settled"] === true;
   if (untilSettled && !job) throw usageError("--until-settled needs --job THREAD_ID");
-  const screens = ctx.flags.screens === true;
   const kinds = new Set(flag(ctx.flags, "kind") ? flag(ctx.flags, "kind")!.split(",").map((kind) => kind.trim()).filter(Boolean) : DEFAULT_EVENT_KINDS);
-  if (screens) kinds.add("screen");
   const named = (ctx.flags.thread as string[] | undefined) ?? [];
   const threads = named.length || job ? new Set([...named, ...(job ? [job] : [])]) : null;
   let cursor = flag(ctx.flags, "since")?.trim();
@@ -89,8 +87,8 @@ export async function eventsVerb(ctx: VerbContext): Promise<VerbOutcome> {
   for (let attempt = 0; !signal.aborted; attempt++) {
     let response: Response;
     try {
-      const query = new URLSearchParams({ screens: screens ? "on" : "off", ...(cursor ? { since: cursor } : {}) });
-      response = await client.raw(`/api/events?${query.toString()}`, { stream: true, headers: { accept: "text/event-stream" }, signal });
+      const query = cursor ? `?${new URLSearchParams({ since: cursor }).toString()}` : "";
+      response = await client.raw(`/api/events${query}`, { stream: true, headers: { accept: "text/event-stream" }, signal });
       // A refusal (an expired token, a missing scope) does not go away by asking again.
       if (response.status >= 400 && response.status < 500) {
         const said = ((await response.json().catch(() => ({}))) as Frame).error;

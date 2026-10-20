@@ -1,17 +1,15 @@
-import { readFileSync } from "node:fs";
-import ts from "typescript";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cloudHomePlaceRefusal } from "./cloud-home.ts";
-import { computerKindForResource, ManagedDesktopPolicy, mcpEntryMatches, parseManagedPolicy, type ManagedPolicy } from "./managed-policy.ts";
+import { ManagedDesktopPolicy, mcpEntryMatches, parseManagedPolicy, type ManagedPolicy } from "./managed-policy.ts";
 
 const policies: ManagedDesktopPolicy[] = [];
 afterEach(() => { for (const policy of policies.splice(0)) policy.close(); vi.useRealTimers(); });
-function policy(overrides: Partial<ManagedPolicy> = {}): ManagedPolicy {
+type SentPolicy = ManagedPolicy & { computers: Record<string, boolean> };
+function policy(overrides: Partial<SentPolicy> = {}): SentPolicy {
   return { organizationId: "11111111-1111-4111-8111-111111111111", organizationName: "Fixture Agency", expiresAt: Date.now() + 60_000, version: 3,
     companyModelsOnly: false, allowedEngines: "all", mcp: { allowCustom: true, allowlist: [] },
     computers: { thisComputer: true }, remoteAccess: true, ...overrides };
 }
-function overlay(value: ManagedPolicy | null, now = () => Date.now()) {
+function overlay(value: SentPolicy | null, now = () => Date.now()) {
   const onChange = vi.fn(), managed = new ManagedDesktopPolicy({ now, onChange });
   policies.push(managed); managed.apply(value);
   return { managed, onChange };
@@ -22,7 +20,6 @@ describe("organisation desktop policy overlay", () => {
     const { managed } = overlay(null);
     expect(managed.current()).toBeNull(); expect(managed.summary()).toBeNull();
     expect(managed.modelRefusal({ driverKind: "grok" }, false)).toBeUndefined();
-    expect(managed.computerRefusal("thisComputer")).toBeUndefined();
     expect(managed.remoteAccessRefusal()).toBeUndefined();
     const servers = { anything: { url: "https://example.test/mcp" }, local: {} };
     expect(managed.filterMcp(servers)).toBe(servers);
@@ -90,8 +87,10 @@ describe("organisation desktop policy overlay", () => {
     expect(mcpEntryMatches("linear", "Linear")).toBe(true);
   });
 
-    expect(computerKindForResource("computer:host")).toBe("thisComputer");
-    expect(managed.computerRefusal("thisComputer")).toBe("Fixture Agency does not allow bots to use this computer.");
+  it("accepts and drops the computers a desktop parent still sends", () => {
+    const parsed = parseManagedPolicy(policy({ computers: { thisComputer: false, localVm: false, box: false, vps: false } }));
+    expect(parsed).not.toBeNull();
+    expect(parsed).not.toHaveProperty("computers");
   });
 
   it("refuses remote access only when turned off", () => {
@@ -119,34 +118,5 @@ describe("organisation desktop policy overlay", () => {
     expect(managed.summary()).not.toHaveProperty("organizationId");
     expect(managed.summary()).not.toHaveProperty("expiresAt");
     expect(managed.summary()).toMatchObject({ organizationName: "Fixture Agency", version: 3 });
-  });
-});
-
-// Every computer claim in index.ts goes through bindTurnComputer: run its actual guard, not a copy.
-describe("claim-time computer refusal in bindTurnComputer", () => {
-  const source = readFileSync(new URL("./index.ts", import.meta.url), "utf8").replace(/\r\n/g, "\n");
-  const start = source.indexOf("\nasync function bindTurnComputer(");
-  const guardEnd = source.indexOf("  const active = () =>", start);
-  const guard = source.slice(start + 1, guardEnd) + "  return \"claimed\";\n}";
-  const refusalStart = source.indexOf("\nfunction computerPlaceRefusal(");
-  const refusal = source.slice(refusalStart + 1, source.indexOf("\n}\n", refusalStart) + 3);
-  const code = ts.transpileModule(refusal + guard, { compilerOptions: { target: ts.ScriptTarget.ESNext } }).outputText;
-  const bind = (managedPolicy: ManagedDesktopPolicy, cloudHome = false) =>
-    new Function("managedPolicy", "computerKindForResource", "CLOUD_HOME", "cloudHomePlaceRefusal", `${code}; return bindTurnComputer;`)(
-      managedPolicy, computerKindForResource, cloudHome ? { machineId: "fixture" } : null, cloudHomePlaceRefusal,
-    ) as (owner: unknown, resource: string) => Promise<string>;
-
-  it("refuses a disallowed kind before claiming anything", async () => {
-    expect(start).toBeGreaterThan(0); expect(guardEnd).toBeGreaterThan(start);
-    const bindTurnComputer = bind(managed);
-    await expect(bindTurnComputer({}, "computer:host")).rejects.toThrow("Fixture Agency does not allow bots to use this computer.");
-    managed.apply(null);
-    await expect(bindTurnComputer({}, "computer:host")).resolves.toBe("claimed");
-  });
-
-    expect(refusalStart).toBeGreaterThan(0);
-    const { managed } = overlay(null);
-    const bindTurnComputer = bind(managed, true);
-    await expect(bind(managed)({}, "computer:host")).resolves.toBe("claimed");
   });
 });

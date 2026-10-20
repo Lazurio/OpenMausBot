@@ -1142,12 +1142,6 @@ export class Store {
     if (committed.id !== full.id) return committed;
     t.messages.push(full);
     t.activeLeafId = full.id;
-    if (full.kind === "screen") {
-      for (const pruned of this.pruneScreenFrames(t)) {
-        mdb.updateMessage(threadId, pruned);
-        this.emit({ type: "message.patch", threadId, message: pruned });
-      }
-    }
     this.noteThreadActivity(threadId, full.at, movesThreadToTop(full), full.turnCompletedAt ?? full.at);
     this.emit({ type: "message", threadId, message: full });
     if (full.role === "user" && full.kind === "text") this.dismissOnboardingCard(threadId);
@@ -1162,12 +1156,6 @@ export class Store {
     const children = t.messages.filter((m) => m.parentId === anchorId);
     t.messages.push(full);
     mdb.insertMessage(threadId, full);
-    if (full.kind === "screen") {
-      for (const pruned of this.pruneScreenFrames(t)) {
-        mdb.updateMessage(threadId, pruned);
-        this.emit({ type: "message.patch", threadId, message: pruned });
-      }
-    }
     this.noteThreadActivity(threadId, full.at, movesThreadToTop(full), full.turnCompletedAt ?? full.at);
     this.emit({ type: "message", threadId, message: full });
     // After the insert, so no client ever sees two siblings claiming the same parent.
@@ -1182,21 +1170,6 @@ export class Store {
     );
     if (!card?.card) return null;
     return this.patchMessage(threadId, card.id, { card: { ...card.card, dismissed: true } });
-  }
-
-  private pruneScreenFrames(t: { messages: Message[] }, keep = 4): Message[] {
-    const pruned: Message[] = [];
-    let seen = 0;
-    for (let i = t.messages.length - 1; i >= 0 && seen < t.messages.length; i--) {
-      const m = t.messages[i];
-      if (m.kind !== "screen" || !m.png) continue;
-      seen += 1;
-      if (seen > keep) {
-        m.png = undefined;
-        pruned.push(m);
-      }
-    }
-    return pruned;
   }
 
   branchMessage(threadId: string, sourceId: string, text: string, sendId?: string, sender?: Message["sender"], dataContext?: Message["dataContext"]): Message | null {

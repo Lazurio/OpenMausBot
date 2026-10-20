@@ -1,6 +1,6 @@
 import type { RuntimeEvent } from "./contracts.ts";
 
-// A turn whose thread emits nothing for stallMs is wedged; waiting on a person or a computer is not a stall.
+// A turn whose thread emits nothing for stallMs is wedged; waiting on a person is not a stall.
 // Drivers report a tool only when it starts and when it ends, so a turn with a tool running may stay silent for toolStallMs.
 export interface WatchedTurn {
   threadId: string;
@@ -8,7 +8,6 @@ export interface WatchedTurn {
   startedAt: number;
   lastEventAt: number;
   waitingOnHuman: boolean;
-  waitingOnComputer: boolean;
   runningTools: Set<string>;
 }
 
@@ -17,8 +16,6 @@ export function stallLimitMs(raw: string | undefined, fallback: number): number 
   const ms = Number(raw);
   return Number.isFinite(ms) && ms > 0 ? ms : fallback;
 }
-
-const parked = (turn: WatchedTurn): boolean => turn.waitingOnHuman || turn.waitingOnComputer;
 
 export interface TurnWatchdogOptions {
   stallMs: number;
@@ -76,13 +73,6 @@ export class TurnWatchdog {
     turn.lastEventAt = this.now();
   }
 
-  setWaitingOnComputer(threadId: string, waiting: boolean): void {
-    const turn = this.turns.get(threadId);
-    if (!turn) return;
-    turn.waitingOnComputer = waiting;
-    turn.lastEventAt = this.now();
-  }
-
   settle(threadId: string): void {
     this.turns.delete(threadId);
   }
@@ -99,7 +89,7 @@ export class TurnWatchdog {
 
   waiting(threadId: string): boolean {
     const turn = this.turns.get(threadId);
-    return turn !== undefined && parked(turn);
+    return turn !== undefined && turn.waitingOnHuman;
   }
 
   /** A turn of this bot is answering now: running and not waiting on a person. One that goes silent is stopped by the
@@ -112,7 +102,7 @@ export class TurnWatchdog {
   sweep(): void {
     const at = this.now();
     for (const turn of this.turns.values()) {
-      if (parked(turn)) continue;
+      if (turn.waitingOnHuman) continue;
       const silentMs = turn.runningTools.size > 0 ? Math.max(this.opts.stallMs, this.opts.toolStallMs) : this.opts.stallMs;
       if (at - turn.lastEventAt < silentMs) continue;
       this.turns.delete(turn.threadId);

@@ -211,7 +211,7 @@ posixOnly("per-bot visibility on a shared workspace", () => {
     expect(bobBots).not.toContain(ids.board);
     expect(bob.groups.map((group: any) => group.id)).toEqual([ids.roomPub]);
     expect(bob.sections).toEqual(["Ops"]);
-    expect(Object.keys(bob.computerControl).sort()).toEqual([...bobBots].sort());
+    expect(bob).not.toHaveProperty("computerControl");
     const text = JSON.stringify(bob);
     for (const hidden of [ids.hr, ids.hrThread, ids.board, ids.roomMixed, "Payroll Zebra", "Board Heron"]) expect(text).not.toContain(hidden);
 
@@ -232,7 +232,6 @@ posixOnly("per-bot visibility on a shared workspace", () => {
     const refused: Array<[string, string, unknown?]> = [
       ["GET", `/api/threads/${ids.hrThread}/messages`],
       ["GET", `/api/threads/${ids.hrThread}/messages?around=${hrMessage}`],
-      ["GET", `/api/threads/${ids.hrThread}/messages/${hrMessage}/image`],
       ["GET", `/api/threads/${ids.hrThread}/export`],
       ["GET", `/api/threads/${ids.hrThread}/export?format=json`],
       ["POST", `/api/threads/${ids.hrThread}/respond`, { requestId: "x", behavior: "deny" }],

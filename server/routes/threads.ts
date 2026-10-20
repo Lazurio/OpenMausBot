@@ -5,7 +5,6 @@ import {
 } from "../attachments.ts";
 import { deliveredCopy } from "../bot-attachment.ts";
 import { memberBot, memberGroup, type Viewer, type VisibleSet } from "../bot-visibility.ts";
-import type { ComputerControl } from "../computer-control.ts";
 import { speakerOf, type PersonName } from "../replies.ts";
 import type { Coordinator } from "../coordinator.ts";
 import type { WorkspaceAccess } from "../enterprise.ts";
@@ -47,7 +46,6 @@ export interface ThreadRouteDeps {
   publicBotQueuedMessages(): ReturnType<typeof queuedSteerSnapshot>;
   publicGroupState(record: GroupRecord): WireGroup;
   wireBot(bot: BotRecord): WireBot;
-  botComputerControlSnapshot(botId: string): ReturnType<ComputerControl["snapshot"]>;
   messageFileRootsForThread(senderId: string, threadId: string): string[];
   viewerFor(auth: RequestAuth): Viewer;
   visibleTo(viewer: Viewer): VisibleSet;
@@ -60,7 +58,7 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
     store, userName: userNameFor, sessions, groupUsageReader,
     hostedWorkspace: HOSTED_WORKSPACE, sessionCookie: SESSION_COOKIE, loopback: LOOPBACK, defaultPage: DEFAULT_PAGE,
     pageSize, messagePage, messageWindow, publicBotQueuedMessages, publicGroupState, wireBot,
-    botComputerControlSnapshot, messageFileRootsForThread, viewerFor, visibleTo,
+    messageFileRootsForThread, viewerFor, visibleTo,
   } = deps;
   const jobs = createJobRoutes({ store, coordinator: deps.coordinator, groupThreadIsWorking: deps.groupThreadIsWorking, viewerFor, visibleTo, sessions });
   const handle = async ({ req, res, url, path, method, auth, json, readBody }: RouteContext): Promise<unknown> => {
@@ -92,14 +90,6 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
           const room = { ...publicGroupState(g), ...messagePage(g.threadId, limit) };
           return visible.everything || !visible.member ? room : memberGroup(room);
         }),
-        computerControl: Object.fromEntries(
-          shownBots.map((bot) => {
-            const snapshot = botComputerControlSnapshot(bot.id);
-            // A plea from someone else's private chat (a Team Cloud) names its site and reason: held is all that is shared.
-            if (snapshot.help && visible.hides(snapshot.help.threadId)) return [bot.id, { held: snapshot.held, helpReason: null }];
-            return [bot.id, { held: snapshot.held, helpReason: snapshot.helpReason, ...(snapshot.help ? { help: snapshot.help } : {}) }];
-          }),
-        ),
       });
     }
 
@@ -124,23 +114,6 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
         return json(res, 404, { error: "no such message" });
       }
       return json(res, 200, { ...messagePage(threadId, limit ?? DEFAULT_PAGE, before), activeLeafId: store.activeLeaf(threadId) });
-    }
-
-    m = path.match(/^\/api\/threads\/([\w-]+)\/messages\/([\w-]+)\/image$/);
-    if (m && method === "GET") {
-      // messagesFor caches a ThreadState for any id it is handed, so unknown ids 404 first.
-      if (!store.botByThread(m[1]) && !store.groupByThread(m[1])) {
-        return json(res, 404, { error: "no such conversation" });
-      }
-      const message = store.messagesFor(m[1]).find((msg) => msg.id === m![2]);
-      if (!message?.png) return json(res, 404, { error: "no image on that message" });
-      const bytes = Buffer.from(message.png, "base64");
-      res.writeHead(200, {
-        "content-type": message.mime ?? "image/png",
-        "content-length": String(bytes.byteLength),
-        "cache-control": "private, no-store",
-      });
-      return res.end(bytes);
     }
 
     // Only a file this exact stored message grants; deliberately not a general path reader.
@@ -457,12 +430,11 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
       const filename = (title.replace(/[^\w\- ]+/g, "").trim() || "conversation").slice(0, 60);
       const messages = store.activePath(threadId);
       if (format === "json") {
-        const slim = messages.map(({ png: _png, mime: _mime, ...rest }) => rest);
         res.writeHead(200, {
           "content-type": "application/json",
           "content-disposition": `attachment; filename="${filename}.json"`,
         });
-        return res.end(JSON.stringify({ name: title, threadId, messages: slim }, null, 2));
+        return res.end(JSON.stringify({ name: title, threadId, messages }, null, 2));
       }
       const userName = userNameFor(threadId);
       const lines: string[] = [`# ${title}`, ""];
@@ -473,7 +445,6 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
           : (msg.from?.name ?? bot?.name ?? "Bot");
         if ((msg.kind === "text" || msg.kind === "widget" || msg.kind === "app") && msg.text) lines.push(`**${who}:**`, "", msg.text, "");
         else if (msg.kind === "activity" && msg.tool) lines.push(`> ${msg.tool.name}`, "");
-        else if (msg.kind === "screen") lines.push("> [screen capture]", "");
         else if (msg.kind === "options" && msg.card) {
           lines.push(`> ${msg.card.title}${msg.card.answered ? ` — answered: ${msg.card.answered}` : ""}`, "");
         }

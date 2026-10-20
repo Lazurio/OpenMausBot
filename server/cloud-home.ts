@@ -7,7 +7,6 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import type { IncomingMessage } from "node:http";
 import { join } from "node:path";
-import type { Surface } from "../shared/wire.ts";
 import { writeFileAtomic } from "./atomic.ts";
 import { hostedWorkspaceConfigured } from "./enterprise.ts";
 import { parseMemberClaim, teamRoleScopes, type CloudTeam } from "./cloud-team.ts";
@@ -108,15 +107,6 @@ export function withoutIgnoredCloudKeys(env: NodeJS.ProcessEnv): NodeJS.ProcessE
   const kept = { ...env };
   for (const key of CLOUD_IGNORED_KEYS) delete kept[key];
   return kept;
-}
-
-export { cloudHomeOffersPlace } from "../shared/cloud-home.ts";
-
-/** In the person's words; a turn's error shows 160 characters, so each fits. */
-export function cloudHomePlaceRefusal(place: Surface): string | undefined {
-  if (place === "local") return "This computer isn't a place in the Cloud. Set Works on to Auto, Cloud desktop or Browser, or share your computer under Settings → MausBot Cloud.";
-  if (place === "vm") return "Cloud bots can't use a private desktop. Set Works on to Auto, Cloud desktop or Browser.";
-  return undefined;
 }
 
 /** Recorded once in this Cloud's own onboarding record, which never travels with Move to Cloud, so moved-in turns never count. */

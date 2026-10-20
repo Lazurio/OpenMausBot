@@ -64,6 +64,8 @@ function fixture(body = "", toolSchema: Record<string, unknown> = schema) {
   return {
     dir, receipt, controller, server,
     read: () => JSON.parse(readFileSync(receipt, "utf8")) as { pid: number; path: string; omb: Record<string, string>; calls: Array<{ method: string; params?: { name?: string; arguments?: unknown } }> },
+    async mount(computerUse = false) {
+      const session = await mountChatTools({ data: server }, controller.signal, computerUse);
       sessions.push(session);
       return session;
     },
@@ -198,14 +200,6 @@ describe("Chat MCP session", () => {
     ["oversized tool catalog", `reply(message, {tools:[{name:"write",inputSchema:schema,description:"x".repeat(1024*1024)}]});`],
   ])("fails startup for a server that fails it and awaits child cleanup for %s", async (_label, response) => {
     const f = fixture(`if (message.method === "tools/list") { ${response} continue; }`);
-  });
-
-  it.each([
-    ["too many tools", `reply(message, {tools:Array.from({length:129},(_,i)=>({name:"tool"+i,inputSchema:schema}))});`],
-    ["invalid RPC", `process.stdout.write('{"result":1}\\n');`],
-    const f = fixture(`if (message.method === "tools/list") { ${response} continue; }`);
-    await expect(f.mount(true, true)).rejects.toThrow(/MCP/);
-    expect(alive(f.read().pid)).toBe(false);
     await expectRefused(f, /MCP/);
   });
 
@@ -380,13 +374,12 @@ describe("Chat MCP shutdown verdict", () => {
 const grantFor = (server: string, tool: string) => expect.stringMatching(new RegExp(`^\\["${server}","[0-9a-f]{64}","${tool}"\\]$`));
 
 describe("Chat MCP approvals by server", () => {
-  it("asks nothing for OpenMausBot's agents server, and grants no session-wide allow on the person's computer", async () => {
-    const session = await mountChatTools({
-      localComputer: { ...computer.server, scope: "local-computer" },
-    }, agents.controller.signal, true);
+  it("asks nothing for OpenMausBot's agents server", async () => {
+    const agents = fixture(); const data = fixture();
+    const session = await mountChatTools({ agents: agents.server, data: data.server }, agents.controller.signal, true);
     sessions.push(session);
+    expect(session.definitions.map((tool) => tool.function.name).sort()).toEqual(["agents_write", "data_write"]);
     expect(session.view("agents_write", { value: "x" })).toEqual({ title: "agents_write", input: { value: "x" }, ask: false });
-    expect(session.view("computer_write", { value: "x" })).toEqual({ title: "computer_write", input: { value: "x" }, ask: true });
     expect(session.view("data_write", { value: "x" })).toEqual({ title: "data_write", input: { value: "x" }, ask: true, grant: grantFor("data", "write") });
   });
 
@@ -404,12 +397,6 @@ describe("Chat MCP approvals by server", () => {
     expect(await grant({ ...audit.server, env: { ...audit.server.env, AUDIT_TOKEN: "rotated" } })).not.toBe(first);
     expect(first).not.toContain("rotated");
   });
-
-    sessions.push(session);
-    expect(session.view("computer_write", { value: "x" })).toMatchObject({ ask: true, grant: grantFor("computer", "write") });
-  });
-});
-
 });
 
 describe("Chat MCP startup budgets", () => {
@@ -464,6 +451,7 @@ describe("Chat MCP schema validation", () => {
     expect(() => session.validate("data_write", { value: 42 })).not.toThrow();
   });
 
+  it("carries large images from the Data server", async () => {
     const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jBv0AAAAASUVORK5CYII=", "base64");
     const chunk = Buffer.alloc(2 * 1024 * 1024 + 12);
     chunk.writeUInt32BE(chunk.length - 12, 0); chunk.write("tEXt", 4); chunk.write("fixture\0", 8);
@@ -473,7 +461,8 @@ describe("Chat MCP schema validation", () => {
     f.server.env.IMAGE_FILE = join(f.dir, "image.txt");
     writeFileSync(f.server.env.IMAGE_FILE, data);
     writeFileSync(join(f.dir, "fake-mcp.mjs"), readFileSync(join(f.dir, "fake-mcp.mjs"), "utf8").replace('import { writeFileSync }', 'import { writeFileSync, readFileSync }').replace('process.env.IMAGE', 'readFileSync(process.env.IMAGE_FILE,"utf8")'));
-    const session = await f.mount(true, local);
+    const session = await f.mount(true);
+    const result = await session.execute("data_write", { value: "screenshot" }, f.controller.signal);
     expect(result).toEqual({ ok: true, text: "Screenshot captured.", images: [{ type: "image_url", image_url: { url: `data:image/png;base64,${data}` } }] });
   });
 

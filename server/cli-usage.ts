@@ -8,7 +8,7 @@ export const HEADLESS_USAGE = `Drive a running workspace (scripts, CI, other age
   openmausbot wait BOT                  wait on work already running
   openmausbot messages BOT              the latest messages of a conversation
   openmausbot interrupt BOT [--tree]    press Stop (--tree: and every teammate on its job)
-  openmausbot export BOT --out DIR      write a job's transcripts, files and screens to DIR
+  openmausbot export BOT --out DIR      write a job's transcripts and files to DIR
   openmausbot events [--job THREAD]     the server's live events as JSON lines
   openmausbot team apply FILE           make the workspace match a team file (team export writes one)
   openmausbot routine list | show | create | update | delete | run   scheduled work for a bot or room

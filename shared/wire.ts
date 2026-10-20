@@ -47,6 +47,8 @@ export interface ModelSelection {
   variant?: string;
 }
 
+/** A place a bot can act: the Environment browser. */
+export type Surface = "browser";
 
 export const MAUS_COLOR_NAMES = [
   "green", "blue", "red", "orange", "purple", "cyan", "pink",
@@ -61,11 +63,8 @@ export function isMausColor(value: unknown): value is MausColor {
 /** The face a bot rests on, as one of the engine's state names. */
 export type MausExpression = string;
 
-/** What the bot is doing right now, as the harness sees it. `parked.computer`
- * is task-level only: a turn that settled at the computer wait ceiling and
- * resumes when the seat frees. It never elevates the bot-level activity and
- * never counts as busy. */
-export type BotActivity = "working" | "waiting-on-you" | "idle" | "no-signal" | "dead" | "parked.computer";
+/** What the bot is doing right now, as the harness sees it. */
+export type BotActivity = "working" | "waiting-on-you" | "idle" | "no-signal" | "dead";
 
 /** The bot that opened a thread on itself or a teammate. */
 export interface TaskOpenedBy {
@@ -499,9 +498,6 @@ export interface WireMessage extends HelperIntroField {
   /** The last assistant text item from a settled provider turn. */
   turnTerminal?: boolean;
   turnCompletedAt?: number;
-  /** screen messages: a frame of the bot's computer (base64 image) */
-  png?: string;
-  mime?: string;
   at: number;
   /** the message this one follows; null = thread root. */
   parentId?: string | null;
@@ -623,8 +619,6 @@ export interface OptionCardData {
   allowSession?: boolean;
   /** Exact native command offered for an owner/admin to remember. */
   commandAllowlist?: CommandAllowlistCandidate;
-  /** Local actions never share remembered grants with cloud/tool approvals. */
-  approvalScope?: "local-computer";
   /** The bot's change applied without a person (a change to the bot itself,
    * or Full access): clients show a one-line receipt with Undo instead of
    * the approval box. */
@@ -704,16 +698,6 @@ export interface SignInRequestCardData {
   /** Stop ended the turn this card paused: it offers no Done or Cancel,
    * and an answer given afterwards is kept but continues nothing. */
   stopped?: boolean;
-}
-
-/** The open sign-in request a bot's computer plea stands for, so whichever
- * panel shows the plea can settle that card. */
-export interface ComputerHelpRef {
-  botId: string;
-  threadId: string;
-  messageId: string;
-  site: string;
-  place: Surface;
 }
 
 /** Who answers a room message nobody was @mentioned in. `auto` asks the
@@ -885,8 +869,6 @@ export type ServerFrame =
   | { kind: "webhook.attempt"; attempt: WebhookAttempt }
   | { kind: "webhook.deleted"; webhookId: string }
   | { kind: "runtime"; event: RuntimeEvent }
-  | { kind: "screen"; botId: string; threadId: string; png: string; mime?: string; surface?: "browser" | "computer" }
-  | { kind: "computer-control"; botId: string; held: boolean; helpReason: string | null; help?: ComputerHelpRef | null }
   /** Lazurio: a tab the bot's session newly bound in the Environment browser; the person's panel opens on it. */
   | { kind: "lazurio-browser-tab"; botId: string; tabId: string }
   /** A bot's data sheet changed. Whole sheet each time. */

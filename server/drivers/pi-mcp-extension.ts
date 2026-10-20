@@ -10,8 +10,6 @@ interface McpServerDef {
   command: string;
   args?: string[];
   env?: Record<string, string>;
-  /** "local-computer" marks the user's real desktop: every tool on it is gated behind a permission card. */
-  scope?: string;
 }
 
 interface McpConfig {
@@ -494,15 +492,6 @@ export function truncateToolText(text: string): string {
   return `${content}\n\n[MCP output truncated: ${reasons.join(" and ")}. Refine the request for less output.]`;
 }
 
-function summarizeParams(params: unknown): string {
-  try {
-    const s = JSON.stringify(params ?? {});
-    return s === "{}" ? "" : s.slice(0, 300);
-  } catch {
-    return "";
-  }
-}
-
 const ASK_USER_NOT_ANSWERED = "The person did not answer this question. Do not guess an answer; ask again later or proceed without it.";
 
 /** The shared ask_user tool over Pi's own dialogs: in RPC mode each select is one question card, asked in turn.
@@ -593,7 +582,7 @@ export default async function (pi: PiExtensionApi): Promise<void> {
 
   for (const mount of mounts) {
     if (!mount.client || !mount.def || !mount.tools) continue;
-    const { serverName, def, client, tools } = mount;
+    const { serverName, client, tools } = mount;
     let registered = 0;
 
     for (const tool of tools) {
@@ -610,16 +599,7 @@ export default async function (pi: PiExtensionApi): Promise<void> {
           label: `${serverName}:${toolName}`,
           description: typeof tool.description === "string" ? tool.description : `${toolName} (MCP tool from ${serverName})`,
           parameters,
-          async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-            // Host tools ask first through pi's native card (ctx.ui.confirm → extension_ui_request).
-              const allowed = await ctx.ui.confirm(
-                def.scope === "local-computer" ? `Allow ${shown} on your computer?` : `Allow ${serverName}:${shown}?`,
-                detail || `Run ${serverName}:${shown}`,
-              );
-              if (!allowed) {
-                return { content: [{ type: "text", text: "Blocked by the user." }], details: {} };
-              }
-            }
+          async execute(_toolCallId, params, signal) {
             const res = await client.callTool(toolName, params, signal);
             if (res.isError) {
               const message = res.content

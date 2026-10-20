@@ -143,15 +143,6 @@ export interface SendTurnInput {
   agentBrowserSession?: string;
   /** Per-bot integrations the driver may hand to the agent as tools. */
   integrations?: {
-    /** Stdio connection to a computer MCP server. `scope` is set only for the host desktop, so host-only approval rules never apply elsewhere. */
-    localComputer?: {
-      command: string;
-      args: string[];
-      env: Record<string, string>;
-      platform?: "darwin" | "linux" | "win32";
-      generation?: string;
-      scope?: "local-computer";
-    };
     /** Loopback URL and turn-scoped bearer for the engine's hook helper; hooks observe and inject context, never decide state. */
     hooks?: { url: string; token: string };
     /** Peer-agent MCP proxy (list_bots / coordinate_bots); the harness owns turns, permissions and recursion limits. */
@@ -200,8 +191,6 @@ export interface ProviderAdapter {
     sessionModelSwitch: "in-session" | "unsupported";
     /** The driver mounts integrations.agents. Every *Mcp flag guards one rule: never tell a bot about tools its driver cannot mount. */
     agentsMcp?: boolean;
-    /** The driver mounts isolated computer MCP descriptors. */
-    computerMcp?: boolean;
     /** True when the driver can mount the first-party physical-phone MCP. */
     phoneMcp?: boolean;
     /** The driver can mount the Data tools MCP. */
@@ -218,8 +207,6 @@ export interface ProviderAdapter {
     queueing?: boolean;
     /** steer() delivers `images` as structured input; requires queueing and nativeImageInput. */
     steerImages?: boolean;
-    /** True only when local MCP calls can reach the human approval channel; full-auto/bypass instances must leave this false. */
-    localComputerMcp?: boolean;
     /** A resumeCursor turn runs in that exact native session, or fails, or starts a new one from recoveryText (session.started says
      * `rebuilt`), never a blank one. */
     strictResume?: boolean;

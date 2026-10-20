@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
@@ -8,7 +8,6 @@ import { fileURLToPath } from "node:url";
 import { expect, it } from "vitest";
 
 import { launchVerificationServer, runControlOmb, verificationServerArgs, verificationServerEnvironment } from "../scripts/control-omb.ts";
-import { CONTROL_WAITED } from "./control-client.ts";
 import { CONSENT_RULE } from "./peer-provenance.ts";
 import { ENVELOPE_MARK } from "./runtime/envelope.ts";
 import { waitForExit } from "./testing/cleanup.ts";
@@ -501,48 +500,4 @@ it("tells a teammate the person's job is its task, and a routine's handoff is no
   expect(resumed).toMatch(/\[OpenMausBot report from @Mira on assignment [^:]*: done\]/);
   expect(resumed).toContain("NIGHTLY-QA-DONE");
   expect(resumed).toContain("check claims against what was observed; redo only what the evidence does not cover");
-}), hostTimeout(90_000));
-
-// Auto reaches the person's own desktop only on macOS and Windows.
-(process.platform === "linux" ? it.skip : it)("holds a teammate's screen call while another job has the computer, and both jobs finish", () => chiefJob(async (f) => {
-  const userData = join(f.dataDir, "user-data");
-  mkdirSync(userData, { recursive: true });
-  writeFileSync(join(userData, "cua-connection.json"), JSON.stringify({ mode: "embedded", status: "ready", socketPath: join(f.dataDir, "cua.sock"),
-    mcpCommand: "/fixture/cua-driver", mcpArgs: ["mcp"], mcpEnv: {} }), { mode: 0o600 });
-  // A call acts only if it got the computer within a second (production: 5).
-  await f.restart("SIGTERM", { OMB_TEST_DESKTOP_CUA_CONNECTION: join(userData, "cua-connection.json"), OMB_COMPUTER_CALL_ACT_WITHIN_MS: "1000" });
-  const kai = await f.bot("Kai", "Engineering");
-  f.script(f.clive.id,
-    { key: "S0", match: ["PHASE-SCREEN-MARCH"], steps: [{ arguments: { bot_ids: [f.mira.id], message: "EXPORT-MARCH: export March from the invoice app on screen." } }], reply: "S0: Mira is exporting March." },
-    { key: "S1", match: [SETTLED, "PHASE-SCREEN-MARCH"], reply: "MARCH-FINAL: March is exported." },
-    { key: "S2", match: ["PHASE-SCREEN-APRIL"], steps: [{ arguments: { bot_ids: [kai.id], message: "EXPORT-APRIL: export April from the invoice app on screen." } }], reply: "S2: Kai is exporting April." },
-    { key: "S3", match: [SETTLED, "PHASE-SCREEN-APRIL"], reply: "APRIL-FINAL: April is exported." });
-  f.script(f.mira.id, { key: "MS", match: ["EXPORT-MARCH"], screenCalls: 1, progress: "MIRA-ON-SCREEN", gateFile: f.gate("mira"), reply: "MARCH-EXPORTED" });
-  f.script(kai.id, { key: "KS", match: ["EXPORT-APRIL"], screenCalls: 2, reply: "APRIL-EXPORTED" });
-  const march = await f.newJob("March export");
-  await f.say(march, "PHASE-SCREEN-MARCH: have Mira export March.");
-  await expect.poll(() => f.child(march, f.mira.id, "EXPORT-MARCH")?.threadId, { timeout: 20_000 }).toBeTruthy();
-  // On Auto, each teammate's first screen call asks the person once before it touches their computer.
-  const miraThread = f.child(march, f.mira.id, "EXPORT-MARCH").threadId;
-  await f.respond(f.mira.id, miraThread, await f.openCard(miraThread), "allow");
-  await expect.poll(async () => (await f.messages(miraThread)).some((message: any) => message.text === "MIRA-ON-SCREEN"), { timeout: 20_000 }).toBe(true);
-  const april = await f.newJob("April export");
-  await f.say(april, "PHASE-SCREEN-APRIL: have Kai export April.");
-  await expect.poll(() => f.child(april, kai.id, "EXPORT-APRIL")?.threadId, { timeout: 20_000 }).toBeTruthy();
-  const kaiThread = f.child(april, kai.id, "EXPORT-APRIL").threadId;
-  await f.respond(kai.id, kaiThread, await f.openCard(kaiThread), "allow");
-  await expect.poll(async () => (await f.rows(kaiThread)).some((name: string) => name.startsWith("Waiting for its turn on this computer")), { timeout: 20_000 }).toBe(true);
-  await new Promise((resolve) => setTimeout(resolve, 1_200));
-  f.open("mira");
-  await f.final(march, "MARCH-FINAL");
-  await f.final(april, "APRIL-FINAL");
-
-  const [waited, acted] = f.turn("KS").screen;
-  expect(waited.state).toEqual({ held: true, helpOpen: false, blockedReason: CONTROL_WAITED });
-  expect(waited.ms).toBeGreaterThanOrEqual(1_000);
-  expect(acted.state).toEqual({ held: false, helpOpen: false });
-  expect(f.turn("MS").screen.map((call: any) => call.state)).toEqual([{ held: false, helpOpen: false }]);
-  expect(f.child(march, f.mira.id, "EXPORT-MARCH")).toMatchObject({ status: "completed", result: "MARCH-EXPORTED" });
-  expect(f.child(april, kai.id, "EXPORT-APRIL")).toMatchObject({ status: "completed", result: "APRIL-EXPORTED" });
-  expect(f.turns(f.clive.id).map((record: any) => record.planKey).sort()).toEqual(["S0", "S1", "S2", "S3"]);
 }), hostTimeout(90_000));

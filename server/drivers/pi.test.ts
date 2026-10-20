@@ -167,28 +167,6 @@ describe("buildMcpServers", () => {
       phone: { command: "node", args: ["p"], env: {} },
     });
   });
-
-  it("passes a local computer (Cua/VPS) through as a direct stdio server", () => {
-    const servers = buildMcpServers({
-      threadId: "t",
-      text: "hi",
-      integrations: {
-        localComputer: { command: "node", args: ["mcp"], env: { X: "y" } },
-      },
-    });
-    expect(servers?.computer).toEqual({ command: "node", args: ["mcp"], env: { X: "y" } });
-  });
-
-  it("marks a host computer with scope so the extension gates its tools", () => {
-    const servers = buildMcpServers({
-      threadId: "t",
-      text: "hi",
-      integrations: {
-        localComputer: { command: "node", args: ["mcp"], env: {}, scope: "local-computer" },
-      },
-    });
-    expect(servers?.computer).toMatchObject({ scope: "local-computer" });
-  });
 });
 
 describe("PiDriver config + install", () => {
@@ -866,38 +844,6 @@ describe("PiDriver turns (fake CLI)", () => {
     const done = await recorder.until((e) => e.type === "turn.completed");
     expect(done).toMatchObject({ ok: true, stopReason: "end_turn" });
     expect(recorder.events.some((e) => e.type === "request.resolved")).toBe(true);
-  });
-
-  it("per-bot Ask restores host approval on a legacy full-auto instance", async () => {
-    await create("permission", {}, true);
-    expect(instance.adapter.capabilities.localComputerMcp).toBe(true);
-    const localComputer = {
-      command: "/cua-driver",
-      args: ["mcp"],
-      env: {},
-      platform: "linux" as const,
-      scope: "local-computer" as const,
-    };
-
-    await expect(instance.adapter.sendTurn({
-      threadId: "t-pi-legacy-full-auto",
-      text: "go",
-      integrations: { localComputer },
-    })).rejects.toThrow(/interactive approval broker/);
-
-    await instance.adapter.sendTurn({
-      threadId: "t-pi-ask-override",
-      text: "go",
-      approvalMode: "ask",
-      integrations: { localComputer },
-    });
-    const opened = await recorder.until((e) => e.type === "request.opened");
-    await instance.adapter.respondToRequest(
-      "t-pi-ask-override",
-      (opened as { requestId: string }).requestId,
-      { behavior: "allow" },
-    );
-    await recorder.until((e) => e.type === "turn.completed");
   });
 
   it("registers an ask before emitting it so synchronous auto-approval works", async () => {

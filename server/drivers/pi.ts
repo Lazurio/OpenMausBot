@@ -431,7 +431,7 @@ export async function updatePiModelCatalog(
 
 export interface PiConfig {
   cli: string;
-  /** Full-auto: never ask before an action. Host control is unavailable in this mode. */
+  /** Full-auto: never ask before an action. */
   fullAuto: boolean;
 }
 
@@ -549,12 +549,6 @@ export const PiDriver: ProviderDriver<PiConfig> = {
       if (startupModelRefresh) await startupModelRefresh;
       const { threadId } = turn;
       if (active.has(threadId)) throw new Error("a turn is already running on this thread");
-      const fullAuto = turn.approvalMode === undefined ? config.fullAuto : false;
-      // Host control always routes through the permission card, full-auto or not.
-      const controlsHost = turn.integrations?.localComputer?.scope === "local-computer";
-      if (controlsHost && fullAuto) {
-        throw new Error("local computer control requires the interactive approval broker");
-      }
       const turnId = newId();
       const pending = new Map<string, (decision: { behavior: "allow" | "deny" | "answer"; message?: string }) => void>();
       const askTimers = new Set<ReturnType<typeof setTimeout>>();
@@ -1038,9 +1032,7 @@ export const PiDriver: ProviderDriver<PiConfig> = {
           sessionModelSwitch: "in-session",
           // pi core has no MCP client of its own.
           agentsMcp: true,
-          computerMcp: true,
           phoneMcp: true,
-          localComputerMcp: true,
           dataMcp: true,
           images: true,
           nativeImageInput: true,

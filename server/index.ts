@@ -128,7 +128,6 @@ import {
 } from "./config.ts";
 import { serveStatic } from "./static-files.ts";
 import { startUpkeep } from "./host/start-upkeep.ts";
-import { ComputerControl } from "./computer-control.ts";
 import { resetPathCache } from "./env-path.ts";
 import { registerEnginesBinDir } from "./engine-install.ts";
 import { appendUsage, flushUsageLedger, queuedTurnTrigger, usageTriggerFor, type UsageRow, type UsageTrigger } from "./usage-ledger.ts";
@@ -151,7 +150,6 @@ import {
   type RequestOutcome,
   type RuntimeEvent,
   type SteerOutcome,
-  newId,
 } from "./contracts.ts";
 import { RETRY_MAX_ATTEMPTS } from "./drivers/retry.ts";
 import { recoveryCapabilityError } from "./automatic-recovery.ts";
@@ -209,8 +207,9 @@ import { EventBus } from "./harness/bus.ts";
 import { engineMemory, enginesByUse, ProviderRegistry } from "./harness/registry.ts"; import { holdUntilFirstEngineRead } from "./first-engine-read.ts";
 import { ManagedDesktopProviders } from "./managed-desktop.ts";
 import { mainThread, wasOldestThread } from "./main-thread.ts";
-import { computerKindForResource, ManagedDesktopPolicy, type ComputerKind } from "./managed-policy.ts";
+import { ManagedDesktopPolicy } from "./managed-policy.ts";
 import { hostedModelPolicy, HOSTED_MODEL_POLICY_HEADER } from "./hosted-models.ts";
+import { CLOUD_HOME_SECRET_KEYS, CLOUD_IGNORED_KEYS, cloudHomeConfiguration, firstCloudTurnPatch } from "./cloud-home.ts";
 import { botBox, startBotBoxAtBoot } from "./bot-box/boot.ts";
 import { createCloudSignedHost } from "./host/cloud-signed-host.ts"; import { hiddenThreadRefusal } from "./host/team-private.ts"; import { createTeamMemberLeft } from "./host/team-member-left.ts"; import { createVisibilityHost } from "./host/visibility-host.ts";
 import { CLOUD_PERSONAL_REFUSAL, type CloudOwnership } from "./cloud-owner.ts"; import { createCloudTeamHost, type MemberProfile } from "./host/cloud-team-host.ts"; import { engineHomes } from "./engine-homes/engine-homes.ts"; import { audienceMember } from "./audience.ts"; import { createMeRoutes } from "./routes/me.ts"; import { createTeamPhoneRoutes } from "./routes/team-phone.ts"; import { settleCloudHome } from "./cloud-home-settle.ts"; import { CLOUD_OUTSIDE_KEY, outsideDriven } from "./cloud-sharing.ts";
@@ -228,7 +227,7 @@ import { createDelegatedLevel } from "./host/delegated-level.ts";
 import { createLiveApprovalMode } from "./host/live-approval.ts";
 import { CONSENT_RULE, escapeNotes, OUTSIDE, peerLineText, peerProvenanceNote, reportNote, requestWorkOrigin, type WorkOrigin } from "./peer-provenance.ts";
 import { decideRoomPost, emptyRoomPostBudget, type RoomPostAttempt, type RoomPostBudget } from "./room-post-budget.ts";
-import { pageSize, slimMessage } from "./host/message-pages.ts";
+import { pageSize } from "./host/message-pages.ts";
 import { ReplayBuffer } from "./host/sse-replay.ts";
 import {
   mentionedBots,
@@ -321,7 +320,6 @@ import {
   botPersona,
   buildSystemPrompt,
   userProfileSystemPrompt,
-  computerPrompt,
   cloudHomePrompt,
   CREDENTIAL_PROMPT,
   longCommandsPrompt,
@@ -336,14 +334,11 @@ import {
 } from "./system-prompt.ts";
 import { shellTimeoutHookResult } from "./shell-timeout-hint.ts";
 import { spillToolResult } from "./tool-result-spill.ts";
-import { gatedLocalComputer } from "./local-computer.ts";
 import { createLoopGuard, loopGuardSettings } from "./host/loop-guard.ts";
 import { claudeUserSkillsEnabled, settingsTurnFields } from "./turn-settings.ts";
 import { redactSecretsInText } from "./redact.ts";
 import { ROUTINE_RESTARTED, RoutineManager, type RoutineRun, type RoutineRunOn, type RoutineRunTrigger } from "./routines.ts";
 import { CalendarCallManager, type CalendarCall } from "./calendar-calls.ts";
-import { createScreenFrameSource, rememberTurnFrame, type ScreenCapture } from "./screen-frame-source.ts";
-import { screenFrameHash, screenSurfaceForTool, screenTouchingTool, settledFrameIsNews } from "./screen-frame-gate.ts";
 import { botBrowserSession, environmentBrowserPrompt, startEnvironmentBrowser } from "./lazurio-environment-browser.ts";
 import { BOT_BROWSER_TAB_EVENT } from "../shared/lazurio-browser.ts";
 import { asSchedule, RoutineRequestService } from "./routine-requests.ts"; import { ownerSpokeOnly } from "./cloud-routine-level.ts"; import { routineRunCard, routineRunFallbackText } from "./routine-run-card.ts";
@@ -389,9 +384,8 @@ import {
   presetFromDefaults,
 } from "./presets.ts";
 import { OrgLibrary } from "./org-library.ts";
-import { shouldMountLocalComputer } from "./local-routing.ts";
-import { computerFreeAfterText, computerParkedText, computerPersonAwayText, computerStoppedWaitingText, computerWaitingText, type ComputerHolder } from "./computer-wait.ts";
 import { modelContextWindow } from "./model-context-window.ts";
+import { SURFACE_PROMPT, type Surface } from "./surface.ts";
 import {
   PendingTurnCancellations,
   ProviderTurnGenerationRegistry,
@@ -1322,11 +1316,6 @@ const managedPolicy = new ManagedDesktopPolicy({ onChange: () => {
   resyncOpenCodeProviderKeys();
 } });
 onKeyRejectionChange(() => { registry.forgetSnapshots(); broadcast({ kind: "config", ...configStatus() }); });
-function computerPlaceRefusal(kind: ComputerKind): { message: string; code: "cloud_home" | "managed_policy" } | undefined {
-  if (cloudHome) return { message: cloudHome, code: "cloud_home" };
-  const managed = managedPolicy.computerRefusal(kind);
-  return managed ? { message: managed, code: "managed_policy" } : undefined;
-}
 function policyModelRefusal(instance: { instanceId: string; driverKind: string }): string | undefined {
   const engine = BUILT_IN_DRIVERS.find(driver => driver.driverKind === instance.driverKind)?.metadata.displayName;
   return managedPolicy.modelRefusal({ driverKind: instance.driverKind, displayName: engine }, managedDesktop.owns(instance.instanceId));
@@ -1657,15 +1646,6 @@ type DirectTurnDispatchClaim = {
   phase: "setup" | "dispatching";
 };
 class DirectTurnSetupCancelled extends Error {}
-class ComputerWaitParked extends Error {
-  readonly resource: string;
-  readonly generation: string;
-  constructor(message: string, resource: string, generation: string) {
-    super(message);
-    this.resource = resource;
-    this.generation = generation;
-  }
-}
 
 const directTurnDispatchClaims = new Map<string, DirectTurnDispatchClaim>();
 const directTurnGenerationByThread = new Map<string, string>();
@@ -1679,9 +1659,6 @@ type DirectTurnOutcome = HostTurnResult;
 const directFollowupTurns = new ProviderTurnGenerationRegistry<DirectTurnOutcome>();
 const directFollowupSettlers = new Map<string, { threadId: string; settle?: () => void }>();
 const directCoordinationSettlers = new Map<string, { nodeId: string; settle: (outcome: DirectTurnOutcome) => void }>();
-const computerParks = new Map<string, string>();
-const parkedSeats = new Map<string, string>();
-const COMPUTER_FREE_NOTE = "OpenMausBot computer update: the computer this conversation waited for is free again. Continue the task that parked waiting for it.";
 const STEP_CAP_NOTE = "Your previous turn stopped at the step limit; continue from where it stopped.";
 const teamSetupDecisionText = (request: TeamSetupRequest): string =>
   `OpenMausBot team setup decision ${request.requestId}: ${JSON.stringify(request.result)}. Report this exact result and continue the user's already requested work. Do not ask for confirmation again or repeat this setup/deletion. A denied or cancelled operation did not authorize any substitute action. Existing thread models were not changed.`;
@@ -1752,20 +1729,12 @@ function reconcileParkedNode(node: HandoffView): boolean {
 }
 
 /** A goal run's step ends plainly: the run routes its own steps, so the runtime never runs a step a second time. */
-function hostTurnResult(node: HandoffView | undefined, generation: string, outcome: DirectTurnOutcome): DirectTurnOutcome {
-  const seat = computerParks.get(generation);
-  computerParks.delete(generation);
+function hostTurnResult(node: HandoffView | undefined, outcome: DirectTurnOutcome): DirectTurnOutcome {
   if (!node) return outcome;
   const result: DirectTurnOutcome = { ...outcome, evidence: { ...outcome.evidence, ...turnEvidence(turnRows(node)) } };
   const cards = resumableCards(node.threadId, node.startedAt ?? node.createdAt, node.groupId ? node.botId : undefined);
   if (result.stalled) stopCards(node.threadId, new Set(cards.map((card) => card.id)));
   if (node.goalRunId) return result;
-  if (seat) {
-    parkedSeats.set(node.id, seat);
-    // A seat wait is not work: progress-unknown, never a no-progress strike.
-    const { okToolCalls: _unknown, ...evidence } = result.evidence ?? {};
-    return { ...result, evidence, cap: { note: COMPUTER_FREE_NOTE } };
-  }
   if (result.cap || result.stalled || !cards.length) return result;
   parkedNodesToReconcile.add(node.id);
   return { ...result, cards: { question: `Waiting on the person: ${cards.map((card) => card.waits).join("; ")}`, ids: cards.map((card) => card.id) } };
@@ -1776,7 +1745,7 @@ function settleDirectCoordination(generation: string | undefined, outcome: Direc
   const settler = directCoordinationSettlers.get(generation);
   directCoordinationSettlers.delete(generation);
   const node = coordinator.node(settler?.nodeId ?? generation);
-  const result = hostTurnResult(node, generation, outcome);
+  const result = hostTurnResult(node, outcome);
   if (settler) { settler.settle(result); return; }
   if (node && !node.parentId && (node.status === "source" || node.status === "running")) coordinator.endTurn(generation, result);
 }
@@ -1830,7 +1799,6 @@ const turnPromptBytes = new Map<string, { stable: number; volatile: number }>();
 let providerFleetReloading = false;
 const turnResources = new TurnResources();
 const turnResourceOwners = new Map<string, TurnOwner>();
-const turnComputerResources = new Map<string, { owner: TurnOwner; resource: string }>();
 const turnPlaces = new Map<string, { botId: string; place: Surface }>();
 const settlingResourceOwners = new Map<string, string>();
 
@@ -1842,107 +1810,9 @@ function claimTurnResource(owner: TurnOwner, resource: string): boolean {
 
 function releaseTurnResources(owner: TurnOwner | undefined): void {
   if (!owner) return;
-  if (autoVmClaims.get(owner.threadId)?.owner.generation === owner.generation) autoVmClaims.delete(owner.threadId);
   if (settlingResourceOwners.get(owner.threadId) === owner.generation) settlingResourceOwners.delete(owner.threadId);
   turnResources.release(owner);
   if (turnResourceOwners.get(owner.threadId)?.generation === owner.generation) turnResourceOwners.delete(owner.threadId);
-  if (turnComputerResources.get(owner.threadId)?.owner.generation === owner.generation) turnComputerResources.delete(owner.threadId);
-}
-
-
-async function bindTurnComputer(owner: TurnOwner, resource: string, exclusive = false): Promise<void> {
-  // Every computer claim passes here, so a disallowed kind is refused whichever path selected it.
-  const kind = computerKindForResource(resource), refusal = kind && computerPlaceRefusal(kind);
-  if (refusal) throw Object.assign(new Error(refusal.message), { code: refusal.code });
-  const active = () => activeInternalGenerationByThread.get(owner.threadId) === owner.generation &&
-    turnResourceOwners.get(owner.threadId)?.generation === owner.generation;
-  let waitingMessage: Message | undefined;
-  let holder: ComputerHolder | undefined;
-  let holderThreadRef: { botId: string; threadId: string; title: string } | undefined;
-  const deadline = Date.now() + COMPUTER_WAIT_MAX_MS;
-  let waitedSince: number | undefined;
-  let waitEnded = false;
-  const waitEventBase = () => {
-    const selection = store.botByThread(owner.threadId)?.modelSelection;
-    const instance = selection ? registry.get(selection.instanceId) : null;
-    return {
-      eventId: newId(),
-      provider: instance?.driverKind ?? "harness",
-      ...(instance && selection ? { providerInstanceId: selection.instanceId } : {}),
-      threadId: owner.threadId,
-      createdAt: new Date().toISOString(),
-    };
-  };
-  const endWait = (outcome: "acquired" | "parked" | "stopped") => {
-    if (!waitingMessage || waitEnded) return;
-    waitEnded = true;
-    const waitedMs = waitedSince === undefined ? 0 : Date.now() - waitedSince;
-    if (outcome === "acquired") turnResources.noteWait(resource, waitedMs);
-    const text = outcome === "acquired"
-      ? computerFreeAfterText(holder, waitedMs)
-      : outcome === "parked"
-        ? computerParkedText(holder, COMPUTER_WAIT_MAX_MS)
-        : computerStoppedWaitingText(holder, waitedMs);
-    store.appendMessage(owner.threadId, {
-      role: "bot", kind: "activity",
-      tool: { name: text, ok: true },
-      ...(holderThreadRef ? { threadRef: holderThreadRef } : {}),
-    });
-    bus.publish({
-      ...waitEventBase(),
-      type: "turn.wait_ended",
-      resource,
-      ...(holder ? { holder } : {}),
-      waitedMs,
-      outcome,
-    });
-  };
-  try {
-    while (true) {
-      if (!active()) throw new DirectTurnSetupCancelled("Computer wait cancelled");
-      if (!exclusive || claimTurnResource(owner, resource)) break;
-      if (!waitingMessage) {
-        const position = turnResources.startWaiting(resource, owner);
-        const estimateMs = turnResources.waitEstimateMs(resource);
-        const blocker = turnResources.blocker(resource, owner);
-        const holderBot = blocker && store.botByThread(blocker.threadId);
-        const holderTask = holderBot && blocker && store.taskByThread(holderBot.id, blocker.threadId);
-        const holderRoom = !holderBot && blocker ? store.groupByThread(blocker.threadId) : null;
-        holder = holderBot
-          ? { name: holderBot.name, ...(holderTask?.title ? { task: holderTask.title } : {}) }
-          : holderRoom ? { name: holderRoom.name } : undefined;
-        holderThreadRef = holderBot && holderTask?.title
-          ? { botId: holderBot.id, threadId: holderTask.threadId, title: holderTask.title }
-          : undefined;
-        waitingMessage = store.appendMessage(owner.threadId, {
-          role: "bot", kind: "activity",
-          tool: { name: computerWaitingText(holder, { position, estimateMs }) },
-          ...(holderThreadRef ? { threadRef: holderThreadRef } : {}),
-        });
-        waitedSince = Date.now();
-        bus.publish({
-          ...waitEventBase(),
-          type: "turn.wait_started",
-          resource,
-          position,
-          ...(holder ? { holder } : {}),
-        });
-      }
-      if (Date.now() >= deadline) {
-        endWait("parked");
-        owner.computerParkedOn = resource;
-        computerParks.set(owner.generation, resource);
-        throw new ComputerWaitParked(computerParkedText(holder, COMPUTER_WAIT_MAX_MS), resource, owner.generation);
-      }
-      await new Promise<void>(resolve => setTimeout(resolve, 100));
-    }
-  } finally {
-    endWait(active() && turnResources.owns(resource, owner) ? "acquired" : "stopped");
-    // An owner left waiting at the front would block the grant for everyone behind it.
-    turnResources.stopWaiting(resource, owner);
-  }
-  turnResourceOwners.set(owner.threadId, owner);
-  turnComputerResources.set(owner.threadId, { owner, resource });
 }
 
 function botForThread(botId: string, threadId: string): BotRecord | null {
@@ -2000,7 +1870,6 @@ function requestedTaskBot(botId: string, rawThreadId: unknown): BotRecord {
 }
 
 async function interruptDirectThread(botId: string, threadId: string, cause?: string): Promise<void> {
-  if (store.taskByThread(botId, threadId)?.activity === "parked.computer") store.setTaskActivity(botId, threadId, "idle");
   const requestOwner = directRequestOwners.get(threadId);
   if (requestOwner) {
     requestOwner.stopped = true;
@@ -2013,15 +1882,6 @@ async function interruptDirectThread(botId: string, threadId: string, cause?: st
   cancelDirectTurnDispatch(botId, threadId);
   revokeInternalCapabilitiesForThread(threadId);
   // Keep the generation fence so a replacement turn's approvals are never closed here.
-  await (owner ? runningTurnInstance(owner, threadId) : null)?.adapter.interruptTurn(threadId);
-  if (directTurnGenerationByThread.get(threadId) === generation) closeOpenApprovals(threadId);
-}
-
-async function interruptParkedTurn(botId: string, threadId: string): Promise<void> {
-  const owner = botForThread(botId, threadId);
-  const generation = directTurnGenerationByThread.get(threadId);
-  cancelDirectTurnDispatch(botId, threadId);
-  revokeInternalCapabilitiesForThread(threadId);
   await (owner ? runningTurnInstance(owner, threadId) : null)?.adapter.interruptTurn(threadId);
   if (directTurnGenerationByThread.get(threadId) === generation) closeOpenApprovals(threadId);
 }
@@ -2175,30 +2035,6 @@ function phoneIntegration(botId: string, threadId: string, generation: string) {
   if (process.env.OMB_RESOURCES_PATH) env.OMB_RESOURCES_PATH = process.env.OMB_RESOURCES_PATH;
   if (process.env.PH_ANDROID_SERIAL) env.PH_ANDROID_SERIAL = process.env.PH_ANDROID_SERIAL;
   return { command: process.execPath, args: [phoneProxyPath], env };
-}
-
-const computerControlRevision = new Map<string, number>();
-  computerControlRevision.set(botId, (computerControlRevision.get(botId) ?? 0) + 1);
-  broadcast({ kind: "computer-control", botId, held: snapshot.held, helpReason: snapshot.helpReason, ...(snapshot.help ? { help: snapshot.help } : {}) });
-});
-const controlLeaseIdSchema = z.string().min(16).max(120).regex(/^[A-Za-z0-9_-]+$/);
-function controlIntegration(
-  botId: string,
-  threadId: string,
-  generation: string,
-) {
-  return {
-    url: `http://127.0.0.1:${PORT}/api/internal/computer-control?botId=${encodeURIComponent(botId)}`,
-    token: mintInternalCapability({
-      botId,
-      threadId,
-      generation,
-      depth: 0,
-      kind: "computer",
-      skillAuthoring: false,
-      createdBots: 0,
-      openedThreads: 0,
-  };
 }
 
 function selectableInstances<T extends SelectableInstance>(instances: readonly T[]): T[] {
@@ -3061,7 +2897,6 @@ function runRoomRootTurn(node: HandoffView, group: GroupRecord, bot: BotRecord, 
   if (composed.turn === "rerun") {
     store.appendMessage(node.threadId, { role: "bot", kind: "activity", from: { botId: bot.id, name: bot.name, color: bot.color }, tool: { name: "Resuming after a restart", ok: true } });
   }
-  parkedSeats.delete(node.id);
   return runRoomNode(node, group, bot, signal, undefined, (operation, result, coordination) =>
     runGroupMemberTurn(group.id, node.threadId, bot.id, 0, new Set(), composed.text, error => { result.stopReason = error; }, () => operation.cancelled,
       () => groupProviderHandshakeStarted(operation), () => groupProviderHandshakeSettled(operation), undefined,
@@ -3070,7 +2905,6 @@ function runRoomRootTurn(node: HandoffView, group: GroupRecord, bot: BotRecord, 
 
 function runRootTurn(node: HandoffView, bot: BotRecord, signal: AbortSignal, composed: ComposedTurn): Promise<HostTurnResult> {
   if (composed.turn === "rerun") store.appendMessage(node.threadId, { role: "bot", kind: "activity", tool: { name: "Resuming after a restart", ok: true } });
-  parkedSeats.delete(node.id);
   const owner = directRequestOwners.get(node.threadId);
   const ownRequest = owner && !owner.stopped && owner.generations.has(node.id) ? owner : undefined;
   return new Promise<HostTurnResult>(resolve => {
@@ -3123,8 +2957,6 @@ const coordinator: Coordinator = createCoordinator({
       : !node.parentId && node.groupId ? roomRootProblem(node)
       : roomHandoffProblem(node, parent),
     busy: n => {
-      const seat = parkedSeats.get(n.id);
-      if (seat && !turnResources.free(seat)) return true;
       if (n.groupId) return Boolean(store.bot(n.botId)?.busy || groupThreadIsWorking(n.groupId, n.threadId));
       if (canAdmitDirectTurn(n.botId, n.threadId)) return false;
       noteQueuedBehindPerson(n);
@@ -3145,7 +2977,6 @@ const coordinator: Coordinator = createCoordinator({
     },
     report: (child, parent) => {
       if (!parent) {
-        parkedSeats.delete(child.id);
         const followupEnded = followupEndedRoots.has(child.id);
         const followupLine = followupEndedRoots.get(child.id);
         followupEndedRoots.delete(child.id);
@@ -3752,10 +3583,10 @@ store.onChange((change) => {
       broadcast({ kind: "sections", sections: store.sections });
       break;
     case "message":
-      broadcast({ kind: "message", threadId: change.threadId, message: slimMessage(change.message) });
+      broadcast({ kind: "message", threadId: change.threadId, message: change.message });
       break;
     case "message.patch":
-      broadcast({ kind: "message.patch", threadId: change.threadId, message: slimMessage(change.message) });
+      broadcast({ kind: "message.patch", threadId: change.threadId, message: change.message });
       break;
     case "thread":
       broadcast({ kind: "thread", threadId: change.threadId, activeLeafId: change.activeLeafId });
@@ -3810,14 +3641,14 @@ function messagePage(threadId: string, limit: number | undefined, before?: strin
   }
   if (!before) {
     const tail = store.messagesTail(threadId, limit);
-    return { messages: tail.messages.map(slimMessage), hasMore: tail.hasMore, activeLeafId: tail.activeLeafId };
+    return { messages: tail.messages, hasMore: tail.hasMore, activeLeafId: tail.activeLeafId };
   }
   const all = store.messagesFor(threadId);
   const end = all.findIndex((msg) => msg.id === before);
   const stop = end === -1 ? all.length : end;
   const start = Math.max(0, stop - limit);
   return {
-    messages: all.slice(start, stop).map(slimMessage),
+    messages: all.slice(start, stop),
     hasMore: start > 0,
     activeLeafId: store.activeLeaf(threadId),
   };
@@ -3845,7 +3676,7 @@ function guardedRequestSnapshot(botId: string, threadId: string, sendId: string)
     phase: untracked ? "untracked" : waiting ? "waiting" : busy ? "working" : "settled",
     activeTurnId: busy ? owner?.turnId ?? null : null,
     executionId: owner?.generation ?? null,
-    messages: messages.map(slimMessage),
+    messages: messages,
   };
   if (Buffer.byteLength(JSON.stringify(snapshot), "utf8") > 1024 * 1024) {
     throw Object.assign(new Error("Open this request in the workspace; its transcript exceeds the response limit"), { status: 413 });
@@ -3879,7 +3710,7 @@ function messageWindow(threadId: string, messageId: string, limit: number) {
   const before = Math.floor((limit - 1) / 2);
   const start = Math.max(0, Math.min(index - before, all.length - limit));
   const stop = Math.min(all.length, start + limit);
-  return { messages: all.slice(start, stop).map(slimMessage), hasMore: start > 0 };
+  return { messages: all.slice(start, stop), hasMore: start > 0 };
 }
 
 interface SseClient {
@@ -3887,10 +3718,8 @@ interface SseClient {
   admin: boolean;
   /** On a Team Cloud, who the stream is for: its config frames carry that person's own profile. */
   person?: SessionRecord;
-  screens: boolean;
   /** Revoking or expiring this session must end the stream, not just future requests. */
   sessionId?: string;
-  backpressured: boolean;
   viewer: Viewer;
   seen: StreamSeen;
   ask: AskViewer;
@@ -3943,8 +3772,6 @@ const SSE_HEARTBEAT_MS =
 let lastSeq = 0;
 const replayBuffer = new ReplayBuffer();
 
-const wants = (client: SseClient, kind: string) => kind !== "screen" || client.screens;
-
 function cursorSeq(raw: string | string[] | undefined): number | null {
   const value = Array.isArray(raw) ? raw[0] : raw;
   if (!value) return null;
@@ -3966,12 +3793,12 @@ function broadcast(payload: Record<string, unknown>, options: { adminOnly?: bool
   const clientFrame = clientPayload === null ? null : clientPayload === payload ? frame : `id: ${STREAM_ID}:${seq}\ndata: ${JSON.stringify({ ...clientPayload, seq })}\n\n`;
   replayBuffer.push({ seq, kind, frame, clientFrame, payload });
   for (const client of Array.from(sseClients)) {
-    if (!wants(client, kind) || !teamOwners.reaches(client.ask, payload)) continue;
+    if (!teamOwners.reaches(client.ask, payload)) continue;
     // Admin-only frames (clientFrame null) never reach members, and a member never falls back to the admin frame.
     const out = CLOUD_TEAM && kind === "config" && clientFrame !== null ? teamConfigFrame(client, seq, payload)
       : memberFrame(client, seq, payload, client.admin ? frame : clientFrame);
     if (out === null) continue;
-    if (deliverSseFrame(client, kind, out) === "disconnected") client.close();
+    if (deliverSseFrame(client, out) === "disconnected") client.close();
   }
 }
 
@@ -4192,7 +4019,6 @@ const turnContext = new Map<string, { tokens?: number; window?: number }>();
 
 const TURN_STALL_MS = Math.max(60_000, stallLimitMs(process.env.OMB_TURN_STALL_MS, 20 * 60_000));
 const TOOL_STALL_MS = Math.max(TURN_STALL_MS, stallLimitMs(process.env.OMB_TOOL_STALL_MS, 2 * 60 * 60_000));
-const COMPUTER_WAIT_MAX_MS = Math.max(1_000, Number(process.env.OMB_COMPUTER_WAIT_MAX_MS) || 30 * 60_000);
 const roomStallCompletions = new RoomTurnStallRegistry();
 const turnStops = new TurnStops();
 function stoppedTurnText(threadId: string, turnId: string | undefined, cause?: string, stopReason?: string | null): string {
@@ -4260,7 +4086,6 @@ const watchdog = new TurnWatchdog({
       releaseTurnResources(stalledResourceOwner);
       const currentBot = store.bot(turn.botId);
       if (currentBot?.busy && (threadBusy(currentBot.id, turn.threadId) || stalledRoomSpeaker)) {
-        stopScreenPoller(currentBot.id, turn.threadId);
         if (store.taskByThread(currentBot.id, turn.threadId)) store.setTaskActivity(currentBot.id, turn.threadId, "idle");
         else store.setActivity(currentBot.id, "idle");
         directTurnBots.delete(turn.threadId);
@@ -4279,8 +4104,6 @@ bus.subscribe((event: RuntimeEvent) => {
   turnStops.note(event);
   if (event.type === "request.opened") watchdog.setWaitingOnHuman(event.threadId, true);
   else if (event.type === "request.resolved") watchdog.setWaitingOnHuman(event.threadId, false);
-  else if (event.type === "turn.wait_started") watchdog.setWaitingOnComputer(event.threadId, true);
-  else if (event.type === "turn.wait_ended") watchdog.setWaitingOnComputer(event.threadId, false);
   else if (event.type === "turn.completed") {
     watchdog.settle(event.threadId);
     revokeInternalCapabilityForProviderEvent(event);
@@ -4800,61 +4623,6 @@ const automationReports = createAutomationReports({ store, routines: () => routi
 const proactive = createProactive({ store, cfg, dataDir: DATA_DIR, ideas: (botId) => memoryUpkeep.ideas(botId), team: Boolean(HOSTED_WORKSPACE || CLOUD_TEAM), routines: () => routines, mainThread: botMainThread, threadBusy, notify,
   engineName: (instanceId) => engineName(instanceId), hostTimeZone: () => (CLOUD_HOME ? undefined : hostTimeZone()), needsYou: () => needsYouNow({ bots: store.bots, groups: store.groups, routines, parked: coordinator.active(), engines: registry.instances().map((instance) => ({ instanceId: instance.instanceId, snapshot: registry.lastSnapshot(instance.instanceId) })) }, { admin: true, thread: () => true, routine: () => true }) });
 let calendarCalls: CalendarCallManager | null = null;
-const autoVmClaims: AutoVmClaimTable = new Map();
-const COMPUTER_CALL_WAIT_MS = Math.min(CONTROL_WAIT_MS, Math.max(500, Number(process.env.OMB_COMPUTER_CALL_WAIT_MS) || CONTROL_WAIT_MS));
-const COMPUTER_CALL_ACT_WITHIN_MS = Math.min(CONTROL_ACT_WITHIN_MS, Math.max(100, Number(process.env.OMB_COMPUTER_CALL_ACT_WITHIN_MS) || CONTROL_ACT_WITHIN_MS));
-const COMPUTER_CALL_POLL_MS = 250;
-
-/** Waits here up to COMPUTER_CALL_WAIT_MS; a call that waited through a person's hold, or whose turn ended, is never performed. */
-async function computerCallGate(internalCapability: InternalCapability, signal?: AbortSignal, call?: ReturnType<typeof yourComputerCallFrom>): Promise<ControlState> {
-  const { botId, threadId, generation } = internalCapability;
-  const askedAt = Date.now();
-  const deadline = askedAt + COMPUTER_CALL_WAIT_MS;
-  let personHeld = false;
-  for (;;) {
-    const helpOpen = snapshot.helpReason !== null;
-    const slot = autoVmClaims.get(threadId);
-    const lazyClaim = slot && slot.owner.generation === generation ? slot : undefined;
-    let held: ControlState;
-    if (snapshot.held && snapshot.heldSinceMs !== null && Date.now() - snapshot.heldSinceMs >= COMPUTER_WAIT_MAX_MS) {
-      return { held: true, helpOpen, blockedReason: computerPersonAwayText(COMPUTER_WAIT_MAX_MS) };
-    } else if (snapshot.held) {
-      personHeld = true;
-      held = { held: true, helpOpen, reason: "person" };
-    } else if (lazyClaim?.failed) {
-      // A rejected lazy claim refuses every screen call for the rest of the generation: never forward onto a desktop this turn never claimed.
-      return {
-        held: true, helpOpen: false,
-        blockedReason: `This turn could not claim ${lazyClaim.label ?? "this computer"}${lazyClaim.failure ? ` (${lazyClaim.failure})` : ""}. This call was not performed. Do not retry computer work in this turn; tell the person what you could not do.`,
-      };
-    } else if (lazyClaim?.lazy && !lazyClaim.claimed) {
-      startAutoVmClaim(autoVmClaims, threadId, generation, call);
-      if (lazyClaim.begin && Date.now() < deadline && !signal?.aborted) {
-        await settledWithin(lazyClaim.begin, deadline - Date.now(), signal);
-        if (lazyClaim.claimed || lazyClaim.failed) continue;
-        if (lazyClaim.retryReason) return { held: true, helpOpen: false, blockedReason: lazyClaimRetryText(lazyClaim) };
-      }
-      held = { held: true, helpOpen: false, blockedReason: yourComputerWaiting(threadId, generation) ?? lazyClaim.pendingReason ?? CONTROL_BUSY };
-    } else {
-      const computer = turnComputerResources.get(threadId);
-      if (computer && computer.owner.generation === generation && !claimTurnResource(computer.owner, computer.resource)) {
-        held = { held: true, helpOpen: false, blockedReason: CONTROL_BUSY };
-      } else if (!internalCapabilityIsActive(internalCapability)) {
-        // A call from a turn that is over never reaches the screen.
-        return { held: true, helpOpen, blockedReason: "This turn no longer has this computer, so this call was not performed." };
-      } else if (personHeld) {
-        return { held: true, helpOpen, blockedReason: CONTROL_HANDED_BACK };
-      } else {
-        return Date.now() - askedAt > COMPUTER_CALL_ACT_WITHIN_MS ? { held: true, helpOpen, blockedReason: CONTROL_WAITED } : { held: false, helpOpen };
-      }
-    }
-    if (Date.now() >= deadline || signal?.aborted || !internalCapabilityIsActive(internalCapability)) return held;
-    await settledWithin(null, Math.min(COMPUTER_CALL_POLL_MS, deadline - Date.now()), signal);
-  }
-}
-
-}
-
 
 function botHasActiveTurn(botId: string): boolean {
   const bot = store.bot(botId);
@@ -5020,14 +4788,6 @@ bus.subscribe((event: RuntimeEvent) => {
           });
           toolMessageByItem.delete(itemKey);
         }
-        // Only computer tools change the screen, and each capture competes with the agent for the Boat's command endpoint.
-        if (bot) {
-          const touches = screenTouchingTool(toolName);
-          const surface = screenSurfaceForTool(toolName);
-          if (touches || /computer|screenshot|click|type_text|press_key|scroll|open_url|wait_for|browser_/i.test(toolName)) {
-            pokeScreenPoller(event.threadId, touches, surface);
-          }
-        }
       }
       break;
     case "item.started":
@@ -5138,11 +4898,9 @@ bus.subscribe((event: RuntimeEvent) => {
         kind: "options",
         card: {
           title:
-            permission && event.approvalScope === "local-computer"
-              ? "Local computer approval"
-              : permission
-                ? "Approval needed"
-                : "Your bot has a question",
+            permission
+              ? "Approval needed"
+              : "Your bot has a question",
           subtitle: event.summary,
           options: event.choices?.length ? event.choices : permission ? ["Allow", "Deny"] : [],
           requestId: event.requestId,
@@ -5156,7 +4914,6 @@ bus.subscribe((event: RuntimeEvent) => {
           allowSession: permission && event.allowSession && !event.requiresExplicitApproval && !guestDriven ? true : undefined,
           held: approvalHeldReason(heldContext) ?? (permission && guestDriven && routineRun ? confinedWhy(event.threadId) : undefined),
           heldCode: approvalHeldNote(heldContext),
-          approvalScope: event.approvalScope,
         },
       });
       if (event.requestId) askMessageByRequest.set(`${event.threadId}:${event.requestId}`, message.id);
@@ -5312,11 +5069,6 @@ bus.subscribe((event: RuntimeEvent) => {
         && (stoppedTurnId === undefined || completedTurnId === undefined || stoppedTurnId === completedTurnId);
       stoppedTurns.delete(event.threadId);
       const stopped = event.stopReason === "interrupted" || clientStopped;
-      // Claude settles a lazy-claim interrupt as exit_before_result, not "interrupted": this generation's marker keeps it from reporting a second incident.
-      const lazyClaimAlreadyReported = event.stopReason === "exit_before_result" &&
-        turnResourceOwners.get(event.threadId)?.lazyClaimFailureReported === true;
-      const computerParked = event.stopReason === "exit_before_result" &&
-        turnResourceOwners.get(event.threadId)?.computerParkedOn !== undefined;
       const capContinues = !event.ok && turnStops.read(event.threadId, completedTurnId)?.handoffPath !== undefined;
       // Judged now: an assignment reports its own failure, and has ended by the time the thread settles.
       const failed = !event.ok && !stopped && !capContinues && !routineRun && !activeRoutineRunForThread(event.threadId);
@@ -5344,10 +5096,10 @@ bus.subscribe((event: RuntimeEvent) => {
           releaseTurnResources(resourceOwner);
           if (!isCurrent()) return;
           if (store.taskByThread(bot.id, event.threadId)?.activity !== "dead") {
-            store.setTaskActivity(bot.id, event.threadId, resourceOwner?.computerParkedOn !== undefined ? "parked.computer" : "idle");
+            store.setTaskActivity(bot.id, event.threadId, "idle");
           }
           directTurnBots.delete(event.threadId);
-          // An asynchronous screenshot finishes after the bus subscribers that normally drain have run.
+          // The digest settles after the bus subscribers that normally drain have run.
           if (resumeQueued) {
             drainQueuedSends();
           }
@@ -5410,24 +5162,7 @@ bus.subscribe((event: RuntimeEvent) => {
         else if ((!routineRun || routineRun.status === "completed") && !internal) {
           notify(buildNotification("done", bot, event.threadId, routineRun ? reply || routineRun.output || routineRun.routineName : reply, { avatarUrl: bot.avatarUrl }), routineRun ? { routine: true } : undefined);
         }
-        if (screenPollers.has(event.threadId)) {
-          // Keep the thread busy until the final END-state capture: an accepted follow-up must not take the desktop first.
-          const settleLeafId = store.activePath(event.threadId).at(-1)?.id;
-          let timeout: ReturnType<typeof setTimeout>;
-          const screenSettled = Promise.race([
-            finalScreenFrame(bot.id, event.threadId),
-            new Promise<null>((resolve) => { timeout = setTimeout(() => resolve(null), SCREEN_SETTLE_TIMEOUT_MS); }),
-          ]).then((frame) => {
-            if (frame && isCurrent()) {
-              store.insertMessageAfter(event.threadId, settleLeafId, { role: "bot", kind: "screen", png: frame.png, mime: frame.mime });
-            }
-          }).catch(() => {}).finally(() => {
-            clearTimeout(timeout);
-          });
-          void Promise.all([screenSettled, digestSettled]).finally(() => settleDirectTurn(true)).finally(fileIncident);
-        } else {
-          void digestSettled.finally(() => settleDirectTurn(true)).finally(fileIncident);
-        }
+        void digestSettled.finally(() => settleDirectTurn(true)).finally(fileIncident);
       } else if (group && speaker) {
         const tokens = event.usage ?? lastReported;
         const speakingBot = store.bot(speaker.botId);
@@ -6019,103 +5754,6 @@ async function startOrQueueOpenedThread(
   }
 }
 
-type Frame = { png: string; mime: string };
-const screenPollers = new Map<
-  string,
-  {
-    botId: string;
-    timer: ReturnType<typeof setInterval> | null;
-    capture: (fresh?: boolean) => Promise<void>;
-    surface: "browser" | "computer";
-    last: Frame | null;
-    touched: boolean;
-  }
->();
-
-/** The preview shares the Boat's single command endpoint with the agent: a slow interval, a floor between captures, never two in flight. */
-const SCREEN_POLL_MS = 6000;
-const SCREEN_MIN_GAP_MS = 3000;
-const SCREEN_SETTLE_TIMEOUT_MS = 10_000;
-
-function startScreenPoller(
-  botId: string,
-  threadId: string,
-  { screenIsTheWork = false } = {},
-) {
-  if (screenPollers.has(threadId)) return;
-  const owner = turnResourceOwners.get(threadId);
-  const computer = turnComputerResources.get(threadId);
-  const guarded = (capture: ScreenCapture | undefined, resource: string | undefined): ScreenCapture | undefined =>
-    capture && owner && resource ? async () => {
-      const isCurrent = () => turnResourceOwners.get(threadId)?.generation === owner.generation &&
-        turnResources.owns(resource, owner) && Boolean(store.taskByThread(botId, threadId) || store.groupByThread(threadId));
-      if (!isCurrent()) throw new Error("this thread does not own that screen");
-      const frame = await capture();
-      if (!isCurrent()) throw new Error("this thread no longer owns that screen");
-      return frame;
-    } : undefined;
-  // Assign rather than spread, which would freeze the source's last-frame getter.
-  const entry = Object.assign(createScreenFrameSource({
-    captures: {
-      computer: guarded(captures.computer, computer?.resource),
-    },
-    control: () => ({
-      revision: computerControlRevision.get(botId) ?? 0,
-    }),
-    onFrame: (frame, surface) => { if (surface === "computer") rememberTurnFrame(turnComputerResources.get(threadId)?.resource, frame); broadcast({ kind: "screen", botId, threadId, surface, ...frame }); },
-    minGapMs: SCREEN_MIN_GAP_MS,
-  }), {
-    timer: null as ReturnType<typeof setInterval> | null,
-    botId,
-    touched: screenIsTheWork,
-  });
-  entry.timer = setInterval(() => void entry.capture(), SCREEN_POLL_MS);
-  screenPollers.set(threadId, entry);
-}
-
-function pokeScreenPoller(threadId: string, touches: boolean, surface?: "browser" | "computer") {
-  const entry = screenPollers.get(threadId);
-  if (!entry) return;
-  // Every completed computer tool refreshes; only one that acted on or looked at the screen marks the turn touched (under Claude every computer tool is mcp__computer__*).
-  if (touches) entry.touched = true;
-  // Only a touching tool moves the picture: a status read must not redirect it from the page still shown.
-  if (touches && surface) entry.surface = surface;
-  void entry.capture();
-}
-
-function stopScreenPoller(botId: string, threadId?: string) {
-  for (const [id, entry] of screenPollers) {
-    if (entry.botId !== botId || (threadId && id !== threadId)) continue;
-    if (entry.timer) clearInterval(entry.timer);
-    screenPollers.delete(id);
-  }
-}
-
-const settledScreenHashes = new Map<string, string>();
-
-function shownScreenHash(threadId: string): string | undefined {
-  const known = settledScreenHashes.get(threadId);
-  if (known) return known;
-  const shown = store.messagesFor(threadId).findLast((m) => m.kind === "screen" && Boolean(m.png));
-  return shown?.png ? screenFrameHash(shown.png) : undefined;
-}
-
-async function finalScreenFrame(_botId: string, threadId: string): Promise<Frame | null> {
-  const entry = screenPollers.get(threadId);
-  const owner = turnResourceOwners.get(threadId);
-  if (!entry) return null;
-  if (entry.timer) clearInterval(entry.timer);
-  screenPollers.delete(threadId);
-  if (!entry.touched) return null;
-  await entry.capture(true);
-  if (!owner || turnResourceOwners.get(threadId)?.generation !== owner.generation ||
-      !store.taskByThread(_botId, threadId)) return null;
-  const frame = entry.last;
-  if (!frame || !settledFrameIsNews(shownScreenHash(threadId), frame.png)) return null;
-  settledScreenHashes.set(threadId, screenFrameHash(frame.png));
-  return frame;
-}
-
 function threadTitleGate(bot: Pick<BotRecord, "modelSelection">): { ok: true; instance: ProviderInstance } | { ok: false; refusal: string } {
   if (!llmThreadTitlesEnabled(cfg)) return { ok: false, refusal: "generated thread titles are turned off on this server" };
   if (hostedModels && !hostedModels.allows(bot.modelSelection)) return { ok: false, refusal: hostedModels.error() };
@@ -6213,6 +5851,8 @@ async function startTurn(
   if (!task) throw Object.assign(new Error("no such task"), { status: 404 });
   if (hostedModels && !hostedModels.allows(bot.modelSelection)) throw Object.assign(new Error(hostedModels.error()), { status: 409 });
   const instance = registry.get(bot.modelSelection.instanceId);
+  // Lazurio overlay: no Works on, pins, per-bot computers or control of this host's screen. The Environment browser needs no
+  // mount: the bot works in it from its shell.
   if (!instance) {
     if (removedComputerInstanceIds(cfg.instances).has(bot.modelSelection.instanceId)) void retryComputerEngineMove();
     throw Object.assign(
@@ -6515,275 +6155,6 @@ async function startTurn(
       const checkpointCwd = cwd && cwd !== privateWorkspace ? cwd : undefined;
       const dwebUrl = process.env.DWEB_URL?.trim();
       if (dwebUrl) integrations.dweb = { url: dwebUrl };
-      const mountsLocalComputer = instance.adapter.capabilities.localComputerMcp === true;
-      let previewCapture: (() => Promise<{ png: string; format: string }>) | null = null;
-      let computerKind: "box" | "vps" | "vm" | "local" | null = null;
-      let autoVpsProblem: string | null = null;
-      let autoVpsReachable: boolean | undefined, autoVpsOutdated = false, vmUpdateNote = "";
-      /** A capture in flight after another thread owns the shared desktop would picture its work under this bot's name. */
-      const localVmPreviewFor = (localVmTarget: LocalVmTarget, claimThreadId: string) => () => {
-        const owner = localVmLeaseFor(localVmTarget).current(localVmOwnerBusy);
-        if (owner && owner.threadId !== claimThreadId) {
-          throw new Error("the Local VM moved on to another turn");
-        }
-        return containerComputerFrame(undefined, undefined, localVmTarget);
-      };
-      const autoPinAllowed = () => {
-        const liveBot = store.bot(bot.id);
-        const liveTask = store.taskByThread(bot.id, threadId);
-        return liveBot?.computer === undefined && !teamComputer && opts?.runOn !== "cloud" && !plan.pinned && !computerSkipped &&
-          Boolean(liveTask && liveTask.surfaceSource !== "user");
-      };
-      const pinAutoSurface = (surface: Surface) => {
-        if (autoPinAllowed()) {
-          store.patchTask(bot.id, threadId, { surface, surfaceSource: "auto" });
-        }
-      };
-      /** Idempotent per turn; a lazy attach leases the target it mounted against, not whatever resolves when the first screen call arrives. */
-      const claimAutoLocalVm = async (claimThreadId: string, pinnedTarget?: LocalVmTarget): Promise<{ target: LocalVmTarget; runtime: Runtime }> => {
-        const localVmTarget = pinnedTarget ?? localVmThreadTargets.get(claimThreadId) ?? { ...localVmTargetForThread(bot.id, claimThreadId) };
-        await waitForLocalVmUpdate(localVmTarget, claimThreadId, () => directTurnClaimIsCurrent(bot.id, dispatchClaimId, claimThreadId));
-        await bindTurnComputer(resourceOwner, `computer:vm:${localVmTarget.key}`, true);
-        if (localVmImageBusy || localVmModeChangeBusy || localVmLifecycleBusy.has(localVmTarget.key)) {
-          throw new Error("this Local VM is being started, stopped, or replaced — wait for setup to finish");
-        }
-        // Claim before the first await; the lifecycle route checks synchronously too.
-        if (!localVmLeaseFor(localVmTarget).claim(claimThreadId, bot.id, localVmOwnerBusy)) {
-          throw new Error("this Local VM is already being used by another turn — wait for that turn to finish");
-        }
-        if (localVmMode(cfg) === "pool") localVmSeatPool.touch(claimThreadId);
-        localVmThreadTargets.set(claimThreadId, localVmTarget);
-        localVmActiveThreads.set(localVmTarget.key, claimThreadId);
-        localVmIdleFor(localVmTarget).touch();
-        const dropLease = () => {
-          if (localVmThreadTargets.get(claimThreadId) !== localVmTarget) return;
-          localVmLeaseFor(localVmTarget).release(claimThreadId);
-          if (localVmActiveThreads.get(localVmTarget.key) === claimThreadId) localVmActiveThreads.delete(localVmTarget.key);
-          localVmThreadTargets.delete(claimThreadId);
-          const resource = `computer:vm:${localVmTarget.key}`;
-          turnResources.releaseOne(resource, resourceOwner);
-          if (turnComputerResources.get(resourceOwner.threadId)?.resource === resource) turnComputerResources.delete(resourceOwner.threadId);
-        };
-        let localVm: Awaited<ReturnType<typeof readyLocalVmForTurn>>;
-        try {
-          localVm = await readyLocalVmForTurn(bot.id, localVmTarget);
-        } catch (error) {
-          dropLease();
-          throw error;
-        }
-        if (!localVm.ready || !localVm.runtime) {
-          dropLease();
-          throw new Error(`${localVm.problem ?? "the Local VM is not ready"} (App Settings → Computers)`);
-        }
-        // Re-validate after the readiness walk, so a turn never attaches MCP to a desktop another turn now owns.
-        const owner = localVmLeaseFor(localVmTarget).current(localVmOwnerBusy);
-        if (owner?.threadId !== claimThreadId || owner.botId !== bot.id) {
-          dropLease();
-          throw new Error("the Local VM lease expired while preparing the turn");
-        }
-        previewCapture = localVmPreviewFor(localVmTarget, claimThreadId);
-        pinAutoSurface("vm");
-        return { target: localVmTarget, runtime: localVm.runtime };
-      };
-
-      // Fenced to this dispatch generation, so a rejection landing after settle never touches a newer turn.
-        if (activeInternalGenerationByThread.get(threadId) !== resourceOwner.generation || !threadBusy(bot.id, threadId)) return;
-        if (resourceOwner.computerParkedOn) {
-          void interruptParkedTurn(bot.id, threadId).catch(() => {});
-          return;
-        }
-        store.appendMessage(threadId, {
-          role: "bot",
-          kind: "activity",
-        });
-        if (opts?.automationSource === undefined && !opts?.commsDepth && !opts?.cardContinuation) {
-          notify(buildNotification("turn-failed", bot, threadId, redactSecretsInText(message), { avatarUrl: bot.avatarUrl }));
-          reportIncident({ kind: "could-not-start", bot, threadId, detail: message });
-          // Claude settles the interrupt below as exit_before_result; the completion fold must not report it a second time.
-          resourceOwner.lazyClaimFailureReported = true;
-        }
-        opts?.onDispatchError?.(message);
-        void interruptDirectThread(bot.id, threadId).catch(() => {});
-      };
-
-      /** A poller started after its own turn.completed would never stop: same still-running guard as dispatch. */
-      const adoptClaimedCapture = (capture: () => Promise<{ png: string; format: string }>) => {
-        previewCapture = capture;
-        if (!threadBusy(bot.id, threadId)) return;
-        const touched = screenPollers.get(threadId)?.touched ?? false;
-        stopScreenPoller(bot.id, threadId);
-        startScreenPoller(
-          bot.id,
-          threadId,
-          { computer: capture, ...(browserCapture ? { browser: browserCapture } : {}) },
-          { screenIsTheWork: touched },
-        );
-      };
-
-      // Local VM must never fall through to host CUA and click on the user's Mac.
-      const attachLocalVm = async (strict: boolean): Promise<boolean> => {
-        if (!mountsComputerMcp) {
-          if (!strict) return false;
-          throw new Error("this model can't use the private desktop — choose a model that can, such as Claude, or pick another place for it to work");
-        }
-        if (!strict && localVmMode(cfg) === "pool") {
-          const poolCandidate = poolLocalVmTarget(localVmSeatPool.candidate(threadId, localVmPoolSeatHolder));
-          if (!localVmSeen.has(poolCandidate.key) && !opts?.automationSource) return false;
-        }
-        const localVmTarget = { ...localVmTargetForThread(bot.id, threadId) };
-        let lazyReadyVm: { runtime: Runtime } | null = null;
-        if (!strict) {
-          if (!localVmSeen.has(localVmTarget.key) && !opts?.automationSource) return false;
-          let seen = await containerComputerStatus(undefined, undefined, localVmTarget).catch(() => null);
-          // An old desktop is updated, never swapped for this computer: an unattended run waits for it, a chat is told.
-          if (localVmUpdates.observe(localVmTarget, seen)) {
-            if (!opts?.automationSource) { vmUpdateNote = localVmUpdates.kick(localVmTarget); return false; }
-            try { await waitForLocalVmUpdate(localVmTarget, threadId, () => directTurnClaimIsCurrent(bot.id, dispatchClaimId, threadId)); }
-            catch (error) { if (error instanceof DirectTurnSetupCancelled) throw error; skipComputer(error); return false; }
-            seen = await containerComputerStatus(undefined, undefined, localVmTarget).catch(() => null);
-          }
-          if (!seen || !autoLocalVmAttachable(seen)) return false;
-          if (localVmImageBusy || localVmModeChangeBusy || localVmLifecycleBusy.has(localVmTarget.key)) return false;
-          if (seen.ready && seen.runtime) lazyReadyVm = { runtime: seen.runtime };
-        }
-        try {
-          if (lazyReadyVm) {
-            integrations.localComputer = containerComputerMcp(
-              lazyReadyVm.runtime,
-              controlIntegration(bot.id, threadId, dispatchClaimId),
-              localVmTarget,
-            );
-            autoVmClaims.set(threadId, {
-              owner: resourceOwner,
-              lazy: true,
-              label: "the Local VM",
-              localVm: true,
-              onRejected: surfaceLazyClaimRejection("the Local VM"),
-              claim: async () => {
-                await claimAutoLocalVm(threadId, localVmTarget);
-                // A poller started after its own turn.completed would never be torn down: restart it only while the turn runs.
-                if (previewCapture && threadBusy(bot.id, threadId)) {
-                  const touched = screenPollers.get(threadId)?.touched ?? false;
-                  stopScreenPoller(bot.id, threadId);
-                  startScreenPoller(
-                    bot.id,
-                    threadId,
-                    { computer: previewCapture, ...(browserCapture ? { browser: browserCapture } : {}) },
-                    { screenIsTheWork: touched },
-                  );
-                }
-              },
-            });
-            return true;
-          }
-          const claimed = await claimAutoLocalVm(threadId);
-          integrations.localComputer = containerComputerMcp(
-            claimed.runtime,
-            controlIntegration(bot.id, threadId, dispatchClaimId),
-            claimed.target,
-          );
-          autoVmClaims.set(threadId, {
-            owner: resourceOwner,
-            label: "the Local VM",
-            claim: async () => { await claimAutoLocalVm(threadId); },
-          });
-          return true;
-        } catch (error) {
-          if (strict || error instanceof ComputerWaitParked) throw error;
-          if (directTurnGenerationByThread.get(threadId) === dispatchClaimId) releaseLocalVmThread(threadId);
-          return false;
-        }
-      };
-      // An explicit place that cannot be attached fails the turn; it never quietly moves the work elsewhere.
-      try {
-        if (wants === "vm") {
-          if (await attachLocalVm(true)) computerKind = "vm";
-        } else if (wants === "local") {
-          integrations.localComputer = await mountHostComputer(resourceOwner, bot.id, mountsLocalComputer, surfaceLazyClaimRejection("this computer"), placeSource === "auto-pin");
-          computerKind = "local";
-        }
-
-          // Auto stays read-only on the VPS unless the person opted this bot into remote lifecycle actions.
-        if ((wants === "cloud" || (wants === undefined && managedPolicy.computerAllowed("vps"))) && cloudBackend === "vps" &&
-            canWorkOnCloud(cloudEngine(instance))) {
-          vpsThreadStarted(bot.id, threadId);
-          const mounted = await mountBotVps(bot, resourceOwner, {
-            start: vps.vpsStartsForTurn({ wants, autoStartVps: bot.autoStartVps, automationSource: opts?.automationSource }),
-            onClaimed: (vpsCapture) => {
-              pinAutoSurface("cloud");
-              adoptClaimedCapture(vpsCapture);
-            },
-            onRejected: surfaceLazyClaimRejection("the VPS computer"),
-          }).catch((error: unknown) => {
-            if (wants === "cloud") throw error;
-            return { problem: error instanceof Error ? error.message : String(error), reachable: undefined };
-          });
-          if ("integration" in mounted) {
-            integrations.localComputer = mounted.integration;
-            computerKind = "vps";
-          } else {
-            vpsThreadEnded(bot.id, threadId);
-            if (wants === "cloud") {
-              throw new Error(mounted.problem ?? "the VPS computer could not be created or reached");
-            }
-            autoVpsProblem = mounted.problem ?? "the VPS computer could not be reached";
-            autoVpsReachable = mounted.reachable; autoVpsOutdated = "outdated" in mounted && mounted.outdated === true;
-          }
-        }
-
-        if (teamComputer) {
-          const attached = await attachTeamBoat(teamComputer, bot.id, resourceOwner, canWorkOnCloud(cloudEngine(instance)));
-          Object.assign(integrations, attached.mount);
-          previewCapture = attached.capture;
-          computerKind = "box";
-        }
-        if (!teamComputer && cloudBackend === "box" && boat.boatConfigured(cfg) && wants === "cloud") {
-          integrations.localComputer = mountBotBoat(bot, resourceOwner, {
-            source: placeSource,
-            onClaimed: adoptClaimedCapture,
-            onRejected: surfaceLazyClaimRejection("the cloud computer"),
-          });
-          computerKind = "box";
-        }
-        if (wants === "cloud" && cloudBackend === "box" && !boat.boatConfigured(cfg)) {
-          throw boatNotConfigured(bot, placeSource ?? "works-on");
-        }
-        if (wants === "cloud" && cloudBackend === "box" && computerKind !== "box") {
-          throw new Error("the cloud computer could not be created or reached");
-        }
-      } catch (error) {
-        skipComputer(!namedPlace || !placeSource ? error : await asPlaceFailure(error, namedPlace, placeSource, bot, cloudBackend));
-      }
-
-      // Electron owns cua-driver and its TCC attribution; the harness only reads its running connection descriptor.
-      if (wants === undefined && !integrations.localComputer && !computerPlaceRefusal("localVm") && await attachLocalVm(false)) computerKind = "vm";
-      // An unattended run with a VPS configured never lands on the host's own desktop, nor does a bot whose own desktop awaits an update.
-      const hostBarred = (cloudBackend === "vps" && Boolean(opts?.automationSource)) || autoVpsOutdated || Boolean(vmUpdateNote);
-      if (
-        !hostBarred &&
-        !computerPlaceRefusal("thisComputer") &&
-        shouldMountLocalComputer({
-          requested: undefined,
-          hostPlatform: process.platform,
-          providerSupportsLocal: mountsLocalComputer,
-        })
-      ) {
-        const cua = desktopComputer.connection();
-        if (cua) {
-          autoVmClaims.set(threadId, {
-            owner: resourceOwner,
-            lazy: true,
-            label: "this computer",
-            onRejected: surfaceLazyClaimRejection("this computer"),
-            claim: async (call) => {
-              await askToUseYourComputer(approvalBus, bot, resourceOwner, call);
-              await bindTurnComputer(resourceOwner, "computer:host", true);
-              pinAutoSurface("local"); recordTurnPlace(bot.id, threadId, "local");
-            },
-          });
-          computerKind = "local";
-        }
-      }
       // One reachability rule: a bot is never told about a peer that coordinate_bots would refuse.
       const sectionPeers = reachablePeers(store.bots, bot);
       if (agentsMounted) {
@@ -6908,6 +6279,7 @@ async function startTurn(
         botId: bot.id,
         ...(environmentBrowserOn ? { agentBrowserSession: botBrowserSession(bot.id) } : {}),
         startupRecovery,
+        text: withTurnClock(clock, withRecalled(recalled, dispatchContext.turnText + shareNote.text)),
         ...(recalled ? { recalled } : {}),
         images: dispatchContext.images,
         approvalMode: approvalModeForTurn(bot, commsDepth > 0, threadId),
@@ -6957,7 +6329,6 @@ async function startTurn(
       if (!isExternalContextMarker(task.lastInstanceId) || task.lastInstanceId === externalContextMarker) {
         store.markTaskDispatched(bot.id, threadId, instanceId);
       }
-      // A turn can settle before dispatch returns; a poller started after its turn.completed would never stop.
       // An adapter may complete synchronously before dispatch resolves: close this exact generation from busy state.
       if (!threadBusy(bot.id, threadId) && directTurnGenerationByThread.get(threadId) === dispatchClaimId) {
         revokeInternalCapabilityGeneration(threadId, dispatchClaimId);
@@ -7002,15 +6373,6 @@ async function startTurn(
       }
       if (!ownsLatestGeneration) {
         settleDirectFollowup(dispatchClaimId, { ok: false, text: e instanceof Error ? e.message : String(e) });
-        return;
-      }
-      if (e instanceof ComputerWaitParked) {
-        settleDirectFollowup(dispatchClaimId, { ok: false, text: e.message });
-        if (store.taskByThread(bot.id, threadId)?.activity !== "dead") {
-          store.setTaskActivity(bot.id, threadId, "parked.computer");
-        }
-        directTurnBots.delete(threadId);
-        drainQueuedSends();
         return;
       }
       let message = e instanceof Error ? e.message : String(e);
@@ -8229,6 +7591,7 @@ async function runClaimedGroupMemberTurn(
     { id: "user-profile", label: "About the user", text: userProfileSystemPrompt(teamHost.profileFor(threadId, cfg.profile)) }, { id: "people", label: "People", text: teamMessages.prompt(bot.id, threadId, Boolean(integrations.agents)) },
     { id: "files", label: "File locations", text: workspace ? workspaceLocationsPrompt(bot.id, cwd, readyBot.cwd, { attachFile: Boolean(integrations.agents) && !CLOUD_HOME && !HOSTED_WORKSPACE }) : "" },
     { id: "shell", label: "Long-running commands", text: workspace ? longCommandsPrompt() : "" },
+    { id: "plan", label: "Surface", text: SURFACE_PROMPT },
     { id: "cloud-home", label: "My Cloud", text: CLOUD_HOME ? cloudHomePrompt() : "" },
     { id: "browser", label: "Browser", text: workspace ? environmentBrowserPrompt(botBrowserSession(bot.id), environmentBrowserOn) : "" },
     { id: "data", label: "Data", text: integrations.data ? BUILT_IN_DATA_SYSTEM_PROMPT : "" },
@@ -8372,6 +7735,7 @@ async function runClaimedGroupMemberTurn(
       threadId, botId: readyBot.id, claimId: internalGeneration, instance, guestConfined: roomGuestConfined, reset: Boolean(roomReset), hooks: Boolean(integrations.hooks),
       context: () => ({ ...roomMemberContexts.forThread(threadId)?.[readyBot.id], compactAt: nativeCompactTokens(instance) }),
       config: [roomSystem.stable, cwd, readyBot.modelSelection, turnApprovalMode, roomUserMcp, integrations],
+      window: roomWindow, tail: roomTail, wrap: (body) => withTurnClock(clock, withRecalled(roomRecalled, body + roomShareNote.text)),
     });
     guardTurnDispatch(roomShareNote.after(instance.adapter.sendTurn({
         ...roomSession.send,
@@ -8503,7 +7867,7 @@ async function runClaimedGroupMemberTurn(
     }
     return true;
   }
-  if (outcome === "provider_failed" || outcome === "parked") {
+  if (outcome === "provider_failed") {
     if (skillAuthoring) skillAuthoringClaim.claimed = false;
     return false;
   }
@@ -8612,13 +7976,6 @@ async function runClaimedGroupMemberTurn(
     if (error instanceof DirectTurnSetupCancelled) return false;
     const isSpendCap = typeof error === "object" && error !== null && (error as { code?: string }).code === "spend_cap";
     const isVariantError = typeof error === "object" && error !== null && (error as { code?: string }).code === "unsupported_model_variant";
-    if (error instanceof ComputerWaitParked) {
-      if (orchestration) {
-        orchestration.result.outcome = "parked";
-        orchestration.result.stopReason = `${bot.name} parked waiting for the computer`;
-      }
-      return false;
-    }
     if (!roomSpeaker && !isSpendCap && !isVariantError) throw error;
     const message = error instanceof Error ? error.message : "Setup failed";
     store.appendMessage(threadId, {
@@ -8720,7 +8077,7 @@ async function runGroupGoalStep(args: {
           },
         },
       );
-      // Busy here is a lost claim race, so retry in-step; a parked member is deliberately not retried.
+      // Busy here is a lost claim race, so retry in-step.
       if (result.outcome === "busy") continue;
       return {
         ran,
@@ -9668,7 +9025,7 @@ function requestSignIn(from: BotRecord, threadId: string, rawSite: unknown, rawR
   const target = normalizeSignInSite(rawSite);
   if (!target) return { status: 400, error: "site must be a web address or a domain, such as example.com" };
   const place = signInPlace(from, threadId);
-  if (!place) return { status: 409, error: "this conversation has no browser or computer for the person to sign in on" };
+  if (!place) return { status: 409, error: "this conversation has no browser for the person to sign in in" };
   const reason = typeof rawReason === "string" ? rawReason.trim().slice(0, 240) : "";
   const message = store.appendMessage(threadId, {
     role: "bot",
@@ -9680,9 +9037,7 @@ function requestSignIn(from: BotRecord, threadId: string, rawSite: unknown, rawR
   for (const prior of store.activePath(threadId)) {
     if (prior.id === message.id || !prior.signIn || !isPendingSignInRequest(prior, target.site, from.id, Boolean(owner.group))) continue;
     store.patchMessage(threadId, prior.id, { signIn: { ...prior.signIn, superseded: true } });
-    computerControl.settleHelp(prior.id);
   }
-    { botId: from.id, threadId, messageId: message.id, site: target.site, place });
   notify(buildNotification("sign-in", { ...from, threadId }, threadId, reason || `Open OpenMausBot to sign in to ${target.site}.`, {
     avatarUrl: from.avatarUrl,
     ...(owner.group ? { group: { id: owner.group.id, name: owner.group.name } } : {}),
@@ -9710,16 +9065,6 @@ function settleSignIn(botId: string, threadId: string, messageId: string, outcom
   const settled = signInOutcome(card);
   if (settled && settled !== outcome) {
     return { status: 409, body: { error: `this sign-in request was already ${settled === "done" ? "marked done" : "cancelled"}` } };
-  }
-  if (settled && card.resumed) return { status: 200, body: { [outcome]: true, resumed: true } };
-  if (!settled) {
-    const pleaded = computerControl.settleHelp(message.id);
-    if (card.place === "browser") browserLive.handBack(currentBrowserSession(bot.id, bot.browserProfile, teamHost.browserAudience(threadId)));
-  }
-  store.patchMessage(threadId, message.id, {
-  });
-}
-
   }
   if (settled && card.resumed) return { status: 200, body: { [outcome]: true, resumed: true } };
   const resumed = answerCardNode(threadId, message.id, signInResumePrompt(card.site, outcome));
@@ -9958,7 +9303,6 @@ async function reloadProviders(before: Record<string, unknown>) {
     // Teardown can swallow terminal events: settle every exact conversation, so no task stays busy forever.
     for (const { botId, threadId, owner } of direct) {
       const interrupted = stoppedTurnText(threadId, liveTurnByThread.get(threadId), cause);
-      stopScreenPoller(botId, threadId);
       releaseTurnResources(owner);
       endForeignTurns(threadId);
       watchdog.settle(threadId);
@@ -10011,7 +9355,7 @@ const workspaceBackupAccess = {
   exclusive: <T>(work: () => Promise<T>, keepLocked?: boolean) => workspaceMaintenance.run(work, {
     idle: () => !providerFleetReloading &&
       !routines?.isTicking && !calendarCalls?.isTicking &&
-      store.bots.every((bot) => !botHasActiveTurn(bot.id) && !routines?.activeRunForBot(bot.id) && !botComputerControlSnapshot(bot.id).held) &&
+      store.bots.every((bot) => !botHasActiveTurn(bot.id) && !routines?.activeRunForBot(bot.id)) &&
       store.groups.every((group) => !groupIsWorking(group)),
     pause: () => { routines?.stop(); calendarCalls?.stop(); watchdog.stop(); memoryUpkeep.pause(); },
     resume: () => { routines?.start(); calendarCalls?.start(); watchdog.start(); memoryUpkeep.resume(); },
@@ -10088,11 +9432,9 @@ ROUTES.push(createBotPatchRoutes({
   store, registry, memoryUpkeep, cacheKeepWarm, hostedModels, supportsApprovalMode,
   desktopManaged: DESKTOP_MANAGED, maxWorkspaceBots: MAX_WORKSPACE_BOTS,
   broadcast, wireBot, publicGroupState, audienceChanged, storedAvatarExists, requestedTaskBot, threadBusy, activeGroupTurnForBot,
-}));
-ROUTES.push(createBotLifecycleRoutes({
-  activeGroupTurnForBot, cancelGroupTurnOperations, runningTurnInstance, closeOpenApprovals, deleteBotWithLifecycle,
   checkedModelSelection,
 }));
+ROUTES.push(createBotLifecycleRoutes({ deleteBotWithLifecycle }));
 ROUTES.push(createBotSkillsRoutes({ store, cfg, listBotSkills, readBotSkillFile, stagedSkillListing }));
 ROUTES.push(createSkillShareRoutes({ enabled: () => skillsHost.mode() !== "off", botExists: (id) => Boolean(store.bot(id)),
   cardRefusal: (auth, threadId, requestId) => cardAnswerRefusal(auth, threadId, requestId, "allow"), shareFromReceipt: skillsHost.shareFromReceipt, shareFromBot: skillsHost.shareFromBot }));
@@ -10740,8 +10082,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         ? "data"
         : path === "/api/internal/phone/claim"
         ? "phone"
-          ? "computer"
-          : "agents";
+        : "agents";
       if (internalCapability.kind !== requiredCapabilityKind) {
         return json(res, 403, { error: "this internal capability cannot access that service" });
       }
@@ -12042,17 +11383,6 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
           throw error;
         }
       }
-      if (path === "/api/internal/computer-control") {
-        const botId = url.searchParams.get("botId") ?? "";
-        const bot = store.bot(botId);
-        if (!bot) return json(res, 404, { error: "no such bot" });
-        if (method === "GET") {
-          const abort = new AbortController();
-          res.once("close", () => { if (!res.writableEnded) abort.abort(); });
-          return json(res, 200, await computerCallGate(internalCapability, abort.signal, yourComputerCallFrom(url.searchParams)));
-        }
-        return json(res, 405, { error: "method not allowed" });
-      }
       return json(res, 404, { error: "unknown internal endpoint" });
     }
 
@@ -12210,8 +11540,6 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       const client: SseClient = {
         res,
         admin: auth.scopes.includes("admin"),
-        screens: url.searchParams.get("screens") !== "off",
-        backpressured: false,
         viewer, ask: teamOwners.viewer(auth),
         seen: viewer.kind === "all" && !visibleNow.filtersThreads ? { bots: new Set(), groups: new Set() } : {
           bots: new Set(store.bots.filter((bot) => visibleNow.bot(bot.id)).map((bot) => bot.id)),
@@ -12254,7 +11582,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       );
       if (resumed) {
         for (const buffered of replayBuffer) {
-          if (buffered.seq <= since || !wants(client, buffered.kind) || (buffered.payload && !teamOwners.reaches(client.ask, buffered.payload))) continue;
+          if (buffered.seq <= since || (buffered.payload && !teamOwners.reaches(client.ask, buffered.payload))) continue;
           const frame = CLOUD_TEAM && buffered.kind === "config" && buffered.clientFrame !== null && buffered.payload
             ? teamConfigFrame(client, buffered.seq, buffered.payload)
             : buffered.payload
@@ -12568,49 +11896,6 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       return json(res, 200, { dismissed: true, resumed: state.resumed });
     }
 
-    // The person's take and release; the bot has no verb here, only a sign-in request its card settles.
-    m = path.match(/^\/api\/bots\/([\w-]+)\/computer\/control$/);
-    if (m) {
-      const bot = store.bot(m[1]);
-      if (!bot) return json(res, 404, { error: "no such bot" });
-      if (method === "GET") return json(res, 200, botComputerControlSnapshot(bot.id));
-      if (method === "POST") {
-        if (!String(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) {
-          return json(res, 415, { error: "content-type must be application/json" });
-        }
-        const body = await readBody(req);
-        const action = String(body.action ?? "");
-        const currentBot = store.bot(bot.id);
-        if (!currentBot) return json(res, 404, { error: "no such bot" });
-        const leaseResult =
-          body.controlLeaseId === undefined
-            ? null
-            : controlLeaseIdSchema.safeParse(body.controlLeaseId);
-        if (leaseResult && !leaseResult.success) {
-          return json(res, 400, { error: "controlLeaseId is invalid" });
-        }
-        const controlLeaseId = leaseResult?.data;
-        if (action === "take" && controlLeaseId) {
-          const result = computerControl.acquireLease(controlKey, controlLeaseId);
-          return json(res, 200, {
-            ...result.snapshot,
-            owned: result.owned,
-            acquired: result.acquired,
-          });
-        }
-        if (action === "release" && controlLeaseId) {
-          const result = computerControl.releaseLease(controlKey, controlLeaseId);
-          return json(res, 200, { ...result.snapshot, released: result.released });
-        }
-        if (action === "check" && controlLeaseId) {
-          return json(res, 200, { ...computerControl.snapshot(controlKey), owned: computerControl.ownsLease(controlKey, controlLeaseId) });
-        }
-        if (action === "take") return json(res, 200, computerControl.take(controlKey));
-        if (action === "release") return json(res, 200, computerControl.release(controlKey));
-        return json(res, 400, { error: "action must be take, release, or check" });
-      }
-      return json(res, 405, { error: "method not allowed" });
-    }
     return json(res, 404, { error: `no route: ${method} ${path}` });
   } catch (e) {
     const status = (e as any)?.status ?? 500;

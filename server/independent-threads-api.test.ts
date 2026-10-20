@@ -675,47 +675,6 @@ describe("independent bot tasks through the isolated control surface", () => {
     evidence.push({ parallelThreadsInOneProjectFolder: true, botId, taskA, taskB });
   }, 45_000);
 
-  it.skipIf(process.platform !== "darwin")("claims the shared computer only on first use and keeps a sibling stop from releasing it", async () => {
-    // The fake provider only receives this inert descriptor; no UI driver is launched.
-    writeFileSync(cuaRecord, JSON.stringify({
-      mode: "embedded", socketPath: join(session.info.dataDir, "never-used.sock"),
-      mcpCommand: join(session.info.dataDir, "never-launched-computer"), mcpArgs: ["mcp"], mcpEnv: {},
-    }));
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    const created = await tool("create_bot", { name: "Computer lease fixture", instance_id: "claude", model: models[0] });
-    const botId = created.bot.id;
-    const taskA = created.bot.activeTaskId;
-    await control(["send", "--bot", botId, "--task", taskA, "--text", "COMPUTER_A"]);
-    const launchedA = await dump(models[0]);
-    const second = await tool("create_task", { target_type: "bot", target_id: botId, title: "Computer sibling" });
-    const taskB = second.task.taskId;
-    await control(["set-model", "--bot", botId, "--task", taskB, "--instance", "claude", "--model", models[1]]);
-    await control(["send", "--bot", botId, "--task", taskB, "--text", "COMPUTER_B"]);
-    const launchedB = await dump(models[1]);
-    const gate = (launched: any) => {
-      const env = launched.mcpConfig.mcpServers.computer.env;
-      const url = new URL(env.OMB_CONTROL_URL);
-      expect(url.origin).toBe(session.info.url);
-      return internal(env.OMB_CONTROL_TOKEN, "GET", `${url.pathname}${url.search}`);
-    };
-    expect((await gate(launchedB)).body.held).toBe(false);
-    const waitingA = gate(launchedA);
-    await expect.poll(async () => ((await api("GET", `/api/threads/${taskA}/messages`)).body.messages as any[])
-      .some((message) => String(message.tool?.name ?? "").startsWith("Waiting for its turn on this computer")), { timeout: 15_000 }).toBe(true);
-    await control(["interrupt", "--bot", botId, "--task", taskA]);
-    expect((await waitingA).body.held).toBe(true);
-    expect((await gate(launchedA)).status).toBe(401);
-    expect((await gate(launchedB)).body.held).toBe(false);
-    await control(["interrupt", "--bot", botId, "--task", taskB]);
-    expect((await gate(launchedB)).status).toBe(401);
-
-    await control(["send", "--bot", botId, "--task", taskA, "--text", "COMPUTER_A_NEW_GENERATION"]);
-    await expect.poll(async () => (await dump(models[0])).pid !== launchedA.pid).toBe(true);
-    const relaunchedA = await dump(models[0]);
-    expect((await gate(relaunchedA)).body.held).toBe(false);
-    await control(["interrupt", "--bot", botId, "--task", taskA]);
-  }, 45_000);
-
   it("runs an unattended task in the bot's own level, still carding what the provider asks, while a sibling runs attended", async () => {
     const created = await tool("create_bot", { name: "Unattended fixture", instance_id: "claude", model: models[0] });
     const botId = created.bot.id;

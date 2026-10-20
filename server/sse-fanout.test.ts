@@ -6,37 +6,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { deliverSseFrame, openSseHeartbeat, SSE_MAX_BUFFERED_BYTES, type SseFanoutClient } from "./sse-fanout.ts";
 
-type TestClient = SseFanoutClient & { drains: (() => void)[] };
-
-function fakeClient(resOverrides: Partial<SseFanoutClient["res"]> = {}): TestClient {
-  const drains: (() => void)[] = [];
+function fakeClient(resOverrides: Partial<SseFanoutClient["res"]> = {}): SseFanoutClient {
   return {
-    backpressured: false,
-    drains,
     close: () => {},
     res: {
       writableLength: 0,
       write: () => true,
-      once: (_event: "drain", listener: () => void) => drains.push(listener),
       ...resOverrides,
     },
   };
 }
 
 describe("deliverSseFrame", () => {
-  it("sends normally while write() returns true", () => {
-    const client = fakeClient();
-    expect(deliverSseFrame(client, "message", "frame-a")).toBe("sent");
-    expect(client.backpressured).toBe(false);
-  });
-
-  it("marks the client backpressured when write() returns false, without dropping that frame", () => {
-    const client = fakeClient({ write: () => false });
-    expect(deliverSseFrame(client, "message", "frame-a")).toBe("sent");
-    expect(client.backpressured).toBe(true);
-  });
-
-  it("drops a replaceable screen frame once backpressured, but never drops a durable event", () => {
+  it("sends every frame, even while write() reports a full buffer", () => {
     const written: string[] = [];
     const client = fakeClient({
       write: (chunk: string) => {
@@ -44,43 +26,9 @@ describe("deliverSseFrame", () => {
         return false;
       },
     });
-
-    expect(deliverSseFrame(client, "screen", "screen-1")).toBe("sent");
-    expect(client.backpressured).toBe(true);
-
-    expect(deliverSseFrame(client, "screen", "screen-2")).toBe("dropped");
-
-    expect(deliverSseFrame(client, "message", "message-1")).toBe("sent");
-
-    expect(written).toEqual(["screen-1", "message-1"]);
-  });
-
-  it("resumes screen frames once the socket drains", () => {
-    // A single screen frame exceeds the 16 KB highWaterMark, so even a healthy client's write() returns false.
-    let full = true;
-    const client = fakeClient({ write: () => !full });
-
-    expect(deliverSseFrame(client, "screen", "screen-1")).toBe("sent");
-    expect(client.backpressured).toBe(true);
-    expect(deliverSseFrame(client, "screen", "screen-2")).toBe("dropped");
-    expect(client.drains).toHaveLength(1);
-
-    full = false;
-    for (const drain of client.drains) drain();
-
-    expect(client.backpressured).toBe(false);
-    expect(deliverSseFrame(client, "screen", "screen-3")).toBe("sent");
-  });
-
-  it("queues one drain listener per backpressure episode, not per frame", () => {
-    const client = fakeClient({ write: () => false });
-
-    deliverSseFrame(client, "message", "message-1");
-    deliverSseFrame(client, "message", "message-2");
-    deliverSseFrame(client, "message", "message-3");
-
-    expect(client.backpressured).toBe(true);
-    expect(client.drains).toHaveLength(1);
+    expect(deliverSseFrame(client, "message-1")).toBe("sent");
+    expect(deliverSseFrame(client, "message-2")).toBe("sent");
+    expect(written).toEqual(["message-1", "message-2"]);
   });
 
   it("treats a throwing write() as a dead connection", () => {
@@ -89,7 +37,7 @@ describe("deliverSseFrame", () => {
         throw new Error("socket hang up");
       },
     });
-    expect(deliverSseFrame(client, "message", "message-1")).toBe("disconnected");
+    expect(deliverSseFrame(client, "message-1")).toBe("disconnected");
   });
 });
 
@@ -176,7 +124,6 @@ describe("openSseHeartbeat", () => {
     }) as typeof stream.res.end;
     const client: SseFanoutClient = {
       res: stream.res,
-      backpressured: false,
       close: openSseHeartbeat(stream.res, { everyMs: 10, live: () => ++liveChecks > 0, onClose }),
     };
     fanout.add(client);
@@ -185,7 +132,7 @@ describe("openSseHeartbeat", () => {
     // How much of a stalled socket's queue stays in writableLength is up to the OS (Windows hands all 16 MiB to the kernel), so the response reports past the bound.
     Object.defineProperty(stream.res, "writableLength", { value: SSE_MAX_BUFFERED_BYTES + 1 });
 
-    if (deliverSseFrame(client, "message", "data: durable\n\n") === "disconnected") client.close();
+    if (deliverSseFrame(client, "data: durable\n\n") === "disconnected") client.close();
 
     expect(atEnd).toEqual([{ inFanout: false, closes: 1, liveChecks }]);
     const checksAtEnd = liveChecks;

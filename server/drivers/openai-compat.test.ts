@@ -187,14 +187,15 @@ describe("OpenAICompatDriver", () => {
     await inst.dispose();
   });
 
-  it("rejects remote HTTP computer use before starting tools or a completion request", async () => {
+  it("rejects remote HTTP image input before starting tools or a completion request", async () => {
     const request = vi.fn(async (_url: string | URL | Request) => new Response('{"data":[]}', { headers: { "content-type": "application/json" } }));
     vi.stubGlobal("fetch", request);
     const inst = await OpenAICompatDriver.create({ instanceId: "cleartext", displayName: "Fixture", enabled: true,
       config: { url: "http://remote.example.test/v1", apiKeyEnv: "FIXTURE_KEY" }, environment: { FIXTURE_KEY: "synthetic" } });
     try {
       await expect(inst.adapter.sendTurn({ threadId: "cleartext", text: "Inspect the screen", model: "fixture",
-        integrations: { localComputer: { command: "must-not-start", args: [], env: {} } } })).rejects.toThrow("require HTTPS");
+        images: [{ path: "/must-not-be-read.png", mime: "image/png", bytes: 1 }],
+        integrations: { data: { command: "must-not-start", args: [], env: {} } } })).rejects.toThrow("require HTTPS");
       expect(request.mock.calls.some(call => String(call[0]).includes("chat/completions"))).toBe(false);
     } finally { await inst.dispose(); }
   });

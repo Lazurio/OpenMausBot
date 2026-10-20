@@ -76,27 +76,6 @@ export type RuntimeEvent = RuntimeEventBase &
         reason: "cap";
       }
     | {
-        type: "turn.wait_started";
-        /** The computer resource this turn queued behind (e.g. "computer:box:bx_…"). */
-        resource: string;
-        /** Where this turn sat in the resource's arrival-ordered waitlist when
-         * the wait began. */
-        position?: number;
-        /** Who held the computer when the wait began, if the holder was known. */
-        holder?: { name: string; task?: string };
-      }
-    | {
-        type: "turn.wait_ended";
-        resource: string;
-        holder?: { name: string; task?: string };
-        /** How long the turn actually waited. */
-        waitedMs: number;
-        /** acquired: the claim landed; stopped: the turn was stopped or
-         * cancelled while waiting; parked: the wait ceiling settled the turn
-         * for resume; gave_up: only in older recorded logs. */
-        outcome: "acquired" | "gave_up" | "parked" | "stopped";
-      }
-    | {
         type: "item.started";
         itemType: "tool" | "reasoning";
         title?: string;
@@ -138,7 +117,6 @@ export type RuntimeEvent = RuntimeEventBase &
          * from model-authored final output. Untrusted-input rules apply either
          * way. */
         origin?: "tool" | "output";
-        approvalScope?: "local-computer";
         /** Provider asks to widen its configured sandbox. Only explicit Full
          * access may answer this automatically; Auto/remembered grants may not. */
         requiresExplicitApproval?: boolean;
@@ -161,7 +139,6 @@ export type RuntimeEvent = RuntimeEventBase &
          * harness (turn ended / settings changed), or nobody — the answerer
          * was already gone and the action never ran */
         source: "user" | "auto" | "timeout" | "system" | "unavailable" | "peer";
-        approvalScope?: "local-computer";
       }
     | {
         type: "thread.token-usage.updated"; input: number; output: number; cachedInput?: number;

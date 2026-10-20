@@ -941,27 +941,6 @@ describe("CodexDriver turns (fake app-server)", () => {
     }
   });
 
-  it("mounts the Local VM computer MCP server without placing credentials in argv", async () => {
-    await create();
-    const dump = join(scratch, "local-computer.json");
-    process.env.FAKE_CODEX_DUMP = dump;
-    expect(instance.adapter.capabilities.computerMcp).toBe(true);
-
-    await instance.adapter.sendTurn({
-      threadId: "t-local-computer",
-      text: "open the browser",
-      integrations: {
-        localComputer: {
-          command: process.execPath,
-        },
-      },
-    });
-    await recorder.until((event) => event.type === "turn.completed");
-
-    const seen = JSON.parse(readFileSync(dump, "utf8"));
-    expect(seen.argv.join(" ")).toContain("mcp_servers.computer.command");
-  });
-
   it("sends the local provider when the picker id is custom-encoded", async () => {
     await create({ environment: { UNSLOTH_STUDIO_AUTH_TOKEN: "unsloth-secret" } });
     const dump = join(scratch, "dump.json");
@@ -1803,34 +1782,6 @@ describe("CodexDriver turns (fake app-server)", () => {
       permissions: { network: { enabled: true } },
       scope: "turn",
     });
-  });
-
-  it("stamps approvalScope on cards only when the turn controls this Mac", async () => {
-    await create({ mode: "approval" });
-
-    await instance.adapter.sendTurn({
-      threadId: "t-host-scope",
-      text: "clean up",
-      integrations: {
-        localComputer: { command: "/cua-driver", args: ["mcp"], env: {}, platform: "darwin", scope: "local-computer" },
-      },
-    });
-    const host = await recorder.until((e) => e.type === "request.opened");
-    expect(host).toMatchObject({ approvalScope: "local-computer" });
-    await instance.adapter.respondToRequest("t-host-scope", host.requestId!, { behavior: "allow" });
-    await recorder.until((e) => e.type === "turn.completed");
-
-    await instance.adapter.sendTurn({
-      threadId: "t-vm-scope",
-      text: "clean up",
-      integrations: {
-        localComputer: { command: process.execPath, args: ["/tmp/container-mcp.js"], env: {} },
-      },
-    });
-    const vm = await recorder.until((e) => e.type === "request.opened" && e.threadId === "t-vm-scope");
-    expect((vm as { approvalScope?: string }).approvalScope).toBeUndefined();
-    await instance.adapter.respondToRequest("t-vm-scope", vm.requestId!, { behavior: "allow" });
-    await recorder.until((e) => e.type === "turn.completed" && e.threadId === "t-vm-scope");
   });
 
   it("auto-approves commands in fullAuto without opening a request", async () => {
