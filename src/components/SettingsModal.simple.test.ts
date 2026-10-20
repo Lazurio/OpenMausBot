@@ -55,7 +55,6 @@ vi.mock("./CustomDomainSettings", () => ({ CustomDomainSettings: () => null }));
 vi.mock("./CompanionSection", () => ({ CompanionSection: () => null }));
 vi.mock("./ServerPairingCard", () => ({ ServerPairingCard: () => null }));
 vi.mock("./ConnectedWorkspacesSettings", () => ({ ConnectedWorkspacesSettings: marker("desktopWorkspaces") }));
-vi.mock("./MacLocalControl", () => ({ MacLocalControl: marker("computer") }));
 vi.mock("./CloudAccountSettings", () => ({ CloudAccountSettings: marker("cloudAccount") }));
 vi.mock("./OrganizationSettings", () => ({ OrganizationSettings: marker("organization") }));
 vi.mock("./PeopleSection", () => ({ PeopleSection: marker("people") }));
@@ -136,13 +135,13 @@ describe("Settings in Simple mode", () => {
     expect(html).toContain("More providers for OpenCode bots");
   });
 
-  it("stacks Remote access, Servers and This computer on Computers, with no browser of its own", () => {
+  it("stacks Remote access and Servers on Computers, with no browser or local computer of its own", () => {
     fixture.section = "companion";
     const html = render();
     expect(currentPage(html)).toBe("computers");
-    expect(blocks(html)).toEqual(["companion", "desktopWorkspaces", "computer"]);
+    expect(blocks(html)).toEqual(["companion", "desktopWorkspaces"]);
     const headings = [...html.matchAll(/<h3[^>]*>([^<]+)<\/h3>/g)].map((match) => match[1]);
-    expect(headings).toEqual(["Remote access", "Servers", "This computer"]);
+    expect(headings).toEqual(["Remote access", "Servers"]);
     expect(html).not.toContain("built-in browser");
   });
 
@@ -179,7 +178,6 @@ describe("Settings in Simple mode", () => {
     ["companion", "computers"],
     ["remote", "computers"],
     ["desktopWorkspaces", "computers"],
-    ["computer", "computers"],
     ["organization", "account"],
   ])("lands a deep link to %s on %s", (section, page) => {
     fixture.section = section;
@@ -215,13 +213,8 @@ describe("Settings in Simple mode", () => {
 });
 
 describe("no browser of its own", () => {
-  it.each([false, true])("offers no browser switch or browser profiles on This computer (advanced: %s)", (advanced) => {
-    fixture.advancedMode = advanced;
-    fixture.section = "computer";
-    const html = render();
-    expect(html).toContain("MARKER:computer;");
-    for (const removed of ["built-in browser", "Browser profiles", "Signed-in sites"]) expect(html).not.toContain(removed);
-    expect(fixture.switches.some((props) => String(props["aria-label"] ?? "").toLowerCase().includes("browser"))).toBe(false);
+  it("has no This computer section to search for", () => {
+    expect(SECTIONS.map((entry) => entry.id)).not.toContain("computer");
   });
 
   it("keeps skill drafting on Experimental, with no new-browser switch", () => {

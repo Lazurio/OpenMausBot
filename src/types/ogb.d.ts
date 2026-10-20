@@ -33,29 +33,11 @@ const __APP_VERSION__: string;
       packaged: boolean;
     };
     windowChrome: "mac-inset" | "win-caption" | "native";
-    screenPreview: {
-      available: boolean;
-      interaction: "direct" | "portal-picker" | "none";
-      reasonCode?: string;
-    };
     dictation: {
       available: boolean;
       engine: "apple-speech" | "none";
       onDevice: boolean;
       reasonCode?: string;
-    };
-    localComputer: {
-      available: boolean;
-      support: "supported" | "limited" | "unsupported";
-      enabled: boolean;
-      status: "disabled" | "checking" | "starting" | "ready" | "error" | "stopped" | "unavailable";
-      reasonCode?: string;
-      message?: string;
-      driverPath?: string;
-      driverVersion?: string;
-      driverSource?: "bundled" | "environment" | "user-local" | "path";
-      session?: "x11" | "wayland" | "headless" | "unknown";
-      compositor?: "gnome-mutter";
     };
   };
 
@@ -159,15 +141,6 @@ const __APP_VERSION__: string;
         prepare?(): Promise<CompanionAccountState>;
         signOut(): Promise<CompanionAccountState>;
       };
-      localControl: {
-        status(): Promise<LinuxLocalControlStatus>;
-        enable(): Promise<LinuxLocalControlStatus>;
-        disable(): Promise<LinuxLocalControlStatus>;
-        retry(): Promise<LinuxLocalControlStatus>;
-      };
-      /** Arms one user-initiated display capture request from this frame. */
-      beginScreenPreviewIntent(): boolean;
-      screenFrame(): Promise<string | null>;
       androidDevice?: {
         status(): Promise<AndroidDeviceStatus>;
         frame(serial: string): Promise<{ serial: string; dataUrl: string }>;
@@ -259,19 +232,6 @@ const __APP_VERSION__: string;
       };
     };
   }
-}
-
-export interface LinuxLocalControlStatus {
-  enabled: boolean;
-  status: "disabled" | "checking" | "starting" | "ready" | "error" | "stopped" | "unavailable";
-  reasonCode?: string;
-  message?: string;
-  driverPath?: string;
-  driverVersion?: string;
-  driverSource?: "bundled" | "environment" | "user-local" | "path";
-  session?: "x11" | "wayland" | "headless" | "unknown";
-  compositor?: "gnome-mutter";
-  warnings?: Array<{ label: string; status: string; message: string; detail?: string }>;
 }
 
 export interface UpdaterState {

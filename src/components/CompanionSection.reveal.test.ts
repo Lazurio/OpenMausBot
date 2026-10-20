@@ -52,11 +52,11 @@ it("a plain visit reveals nothing", () => {
   expect(f.revealed).toEqual([]);
 });
 
-it("offers a paired device computer view access, and no browser control", () => {
-  f.state = { enabled: true, devices: [{ id: "phone-1", name: "Ada", lastSeenAt: Date.now(), cloudDesktopAccess: true }], port: 8810 };
+it("lists a paired device with no computer view or browser control access to grant", () => {
+  f.state = { enabled: true, devices: [{ id: "phone-1", name: "Ada", lastSeenAt: Date.now() }], port: 8810 };
   const markup = renderToStaticMarkup(createElement(() => CompanionSection({})));
-  const computer = markup.match(/<button[^>]*aria-label="Computer view access for Ada"[^>]*>/)?.[0];
-  expect(computer).toContain('aria-checked="true"');
+  expect(markup).toContain("Ada");
+  expect(markup).not.toContain("Computer view access");
   expect(markup).not.toContain("Browser control access");
 });
 

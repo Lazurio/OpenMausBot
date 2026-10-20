@@ -10,7 +10,7 @@ import { failedTurnTool } from "../../shared/failed-turn";
 const fixture = vi.hoisted(() => {
   vi.stubGlobal("window", {});
   vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => {} });
-  return { showThreads: true, advanced: true, menus: [] as { ariaLabel: string; items: { key: string; disabled?: boolean; heading?: string; active?: boolean }[] }[], dispatch: vi.fn(), canWrite: null as boolean | null, showToolCalls: false, platform: "other", localReasonCode: "cua-driver-unavailable", localMessage: "", model: null as ComponentProps<typeof ModelPicker> | null,
+  return { showThreads: true, advanced: true, menus: [] as { ariaLabel: string; items: { key: string; disabled?: boolean; heading?: string; active?: boolean }[] }[], dispatch: vi.fn(), canWrite: null as boolean | null, showToolCalls: false, platform: "other", model: null as ComponentProps<typeof ModelPicker> | null,
     approval: null as ComponentProps<typeof ApprovalModeSelector> | null };
 });
 vi.mock("@/state/store", async (importOriginal) => {
@@ -24,7 +24,7 @@ vi.mock("@/state/store", async (importOriginal) => {
 // The real useCaptionChrome rides along: it only asks this module for the window chrome.
 vi.mock("./DesktopCapabilities", async (importOriginal) => ({
   ...await importOriginal<typeof import("./DesktopCapabilities")>(),
-  useDesktopCapabilities: () => ({ capabilities: { dictation: { available: false }, host: { packaged: true, platform: fixture.platform }, localComputer: { available: false, reasonCode: fixture.localReasonCode, message: fixture.localMessage } }, ready: true }),
+  useDesktopCapabilities: () => ({ capabilities: { dictation: { available: false }, host: { packaged: true, platform: fixture.platform } }, ready: true }),
 }));
 vi.mock("@/lib/analytics", () => ({ track: vi.fn() }));
 vi.mock("@/lib/thread-preferences", async (importOriginal) => ({
@@ -376,32 +376,12 @@ describe("thread control placement", () => {
     }
   });
 
-  it("offers the matching macOS Settings and relaunch actions only for a named CUA permission failure", () => {
-    fixture.platform = "darwin";
-    fixture.localMessage = "Screen Recording required";
-    window.ogb = { platform: "darwin", permOpenSettings: vi.fn(), relaunch: vi.fn() } as unknown as NonNullable<Window["ogb"]>;
-    const screen = renderToStaticMarkup(createElement(ErrorRow, {
-      message: "CUA Driver is not ready for this computer — embedded host failed: Screen Recording required. Relaunch OpenMausBot after granting any missing macOS permission.",
-    }));
-    expect(screen).toContain("Open Screen Recording Settings");
-    expect(screen).toContain("Relaunch OpenMausBot");
-    expect(screen).not.toContain("Open Accessibility Settings");
-    fixture.localMessage = "Accessibility required";
-    const accessibility = renderToStaticMarkup(createElement(ErrorRow, {
-      message: "CUA Driver is not ready for this computer — Accessibility required",
-    }));
-    expect(accessibility).toContain("Open Accessibility Settings");
-    expect(accessibility).not.toContain("Open Screen Recording Settings");
-    expect(renderToStaticMarkup(createElement(ErrorRow, {
+  it("shows a driver error as it came, with no macOS permission actions of its own", () => {
+    const markup = renderToStaticMarkup(createElement(ErrorRow, {
       message: "CUA Driver is not ready for this computer — Screen Recording required",
-    }))).not.toContain("Open Screen Recording Settings");
-    expect(renderToStaticMarkup(createElement(ErrorRow, { message: "Network timeout" }))).not.toContain("Open Screen Recording Settings");
-    fixture.localReasonCode = "remote-server";
-    expect(renderToStaticMarkup(createElement(ErrorRow, { message: "CUA Driver is not ready for this computer — Screen Recording required" }))).not.toContain("Open Screen Recording Settings");
-    fixture.localReasonCode = "cua-driver-unavailable";
-    fixture.platform = "other";
-    fixture.localMessage = "";
-    delete window.ogb;
+    }));
+    expect(markup).toContain("CUA Driver is not ready for this computer");
+    expect(markup).not.toMatch(/Open Screen Recording Settings|Open Accessibility Settings|Relaunch OpenMausBot/);
   });
   it.each([
     "شغّل الاختبارات\nThen run typecheck\nوبعدها ارفع الفرع",

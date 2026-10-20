@@ -13,8 +13,7 @@ vi.mock("react", async (importOriginal) => {
   } };
 });
 const answerSignIn = vi.fn();
-const here = { value: true };
-vi.mock("@/lib/sign-in", () => ({ answerSignIn: (...args: unknown[]) => answerSignIn(...args), signInHostIsHere: () => here.value }));
+vi.mock("@/lib/sign-in", () => ({ answerSignIn: (...args: unknown[]) => answerSignIn(...args) }));
 
 import { SignInRequestCard } from "./SignInRequestCard";
 
@@ -48,7 +47,7 @@ const settle = async () => { for (let turn = 0; turn < 10; turn++) await Promise
 beforeEach(() => {
   vi.stubGlobal("window", {});
   answerSignIn.mockReset().mockResolvedValue(undefined);
-  fixture.setters = []; fixture.states = {}; here.value = true;
+  fixture.setters = []; fixture.states = {};
 });
 
 describe("SignInRequestCard while it waits", () => {
@@ -66,35 +65,21 @@ describe("SignInRequestCard while it waits", () => {
     expect(html).not.toContain("<input");
   });
 
-  it.each([
-    ["local", "on this computer, in the browser Pepper is using"],
-  ])("names the place for %s", (place, words) => {
-    expect(view({ place })).toContain(words);
-  });
-
-  it("says the host computer, not this one, where this computer is somewhere else", () => {
-    here.value = false;
-    expect(view({ place: "local" })).toContain("the computer OpenMausBot runs on");
-  });
-
-  it("offers no Open into a browser of its own for the browser place", () => {
+  it("offers no Open into a browser of its own", () => {
     expect(button(tree(), "Open")).toBeUndefined();
   });
 
-  it("Open on this computer explains where to sign in instead", () => {
-    button(tree({ place: "local" }), "Open").props.onClick!();
-    // explained (the second useState) turns on
-    expect(fixture.setters[1]).toHaveBeenCalledWith(true);
-    fixture.setters = []; fixture.states = { 1: true };
-    const explained = view({ place: "local" });
-    expect(explained).toContain("Go to the browser window Pepper is using on this computer and sign in there.");
-    expect(explained).not.toContain("Browser tab");
+  it("still renders a saved card from a place that no longer exists, without naming a place", () => {
+    const html = view({ place: "local" });
+    expect(html).toMatch(/data-testid="sign-in-site"[^>]*>example\.com</);
+    for (const label of ["Done", "Cancel"]) expect(html).toContain(label);
+    expect(html).not.toMatch(/>Open<|this computer|Environment browser/);
   });
 
   it.each(["done", "cancel"] as const)("%s settles this card", async (choice) => {
     button(tree(), choice === "done" ? "Done" : "Cancel").props.onClick!();
     await settle();
-    expect(answerSignIn).toHaveBeenCalledExactlyOnceWith({ botId: "pepper", threadId: "thread-1", messageId: "card-1", place: "browser" }, choice);
+    expect(answerSignIn).toHaveBeenCalledExactlyOnceWith({ botId: "pepper", threadId: "thread-1", messageId: "card-1" }, choice);
   });
 });
 

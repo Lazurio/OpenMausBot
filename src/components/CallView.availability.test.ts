@@ -14,14 +14,7 @@ function capabilities(
       packaged: true,
     },
     windowChrome: "mac-inset",
-    screenPreview: { available: true, interaction: "direct" },
     dictation,
-    localComputer: {
-      available: true,
-      support: "supported",
-      enabled: true,
-      status: "ready",
-    },
   };
 }
 
