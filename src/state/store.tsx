@@ -18,7 +18,6 @@ import { bumpThreadUpdatedAt, mergeTaskStamps, rewindThreadUpdatedAt } from "./t
 import { botOpensTo, openBot, openNotificationTarget, visibleNotificationThread } from "./thread-navigation";
 export { awayFromMainThread, botOpensTo, openBot, openBotThread, openNotificationTarget, openThread, visibleNotificationThread, type ThreadTarget } from "./thread-navigation";
 import type { TurnDigest } from "../../shared/digest";
-import type { ToolScope } from "../../shared/tool-scope";
 import type { ModelVariantOption, RuntimeEvent } from "../../shared/runtime-events";
 import type { MausColor, MausMotion } from "@/lib/mascot";
 import type { BotAvatarCrop } from "../../shared/bot-avatar";
@@ -274,7 +273,6 @@ export interface TaskUsage {
 }
 
 export interface Bot {
-  toolScope?: ToolScope;
   waitingForTeammates?: boolean;
   id: string;
   threadId: string;
@@ -1240,7 +1238,7 @@ export function reducer(state: AppState, action: Action): AppState {
       if ((switchedThread || (before.awaitingThreadSnapshot && action.bot.threadId === before.threadId)) &&
           Array.isArray(action.bot.messages)) {
         // The slim deletion broadcast can beat the full snapshot; later duplicate snapshots must not overwrite newer messages.
-        return reducer(switching, { type: "taskSwitched", bot: { ...before, ...action.bot, section: action.bot.section, toolScope: action.bot.toolScope, messages: action.bot.messages, browserProfile: action.bot.browserProfile } });
+        return reducer(switching, { type: "taskSwitched", bot: { ...before, ...action.bot, section: action.bot.section, messages: action.bot.messages, browserProfile: action.bot.browserProfile } });
       }
       const patched = updateBot(switching, action.bot.id, (b) => ({
         ...b,
@@ -1250,7 +1248,6 @@ export function reducer(state: AppState, action: Action): AppState {
         awaitingThreadSnapshot: switchedThread || b.awaitingThreadSnapshot,
         // Complete frames omit cleared optional fields; copy them so the spread cannot keep stale values.
         browserProfile: action.bot.browserProfile,
-        toolScope: action.bot.toolScope,
         section: action.bot.section,
         tasks: action.bot.tasks ? mergeTaskStamps(b.tasks, action.bot.tasks) : b.tasks,
         // Old approvals must never be sent to the replacement thread while its transcript loads.
@@ -1824,7 +1821,6 @@ export function reducer(state: AppState, action: Action): AppState {
       let switched = updateBot(bumpTranscriptGeneration(state, action.bot.threadId), action.bot.id, (bot) => ({
         ...bot,
         ...action.bot,
-        toolScope: action.bot.toolScope,
         messages: action.bot.messages ?? [],
         hasMore: action.bot.hasMore,
         awaitingThreadSnapshot: false,

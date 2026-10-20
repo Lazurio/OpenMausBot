@@ -270,8 +270,6 @@ export function PageBody({ page, ...context }: PageContext & { page: PageId }): 
       return <TeamPage bot={bot} />;
     case "chiefteams":
       return <ChiefTeamsPage bot={bot} derived={derived} />;
-    case "tools":
-      return <AccessSection bot={bot} derived={derived} parts={["tools"]} />;
     case "webhooks":
       return <AccessSection bot={bot} derived={derived} parts={["webhooks"]} />;
     case "visibility":
