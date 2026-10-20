@@ -249,31 +249,45 @@ computer of its own, and it opens its own tabs in the Environment browser.
 ### The browser panel
 
 **Decided on 2026-10-19 (the Organization Admin; root decision 0191 points
-13, 34, 36–38 and 41).** MausBot's right panel is **Prohlížeč** (English
-"Browser"), as a T3 Code thread's right panel: upstream's Computer panel
-and its own live view of the screen are removed
+13, 34, 36–38 and 41, 0195 points 13–15).** MausBot's right panel is
+**Prohlížeč** (English "Browser") and works like a T3 Code thread's right
+panel (principle 9, `manual/environment-browser.md` of the Lazurio root):
+upstream's Computer panel and its own live view of the screen are removed
 ([below](#what-the-overlay-removes)).
 
-- **The bot's tabs.** The panel shows the bot's strip, the server's answer
-  to `GET /api/bots/<bot>/browser`: each tab with its Platform view
-  `<view origin>/t/<id>`, the origin being the one `lazurio browser link
-  --json` declares. Each tab is a frame of that view, with the contract's
-  frame attributes; the bot and the person click and type in the same tab at
-  once, and nothing is handed over or locked (point 13). A tab a page opens
-  shows in the panel while someone looks at it. The strip is read every 5 s
-  while the browser is in view.
-- **New tab** ("+", Nová karta) opens the bot's window,
-  `lazurio browser window --session bot-<id>` (`POST
-  /api/bots/<bot>/browser/window`): the one the bot's session works in, else a
-  new window bound to it, which then joins the strip.
-- **Where it opens.** The button sits in the bot's header in Simple and
+- **The bot's strip.** The panel shows the server's answer to `GET
+  /api/bots/<bot>/browser`: the bot's tabs, each with its Platform view
+  `<view origin>/t/<id>` (the origin `lazurio browser link --json`
+  declares), whether the bot's own agent-browser works in it and which other
+  strips hold it too (a dot marks both). Each tab is a frame of the view with
+  the contract's frame attributes; the bot and the person click and type in
+  the same tab at once, and nothing is handed over or locked (point 13). The
+  strip is read every 5 s while the browser is in view.
+- **"+" is Nová karta**, the shell's `<lazurio-new-tab>` (contract C10), as
+  in T3 Code and the Launchpad: a page it opens or a tab chosen in Přehled
+  becomes a tab of the strip, which the bot holds (`POST
+  /api/bots/<bot>/browser/hold`, the contract's one write of the holder
+  file); its tool **Soubory** opens the Files view. With an empty strip the
+  panel shows Nová karta. Where the shell defines no Nová karta there is no
+  "+".
+- **× lets a tab go** (`POST …/browser/release`), with **Vrátit** for 7 s
+  (`browserTimes.undoMs`, inside the hub's 8 s): the notice says what becomes
+  of the tab, as T3 Code's strip does (the bot works in it, another place
+  holds it, or it closes in the Environment). A link to a tab and a tab a
+  page opens are held the same way, and a tab whose view says it ended leaves
+  the strip.
+- **The panel opens by itself** where it sits beside the chat (not on a
+  phone's width), on the tab, when the bot's session opens a new window or
+  tab (0195 point 15: the server announces it on MausBot's existing event
+  stream, `lazurio-browser-tab`, only for bindings after start), and when
+  the bot asks the person to sign in, enter a two-factor code or solve a
+  CAPTCHA (`request_sign_in` in the Environment browser: the card names the
+  bot's tab, `signIn.tab`), once per card; the card also offers to show the
+  tab. In a room it opens on the tab of the member that opened it or asked.
+- **Where else it opens.** The button sits in the bot's header in Simple and
   Advanced alike. A plain click on a link to a tab of this Environment's view
-  opens the panel on that tab instead of a new tab of the person's browser.
-  When the bot asks the person to sign in, enter a two-factor code or solve a
-  CAPTCHA (`request_sign_in` in the Environment browser), the card names the
-  bot's tab (`signIn.tab`, the tab its session works in) and the panel opens
-  on it by itself, once per card, where it sits beside the chat; the card
-  also offers to show the tab.
+  opens the panel on that tab instead of a new tab of the person's browser
+  (in a room, a tab a member already holds).
 - **Lazurio accounts go to the person's own browser** (points 36–38). A
   sign-in at `lazurio.io` (Lazurio sign-in, the Dashboard, the vault, another
   Environment, this Environment's Apps, Chat, Automate and browser view) is
@@ -281,24 +295,28 @@ and its own live view of the screen are removed
   browser and links there, and the bot's instructions say the same. Links to
   another Environment's view or any other page stay links of the person's
   browser.
-- **The other views** are upstream's: **Files**, the bot's folder and
-  worktree with the files the chat changed, in every mode; **Routines** and
-  **Data** only in Advanced (a data result the person opens still shows
+- **The other views** are upstream's: **Files** (Soubory), the bot's folder
+  and worktree with the files the chat changed, in every mode; **Routines**
+  and **Data** only in Advanced (a data result the person opens still shows
   Data).
 - **Without an Environment browser** (outside Lazurio, local development)
   the strip answers `{"available": false}` and the panel says the browser is
   not available; Files stays.
 - **Words** come from the shell's language (Czech unless the profile is
-  English: Prohlížeč, karta, Nová karta, Prostředí), English outside Lazurio;
-  a tooltip is the control's name.
+  English: Prohlížeč, Soubory, Rutiny, karta, Nová karta, Vrátit, Prostředí),
+  English outside Lazurio; a tooltip is the control's name. The content of
+  upstream's views keeps upstream's i18n.
 
 The Lazurio side is `src/components/LazurioBrowserPanel.tsx` (the panel),
-`src/components/LazurioBrowser.tsx` (the header button, ChatView's one hook
-and the sign-in card's line), `src/lib/lazurio-browser-panel.ts` (its state),
-`shared/lazurio-browser.ts` (the wire types and the Lazurio account rule) and
-`server/routes/lazurio-browser.ts`; `src/lib/lazurio-browser-panel.test.ts`,
+`src/components/LazurioBrowser.tsx` (the header button, the one hook of
+ChatView and GroupView and the sign-in card's line),
+`src/lib/lazurio-browser-panel.ts` (its state and words),
+`shared/lazurio-browser.ts` (the wire types, the event and the Lazurio account
+rule) and `server/routes/lazurio-browser.ts`, with one event case in
+`src/state/store.tsx`; `src/lib/lazurio-browser-panel.test.ts`,
 `server/lazurio-environment-browser.test.ts` and the e2e test cover the strip,
-New tab, the sign-in tab and the absence of the Computer panel.
+Nová karta's choices, hold and release, the announcement of a new tab, the
+sign-in tab, rooms and the absence of the Computer panel.
 
 The file rules come from the Platform's contract module, vendored by digest
 from a release into `lazurio/browser-contract/` with its MIT licence, the
