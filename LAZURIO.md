@@ -216,7 +216,7 @@ Cursor keeping upstream's card, and the card outside Lazurio.
   of `openmausbot mcp`
   ([`docs/headless-cli.md`](docs/headless-cli.md#routines-and-webhooks)).
   Agents and Buddy manage MausBot's automations through this CLI, as a person
-  does on the Automate page, in every Environment they reach: the Environment
+  does on its Automations page, in every Environment they reach: the Environment
   is the boundary (Lazurio decision 0172), and the server trusts a caller on
   its own computer as its owner, named by the port of the Machine's MausBot
   (`--port` or `OMB_PORT`). On an Environment the command is the release's
