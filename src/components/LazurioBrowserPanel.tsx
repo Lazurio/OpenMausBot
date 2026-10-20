@@ -288,6 +288,7 @@ function BotBrowser({ botId, requested, onView }: {
     if (!available) return;
     if (!stripHolds(available, tabId)) {
       setOwnTabs((current) => current.some((tab) => tab.tabId === tabId) ? current
+        : [...current, { tabId, view: viewOfTab(available, tabId), agent: false, alsoHeldBy: [], alsoHeldElsewhere: false }]);
     }
     try {
       await changeBotTab(botId, tabId, "hold", api);
@@ -391,6 +392,7 @@ function BotBrowser({ botId, requested, onView }: {
             const id = entryId(entry);
             const selectedTab = id === activeId;
             const name = label(entry, index);
+            const marked = entry.kind === "tab" && (entry.tab.agent || entry.tab.alsoHeldBy.length > 0 || entry.tab.alsoHeldElsewhere);
             return (
               <div
                 key={id}

@@ -18,6 +18,7 @@ import {
   type LazurioRun,
   type StripBot,
   type StripChange,
+  WHOLE_AUDIENCE,
 } from "./lazurio-environment-browser.ts";
 
 const provenance = JSON.parse(await readFile(join(import.meta.dirname, "..", "lazurio", "browser-contract", "provenance.json"), "utf8")) as { version: string };
@@ -254,6 +255,7 @@ describe("the bots' strips", () => {
   });
 
   const VIEW = "https://browser.vm-01.example.lazurio.io";
+  const tab = (tabId: string, extra: Record<string, unknown> = {}) => ({ tabId, view: `${VIEW}/t/${tabId}`, agent: false, alsoHeldBy: [], alsoHeldElsewhere: false, ...extra });
 
   it("gives the panel a bot's strip with each tab's view on the declared view's origin, and the tab its session works in", async () => {
     await bind(botBrowserSession(BOT_A), TAB_A);
@@ -263,6 +265,7 @@ describe("the bots' strips", () => {
     await mkdir(holders(), { recursive: true });
     await writeFile(join(holders(), "t3-thread.json"), JSON.stringify({ strip: "t3-thread", label: "Research", tabs: [TAB_A] }));
     await strips.sync();
+    expect(await strips.strip(BOT_A, WHOLE_AUDIENCE)).toEqual({
       available: true,
       strip: `bot-${BOT_A}`,
       viewOrigin: VIEW,
@@ -270,22 +273,30 @@ describe("the bots' strips", () => {
       current: TAB_C,
     });
     expect(strips.boundTab(BOT_A)).toBe(TAB_C);
+    expect(await strips.strip(BOT_B, WHOLE_AUDIENCE)).toEqual({ available: true, strip: `bot-${BOT_B}`, viewOrigin: VIEW, tabs: [], current: null });
     expect(strips.boundTab(BOT_B)).toBeNull();
   });
 
   it("gives the panel no strip where the Environment declares no browser, or its link is no view address", async () => {
     await bind(botBrowserSession(BOT_A), TAB_A);
     const none = start(() => ({ code: 10, stdout: JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-link", available: false }) }));
+    expect(await none.strip(BOT_A, WHOLE_AUDIENCE)).toEqual({ available: false });
+    expect(await none.hold(BOT_A, TAB_B, WHOLE_AUDIENCE)).toEqual({ refused: "unavailable" });
     await browser?.stop();
     const odd = start(() => ({ code: 0, stdout: JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-link", session: null, link: "https://example.com/" }) }));
+    expect(await odd.strip(BOT_A, WHOLE_AUDIENCE)).toEqual({ available: false });
   });
 
   it("holds a tab the person chose in the bot's strip, and lets it go on ×, with the contract's one write", async () => {
     const session = botBrowserSession(BOT_A);
     const strips = start();
     await strips.sync();
+    expect(await strips.hold(BOT_A, TAB_B.toLowerCase(), WHOLE_AUDIENCE)).toMatchObject({ available: true, tabs: [tab(TAB_B)] });
     expect((await holderOf(session)).tabs).toEqual([TAB_B]);
+    expect(await strips.hold(BOT_A, TAB_C, WHOLE_AUDIENCE)).toMatchObject({ tabs: [tab(TAB_B), tab(TAB_C)] });
+    expect(await strips.release(BOT_A, TAB_B, WHOLE_AUDIENCE)).toMatchObject({ tabs: [tab(TAB_C)] });
     expect((await holderOf(session)).tabs).toEqual([TAB_C]);
+    expect(await strips.release(BOT_A, TAB_C, WHOLE_AUDIENCE)).toMatchObject({ tabs: [] });
     expect(existsSync(join(holders(), `${session}.json`))).toBe(false);
     expect(runs.filter((args) => args[1] !== "link")).toEqual([]);
   });
@@ -297,6 +308,10 @@ describe("the bots' strips", () => {
     bots = [...bots, { id: "gone", name: "Gone", hidden: true }];
     const strips = start();
     await strips.sync();
+    expect(await strips.hold(BOT_A, "not a tab", WHOLE_AUDIENCE)).toEqual({ refused: "invalid-tab" });
+    expect(await strips.hold("gone", TAB_B, WHOLE_AUDIENCE)).toEqual({ refused: "bot-not-found" });
+    expect(await strips.hold("nobody", TAB_B, WHOLE_AUDIENCE)).toEqual({ refused: "bot-not-found" });
+    expect(await strips.hold(BOT_A, TAB_B, WHOLE_AUDIENCE)).toEqual({ refused: "too-many-tabs" });
   });
 
   it("announces a tab the bot's session newly binds, so the person's panel opens on it, but not the ones found at start", async () => {
@@ -307,6 +322,7 @@ describe("the bots' strips", () => {
     await bind(botBrowserSession(BOT_A), TAB_C);
     await strips.sync();
     expect(announced).toEqual([[BOT_A, TAB_C]]);
+    await strips.release(BOT_A, TAB_C, WHOLE_AUDIENCE);
     await strips.sync();
     expect(announced).toEqual([[BOT_A, TAB_C]]);
     expect((await holderOf(botBrowserSession(BOT_A))).tabs).toEqual([TAB_A]);
@@ -316,6 +332,7 @@ describe("the bots' strips", () => {
     browser = startEnvironmentBrowser({ env: { HOME: runtime }, bots: () => bots, onChange: () => () => {}, runLazurio: async () => ({ code: 127, stdout: "" }) });
     await browser.sync();
     expect(await readdir(runtime)).toEqual([]);
+    expect(await browser.strip(BOT_A, WHOLE_AUDIENCE)).toEqual({ available: false });
   });
 
   it("names the vendored Platform release in every holder file it writes", () => {

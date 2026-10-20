@@ -22,6 +22,7 @@ import {
 const VIEW = "https://browser.vm-01.example.lazurio.io";
 const TAB_A = "A".repeat(32);
 const TAB_B = "B".repeat(32);
+const tab = (tabId: string, extra: Record<string, unknown> = {}) => ({ tabId, view: `${VIEW}/t/${tabId}`, agent: false, alsoHeldBy: [], alsoHeldElsewhere: false, ...extra });
 const strip = parseBotBrowserStrip({
   available: true,
   strip: "bot-scout",
@@ -145,6 +146,14 @@ describe("× on a strip tab", () => {
       .toBe("Dál je v Apps a ve vlákně „Rešerše“.");
     expect(closeNoticeText(tab(TAB_A), false)).toEqual({ title: "The tab left this bot's strip.", description: "It closes in the Environment." });
     expect(placesOf([{ strip: "bot-writer", label: "Writer" }], false)).toBe("with the bot “Writer”");
+  });
+
+  it("names a holder the person may not see by nothing but “elsewhere”", () => {
+    expect(closeNoticeText(tab(TAB_A, { alsoHeldElsewhere: true }), true).description).toBe("Dál je jinde v Prostředí.");
+    expect(closeNoticeText(tab(TAB_A, { alsoHeldBy: [{ strip: "launchpad", label: "Apps" }], alsoHeldElsewhere: true }), false).description)
+      .toBe("It stays in Apps and elsewhere in the Environment.");
+    expect(parseBotBrowserStrip({ available: true, strip: "bot-scout", viewOrigin: VIEW, tabs: [tab(TAB_A, { alsoHeldElsewhere: true })], current: null }))
+      .toMatchObject({ tabs: [{ alsoHeldElsewhere: true }] });
   });
 });
 

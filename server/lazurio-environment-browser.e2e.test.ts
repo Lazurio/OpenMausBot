@@ -78,6 +78,7 @@ describe.skipIf(process.platform === "win32")("a Lazurio server on an Environmen
       available: true,
       strip: `bot-${bot.id}`,
       viewOrigin: "https://browser.vm-01.example.lazurio.io",
+      tabs: [{ tabId: TAB_A, view: `https://browser.vm-01.example.lazurio.io/t/${TAB_A}`, agent: true, alsoHeldBy: [], alsoHeldElsewhere: false }],
       current: TAB_A,
     });
     expect((await call("POST", `/api/bots/${bot.id}/browser`)).status).toBe(405);
@@ -99,6 +100,7 @@ describe.skipIf(process.platform === "win32")("a Lazurio server on an Environmen
     try {
       const held = await call("POST", `/api/bots/${bot.id}/browser/hold`, { tabId: TAB_B.toLowerCase() });
       expect(held.status).toBe(200);
+      expect(held.body.tabs).toEqual([{ tabId: TAB_B, view: `https://browser.vm-01.example.lazurio.io/t/${TAB_B}`, agent: false, alsoHeldBy: [], alsoHeldElsewhere: false }]);
       expect(tabsOf(bot.id)).toEqual([TAB_B]);
       expect((await call("POST", `/api/bots/${bot.id}/browser/hold`, { tabId: "nope" })).status).toBe(400);
       expect((await call("GET", `/api/bots/${bot.id}/browser/hold`)).status).toBe(405);

@@ -480,6 +480,7 @@ import { createUpdateCheckRoutes, serverUpdateChecker } from "./routes/update-ch
 import { createInternalSignInRoutes } from "./routes/sign-in.ts";
 import { createInternalThreadRoutes } from "./routes/internal-threads.ts";
 import { createSignInCardRoutes } from "./routes/sign-in-cards.ts";
+import { createLazurioBrowserRoutes, stripAudienceOf } from "./routes/lazurio-browser.ts";
 import { createInternalEscalateRoutes } from "./routes/internal-escalate.ts";
 import { createInternalChiefTeamRoutes } from "./routes/internal-chief-team.ts";
 import { createRoomHoldRoutes } from "./routes/room-holds.ts";
@@ -10129,6 +10130,7 @@ ROUTES.push(createDeciderRoutes({ decider, extractor, config: () => cfg }), crea
 if (CLOUD_TEAM) teamHost.adoptServerProfile(sessions.list().flatMap((session) => session.email ? [session.email] : []));
 ROUTES.push(createSidebarSectionRoutes({ store, maxBots: MAX_WORKSPACE_BOTS, wireBot }), createPresenceRoutes({ isOwner: ownerOrAdmin, active: async (source, zone, language) => { return proactive.brief.active(source, zone, language); }, ...(CLOUD_TEAM ? { member: teamMessages.arrived } : {}) }), createMeRoutes({ team: CLOUD_TEAM, session: (auth) => (auth.kind === "session" ? auth.session : null), profile: teamHost.memberProfile, save: teamHost.saveMemberProfile, seed: teamHost.seedMemberProfile, seeded: teamHost.seededFields, changed: () => broadcast({ kind: "config", ...configStatus() }) }), createTeamPhoneRoutes({ team: CLOUD_TEAM, sessions, publicBase: (req, auth) => publicUrl() ?? (auth.kind === "session" ? requestOrigin(req) : null) }),
   createSignInCardRoutes({ settle: settleSignIn, threadVisible: (auth, threadId) => visibleTo(viewerFor(auth)).thread(threadId) }));
+ROUTES.push(createLazurioBrowserRoutes({ browser: environmentBrowser, liveBot: (id) => Boolean(store.bot(id)) && !store.bot(id)!.hidden, audience: (auth) => stripAudienceOf(viewerFor(auth), visibleTo(viewerFor(auth))) }));
 ROUTES.push(createRoomHoldRoutes({
   group: (id) => store.group(id),
   setHold: (groupId, botId, held) => {
