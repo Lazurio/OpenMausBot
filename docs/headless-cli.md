@@ -348,7 +348,6 @@ bots:                                       # at least one
     approval: ask | edits | auto | full     # a new bot starts at full
     cwd: /work/room                         # a full path that exists on the server
     browser: true | false | { enabled: true, profile: guest }
-    tools: { allow: [SELECTOR], deny: [SELECTOR] }   # docs/tool-selection.md; {} means every tool
     skills:
       - { file: skills/launch-report/SKILL.md, enabled: true }
 rooms:
@@ -368,6 +367,8 @@ environment variable, a key written into the file, and anything longer than
 the app takes (a name or title on more than one line or over 100 or 200
 characters, a soul or team brief over 24,000 bytes, a room brief over 12,000
 characters, a skill over 256 KiB). It warns about a bot that still sets `computer`:
+bots work on this computer, so the field is ignored. It warns the same way about
+`tools`: every bot gets the tools of this computer. An engine's key, and a base URL kept as a secret, are read only
 when they have to be written: when the engine has no key yet, or with
 `--rotate-secrets` (on an engine that has a key, the plan says its base URL
 could not be compared). Souls, briefs and skills are read with LF line ends,
@@ -375,13 +376,8 @@ and paths in the file may use either separator, so the same file applies
 alike from a Windows checkout and from Linux CI.
 
 Before it writes anything, apply also checks the file against the server
-(exit 1): every `model` must be one its engine offers, every room member a bot
-that exists or that the file makes, and every `tools` selection one the bot's
-engine can hold. Claude, Codex and the other agent engines limit only MCP
-tools (`mcp:SERVER:TOOL`); a `native:` selector for one of them would stop
-every turn it runs, so apply refuses it (docs/tool-selection.md lists which
-engines can limit built-in tools). `tools: {}` or `{ deny: [] }` means every
-tool: the bot's selection is cleared.
+(exit 1): every `model` must be one its engine offers, and every room member a
+bot that exists or that the file makes.
 
 `team export` writes the workspace in this format, skills as `SKILL.md` files
 beside it and engine keys as `{ env: SET_ME }` placeholders, so applying an

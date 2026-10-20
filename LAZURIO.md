@@ -98,6 +98,7 @@ builds them.
     an exact upstream tag, Lazurio-only code lives in Lazurio-named modules,
     and each change says which principle it serves.
 
+  Environment's tools (3); engine sign-in through the Launchpad (3); every
   bot at Full on every server, with T3 Code's four levels and no gate before
   Full, before Auto or before contacting another bot (2,
 
@@ -284,6 +285,17 @@ signed-in accounts, and integrations come from the Environment.
   Custom level, grant
   marker or switch loads and drops; a write that names one, or the removed
   confirmation, is refused with 400 ([Access levels](#access-levels)).
+- **Per-bot tool selection** (decided by the Organization Admin on
+  2026-10-20, issue #47; root decision 0172 with its addendum of 2026-10-19):
+  `toolScope` with its allow and deny selectors (`native:NAME`,
+  `mcp:SERVER:NAME`), Settings → Tools, and every engine path that narrowed
+  the native or MCP tools offered to one bot (Claude, Codex, the ACP engines
+  with Grok, Pi, the API models), with their verification scripts. Every bot
+  gets the tools the Environment provides; narrower access means a separate
+  Environment. A bot's peers (who it may contact) stay: that is the team's
+  shape, not access. A saved selection, in `bots.json`, the new-bot defaults
+  or a team backup, loads and drops; a team file's `tools` is ignored with a
+  warning; a write that names `toolScope` is refused with 400.
 - **Telemetry to upstream**: upstream's PostHog analytics, the welcome
   tour's name and e-mail form, the `@devs` bug report to the MausBot team
   (`report_bug`) with the recent log it attached, and the "Product updates by
