@@ -39,9 +39,9 @@ providers, and capacity limits were outside this run.
 
 ## What runs on a server, and what does not
 
-Runs fully on the server: every engine CLI (Claude Code, Codex, Grok, custom ACP engines), chats, rooms, bot-to-bot coordination, routines, webhooks, Company Brain, computer use on cloud or container computers, text-to-speech, and the web UI (the server serves it itself).
+Runs fully on the server: every engine CLI (Claude Code, Codex, Grok, custom ACP engines), chats, rooms, bot-to-bot coordination, routines, webhooks, Company Brain, text-to-speech, and the web UI (the server serves it itself).
 
-Needs the desktop app instead: dictation and controlling the server's own desktop.
+Needs the desktop app instead: dictation.
 
 On a Lazurio Environment, bots work in the Environment browser through `agent-browser` with their own session; elsewhere they have no browser.
 
@@ -255,7 +255,7 @@ Routines and queued work survive a restart; a turn running at that moment does n
 
 Stop the server before copying its SQLite database: Ctrl-C for a foreground
 process, or `sudo systemctl stop openmausbot` from the administrator shell for
-the service above. Stop any engine processes and managed desktops still writing
+the service above. Stop any engine processes still writing
 files you intend to back up.
 
 For paths A and C, this backs up application state (bots, chats, routines, tunnel

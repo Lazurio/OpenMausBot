@@ -77,8 +77,8 @@ already have:
 
 Four closed personal-agent products shipped in seven weeks of 2026, and each one keeps the model, the
 computer and your data on its maker's side of the line. OpenMausBot is the open-source version of that
-shape: a team of agents in a chat app, each with its own model, its own computer and its own connected
-apps, running on your machine under Apache 2.0. If you searched for an *open Muse*, *open dots*, an
+shape: a team of agents in a chat app, each with its own model and its own working folder, running on
+your machine under Apache 2.0. If you searched for an *open Muse*, *open dots*, an
 *open-source Grok Bot*, an *open Instinct* or an *open Cue*, this is the repository.
 
 | Looking for | What it is | How OpenMausBot differs | Read more |
@@ -385,8 +385,8 @@ dedicated receiver through a hosted relay or a tool such as Tailscale Funnel.
 
 ## Status
 
-Early but real — the loop works end to end: message → agent → streamed reply → tools → approvals →
-computer use. macOS, Windows, and Ubuntu 24.04 x64 have released builds; Ubuntu remains a beta with the
+Early but real — the loop works end to end: message → agent → streamed reply → tools → approvals.
+macOS, Windows, and Ubuntu 24.04 x64 have released builds; Ubuntu remains a beta with the
 capability limits above. Rough edges to expect: hosted/mobile connectivity is still being built, and webhook
 triggers currently use the local receiver rather than an always-on hosted relay.
 Hosted voice needs an ElevenLabs, Fish Audio, or xAI key; built-in Mac and local Chatterbox voices need no cloud key. Calls are macOS-only for now (they ride the same on-device dictation as
