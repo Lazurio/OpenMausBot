@@ -45,9 +45,10 @@ export class Output {
     if (!this.quiet) this.io.err(JSON.stringify(redactDeep(event)));
   }
 
-  result(value: unknown, human: readonly string[]): void {
-    if (this.json) this.io.out(JSON.stringify(redactDeep(value), null, 2));
-    else for (const line of human) this.io.out(redactSecretsInText(line));
+  result(value: unknown, human: readonly string[], revealed = false): void {
+    const shown = <T>(text: T): T => revealed ? text : redactDeep(text);
+    if (this.json) this.io.out(JSON.stringify(shown(value), null, 2));
+    else for (const line of human) this.io.out(shown(line));
   }
 
   error(error: HeadlessError): void {

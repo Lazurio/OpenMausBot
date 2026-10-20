@@ -53,6 +53,41 @@ const WAITING = {
   strict: { type: "boolean" },
 } satisfies ParseArgsOptionsConfig;
 
+const SCHEDULE = {
+  at: { type: "string" },
+  daily: { type: "string" },
+  cron: { type: "string" },
+  tz: { type: "string" },
+  every: { type: "string" },
+  weekdays: { type: "string" },
+  window: { type: "string" },
+  "starts-at": { type: "string" },
+  "ends-at": { type: "string" },
+} satisfies ParseArgsOptionsConfig;
+
+const ROUTINE = {
+  ...SCHEDULE,
+  name: { type: "string" },
+  bot: { type: "string" },
+  channel: { type: "string" },
+  prompt: { type: "string" },
+  "prompt-file": { type: "string" },
+  timeout: { type: "string" },
+  duration: { type: "string" },
+  overlap: { type: "string" },
+  continuity: { type: "boolean" },
+  "run-on-startup": { type: "boolean" },
+  "results-thread": { type: "string" },
+  "dry-run": { type: "boolean" },
+} satisfies ParseArgsOptionsConfig;
+
+const SECRET = {
+  "show-secret": { type: "boolean" },
+  "secret-file": { type: "string" },
+  force: { type: "boolean" },
+  "dry-run": { type: "boolean" },
+} satisfies ParseArgsOptionsConfig;
+
 const VERBS: Record<string, { options: ParseArgsOptionsConfig; positionals: number }> = {
   doctor: { options: { wait: { type: "string" } }, positionals: 0 },
   bots: { options: {}, positionals: 0 },
@@ -105,6 +140,26 @@ const VERBS: Record<string, { options: ParseArgsOptionsConfig; positionals: numb
     positionals: 1,
   },
   mcp: { options: {}, positionals: 0 },
+  "routine list": { options: { bot: { type: "string" } }, positionals: 0 },
+  "routine show": { options: { runs: { type: "string" } }, positionals: 1 },
+  "routine create": { options: { ...ROUTINE, paused: { type: "boolean" } }, positionals: 1 },
+  "routine update": {
+    options: { ...ROUTINE, pause: { type: "boolean" }, resume: { type: "boolean" }, "no-channel": { type: "boolean" }, "no-timeout": { type: "boolean" },
+      "no-continuity": { type: "boolean" }, "no-run-on-startup": { type: "boolean" } },
+    positionals: 1,
+  },
+  "routine delete": { options: { "dry-run": { type: "boolean" } }, positionals: 1 },
+  "routine run": { options: { "dry-run": { type: "boolean" } }, positionals: 1 },
+  "webhook list": { options: { bot: { type: "string" } }, positionals: 0 },
+  "webhook create": {
+    options: { ...SECRET, name: { type: "string" }, bot: { type: "string" }, prompt: { type: "string" }, "prompt-file": { type: "string" },
+      "event-types": { type: "string" }, delivery: { type: "string" }, paused: { type: "boolean" } },
+    positionals: 1,
+  },
+  "webhook delete": { options: { "dry-run": { type: "boolean" } }, positionals: 1 },
+  "webhook rotate": { options: SECRET, positionals: 1 },
+  "bot list": { options: {}, positionals: 0 },
+  "bot show": { options: {}, positionals: 1 },
 };
 
 export const HEADLESS_VERBS: ReadonlySet<string> = new Set(Object.keys(VERBS).map((verb) => verb.split(" ")[0]!));
@@ -112,6 +167,7 @@ export const HEADLESS_VERBS: ReadonlySet<string> = new Set(Object.keys(VERBS).ma
 /** Verbs that change something; control-omb refuses them on a discovered server. */
 export const MUTATING_VERBS: ReadonlySet<string> = new Set([
   "send", "send-channel", "run", "interrupt", "new-bot", "new-channel", "set-model", "edit", "team apply", "engine set",
+  "routine create", "routine update", "routine delete", "routine run", "webhook create", "webhook delete", "webhook rotate",
 ]);
 
 export type Flags = Record<string, string | boolean | string[] | undefined>;
@@ -128,9 +184,9 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
   if (!head) throw usageError("name a verb", "run openmausbot help");
   let verb = head;
   let args = rest;
-  if (head === "team" || head === "engine") {
+  const actions = Object.keys(VERBS).filter((name) => name.startsWith(`${head} `)).map((name) => name.slice(head.length + 1));
+  if (actions.length) {
     const action = rest[0];
-    const actions = head === "team" ? ["apply", "export"] : ["set", "list"];
     if (!action || !actions.includes(action)) {
       if (action === "--help" || action === "-h") return { verb: head, flags: { help: true }, positionals: [] };
       throw usageError(`${head} needs one of: ${actions.join(", ")}`, `run openmausbot help ${head}`);

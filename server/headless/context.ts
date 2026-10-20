@@ -22,6 +22,8 @@ export interface VerbOutcome {
   exitCode: number;
   human: string[];
   printed?: true;
+  /** Printed without the secret redaction: a secret the person asked to see. */
+  revealed?: true;
 }
 
 export interface Target {

@@ -82,6 +82,10 @@ one of its conversations.
 | `engine set KIND`, `engine list` | Gives the workspace an engine key without a screen (below). |
 | `connect [URL]` | Gets a token for a workspace elsewhere. |
 | `new-bot`, `new-channel`, `set-model`, `edit` | Make a bot or a room, change a bot's model, rewrite an earlier message. |
+| `routine list`, `routine show ROUTINE` | Your routines (scheduled work), or one with its prompt and recent runs (below). |
+| `routine create`, `routine update`, `routine delete`, `routine run` | Schedule work for a bot or a goal for a room, change or pause it, delete it, run it once now. |
+| `webhook list`, `webhook create`, `webhook delete`, `webhook rotate` | Addresses other apps call to start a bot's work, and their secrets (below). |
+| `bot list`, `bot show BOT` | Your bots (as `bots`), or one bot with its routines and webhooks. |
 | `mcp` | The OpenMausBot MCP server on stdin and stdout ([docs/mcp-server.md](mcp-server.md)). |
 
 The message for `send` and `run` can be the next word, `--text TEXT`,
@@ -207,6 +211,72 @@ Claude bot (engine `claude`); `--only-claude-api` keeps it to "Claude (API
 key)" bots (engine `claudeApi`). `--install` installs the engine's command if
 it is missing, and waits for the install to finish (minutes on a fresh
 machine). Changing keys needs a session with full access.
+
+## Routines and webhooks
+
+A routine runs a bot's work on a schedule, unattended, at the bot's approval
+level; a room goal is the same for a room, led by one of its members. A
+webhook is an address another app calls to start a bot's work. These are the
+ROUTINE, WEBHOOK, BOT and ROOM are a name (in any case) or an id; a name two of
+them share is refused with their ids.
+
+```sh
+openmausbot routine create "Morning brief" --bot Henry --daily 08:30 --weekdays mon-fri \
+  --prompt "Summarize what happened overnight and name the three things that need me today."
+openmausbot routine list                        # every routine: schedule, on or paused, next run, id
+openmausbot routine show "Morning brief"        # its prompt and its last 10 runs (--runs N)
+openmausbot routine update "Morning brief" --pause
+openmausbot routine update "Morning brief" --resume --cron "30 8 * * 1-5" --tz Europe/Prague
+openmausbot routine run "Morning brief"         # once now, besides its schedule
+openmausbot routine delete "Morning brief" --dry-run
+```
+
+| Schedule | Runs |
+|---|---|
+| `--at 2026-11-02T09:00:00+01:00` | Once, at a date and time with its offset (`Z` for UTC). |
+| `--daily 09:00 [--weekdays mon-fri]` | Every day, or on those days, at that time of the server's computer. Days are `mon` to `sun`, ranges (`fri-mon`), `weekdays`, `weekend`, or `0` to `6` (`0` is Sunday). |
+| `--cron "0 9 1 * *" --tz Europe/Prague` | By a five-field cron rule in an IANA time zone. |
+| `--every 30m [--weekdays …] [--window 09:00-17:00] [--starts-at TIME] [--ends-at TIME]` | Every 5 minutes to 24 hours, counted from now (or `--starts-at`), only on those days and inside that window, until `--ends-at`. |
+
+The prompt is `--prompt TEXT`, `--prompt -` (stdin) or `--prompt-file FILE`;
+a run sees no conversation, so it holds the whole task. `--channel ROOM` makes
+the routine that room's goal, led by `--bot` (a member). `--paused` creates it
+off. `--timeout 45m` stops a run that works longer, `--duration 30m` is its
+length in the calendar, `--overlap queue` keeps one run waiting when it is due
+while still running (`skip`, the default, skips that time), `--continuity`
+hands each run the last finished run's report, `--run-on-startup` also runs it
+when OpenMausBot starts, and `--results-thread ID` names the bot's
+conversation that gets the results (`main`, the default, is its main one).
+
+`routine update` changes only what you give it, and `--pause` and `--resume`
+turn it off and on. A schedule given to it replaces the whole schedule, so
+give all its parts; `--no-timeout`, `--no-continuity`, `--no-run-on-startup`
+and `--no-channel` take a setting away. `create`, `update`, `delete` and `run`
+take `--dry-run`, which prints the request and sends nothing.
+
+```sh
+openmausbot webhook create Deploys --bot Henry --event-types deployment_status \
+  --prompt "Check the deploy and report anything that failed." --secret-file ~/.config/deploys.secret
+openmausbot webhook list                        # each with the address it listens on
+openmausbot webhook rotate Deploys --secret-file ~/.config/deploys.secret --force
+openmausbot webhook delete Deploys
+```
+
+Each POST to the address with the webhook's secret starts the bot's work: the
+secret goes in an `Authorization: Bearer` header, or at the end of the address
+(`ADDRESS/SECRET`) for a sender that only takes an address. The server keeps
+only a hash of it, so a secret exists once: `--secret-file FILE` saves it to a
+new file only you can read (`--force` replaces one, as a rotation does), and
+`--show-secret` prints it; `create` and `rotate` need one of the two, and no
+other command prints a secret. Without `--prompt`, each call's own `task`
+field is the work. `--event-types` keeps only those events (the caller's event
+header, such as GitHub's `X-GitHub-Event`), `--delivery post` posts each call
+into one conversation of the bot instead of starting a run, and `--paused`
+creates the webhook off.
+
+`openmausbot mcp` serves the same operations as tools
+([docs/mcp-server.md](mcp-server.md#routines-and-webhooks)), and each command
+here calls its tool, so a script and an MCP client do the same thing.
 
 ## The team file
 
@@ -420,4 +490,3 @@ file (`--token-file`).
 
 `openmausbot mcp` serves the same operations as MCP tools on stdin and stdout
 ([docs/mcp-server.md](mcp-server.md)): `wait_for_conversation` waits on the
-same job, and returns the same result, as `wait`.

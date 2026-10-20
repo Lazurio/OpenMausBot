@@ -9,10 +9,10 @@ OpenMausBot team while the desktop app and its harness are running.
 - read bounded transcript pages and search local transcripts without returning screenshot pixels;
 - create and safely edit bot profiles, channels, and separate task conversations;
 - send work to a bot or channel, wait for either conversation to settle or need help, and interrupt its active turn;
-- list configured model instances and switch an idle bot to an exact available model.
+- list configured model instances and switch an idle bot to an exact available model;
+- list, read, create, change, pause, run and delete routines (scheduled work for a bot, or a goal for a room), and
 
-The v1 server intentionally cannot approve requests, remember permission grants, delete data, import teams,
-change credentials, or control computer/VM lifecycle. Those actions stay in the human-facing app.
+The server intentionally cannot approve requests, remember permission grants, delete bots, rooms or conversations,
 
 ## From the openmausbot command
 
@@ -124,6 +124,7 @@ described above; it is not a generic reverse-proxy secret.
 | Inspect | `get_system_health`, `list_bots`, `list_channels`, `get_bot_messages`, `get_channel_messages`, `search_messages`, `list_available_models` |
 | Create and organize | `create_bot`, `update_bot_profile`, `create_channel`, `update_channel`, `create_task`, `switch_task`, `rename_task` |
 | Run work | `send_bot_message`, `send_channel_message`, `wait_for_conversation`, `interrupt_conversation`, `set_bot_model` |
+| Automate | `list_routines`, `get_routine`, `create_routine`, `update_routine`, `delete_routine`, `run_routine`, `list_webhooks`, `create_webhook`, `delete_webhook`, `rotate_webhook_secret` |
 
 `wait_for_conversation` returns `settled`, `needs-user`, `failed`, `stalled`, or `timed-out`, along with a
 small redacted transcript tail. That `status` keeps its earlier meaning: `settled` says the conversation is
@@ -144,6 +145,34 @@ cancellation is honored while a tool is waiting.
 `_`): sending again with the same id returns the first send's receipt instead of a second message. They
 return the stored message's `messageId` and `at`, or `queued: true` when the message waits behind the turn
 running there.
+
+## Routines and webhooks
+
+A routine's schedule is flat fields beside its other arguments: `schedule` (`once`, `daily`, `weekly`, `cron` or
+`interval`, which may be left out when the fields name one) with `at` for once; `time` and `weekdays` for daily and
+weekly; `cron` and `time_zone` (IANA) for cron; and `every_minutes`, optionally `starts_at`, `weekdays`,
+`window_start` and `window_end`, and `ends_at`, for an interval. Dates and times carry their offset
+(`2026-11-02T09:00:00+01:00`); `time` and the window are the server computer's local time; days are names
+(`"mon"`, `"monday"`), ranges (`"mon-fri"`, `"fri-mon"`), `"weekdays"`, `"weekend"` or `0` to `6` (`0` is Sunday).
+
+```json
+{ "bot_id": "…", "name": "Morning brief", "prompt": "Summarize the night.", "schedule": "weekly", "time": "08:30", "weekdays": ["mon-fri"] }
+```
+
+`channel_id` makes a routine a room's goal, led by `bot_id`, which must be a member. `update_routine` changes only
+the fields given: `enabled: false` pauses, `true` resumes, and a schedule given replaces the whole schedule.
+`timeout_minutes: null` removes the run limit and `channel_id: null` makes a room goal the bot's own routine
+again. `list_routines` leaves prompts out; `get_routine` returns one in full with its recent runs.
+
+A webhook's secret exists once, when `create_webhook` or `rotate_webhook_secret` makes it, and neither returns it
+unless asked: `show_secret: true` puts it and the full address that carries it in the result, and
+`secret_file` saves it to a file only you can read on the computer running this MCP server
+(`replace_secret_file: true` replaces a file that exists). Each call needs one of the two; the file is checked
+before the webhook changes. Callers send the secret as `Authorization: Bearer SECRET` to the webhook's
+`endpointUrl`, or append it to that address.
+
+The `openmausbot routine` and `openmausbot webhook` commands call these tools
+([docs/headless-cli.md](headless-cli.md#routines-and-webhooks)).
 
 ## Safety and data scope
 
