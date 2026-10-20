@@ -22,11 +22,15 @@ import {
   fetchBotBrowserStrip,
   newTabChoiceOf,
   readBrowserPanelView,
+  releaseBotTab,
+  requestNeedsHold,
   resolveBrowserPanelView,
+  shownTabs,
   stripHolds,
   takeBrowserTabRequest,
   useBotBrowserStrip,
   useBrowserTabRequest,
+  useReleasingTabs,
   viewOfTab,
   writeBrowserPanelView,
   type BrowserPanelView,
@@ -265,8 +269,8 @@ function BotBrowser({ botId, requested, onView }: {
   const [titles, setTitles] = useState<Record<string, string>>({});
   /** Tabs the person holds whose hold has not landed, or did not: the strip shows them meanwhile. */
   const [ownTabs, setOwnTabs] = useState<BotBrowserTab[]>([]);
-  /** Tabs × let go of, out of the strip until a list lacks them. */
-  const [released, setReleased] = useState<ReadonlySet<string>>(new Set());
+  /** Tabs × let go of whose release is on its way, out of the strip until the server answers. */
+  const releasing = useReleasingTabs(botId);
   const [notice, setNotice] = useState<Notice | null>(null);
   const frames = useRef(new Map<string, HTMLIFrameElement>());
   const newTabCount = useRef(0);
@@ -288,11 +292,6 @@ function BotBrowser({ botId, requested, onView }: {
 
   const hold = async (tabId: string) => {
     if (!available) return;
-    setReleased((current) => {
-      const next = new Set(current);
-      next.delete(tabId);
-      return next;
-    });
     if (!stripHolds(available, tabId)) {
       setOwnTabs((current) => current.some((tab) => tab.tabId === tabId) ? current
         : [...current, { tabId, view: viewOfTab(available, tabId), agent: false, alsoHeldBy: [], alsoHeldElsewhere: false }]);
@@ -306,10 +305,12 @@ function BotBrowser({ botId, requested, onView }: {
   };
 
   const release = async (tab: BotBrowserTab) => {
-    setReleased((current) => new Set(current).add(tab.tabId));
     setOwnTabs((current) => current.filter((own) => own.tabId !== tab.tabId));
     setNotice({ kind: "closed", tab, ...closeNoticeText(tab, words.czech) });
-    await changeBotTab(botId, tab.tabId, "release", api).catch(() => null);
+    // A failed release brings the tab back, so the notice that it left goes too.
+    if (!await releaseBotTab(botId, tab.tabId, api)) {
+      setNotice((current) => current?.kind === "closed" && current.tab.tabId === tab.tabId ? null : current);
+    }
   };
 
   /** The latest `hold`, for the effects below: it reads the strip of the render that runs it. */
@@ -328,13 +329,10 @@ function BotBrowser({ botId, requested, onView }: {
     if (!requested || !available || handled.current === requested.nonce) return;
     handled.current = requested.nonce;
     setSelected(requested.tabId);
-    if (!stripHolds(available, requested.tabId)) void holdLatest.current(requested.tabId);
-  }, [requested, available]);
+    if (requestNeedsHold(available, releasing, requested.tabId)) void holdLatest.current(requested.tabId);
+  }, [requested, available, releasing]);
 
-  const tabs = available ? [
-    ...available.tabs.filter((tab) => !released.has(tab.tabId)),
-    ...ownTabs.filter((own) => !available.tabs.some((tab) => tab.tabId === own.tabId)),
-  ] : [];
+  const tabs = available ? shownTabs(available, releasing, ownTabs) : [];
   const entries: Entry[] = [...tabs.map((tab): Entry => ({ kind: "tab", tab })), ...newTabs.map((id): Entry => ({ kind: "new", id }))];
   const active = entries.find((entry) => entryId(entry) === selected)
     ?? entries.find((entry) => entry.kind === "tab" && entry.tab.tabId === available?.current)
