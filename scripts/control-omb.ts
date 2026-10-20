@@ -19,8 +19,6 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 /** Outside the bot name pool, so no suite can plan a bot that collides with the
  * starter. */
 export const FIXTURE_STARTER_BOT_NAME = "Fixture Starter";
-/** The tab the stand-in Platform CLI of OMB_TEST_ENVIRONMENT_BROWSER opens for `lazurio browser window`. */
-export const ENVIRONMENT_BROWSER_WINDOW_TAB = "C3".repeat(16);
 const FAKE_CLI = join(ROOT, "server", "testing", "fake-claude-cli.ts");
 
 export class ControlOmbError extends HeadlessError {
@@ -276,10 +274,9 @@ export async function launchVerificationServer(
   if (enterprise) Object.assign(childEnv, { OMB_ENTERPRISE_DIR: enterprise.dir, OMB_LICENSE_KEY: enterprise.licenseKey });
   if (staticDir) childEnv.OMB_STATIC_DIR = staticDir;
   // Lazurio overlay (DEV-6673 M4a): OMB_TEST_ENVIRONMENT_BROWSER=1 stands in for a Lazurio Environment that
-  // declares its browser: a fake Platform CLI at ~/.local/bin/lazurio answers `browser link --json`,
-  // `browser done --json` and `browser window --json`, which binds the session to one fixed tab as the Platform
-  // leaves it (each call logged to ~/lazurio-calls.log), and a runtime directory holds the bots' strips. No
-  // browser runs. OMB_TEST_INTERNAL_CAPABILITY_KEY lets a test act as a bot's turn (request_sign_in).
+  // declares its browser: a fake Platform CLI at ~/.local/bin/lazurio answers `browser link --json` and
+  // `browser done --json` (each call logged to ~/lazurio-calls.log), and a runtime directory holds the bots'
+  // strips. No browser runs. OMB_TEST_INTERNAL_CAPABILITY_KEY lets a test act as a bot's turn (request_sign_in).
   if (parentEnv.OMB_TEST_ENVIRONMENT_BROWSER === "1") {
     const bin = join(dataDir, ".local", "bin");
     mkdirSync(bin, { recursive: true });
@@ -289,10 +286,6 @@ export async function launchVerificationServer(
       'case "$2" in',
       `  link) printf '%s\\n' '${JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-link", session: null, link: "https://browser.vm-01.example.lazurio.io/" })}' ;;`,
       `  done) printf '{"schema":"lazurio.browser-cli.v1","kind":"browser-done","session":"%s","outcome":"none"}\\n' "$4" ;;`,
-      '  window) mkdir -p "$XDG_RUNTIME_DIR/agent-browser"',
-      `    printf '%s' '{"targetId":"${ENVIRONMENT_BROWSER_WINDOW_TAB}","url":"about:blank","pinned":true}' > "$XDG_RUNTIME_DIR/agent-browser/$4.target"`,
-      '    printf \'%s\' "$PPID" > "$XDG_RUNTIME_DIR/agent-browser/$4.pid"',
-      `    printf '{"schema":"lazurio.browser-cli.v1","kind":"browser-window","session":"%s","targetId":"${ENVIRONMENT_BROWSER_WINDOW_TAB}","created":true,"link":"https://browser.vm-01.example.lazurio.io/t/${ENVIRONMENT_BROWSER_WINDOW_TAB}","command":"agent-browser --cdp 9222 --session %s"}\\n' "$4" "$4" ;;`,
       "  *) exit 2 ;;",
       "esac",
       "",
