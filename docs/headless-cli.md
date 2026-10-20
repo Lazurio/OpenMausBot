@@ -217,6 +217,7 @@ machine). Changing keys needs a session with full access.
 A routine runs a bot's work on a schedule, unattended, at the bot's approval
 level; a room goal is the same for a room, led by one of its members. A
 webhook is an address another app calls to start a bot's work. These are the
+app's Automations page from a script or another agent, through the same requests.
 ROUTINE, WEBHOOK, BOT and ROOM are a name (in any case) or an id; a name two of
 them share is refused with their ids.
 

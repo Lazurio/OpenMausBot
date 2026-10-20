@@ -11,6 +11,7 @@ OpenMausBot team while the desktop app and its harness are running.
 - send work to a bot or channel, wait for either conversation to settle or need help, and interrupt its active turn;
 - list configured model instances and switch an idle bot to an exact available model;
 - list, read, create, change, pause, run and delete routines (scheduled work for a bot, or a goal for a room), and
+  list, create, delete and rotate the secret of webhooks, as the app's Automations page does.
 
 The server intentionally cannot approve requests, remember permission grants, delete bots, rooms or conversations,
 
