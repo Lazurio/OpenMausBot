@@ -270,7 +270,6 @@
     "server/command-allowlist.e2e.test.ts": 6,
     "server/comms.test.ts": 61,
     "server/computer-engine-removal.e2e.test.ts": 22,
-    "server/computer-take-control.e2e.test.ts": 3,
     "server/context-compaction.e2e.test.ts": 36,
     "server/control-omb.test.ts": 9,
     "server/create-bot-model.e2e.test.ts": 3,
