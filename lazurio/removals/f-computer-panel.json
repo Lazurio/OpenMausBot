@@ -3,6 +3,7 @@
   "why": "The right panel shows what a bot works in, and on a Lazurio Environment that is the Environment browser: people see the bot's tabs through the Platform's view and work in them with the bot at the same time, as in a T3 Code thread's right panel (root decision 0191 points 13, 34 and 41). Upstream's Computer panel, with its own live view of the screen, its remote-desktop variant and its hand-the-wheel-back control, is therefore removed; the panel Prohlížeč (LazurioBrowserPanel) replaces it, keeping upstream's Files view and Data and Routines in Advanced.",
   "files": [
     "docs/verification/take-control.md",
+    "scripts/testing/computer-panel-focus-ui.e2e.test.ts",
     "server/computer-previews.ts",
     "server/computer-take-control.e2e.test.ts",
     "src/components/ComputerPanel.android.test.ts",
@@ -63,5 +64,6 @@
     "src/components/bot-panel/SettingsPage.tsx",
     "src/components/bot-panel/pages.tsx",
     "src/components/lazy-screens.test.ts",
+    "src/components/lazy-screens.tsx"
   ]
 }

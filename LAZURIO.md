@@ -98,6 +98,9 @@ builds them.
     an exact upstream tag, Lazurio-only code lives in Lazurio-named modules,
     and each change says which principle it serves.
 
+- **Done:** removed MausBot's own computers and its own control of the
+  screen of the machine it runs on, integrations, sign-ins, Cloud and
+  telemetry (1, 3 and 8); per-bot tool selection, so every bot gets the
   Environment's tools (3); engine sign-in through the Launchpad (3); every
   bot at Full on every server, with T3 Code's four levels and no gate before
   Full, before Auto or before contacting another bot (2,
@@ -407,6 +410,18 @@ signed-in accounts, and integrations come from the Environment.
   `select_computer`, and lending this computer to My Cloud ("Let your bots use
   this Mac", lent folders, drives and terminal), in the server, the web app
   and the desktop app. Bots work on the host and in the browser.
+- **Own computer control** (DEV-6673 task 214): bots controlling the screen of
+  the machine MausBot runs on through upstream's Cua driver (Linux, macOS and
+  Windows local control, the `computer` MCP tools of the `local` place and
+  their approval scope, the Computer part of the instructions), the person's
+  control lease (`/api/bots/<id>/computer/control`,
+  `/api/internal/computer-control`, the `computer-control` event), the wait and
+  park queue for a busy computer (`parked.computer`, `turn.wait_*`), screen
+  frames (the live `screen` event, the settled screen capture message,
+  `/api/threads/<id>/messages/<id>/image` and the CLI's `--screens` and
+  `--max-screens`), `/api/local-computer/interrupt`, the `local` place in
+  sign-in cards and prompts, the macOS permission recovery UI, the Cua build,
+  prepare and smoke scripts with their `package.json` wiring, and the
 - **MausBot Cloud**: purchase and upsell, the Pro plan and its pop-up, Cloud
   credit, the usage meter and plan cards, sleep and wake, a Cloud's first
   hour, what a Cloud's bots say to connect and the keys it holds, the Team
