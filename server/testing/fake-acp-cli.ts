@@ -593,9 +593,6 @@ function handle(msg: any) {
       }
       result(msg.id, {});
       break;
-    case "_x.ai/mcp/list":
-      result(msg.id, { result: { servers: [], sessionMcpResolved: true } });
-      break;
     case "session/new": {
       if (failRpc(msg)) break;
       if (mode === "auth-required") {

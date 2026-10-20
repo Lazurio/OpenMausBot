@@ -93,7 +93,6 @@ import { DataSheetRegistry } from "./data/sheet.ts";
 import { DataFailure } from "./data/types.ts";
 import { isEffortLevel, type CardAnswerer, type ResolvedSender, type SteerQueueReason, type WireBot, type WireGroup, type WireTask } from "../shared/wire.ts";
 import { isPersistentQuestionCard, shouldSettleRequestCard } from "../shared/ask-question.ts";
-import { parseToolScope } from "../shared/tool-scope.ts";
 import { liveCardKind, liveDecisionRefusal } from "../shared/live-approval.ts";
 import { chiefOfStaffSystemPrompt } from "./chief-of-staff.ts";
 import { buildRecall, recallRooms, recallThreadIds, withRecalled } from "./recall.ts";
@@ -2845,14 +2844,6 @@ const wireBot = (bot: BotRecord): WireBot => {
     avatarUrl: visible.avatarUrl ?? null, ...(tasks ? { tasks: tasks.map((task) => wireTask(task, bot.modelSelection)) } : {}) };
 };
 
-function toolScopeForTurn(botId: string) {
-  const bot = store.bot(botId);
-  if (!bot) throw Object.assign(new Error("no such bot"), { status: 404 });
-  const parsed = parseToolScope(bot.toolScope);
-  if (!parsed.ok) throw Object.assign(new Error("This bot's tool selection is invalid. Open Access settings and save a valid selection before starting a turn."), { status: 409, code: "tool_scope" });
-  return parsed.scope;
-}
-
 function previewSystemPrompt(bot: BotRecord) {
   const persona = botPersona(bot);
   const instance = registry.get(bot.modelSelection.instanceId);
@@ -2889,7 +2880,7 @@ function previewSystemPrompt(bot: BotRecord) {
     teamAvailabilityPart(agentsMounted && coordination ? peers : []),
     { id: "memory", label: "Memory", text: memorySystemPrompt(bot.id, { managedWrites: agentsMounted, fileTools: Boolean(privateWorkspace), enabled: bot.memoryEnabled !== false }) },
     { id: "skills", label: "Skills index", text: privateWorkspace ? skillsHost.skillsIndex(bot, undefined, instance) : "" },
-  ], agentsMounted ? { env: agentsToolBridgeEnv(cfg, bot, instance && turnEngine(instance, providerConfigs(), registry.lastSnapshot(instance.instanceId), bot.cwd ?? undefined)) } : undefined, { replyStyle: bot.replyStyle });
+  ], agentsMounted ? { env: agentsToolBridgeEnv(cfg, instance && turnEngine(instance, providerConfigs(), registry.lastSnapshot(instance.instanceId), bot.cwd ?? undefined)) } : undefined, { replyStyle: bot.replyStyle });
   const totalBytes = built.sections.reduce((n, s) => n + s.bytes, 0);
   return {
     sections: built.sections,
@@ -6780,7 +6771,6 @@ async function startTurn(
   }
   const policyRefusal = policyModelRefusal(instance);
   if (policyRefusal) throw Object.assign(new Error(policyRefusal), { status: 409, code: "managed_policy" });
-  const toolScope = toolScopeForTurn(bot.id);
   guestDrivenTurns.delete(threadId);
   const guestConfined = cloudGuestDriven(threadId) || cloudGuestDrivenHandoff(opts?.coordination?.id);
   if (guestConfined && instance.adapter.capabilities.guestTurns !== "confined") {
@@ -7215,7 +7205,7 @@ async function startTurn(
         throw new DirectTurnSetupCancelled("Coordination access changed before dispatch");
       }
       // The tool bridge is decided here: the folder the turn is launched in is known, and the prompt is not built yet.
-      applyAgentsBridge(threadId, integrations, cfg, bot, turnEngine(instance, providerConfigs(), registry.lastSnapshot(instance.instanceId), cwd));
+      applyAgentsBridge(threadId, integrations, cfg, turnEngine(instance, providerConfigs(), registry.lastSnapshot(instance.instanceId), cwd));
       const prompt = buildSystemPrompt(persona, liveBot?.soul ?? bot.soul ?? "", [
         { id: "user-profile", label: "About the user", text: userProfileSystemPrompt(cfg.profile) },
         { id: "setup", label: "Setup", text: setupSystemPrompt(setupMode, {
@@ -7275,7 +7265,6 @@ async function startTurn(
         ...(recalled ? { recalled } : {}),
         images: dispatchContext.images,
         approvalMode: approvalModeForTurn(bot, commsDepth > 0, threadId),
-        toolScope,
         ...(guestConfined ? { guestConfined: true, confinedWhy: confinedWhy(threadId) } : {}),
         model,
         effort,
@@ -8489,7 +8478,6 @@ async function runClaimedGroupMemberTurn(
   // Re-check right before the synchronous claim, so one bot can never own two provider processes.
   const readyBot = store.bot(bot.id);
   if (!readyBot) return false;
-  toolScopeForTurn(readyBot.id);
   const readyGroup = store.group(group.id);
   const stillOwnsThread = readyGroup?.dm
     ? readyGroup.threadId === threadId
@@ -8673,7 +8661,7 @@ async function runClaimedGroupMemberTurn(
       });
     }
   }
-  applyAgentsBridge(threadId, integrations, cfg, bot, turnEngine(instance, providerConfigs(), registry.lastSnapshot(instance.instanceId), cwd));
+  applyAgentsBridge(threadId, integrations, cfg, turnEngine(instance, providerConfigs(), registry.lastSnapshot(instance.instanceId), cwd));
   const roomSystem = buildSystemPrompt(system, store.bot(bot.id)?.soul ?? bot.soul ?? "", [
     { id: "user-profile", label: "About the user", text: userProfileSystemPrompt(cfg.profile) },
     { id: "files", label: "File locations", text: workspace ? workspaceLocationsPrompt(bot.id, cwd, readyBot.cwd, { attachFile: Boolean(integrations.agents) && !CLOUD_HOME && !HOSTED_WORKSPACE }) : "" },
@@ -8817,11 +8805,11 @@ async function runClaimedGroupMemberTurn(
     if (roomReset || displaced) broadcast({ kind: "group", group: publicGroupState(store.group(groupId) ?? group) });
     const roomShareNote = skillsHost.shareNote(bot, threadId, Boolean(workspace));
     const clock = turnClockLine(Date.now(), hostTimeZone());
-    const roomToolScope = toolScopeForTurn(readyBot.id), roomUserMcp = claudeUserMcpEnabled(cfg) && !managedPolicy.restrictsMcp();
+    const roomUserMcp = claudeUserMcpEnabled(cfg) && !managedPolicy.restrictsMcp();
     const roomSession = roomSessions.dispatch({
       threadId, botId: readyBot.id, claimId: internalGeneration, instance, guestConfined: roomGuestConfined, reset: Boolean(roomReset), hooks: Boolean(integrations.hooks),
       context: () => ({ ...roomMemberContexts.forThread(threadId)?.[readyBot.id], compactAt: nativeCompactTokens(instance) }),
-      config: [roomSystem.stable, cwd, readyBot.modelSelection, turnApprovalMode, roomToolScope, roomUserMcp, integrations],
+      config: [roomSystem.stable, cwd, readyBot.modelSelection, turnApprovalMode, roomUserMcp, integrations],
       window: roomWindow, tail: roomTail, wrap: (body) => withTurnClock(clock, withRecalled(roomRecalled, body + roomShareNote.text)),
     });
     guardTurnDispatch(roomShareNote.after(instance.adapter.sendTurn({
@@ -8832,7 +8820,6 @@ async function runClaimedGroupMemberTurn(
         ...(roomRecalled ? { recalled: roomRecalled } : {}),
         images: turnImages,
         approvalMode: turnApprovalMode,
-        toolScope: roomToolScope,
         ...(roomGuestConfined ? { guestConfined: true, confinedWhy: confinedWhy(threadId) } : {}),
         system: roomSystem.text,
         systemStable: roomSystem.stable,
@@ -9062,7 +9049,6 @@ async function runClaimedGroupMemberTurn(
     if (error instanceof DirectTurnSetupCancelled) return false;
     const isSpendCap = typeof error === "object" && error !== null && (error as { code?: string }).code === "spend_cap";
     const isVariantError = typeof error === "object" && error !== null && (error as { code?: string }).code === "unsupported_model_variant";
-    const isToolScopeError = typeof error === "object" && error !== null && (error as { code?: string }).code === "tool_scope";
     if (error instanceof ComputerWaitParked) {
       if (orchestration) {
         orchestration.result.outcome = "parked";
@@ -9070,7 +9056,7 @@ async function runClaimedGroupMemberTurn(
       }
       return false;
     }
-    if (!roomSpeaker && !isSpendCap && !isVariantError && !isToolScopeError) throw error;
+    if (!roomSpeaker && !isSpendCap && !isVariantError) throw error;
     const message = error instanceof Error ? error.message : "Setup failed";
     store.appendMessage(threadId, {
       role: "bot", kind: "activity",
@@ -9082,7 +9068,7 @@ async function runClaimedGroupMemberTurn(
       orchestration.result.outcome = isSpendCap ? "spend_capped" : "dispatch_failed";
       if (isSpendCap) orchestration.result.stopReason = message;
     }
-    return isToolScopeError;
+    return false;
   } finally {
     // Covers every early return that never produces a provider terminal event.
     unregisterSetupStall();
@@ -10878,7 +10864,7 @@ ROUTES.push(createBotSettingsRoutes({
   canManageCommandAllowlist, commandAllowlistResponse, cardAnswerRefusal,
 }));
 ROUTES.push(createBotPatchRoutes({
-  store, cfg, registry, sessions, browserRuntime, browserLive, memoryUpkeep, cacheKeepWarm, hostedModels, supportsApprovalMode,
+  store, cfg, registry, browserRuntime, browserLive, memoryUpkeep, cacheKeepWarm, hostedModels, supportsApprovalMode,
   desktopManaged: DESKTOP_MANAGED, maxWorkspaceBots: MAX_WORKSPACE_BOTS,
   broadcast, wireBot, publicGroupState, audienceChanged, storedAvatarExists, requestedTaskBot, threadBusy, activeGroupTurnForBot,
   checkedModelSelection, currentBrowserSession, forgetTemporaryBrowser,

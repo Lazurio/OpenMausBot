@@ -147,20 +147,6 @@ describe("piLineReader", () => {
 });
 
 describe("buildMcpServers", () => {
-  it("mounts a selected Data server, gated, without unrelated built-ins", () => {
-    const servers = buildMcpServers({ threadId: "selected", text: "Query", toolScope: { allow: ["mcp:data:*"] }, integrations: {
-      agents: { command: "node", args: ["agents"], env: {} },
-      localComputer: { command: "node", args: ["computer"], env: {} },
-      data: { command: "node", args: ["data"], env: { SYNTHETIC: "1" } },
-    } }) as Record<string, { args: string[] }>;
-    expect(Object.keys(servers ?? {})).toEqual(["data"]);
-    expect(servers.data.args[0]).toContain("mcp-gate");
-  });
-
-  it("rejects malformed policy and mounts nothing for native-only selection", () => {
-    expect(() => buildMcpServers({ threadId: "bad", text: "Stop", toolScope: { allow: null } as never })).toThrow(/tool selection/i);
-    expect(buildMcpServers({ threadId: "native", text: "Draft", toolScope: { allow: ["native:read", "native:write"] }, integrations: { agents: { command: "node", args: [], env: {} } } })).toBeNull();
-  });
   it("returns null when there are no integrations", () => {
     expect(buildMcpServers({ threadId: "t", text: "hi" })).toBeNull();
   });
@@ -336,16 +322,6 @@ describe("PiDriver turns (fake CLI)", () => {
     chmodSync(FAKE_CLI, 0o755);
   });
 
-  it("refuses a restricted turn when the loaded extension has not confirmed enforcement", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "omb-pi-missing-scope-"));
-    const dump = join(dir, "rpc.jsonl");
-    await create(undefined, { FAKE_PI_DUMP: dump });
-    await expect(instance.adapter.sendTurn({ threadId: "missing-enforcement", text: "Must not reach a provider", toolScope: { allow: [] } })).rejects.toThrow(/tool selection.*enforcement/i);
-    const rows = readFileSync(dump, "utf8").trim().split("\n").map((line) => JSON.parse(line));
-    expect(rows.some((row) => row.argv?.includes("-e"))).toBe(true);
-    expect(rows.find((row) => row.argv?.includes("-e"))?.mcpConfig?.toolScope).toEqual({ allow: [] });
-    expect(rows.some((row) => row.prompt !== undefined)).toBe(false);
-  });
   afterEach(async () => {
     recorder?.stop();
     await instance?.dispose();
@@ -753,18 +729,16 @@ describe("PiDriver turns (fake CLI)", () => {
     expect(JSON.stringify(rows)).not.toContain("openai-secret-value");
   });
 
-  it("loads the extension's ask_user on a plain turn unless the tool selection excludes it", async () => {
+  it("loads the extension, which carries ask_user, on a plain turn", async () => {
     const dir = mkdtempSync(join(tmpdir(), "omb-pi-ask-user-"));
     const dump = join(dir, "dump.jsonl");
     await create(undefined, { FAKE_PI_DUMP: dump });
     const { turnId } = await instance.adapter.sendTurn({ threadId: "t-ask-user", text: "hi" });
     await recorder.until((e) => e.type === "turn.completed" && e.turnId === turnId);
-    await expect(instance.adapter.sendTurn({ threadId: "t-ask-user-scoped", text: "hi", toolScope: { allow: ["native:read"] } })).rejects.toThrow(/enforcement/i);
     const rows = readFileSync(dump, "utf8").trim().split("\n")
-      .map((line) => JSON.parse(line) as { argv?: string[]; mcpConfig?: { askUser?: boolean; mcpServers?: object } | null })
+      .map((line) => JSON.parse(line) as { argv?: string[]; mcpConfig?: object | null })
       .filter((row) => row.argv?.includes("-e"));
-    expect(rows.map((row) => row.mcpConfig?.askUser)).toEqual([true, false]);
-    expect(rows[0].mcpConfig?.mcpServers).toEqual({});
+    expect(rows.map((row) => row.mcpConfig)).toEqual([{ mcpServers: {} }]);
     await removeTempDir(dir);
   });
 

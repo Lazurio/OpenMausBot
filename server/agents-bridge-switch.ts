@@ -1,12 +1,10 @@
 // Whether a turn's agents proxy lists its tools through the tool bridge.
 // Security invariant: the default is no bridge. A use_tool call reaches the host and the engine as
-// use_tool, so a turn is bridged only when nothing judges an agents tool by its own name: the bot has
-// no tool selection and its engine pre-approves the whole agents server.
+// use_tool, so a turn is bridged only when nothing judges an agents tool by its own name: its engine
+// pre-approves the whole agents server.
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-
-import { parseToolScope } from "../shared/tool-scope.ts";
 
 import { bridgedCallName } from "./agents-bridge-names.ts";
 import { TOOL_BRIDGE_ENV } from "./drivers/agents-bridge.ts";
@@ -260,22 +258,17 @@ export function engineBridgeRefusal(
   return "this engine keeps its own tool permissions";
 }
 
-/** Why a turn of `bot` on `engine` is not bridged, or null: the one decision. Security: anything thrown
+/** Why a turn on `engine` is not bridged, or null: the one decision. Security: anything thrown
  * means no bridge, and the log names only the error's class and code, never its message (it may hold a
  * path or file content). */
 export function agentsToolBridgeRefusal(
   cfg: BridgeConfig,
-  bot: { toolScope?: unknown } | null | undefined,
   engine: BridgeEngine | null | undefined,
   env: NodeJS.ProcessEnv = process.env,
   host?: EngineHost,
 ): string | null {
   try {
     if (!agentsToolBridgeEnabled(cfg, env)) return "the switch is off";
-    // Security: selection gates match the name in the call, so any selection, even one that permits
-    // everything or cannot be read, means no bridge.
-    const selection = bot ? parseToolScope(bot.toolScope) : undefined;
-    if (selection?.ok !== true || selection.scope !== undefined) return "the bot has a tool selection";
     return engineBridgeRefusal(cfg, engine, env, host);
   } catch (error) {
     const kind = logWord(() => (error instanceof Error ? error.name : typeof error));
@@ -299,12 +292,11 @@ function logWord(read: () => unknown, absent = false): string | null {
 /** The decision as the agents proxy's environment entry: "1" or "0", never left out. */
 export function agentsToolBridgeEnv(
   cfg: BridgeConfig,
-  bot: { toolScope?: unknown } | null | undefined,
   engine: BridgeEngine | null | undefined,
   env: NodeJS.ProcessEnv = process.env,
   host?: EngineHost,
 ): { [TOOL_BRIDGE_ENV]: "1" | "0" } {
-  return { [TOOL_BRIDGE_ENV]: agentsToolBridgeRefusal(cfg, bot, engine, env, host) === null ? "1" : "0" };
+  return { [TOOL_BRIDGE_ENV]: agentsToolBridgeRefusal(cfg, engine, env, host) === null ? "1" : "0" };
 }
 
 /** Caps the bridged-thread marks so the set cannot grow with every thread ever bridged. */
@@ -319,14 +311,13 @@ export function bridgedAgents<Agents extends { env: Record<string, string> }>(
   threadId: string,
   agents: Agents | undefined,
   cfg: BridgeConfig,
-  bot: { toolScope?: unknown } | null | undefined,
   engine: BridgeEngine | null | undefined,
   env?: NodeJS.ProcessEnv,
   host?: EngineHost,
 ): Agents | undefined {
   BRIDGED_THREADS.delete(threadId);
   if (!agents) return undefined;
-  const decided = agentsToolBridgeEnv(cfg, bot, engine, env, host);
+  const decided = agentsToolBridgeEnv(cfg, engine, env, host);
   if (decided[TOOL_BRIDGE_ENV] === "1") {
     BRIDGED_THREADS.add(threadId);
     if (BRIDGED_THREADS.size > BRIDGED_THREADS_MAX) BRIDGED_THREADS.delete(BRIDGED_THREADS.values().next().value!);
@@ -340,12 +331,11 @@ export function applyAgentsBridge<Agents extends { env: Record<string, string> }
   threadId: string,
   integrations: { agents?: Agents },
   cfg: BridgeConfig,
-  bot: { toolScope?: unknown } | null | undefined,
   engine: BridgeEngine | null | undefined,
   env?: NodeJS.ProcessEnv,
   host?: EngineHost,
 ): void {
-  const agents = bridgedAgents(threadId, integrations.agents, cfg, bot, engine, env, host);
+  const agents = bridgedAgents(threadId, integrations.agents, cfg, engine, env, host);
   if (agents !== undefined) integrations.agents = agents;
 }
 

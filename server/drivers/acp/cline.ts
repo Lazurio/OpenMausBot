@@ -108,7 +108,7 @@ export const ClineAgentDriver = {
   ...createAcpDriver(SUPPORT),
   async create(input: Parameters<ReturnType<typeof createAcpDriver>["create"]>[0]) {
     // Cline 3.0.70 records ACP mcpServers without connecting them; its native settings override connects
-    // the scoped stdio servers instead, without rewriting the user's MCP file.
+    // the turn's stdio servers instead, without rewriting the user's MCP file.
     const directory = mkdtempSync(join(tmpdir(), "omb-cline-mcp-"));
     const cleanup = () => {
       try { rmSync(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch {}
@@ -128,7 +128,7 @@ export const ClineAgentDriver = {
             writeFileSync(`${path}.next`, text, { mode: 0o600 });
             renameSync(`${path}.next`, path);
           }
-          // An empty selection also replaces ambient native MCP settings.
+          // A turn without MCP servers also replaces the user's ambient native MCP settings.
           env.CLINE_MCP_SETTINGS_PATH = path;
         },
       });

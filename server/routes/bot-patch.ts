@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 import { approvalModeFor, isApprovalMode, type ApprovalMode } from "../../shared/approval-mode.ts";
-import { parseToolScope, toolScopeWidens } from "../../shared/tool-scope.ts";
 import { isMausColor, MAUS_COLOR_NAMES, type WireBot, type WireGroup } from "../../shared/wire.ts";
 import { validateBotCwd } from "../bot-cwd.ts";
 import { parseBotProfilePatch } from "../bot-profile.ts";
@@ -18,7 +17,6 @@ import type { MemoryUpkeep } from "../memory-upkeep.ts";
 import { profileSnapshot } from "../profile-revision.ts";
 import { recordProfileChange } from "../profile-versions.ts";
 import { clientBotPatchViolation, requestSource } from "../request-auth.ts";
-import type { SessionRegistry } from "../sessions.ts";
 import { sectionKey, type BotRecord, type GroupRecord, type Store } from "../store.ts";
 import { pinnedClientThreadGuard } from "./pinned-client-thread.ts";
 import type { ModelSelectionCheck } from "./bots-create.ts";
@@ -28,7 +26,6 @@ export interface BotPatchRouteDeps {
   store: Store;
   cfg: AppConfig;
   registry: Pick<ProviderRegistry, "get">;
-  sessions: Pick<SessionRegistry, "isLive">;
   browserRuntime: Pick<BrowserRuntime, "heldBy">;
   browserLive: Pick<BrowserLive, "closeForBot">;
   memoryUpkeep: Pick<MemoryUpkeep, "dropBot">;
@@ -52,7 +49,7 @@ export interface BotPatchRouteDeps {
 
 export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
   const {
-    store, cfg, registry, sessions, browserRuntime, browserLive, memoryUpkeep, cacheKeepWarm, hostedModels, supportsApprovalMode,
+    store, cfg, registry, browserRuntime, browserLive, memoryUpkeep, cacheKeepWarm, hostedModels, supportsApprovalMode,
     desktopManaged: DESKTOP_MANAGED, maxWorkspaceBots: MAX_WORKSPACE_BOTS,
     broadcast, wireBot, publicGroupState, audienceChanged, storedAvatarExists, requestedTaskBot, threadBusy, activeGroupTurnForBot,
     checkedModelSelection, currentBrowserSession,
@@ -191,11 +188,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
       if (body.parkDirectMessages !== undefined) {
         if (typeof body.parkDirectMessages !== "boolean") return json(res, 400, { error: "parkDirectMessages must be true or false" });
         patch.parkDirectMessages = body.parkDirectMessages;
-      }
-      if (Object.hasOwn(body, "toolScope")) {
-        const parsed = parseToolScope(body.toolScope === null ? undefined : body.toolScope);
-        if (!parsed.ok) return json(res, 400, { error: parsed.error });
-        patch.toolScope = parsed.scope;
       }
       if (body.memoryUpkeep !== undefined) {
         if (typeof body.memoryUpkeep !== "boolean") return json(res, 400, { error: "memoryUpkeep must be true or false" });
@@ -376,7 +368,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
       if (Array.isArray(patch.alwaysAllow) && patch.alwaysAllow.some((key) => !(existingBot?.alwaysAllow ?? []).includes(key))) {
         loosened.push("alwaysAllow");
       }
-      if (Object.hasOwn(body, "toolScope") && toolScopeWidens(existingBot?.toolScope, patch.toolScope)) loosened.push("toolScope");
       const browserOrigin = typeof req.headers.origin === "string" && req.headers.origin.trim() !== "";
       if (loosened.length && auth.kind === "loopback" && !DESKTOP_MANAGED && !browserOrigin) {
         if (store.bots.some((candidate) => candidate.busy)) {
@@ -398,18 +389,6 @@ export function createBotPatchRoutes(deps: BotPatchRouteDeps): RouteHandler {
           body.memoryEnabled !== (freshBrowserBot.memoryEnabled !== false) &&
           (freshBrowserBot.busy || activeGroupTurnForBot(freshBrowserBot.id))) {
         return json(res, 409, { error: "stop this bot's turn before changing its memory setting" });
-      }
-      if (Object.hasOwn(body, "toolScope")) {
-        if (auth.kind === "session" && !sessions.isLive(auth.session.id)) {
-          return json(res, 401, { error: "unauthorized: this session has expired or was revoked" });
-        }
-        if (toolScopeWidens(freshBrowserBot?.toolScope, patch.toolScope) && auth.kind === "loopback" && !DESKTOP_MANAGED && !browserOrigin && store.bots.some((candidate) => candidate.busy)) {
-          return json(res, 409, { error: "A bot is working right now, so this change has to come from the desktop app or a paired device. Try again once every bot is idle." });
-        }
-        if (freshBrowserBot && JSON.stringify(freshBrowserBot.toolScope) !== JSON.stringify(patch.toolScope)
-          && (freshBrowserBot.busy || activeGroupTurnForBot(freshBrowserBot.id))) {
-          return json(res, 409, { error: "Stop this bot's turns before changing its tool selection." });
-        }
       }
       if (normalizedSelection && movedTask) {
         const current = store.projectBotForTask(movedTask.id, movedTask.threadId);

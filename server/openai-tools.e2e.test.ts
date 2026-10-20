@@ -29,7 +29,7 @@ function expectMemoryInTurn(request: ChatRequest, text: string) {
   expect(turn.slice(-text.length)).toBe(text);
 }
 
-it.each(["openaiCompat", "groq", "meta"] as const)("%s keeps a tool call written as text, delivers memory per turn, and honours an empty tool scope and tools off", async instanceId => {
+it.each(["openaiCompat", "groq", "meta"] as const)("%s keeps a tool call written as text, delivers memory per turn, and honours tools off", async instanceId => {
   const requests: ChatRequest[] = [];
   let scenario = "text";
   const upstream = createServer(async (req, res) => {
@@ -90,7 +90,7 @@ it.each(["openaiCompat", "groq", "meta"] as const)("%s keeps a tool call written
     expect(JSON.stringify(saved)).not.toContain("synthetic-fixture-key");
     expect(await api("POST", "/api/keys/test", { provider: instanceId })).toMatchObject({ ok: true, check: "models", models: ["fixture-model"] });
     await api("POST", `/api/instances/${instanceId}/refresh-models`, {});
-    for (const mode of ["text", "ordinary", "scope-empty", "tools-off"]) {
+    for (const mode of ["text", "ordinary", "tools-off"]) {
       scenario = mode;
       if (mode === "tools-off") {
         await api("PATCH", `/api/instances/${instanceId}`, { tools: "false" }, 400);
@@ -102,7 +102,6 @@ it.each(["openaiCompat", "groq", "meta"] as const)("%s keeps a tool call written
       const { bot } = await control(["new-bot", "--name", `API tool ${mode}`]);
       await control(["set-model", "--bot", bot.id, "--instance", instanceId, "--model", "fixture-model"]);
       await api("PATCH", `/api/bots/${bot.id}`, { approvalMode: "ask", description: "Verification assistant", soul: "Use structured tools when an operation is requested." });
-      if (mode === "scope-empty") await api("PATCH", `/api/bots/${bot.id}`, { toolScope: { allow: [] } });
       const memoryDirectory = join(fixture.info.dataDir, "workspaces", bot.id);
       mkdirSync(memoryDirectory, { recursive: true });
       writeFileSync(join(memoryDirectory, "MEMORY.md"), "# Memory\n- Fixture prefers concise replies.\n");
@@ -124,13 +123,11 @@ it.each(["openaiCompat", "groq", "meta"] as const)("%s keeps a tool call written
       expect(requests).toHaveLength(before + 1);
       expect(settled.status).toBe("settled");
       if (mode === "text") expect(messages.messages.some((message: any) => message.text?.includes("fixture-call"))).toBe(true);
-      if (mode === "tools-off" || mode === "scope-empty") {
+      if (mode === "tools-off") {
         expect(requests[before]).not.toHaveProperty("tools");
-        if (mode === "tools-off") {
-          expect(first.all).not.toContain("Use memory_update");
-          expect(first.all).not.toContain("session_search tool");
-          expect(first.all).not.toContain("The user also added an MCP server");
-        }
+        expect(first.all).not.toContain("Use memory_update");
+        expect(first.all).not.toContain("session_search tool");
+        expect(first.all).not.toContain("The user also added an MCP server");
         expect(messages.messages.some((message: any) => message.tool || message.card)).toBe(false);
       }
       evidence.push({ scenario: mode, status: settled.status, completionRequests: requests.length - before });

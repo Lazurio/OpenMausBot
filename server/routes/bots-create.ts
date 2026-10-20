@@ -127,11 +127,10 @@ export function createBotCreateRoutes(deps: BotCreateRouteDeps): RouteHandler {
       const created = body.visibility === undefined ? null : parseVisibility(body.visibility);
       if (created && !created.ok) return json(res, 400, { error: created.error });
       const bot = store.createBot({ ...profile.patch, soul: settings.soul, section, modelSelection: selection,
-        toolScope: settings.toolScope ?? undefined,
         ...(created?.ok ? { visibility: created.visibility } : {}) });
       const createdRoutines: Array<{ id: string; enabled: boolean }> = [];
       try {
-        const { chiefOfStaff: _chief, managedSections: _managed, toolScope: _toolScope, ...ordinary } = settings;
+        const { chiefOfStaff: _chief, managedSections: _managed, ...ordinary } = settings;
         store.patchBot(bot.id, {
           // Store creation completed the workspace defaults (effort included): the rest of the template must not undo them.
           ...ordinary, name: bot.name, section, modelSelection: bot.modelSelection,

@@ -104,7 +104,6 @@ export function createTeamBackup(store: Store, routines: Routine[], name: string
       section: bot.section, color: bot.color,
       mascotExpression: bot.mascotExpression ?? undefined, mascotBody: bot.mascotBody ?? undefined,
       chiefOfStaff: Boolean(bot.chiefOfStaff), hidden: Boolean(bot.hidden), playbooks: bot.playbooks ?? [],
-      ...(bot.toolScope !== undefined ? { toolScope: structuredClone(bot.toolScope) } : {}),
       // A bot kept off the helper model stays off it wherever its notes and chats land.
       ...(helperModelAllowed(bot) ? {} : { helperModel: false }),
       memory: memoryFor(bot.id),
@@ -173,7 +172,7 @@ export function importTeamBackup(store: Store, routines: RoutineManager, input: 
       bots.push(bot);
       botIds.set(source.key, bot.id);
       store.patchBot(bot.id, { browser: false, autoApprove: false,
-        toolScope: source.toolScope, hidden: source.hidden, chiefOfStaff: source.chiefOfStaff, playbooks: source.playbooks,
+        hidden: source.hidden, chiefOfStaff: source.chiefOfStaff, playbooks: source.playbooks,
         ...(source.helperModel === false ? { helperModel: false } : {}) });
       if (source.memory) restoreMemory(bot.id, source.memory);
     }

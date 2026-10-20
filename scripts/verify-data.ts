@@ -704,7 +704,6 @@ try {
       assert(address && typeof address !== "string");
       await api("PATCH", "/api/config", { openaiCompat: { key: "synthetic-data-fixture", url: `http://127.0.0.1:${address.port}/v1`, model: "data-chat-fixture" } });
       await runControlOmb(["set-model", "--bot", bot.id, "--instance", "openaiCompat", "--model", "data-chat-fixture", "--url", url]);
-      await api("PATCH", `/api/bots/${bot.id}`, { toolScope: { allow: ["mcp:data:data_describe", "mcp:data:data_show"] } });
       await browser("set", "viewport", "1600", "1000");
       await clickTab("computer-data");
       await until(async () => await evaluate("!!document.querySelector('[data-testid=data-panel] [data-testid=data-history]')"), "Data view did not reopen after configuring the fixture provider");

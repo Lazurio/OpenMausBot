@@ -3,7 +3,6 @@ import { profilePatchSchema, fitsOnOneLine } from "./bot-profile.ts";
 import { EFFORT_LEVELS } from "../shared/wire.ts";
 import { isModelVariant } from "./contracts.ts";
 import { normalizeCronSchedule } from "../shared/routine-schedule.ts";
-import { parseToolScope, type ToolScope } from "../shared/tool-scope.ts";
 import { removedBotSetting, removedBotSettingError } from "./lazurio-removed-config.ts";
 
 const strings = (max: number, length: number) => z.array(z.string().max(length)).max(max);
@@ -21,9 +20,9 @@ export const botDefaultModelSchema = z.object({
 
 // Preferences only: consent flags, live grants, bot IDs and execution state can never be replayed as permission grants.
 // Lazurio overlay (DEV-6673 M3): Works on, per-bot computers, MausBot's own connected apps and MCP server selection
-// are removed; saved defaults that name them still load, without them. So do upstream's Custom approval level and
-// the switch that made a bot ask before contacting another bot (DEV-6673).
-const REMOVED_DEFAULTS = ["computer", "cloudBackend", "autoStartVps", "composio", "mcpServers", "approvePeerComms"];
+// are removed; saved defaults that name them still load, without them. So do upstream's Custom approval level,
+// the switch that made a bot ask before contacting another bot and the per-bot tool selection (DEV-6673).
+const REMOVED_DEFAULTS = ["computer", "cloudBackend", "autoStartVps", "composio", "mcpServers", "approvePeerComms", "toolScope"];
 const withoutRemovedDefaults = (value: unknown) => value && typeof value === "object" && !Array.isArray(value)
   ? Object.fromEntries(Object.entries(value).filter(([key, item]) => !REMOVED_DEFAULTS.includes(key) &&
     !(key === "approvalMode" && item === "custom")))
@@ -42,8 +41,6 @@ export const botDefaultsProfileSchema = z.preprocess(withoutRemovedDefaults, pro
   peers: strings(1000, 100).nullable().optional(),
   browser: z.boolean().optional(),
   browserProfile: z.string().max(100).nullable().optional(),
-  toolScope: z.custom<ToolScope>((value) => value !== undefined && parseToolScope(value).ok, "Invalid tool selection")
-    .transform((value) => { const parsed = parseToolScope(value); return parsed.ok ? parsed.scope! : value; }).nullable().optional(),
   parkDirectMessages: z.boolean().optional(),
   /** At creation, so a copy of a bot kept off the helper model is off it from its first moment. */
   helperModel: z.boolean().optional(),

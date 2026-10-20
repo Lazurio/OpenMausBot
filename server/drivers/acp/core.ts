@@ -27,12 +27,6 @@ export function skipSubscriptionAuthForLocalInject(model: string | undefined): b
   return Boolean(decodeInjectId(model));
 }
 
-/** A catalog can contain credential-bearing native configuration, including late replies. */
-export function acpNativeIncomingLogMessage(message: any, privateResponses: ReadonlySet<number>): unknown {
-  if (!privateResponses.has(message?.id)) return message;
-  return { jsonrpc: message.jsonrpc, id: message.id, ...(message.error !== undefined ? { error: "[MCP catalog error omitted]" } : { result: "[MCP catalog omitted]" }) };
-}
-
 import type {
   DriverCreateInput,
   EffortLevel,
@@ -65,7 +59,6 @@ import { recoveryPromptFor } from "../../resume-recovery.ts";
 import { sessionIdlePolicy } from "../session-idle.ts";
 import { classifyError } from "../retry.ts";
 import { engineFailureKind, engineFailureMessage } from "../engine-errors.ts";
-import { narrowsNativeTools, parseToolScope } from "../../../shared/tool-scope.ts";
 import { turnStdioMcpServers } from "../turn-mcp.ts";
 
 /** Failures fixed on the provider account, not by retrying; the reporting process stays pooled. */
@@ -155,11 +148,6 @@ interface AcpSession {
 /** Per-CLI specifics plugged into the shared ACP runtime. */
 export interface AcpSupport {
   questionRequests?: Readonly<Record<string, AcpQuestionRequest>>;
-  /** Verified native catalog parameters, applied before both new and restored sessions. */
-  toolScopeSessionParams?(turn: SendTurnInput, initializeResult: unknown, hasMcp: boolean,
-    context: { config: AcpConfig; env: Record<string, string | undefined>; cwd: string }): Record<string, unknown>;
-  /** Existing native restrictions also participate in scoped session reuse. */
-  toolScopeCacheKey?(context: { config: AcpConfig; env: Record<string, string | undefined>; cwd: string }): string;
   driverKind: string;
   displayName: string;
   /** Omit for subscription CLIs. Custom-only CLIs have no first-party cloud catalog. */
@@ -252,7 +240,7 @@ export interface AcpSupport {
   /** Mutate the child env once the turn model is known; catalog refresh and snapshot see only `transformEnv`. */
   applyTurnEnv?(
     env: Record<string, string | undefined>,
-    ctx: { model?: string; requestedModel?: string; fullAuto: boolean; botId?: string; cwd: string; toolScope?: SendTurnInput["toolScope"]; threadId: string; mcpServers: Array<{ name: string; command: string; args: string[]; env: Array<{ name: string; value: string }> }> },
+    ctx: { model?: string; requestedModel?: string; fullAuto: boolean; botId?: string; cwd: string; threadId: string; mcpServers: Array<{ name: string; command: string; args: string[]; env: Array<{ name: string; value: string }> }> },
   ): void;
   /** The authenticate methodId from initialize's authMethods; null skips authenticate. */
   pickAuthMethod(authMethods: Array<{ id?: string }>, env: Record<string, string | undefined>): string | null;
@@ -757,7 +745,6 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
           stdio: ["pipe", "pipe", "pipe"],
         }, "bot");
         let nextId = 1;
-        const privateResponses = new Set<number>();
         const rpcPending = new Map<
           number,
           {
@@ -790,7 +777,6 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
         ) =>
           new Promise<any>((resolve, reject) => {
             const id = nextId++;
-            if (method === "_x.ai/mcp/list") privateResponses.add(id);
             let timer: ReturnType<typeof setTimeout> | null = null;
             if (timeoutMs) {
               timer = setTimeout(() => {
@@ -1178,7 +1164,7 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
             } catch {
               continue;
             }
-            appendNative(threadId, { dir: "in", source: SOURCE, msg: nativeLogMessage(acpNativeIncomingLogMessage(msg, privateResponses)) });
+            appendNative(threadId, { dir: "in", source: SOURCE, msg: nativeLogMessage(msg) });
             // Inbound traffic proves the child is alive and making progress,
             // so every idle deadline restarts; only total silence trips it.
             lastInboundAt = Date.now();
@@ -1247,12 +1233,6 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
         requireRunning();
         if (startupModelRefresh) await startupModelRefresh;
         requireRunning();
-        const parsedScope = parseToolScope(turn.toolScope);
-        if (!parsedScope.ok) throw new Error(parsedScope.error);
-        turn = { ...turn, toolScope: parsedScope.scope };
-        if (narrowsNativeTools(turn.toolScope) && !support.toolScopeSessionParams) {
-          throw new Error(`${support.displayName}: native tool selection is not supported by this engine. Keep native:* in the selection or choose a supported engine.`);
-        }
         const { threadId } = turn;
         if (active.has(threadId)) throw new Error("a turn is already running on this thread");
         const turnConfig = turn.approvalMode === undefined
@@ -1281,7 +1261,7 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
         const resolvedModel = support.resolveTurnModel?.(turn.model, env);
         const mcpServers = acpMcpServers(turn);
         support.applyTurnEnv?.(env, {
-          model: resolvedModel, requestedModel: turn.model, fullAuto: turnConfig.fullAuto === true, botId: turn.botId, cwd, toolScope: turn.toolScope,
+          model: resolvedModel, requestedModel: turn.model, fullAuto: turnConfig.fullAuto === true, botId: turn.botId, cwd,
           threadId, mcpServers,
         });
         let cliTurn =
@@ -1311,14 +1291,10 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
         const spawnEnv = launch.env ?? env;
       // The child env is part of the spawn contract, hashed so secrets never sit in the key.
         const envFingerprint = createHash("sha256").update(JSON.stringify(spawnEnv)).digest("hex").slice(0, 16);
-        const inheritedScopeFingerprint = narrowsNativeTools(turn.toolScope) && support.toolScopeCacheKey
-          ? createHash("sha256").update(support.toolScopeCacheKey({ config: turnConfig, env, cwd })).digest("hex") : null;
         const contractKey = JSON.stringify([
           launch.command, launch.args ?? [], spawnArgs, cwd,
           support.sessionScopedApproval ? null : turnConfig.fullAuto === true, envFingerprint,
           support.spawnFingerprint?.(spawnEnv, turnConfig) ?? null,
-          turn.toolScope ?? null,
-          inheritedScopeFingerprint,
         ]);
         const launchModel = support.sessionModelEnv && cliTurn.model && /^[\w.:/-]{1,200}$/u.test(cliTurn.model)
           && accountModels?.has(cliTurn.model) ? cliTurn.model : undefined;
@@ -1332,7 +1308,7 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
           launchedThisTurn = true;
           return opened;
         };
-        const sessionKey = JSON.stringify([mcpServers, turn.toolScope ?? null, inheritedScopeFingerprint]);
+        const sessionKey = JSON.stringify(mcpServers);
 
         if (turn.sessionReset) {
           closeSession(threadId, "reset");
@@ -1517,14 +1493,12 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
               if (liveSessionId !== null && session.sessionKey === sessionKey && (cursor === null || cursor === liveSessionId)) {
                 break;
               }
-              const selectionParams = narrowsNativeTools(turn.toolScope)
-                ? support.toolScopeSessionParams!(turn, init, mcpServers.length > 0, { config: turnConfig, env, cwd }) : {};
               let loaded = false;
               if (cursor) {
                 try {
                   await request(
                     support.resumeMethod === "resume" ? "session/resume" : "session/load",
-                    { sessionId: cursor, cwd, mcpServers, ...selectionParams },
+                    { sessionId: cursor, cwd, mcpServers },
                     LOAD_SESSION_TIMEOUT,
                     (result) => {
                       if (result) {
@@ -1567,7 +1541,7 @@ export function createAcpDriver(support: AcpSupport): ProviderDriver<AcpConfig> 
                 promptTurn = { ...turn, text: recovery.text };
                 rebuiltFromReplay = recovery.replayed;
               }
-              await request("session/new", { cwd, mcpServers, ...selectionParams }, NEW_SESSION_TIMEOUT, (result) => {
+              await request("session/new", { cwd, mcpServers }, NEW_SESSION_TIMEOUT, (result) => {
                 session.sessionId = typeof result?.sessionId === "string" ? result.sessionId : null;
                 session.sessionKey = sessionKey;
                 receiveModelVariants(result);
