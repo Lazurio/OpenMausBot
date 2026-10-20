@@ -16,7 +16,7 @@ export type PageId =
   | "setup" | "model" | "instructions" | "approvals" | "always" | "routines"
   | "memory" | "skills"
   | "browser" | "folder" | "android"
-  | "voice" | "blurb" | "team" | "chiefteams" | "tools" | "webhooks" | "visibility" | "slack"
+  | "voice" | "blurb" | "team" | "chiefteams" | "webhooks" | "visibility" | "slack"
   | "overview" | "prompt" | "history";
 
 export interface PageMeta {
@@ -41,7 +41,6 @@ export const PAGES: Record<PageId, PageMeta> = {
   blurb: { title: "botPanel.page.blurb", home: "settings", where: "botPanel.where.profile", keywords: "blurb description what it does" },
   team: { title: "botPanel.page.team", home: "settings", where: "botPanel.where.teamwork", keywords: "team move to team section" },
   chiefteams: { title: "botPanel.page.chiefTeams", home: "settings", where: "botPanel.where.teamwork", keywords: "chief of staff additional teams coordinate" },
-  tools: { title: "botAccess.tools.title", home: "settings", where: "botPanel.where.tools", keywords: "tool selection allow exclude native tools" },
   webhooks: { title: "botPanel.page.webhooks", home: "settings", where: "botPanel.where.tools", keywords: "webhooks triggers inbound" },
   always: { title: "botPanel.page.always", home: "settings", where: "botPanel.where.tools", keywords: "always allowed grants tools" },
   visibility: { title: "botSettings.visibility.title", home: "settings", where: "botPanel.where.sharing", keywords: "visibility who can see private people admins members emails hide" },

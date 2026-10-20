@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import {
   Archive, AudioWaveform, Check, CheckCheck, Copy, FileCode2, FileText, History, LayoutGrid, Lock, Phone, Search,
-  SlidersHorizontal, Slack, Smartphone, Trash2, Users, Zap, ClipboardCopy, Loader2,
+  Slack, Smartphone, Trash2, Users, Zap, ClipboardCopy, Loader2,
 } from "lucide-react";
 
 import { t } from "@/lib/i18n";
@@ -121,7 +121,6 @@ export function SettingsTab({ bot, derived, slackUrl, query, onQuery, onOpen, on
       ...(bot.chiefOfStaff ? [page("chiefteams", undefined, t("botPanel.chiefTeamsHint"), (bot.managedSections ?? []).length || none)] : []),
     ] },
     { label: t("botPanel.card.tools"), anchor: "tools", rows: [
-      page("tools", SlidersHorizontal, t("botPanel.toolsHint")),
       page("webhooks", Zap, t("botPanel.webhooksHint"), webhooks || none),
       page("always", Check, t("botPanel.alwaysHint"), alwaysAllowed || none),
     ] },

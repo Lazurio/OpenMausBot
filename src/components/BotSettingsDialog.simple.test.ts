@@ -316,8 +316,8 @@ describe("the bot panel in Simple mode", () => {
     expect(sectionTarget("usage").anchor).toBe("activity");
   });
 
-  // A place's tool selection, the working folder.
-  it.each(["tools", "folder"] as const)("opens Access on the %s page when a link names it", (page) => {
+  // A place's webhooks, the working folder.
+  it.each(["webhooks", "folder"] as const)("opens Access on the %s page when a link names it", (page) => {
     try {
       openBotSettings(fixture.dispatch, "access", { page });
       expect(shown(panel(makeBot(), "access"))).toEqual({ tab: undefined, page });
@@ -771,7 +771,7 @@ describe("the Settings tab", () => {
     expect(order.every((index) => index > -1)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     for (const text of ["What Scout does", "Voice", "Notifications", "Team", "Chief of Staff",
-      "Tool selection", "Webhooks", "Always allowed", "Get it on your phone", "Phone and email", "Overview",
+      "Webhooks", "Always allowed", "Get it on your phone", "Phone and email", "Overview",
       "What Scout sees", "History", "Usage for all bots", "Pin to top", "Duplicate", "Copy conversation ID",
       "Mark all conversations as read", "Archive Scout", "Delete Scout"]) expect(html).toContain(text);
     expect(html).not.toContain("Ask me before contacting other bots");
@@ -782,7 +782,7 @@ describe("the Settings tab", () => {
 
   it("opens each page from its row", () => {
     const rendered = settings(makeBot());
-    for (const page of ["blurb", "voice", "team", "tools", "webhooks", "always", "overview", "prompt", "history"]) {
+    for (const page of ["blurb", "voice", "team", "webhooks", "always", "overview", "prompt", "history"]) {
       click(find(rendered, "data-panel-page", page));
       expect(onOpen).toHaveBeenLastCalledWith(page);
     }
@@ -884,7 +884,7 @@ describe("the drill-in pages", () => {
   it("renders the full sections, or the part a page needs", () => {
     expect(ofType(body("model"), ModelSection)!.props.bot).toMatchObject({ id: "scout" });
     expect(ofType(body("approvals"), PermissionsSection)!.props.parts).toEqual(["approval"]);
-    for (const [page, parts] of [["tools", ["tools"]], ["webhooks", ["webhooks"]], ["always", ["always"]]] as const) {
+    for (const [page, parts] of [["webhooks", ["webhooks"]], ["always", ["always"]]] as const) {
       expect(ofType(body(page), AccessSection)!.props.parts).toEqual(parts);
     }
     expect(ofType(body("routines"), RoutinesSection)!.props.routines).toBe(fixture.derived.botRoutines);
