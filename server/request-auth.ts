@@ -330,8 +330,7 @@ export const CLIENT_ALLOW: ReadonlyArray<{ methods: readonly string[]; path: Reg
   { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/secret-cards\/[\w-]+\/(?:resume|dismiss)$/ },
   { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/sign-in-cards\/[\w-]+\/(?:done|cancel)$/ },
   // A member reaches only the bots shown to them.
-  { methods: ["GET"], path: /^\/api\/bots\/[\w-]+\/browser\/live$/ },
-  { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/browser\/action$/ },
+  { methods: ["GET"], path: /^\/api\/bots\/[\w-]+\/browser$/ },
   { methods: ["GET"], path: /^\/api\/bots\/[\w-]+\/browser\/(?:stream|download\/[\w-]+)$/ },
   { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/browser\/upload$/ },
   { methods: ["POST"], path: /^\/api\/bots\/[\w-]+\/always-allow$/ }, // must match a pending card

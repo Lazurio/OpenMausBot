@@ -56,6 +56,12 @@ describe("a bot's instructions", () => {
     expect(text).toMatch(/never start a browser of your own/);
   });
 
+  it("send a person to the bot's tab through request_sign_in, and Lazurio account pages to the person's own browser", () => {
+    const text = environmentBrowserPrompt("bot-x", true);
+    expect(text).toMatch(/call request_sign_in while your window shows that page: their panel opens on your tab/);
+    expect(text).toMatch(/Lazurio account .* never open in the Environment browser: send the person the link to open in their own browser/);
+  });
+
   it("say clearly that there is no browser where the Environment declares none", () => {
     const text = environmentBrowserPrompt("bot-x", false);
     expect(text).toMatch(/no Environment browser/);
@@ -80,6 +86,7 @@ describe("the bots' strips", () => {
   const holderOf = async (session: string) => JSON.parse(await readFile(join(holders(), `${session}.json`), "utf8")) as {
     schema: string; strip: string; label: string; tabs: string[]; contract: string;
   };
+  const start = (answer: (args: readonly string[]) => LazurioRun | Promise<LazurioRun> = (args) => (args[1] === "done"
     ? { code: 0, stdout: JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-done", session: args[3], outcome: "stopped" }) }
     : { code: 0, stdout: JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-link", session: null, link: "https://browser.vm-01.example.lazurio.io/" }) })) => {
     browser = startEnvironmentBrowser({
@@ -241,6 +248,35 @@ describe("the bots' strips", () => {
     }
     await strips.sync();
     expect((await holderOf(session)).tabs).toEqual([TAB_A]);
+  });
+
+  const VIEW = "https://browser.vm-01.example.lazurio.io";
+
+  it("gives the panel a bot's strip with each tab's view on the declared view's origin, and the tab its session works in", async () => {
+    await bind(botBrowserSession(BOT_A), TAB_A);
+    const strips = start();
+    await strips.sync();
+    await bind(botBrowserSession(BOT_A), TAB_C);
+    await strips.sync();
+      available: true,
+      viewOrigin: VIEW,
+      current: TAB_C,
+    });
+    expect(strips.boundTab(BOT_A)).toBe(TAB_C);
+    expect(strips.boundTab(BOT_B)).toBeNull();
+  });
+
+  it("gives the panel no strip where the Environment declares no browser, or its link is no view address", async () => {
+    await bind(botBrowserSession(BOT_A), TAB_A);
+    const none = start(() => ({ code: 10, stdout: JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-link", available: false }) }));
+    await browser?.stop();
+    const odd = start(() => ({ code: 0, stdout: JSON.stringify({ schema: "lazurio.browser-cli.v1", kind: "browser-link", session: null, link: "https://example.com/" }) }));
+  });
+
+    const session = botBrowserSession(BOT_A);
+    expect((await holderOf(session)).tabs).toEqual([TAB_B]);
+  });
+
   });
 
   it("does nothing where there is no runtime directory", async () => {

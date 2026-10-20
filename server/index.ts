@@ -9671,7 +9671,7 @@ function requestSignIn(from: BotRecord, threadId: string, rawSite: unknown, rawR
     kind: "signin",
     text: signInFallbackText(from.name, target.site),
     ...(owner.group ? { from: { botId: from.id, name: from.name, color: from.color } } : {}),
-    signIn: { url: target.url, site: target.site, place, ...(reason ? { reason } : {}) },
+    signIn: { url: target.url, site: target.site, place, ...(reason ? { reason } : {}), ...(place === "browser" ? environmentBrowser.signInTab(from.id, target.url) : {}) },
   });
   for (const prior of store.activePath(threadId)) {
     if (prior.id === message.id || !prior.signIn || !isPendingSignInRequest(prior, target.site, from.id, Boolean(owner.group))) continue;

@@ -299,6 +299,7 @@ export async function launchVerificationServer(
       "",
     ].join("\n"), { mode: 0o755 });
     childEnv.XDG_RUNTIME_DIR = join(dataDir, "run");
+    if (parentEnv.OMB_TEST_INTERNAL_CAPABILITY_KEY) childEnv.OMB_TEST_INTERNAL_CAPABILITY_KEY = parentEnv.OMB_TEST_INTERNAL_CAPABILITY_KEY;
     mkdirSync(childEnv.XDG_RUNTIME_DIR, { recursive: true, mode: 0o700 });
   }
   const child = spawn(process.execPath, verificationServerArgs(childEnv), {
