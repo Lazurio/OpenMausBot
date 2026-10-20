@@ -43,7 +43,7 @@ account. A user may separately sign in on the desktop to enable the optional
   provisioning, revocation, support, and reliability.
 - The optional HTTPS route is proxied by Cloudflare to an outbound-only
   `cloudflared` connector on the user's computer. Messages, approvals,
-  transcript responses, and screen frames pass through Cloudflare in transit,
+  and transcript responses pass through Cloudflare in transit,
   but are not written to the OpenMausBot control-plane database. Cloudflare may
   process IP addresses and connection/request metadata as OpenMausBot's service
   provider under Cloudflare's privacy terms.

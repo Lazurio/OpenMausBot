@@ -17,7 +17,6 @@ See [the roadmap](2026-08-31-00-control-plane-roadmap.md#global-constraints). Lo
 - **Superseded (Sep 2026):** the harness now authenticates remote clients itself (`docs/plans/remote-workspace.md`: pairing codes, sessions, and a "through a proxy" rule for forwarded requests), and `openmausbot serve --tunnel` (`server/tunnel.ts`) opens a second, IPC listener for the tunnel gateway on which every request is remote by construction. The loopback bind and its owner trust are unchanged; the sidecar is no longer the only door.
 - **The loopback bind is not negotiable.** The harness listens on `127.0.0.1` and rejects any request whose `Host` is not loopback, defeating DNS rebinding. Headless must not add a second bind to the harness. Network exposure stays entirely in the companion sidecar, which is the design `companion/README.md` argues for at length — do not relitigate it.
 - **Fail closed on absent capability.** A headless host has no desktop session, no `safeStorage`, and on Linux may have no seat at all. Every capability that is unavailable must report unavailable, never "off" and never "on".
-- **The capability rule** applies to platform capabilities too: the client must not offer local computer control for a machine that cannot do it.
 
 **Depends on:** nothing. Fully independent — a second worker can run this in parallel with P1–P4.
 
@@ -68,10 +67,7 @@ imports `electron`.
   ```ts
   export type CapabilityState = "supported" | "unavailable";
   export interface HostCapabilities {
-    localComputerControl: CapabilityState;
-    screenPreview: CapabilityState;
     dictation: CapabilityState;
-    desktopViewer: CapabilityState;
   }
   export interface HostAdapter {
     readonly kind: "desktop" | "headless";
@@ -176,7 +172,7 @@ imports `electron`.
 - [ ] Write a failing test for the pure presence reducer: a machine whose last `/api/machine` succeeded within 60s is `online`; older than that is `stale`; one that has never answered is `unreachable`. Three states, because "not online" hides the difference between a box that is off and a box you have never reached.
 - [ ] Run; expect FAIL.
 - [ ] Implement the roster from the account's installations, which `cloudflare/control-plane` already lists at `GET /v1/installations` — this is a client feature over data that exists, not a new backend.
-- [ ] Render each machine with its name, platform, kind, presence, and the capabilities it reports. A headless row shows local computer control as unavailable rather than off, so nobody assigns a bot a desktop it does not have.
+- [ ] Render each machine with its name, platform, kind, presence, and the capabilities it reports. A headless row shows a capability it lacks as unavailable rather than off.
 - [ ] Run the focused test, `pnpm typecheck`, `pnpm check:contrast`.
 - [ ] Commit `feat(headless): machine roster with presence`.
 
