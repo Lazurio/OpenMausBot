@@ -14,11 +14,9 @@ over ACP before the prompt so it cannot silently become a catalog fallback.
 
 Permissions always go through OpenMausBot's ACP approval broker, including
 Full Access. Cline's terminal auto-approval default is explicitly disabled.
-MCP tools use the existing scoped integration gate. Native tool selection is
-not advertised: removing native tools from a bot's allowlist is refused.
 MCP credential changes restart a cached native process before resuming.
 The published CLI records ACP's MCP list without connecting it; the driver
-uses `CLINE_MCP_SETTINGS_PATH` to connect that same gated list through a private
+uses `CLINE_MCP_SETTINGS_PATH` to connect that same list through a private
 per-thread file. An empty list disables ambient Cline MCP servers. These files
 are removed when the engine is disposed; the user's MCP settings are untouched.
 

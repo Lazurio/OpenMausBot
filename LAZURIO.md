@@ -105,7 +105,8 @@ builds them.
 
 **Today against the principles (2026-10-19).**
 - **Done:** removed MausBot's own computers, integrations, sign-ins, Cloud
-  and telemetry (1, 3 and 8); engine sign-in through the Launchpad (3); every
+  and telemetry (1, 3 and 8); per-bot tool selection, so every bot gets the
+  Environment's tools (3); engine sign-in through the Launchpad (3); every
   bot at Full on every server, with T3 Code's four levels and no gate before
   Full, before Auto or before contacting another bot (2,
   [Access levels](#access-levels)); the Folder as every bot's start (6).
@@ -292,17 +293,28 @@ signed-in accounts, and integrations come from the Environment.
   (`approvePeerComms`) with its approval cards. A saved Custom level, grant
   marker or switch loads and drops; a write that names one, or the removed
   confirmation, is refused with 400 ([Access levels](#access-levels)).
+- **Per-bot tool selection** (decided by the Organization Admin on
+  2026-10-20, issue #47; root decision 0172 with its addendum of 2026-10-19):
+  `toolScope` with its allow and deny selectors (`native:NAME`,
+  `mcp:SERVER:NAME`), Settings → Tools, and every engine path that narrowed
+  the native or MCP tools offered to one bot (Claude, Codex, the ACP engines
+  with Grok, Pi, the API models), with their verification scripts. Every bot
+  gets the tools the Environment provides; narrower access means a separate
+  Environment. A bot's peers (who it may contact) stay: that is the team's
+  shape, not access. A saved selection, in `bots.json`, the new-bot defaults
+  or a team backup, loads and drops; a team file's `tools` is ignored with a
+  warning; a write that names `toolScope` is refused with 400.
 - **Telemetry to upstream**: upstream's PostHog analytics and the welcome
   tour's name and e-mail form. `src/lib/analytics.ts` keeps upstream's
   function names as no-ops, so nothing is collected, stored or sent.
 
 A write that names a removed setting (`PUT /api/config` with `box`, `vps`,
 `localVm`, `composio`, `mcpServers`, `features.sharedComputers` or a removed
-new-bot default, `approvePeerComms` and the Custom level included) is refused
+new-bot default, `approvePeerComms`, `toolScope` and the Custom level included) is refused
 with 400 as a whole, never half-applied; a saved `config.json` that still has
 one loads and drops it. So is every bot and thread write (`POST`, `PUT` or
 `PATCH` under `/api/bots`) whose body names `acknowledgeLocalAuto`,
-`approvePeerComms`, `approvalGrant` or the Custom level, at its top or in its
+`approvePeerComms`, `approvalGrant`, `toolScope` or the Custom level, at its top or in its
 `settings`: the route table reads such a body through
 `refusingRemovedBotSettings` (`server/lazurio-removed-config.ts`), which
 answers 400 before any route changes anything.
