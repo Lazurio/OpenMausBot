@@ -289,6 +289,8 @@
     "server/managed-policy.test.ts",
     "server/managed-policy.ts",
     "server/mcp-server.test.ts",
+    "server/message-db.test.ts",
+    "server/message-db.ts",
     "server/proxy-paths.test.ts",
     "server/proxy-paths.ts",
     "server/request-auth.ts",

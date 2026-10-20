@@ -1,6 +1,6 @@
 import "../testing/scrub-ambient-omb-env.ts";
 
-import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -161,6 +161,38 @@ describe("export", () => {
     writeFileSync(join(out, "manifest.json"), JSON.stringify({ ...manifest, files: [...manifest.files, { file: "../outside.txt" }, { file: join(dir, "outside.txt") }] }));
     expect((await run(["export", "--thread", LEAD, "--out", out, "--force", "--json"])).code).toBe(0);
     expect(readFileSync(join(dir, "outside.txt"), "utf8")).toBe("not the export's");
+  });
+
+  it("under --force, removes the screen captures an earlier export listed, and lists none itself (DEV-6673)", async () => {
+    const out = join(dir, "earlier-screens");
+    expect((await run(["export", "--thread", LEAD, "--out", out, "--json"])).code).toBe(0);
+    // As an export of an earlier release left it: its manifest also listed screen captures under screens/.
+    const manifest = JSON.parse(readFileSync(join(out, "manifest.json"), "utf8"));
+    mkdirSync(join(out, "screens", "conversation-lead-thr"), { recursive: true });
+    writeFileSync(join(out, "screens", "conversation-lead-thr", "001-s1.png"), "png");
+    writeFileSync(join(out, "manifest.json"), JSON.stringify({ ...manifest,
+      screens: [{ threadId: LEAD, messageId: "s1", file: "screens/conversation-lead-thr/001-s1.png", bytes: 3 }, { file: "../outside-screen.png" }] }));
+    writeFileSync(join(dir, "outside-screen.png"), "not the export's");
+    const forced = await run(["export", "--thread", LEAD, "--out", out, "--force", "--json"]);
+    expect(forced.code).toBe(0);
+    expect(existsSync(join(out, "screens"))).toBe(false);
+    expect(readFileSync(join(dir, "outside-screen.png"), "utf8")).toBe("not the export's");
+    expect(forced.result).not.toHaveProperty("screens");
+    expect(JSON.parse(readFileSync(join(out, "manifest.json"), "utf8"))).not.toHaveProperty("screens");
+  });
+
+  it("writes no screen image an older server still sends into the transcript (DEV-6673)", async () => {
+    const out = join(dir, "stale-screen");
+    const lead = messages[LEAD]!;
+    messages[LEAD] = [...lead, { id: "s1", role: "bot", kind: "screen", png: "iVBORw0KGgoSTALEFRAME", mime: "image/png" }];
+    try {
+      expect((await run(["export", "--thread", LEAD, "--out", out, "--json"])).code).toBe(0);
+    } finally {
+      messages[LEAD] = lead;
+    }
+    const text = readFileSync(join(out, "transcripts/conversation-lead-thr.json"), "utf8");
+    expect(text).not.toContain("iVBORw0KGgoSTALEFRAME");
+    expect(JSON.parse(text).messages.at(-1)).toEqual({ id: "s1", role: "bot", kind: "screen" });
   });
 
   it("writes each transcript's .md from the same messages as its .json: the latest 2,000, secrets removed", async () => {
