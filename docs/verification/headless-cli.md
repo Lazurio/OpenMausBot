@@ -11,9 +11,17 @@ job tree, three transcripts, the Chief's report and both screenshots. Then
 a Claude bot is refused before any write, and a job whose teammate hangs is
 stopped, teammate included, by `--on-timeout stop`.
 
+Routines and webhooks have an end-to-end test of their own against an isolated
+server: the published entry, pointed at it only by `--port` and `OMB_PORT`,
+creates a routine and pauses, reschedules, runs and deletes it, the server's
+`GET /api/routines` showing each change; it saves a webhook's secret to a
+`0600` file, the webhook accepts a call with that secret and refuses a wrong
+one, a rotation turns the old secret away, no output carries a secret, and
+`openmausbot mcp` lists the same routines and webhooks.
+
 ```sh
-pnpm exec vitest run server/headless-cli.e2e.test.ts
-pnpm exec vitest run server/headless/ server/job-view.test.ts server/routes/jobs.test.ts server/mcp-server.test.ts server/control-omb.test.ts
+pnpm exec vitest run server/headless-cli.e2e.test.ts server/headless-automations.e2e.test.ts
+pnpm exec vitest run server/headless/ server/job-view.test.ts server/routes/jobs.test.ts server/mcp-server.test.ts server/mcp-automations.test.ts server/control-omb.test.ts
 pnpm typecheck
 pnpm lint
 ```

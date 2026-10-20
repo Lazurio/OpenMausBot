@@ -1,5 +1,9 @@
 import { HEADLESS_USAGE } from "../cli-usage.ts";
 import { EXIT, HeadlessError, MUTATING_VERBS, parseCommand } from "./args.ts";
+import {
+  botList, botShow, routineCreate, routineDelete, routineList, routineRun, routineShow, routineUpdate, webhookCreate, webhookDelete, webhookList,
+  webhookRotate,
+} from "./automations.ts";
 import { explain, loadMcp, openClient, type ClientDeps, type HeadlessClient } from "./client.ts";
 import { doctor, edit, interrupt, list, messages, newBot, newChannel, send, setModel } from "./commands.ts";
 import { connectVerb } from "./connect.ts";
@@ -77,6 +81,38 @@ export const VERB_HELP: Record<string, string> = {
   On this computer's own server the code is made for you; elsewhere, get one from Settings → Phone.
   Then use it: --url URL --token-file FILE (or OPENMAUSBOT_URL and OPENMAUSBOT_TOKEN).`,
   mcp: "openmausbot mcp\n  Serve the OpenMausBot MCP tools on stdin and stdout, for an agent (docs/mcp-server.md).",
+  routine: "openmausbot routine list | show | create | update | delete | run   (see help routine create)\n  Scheduled work for a bot, or a goal for a room.",
+  "routine list": "openmausbot routine list [--bot BOT]\n  Every routine (or one bot's): its schedule, whether it is on, its next run and its id.",
+  "routine show": "openmausbot routine show ROUTINE [--runs 10]\n  One routine by name or id: its prompt and its recent runs (at most 50).",
+  "routine create": `openmausbot routine create NAME --bot BOT (--prompt TEXT | --prompt-file FILE | --prompt -) SCHEDULE [options] [--dry-run]
+  Schedule work for a bot. BOT and ROOM are a name or an id. SCHEDULE is one of:
+    --at 2026-11-02T09:00:00+01:00          once (a date and time with its offset)
+    --daily 09:00 [--weekdays mon-fri]      every day, or on those days (the server's local time)
+    --cron "0 9 * * 1-5" --tz Europe/Prague a cron rule in an IANA time zone
+    --every 30m [--weekdays mon-fri] [--window 09:00-17:00] [--starts-at TIME] [--ends-at TIME]
+  --channel ROOM makes it a goal for that room, led by BOT (a member). --paused creates it off.
+  --timeout 45m stops a run that works longer; --duration 30m is its length in the calendar.
+  --overlap skip|queue: when it is due while still running. --continuity hands each run the last report.
+  --run-on-startup also runs it when OpenMausBot starts. --results-thread ID|main: where results go.
+  It runs unattended, at the bot's approval level.`,
+  "routine update": `openmausbot routine update ROUTINE [--pause | --resume] [--name N] [--prompt TEXT | --prompt-file FILE] [SCHEDULE] [--bot BOT]
+                 [--channel ROOM | --no-channel] [--timeout 45m | --no-timeout] [--continuity | --no-continuity] [--dry-run] …
+  Change a routine (by name or id): only what you give changes. A SCHEDULE (as in routine create) replaces the
+  whole schedule, so give all its parts. The other options are those of routine create.`,
+  "routine delete": "openmausbot routine delete ROUTINE [--dry-run]\n  Delete a routine (by name or id). A run waiting to start is cancelled.",
+  "routine run": "openmausbot routine run ROUTINE [--dry-run]\n  Run a routine once now, besides its schedule; routine show follows it.",
+  webhook: "openmausbot webhook list | create | delete | rotate   (see help webhook create)\n  Addresses other apps call to start a bot's work.",
+  "webhook list": "openmausbot webhook list [--bot BOT]\n  Every webhook (or one bot's), with the address it listens on. Secrets are never listed.",
+  "webhook create": `openmausbot webhook create NAME --bot BOT (--secret-file FILE [--force] | --show-secret) [--prompt TEXT | --prompt-file FILE]
+                   [--event-types push,pull_request] [--delivery run|post] [--paused] [--dry-run]
+  A webhook for a bot: each POST to its address with its secret starts the bot's work (the prompt says what to do).
+  The secret exists only now: --secret-file saves it to a new file only you can read (--force replaces one),
+  --show-secret prints it. Without a prompt, each call's own task field is the work.`,
+  "webhook delete": "openmausbot webhook delete WEBHOOK [--dry-run]\n  Delete a webhook (by name or id); its address stops answering.",
+  "webhook rotate": "openmausbot webhook rotate WEBHOOK (--secret-file FILE [--force] | --show-secret) [--dry-run]\n  Give a webhook a new secret; the old one stops working at once.",
+  bot: "openmausbot bot list | bot show BOT\n  Your bots, or one bot with its routines and webhooks.",
+  "bot list": "openmausbot bot list\n  Your bots and what each is doing (the same as openmausbot bots).",
+  "bot show": "openmausbot bot show BOT\n  One bot by name or id: its team, model and conversations, and its routines and webhooks.",
 };
 
 export interface HeadlessOptions {
@@ -94,6 +130,9 @@ const VERBS: Record<string, (ctx: VerbContext) => Promise<VerbOutcome>> = {
   doctor, bots: list, channels: list, models: list, messages, send, "send-channel": send, run: runVerb, wait: waitVerb,
   interrupt, "new-bot": newBot, "new-channel": newChannel, "set-model": setModel, edit, export: exportVerb, events: eventsVerb,
   "team apply": teamApplyVerb, "team export": teamExportVerb, "engine set": engineVerb, "engine list": engineVerb, connect: connectVerb,
+  "routine list": routineList, "routine show": routineShow, "routine create": routineCreate, "routine update": routineUpdate,
+  "routine delete": routineDelete, "routine run": routineRun, "webhook list": webhookList, "webhook create": webhookCreate,
+  "webhook delete": webhookDelete, "webhook rotate": webhookRotate, "bot list": botList, "bot show": botShow,
 };
 
 async function execute(argv: readonly string[], options: HeadlessOptions, io: HeadlessIo): Promise<{ outcome: VerbOutcome; output: Output; client?: HeadlessClient }> {
