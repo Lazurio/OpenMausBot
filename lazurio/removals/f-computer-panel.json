@@ -38,6 +38,7 @@
     "shared/wire.ts",
     "src/App.tsx",
     "src/components/BotSettingsDialog.simple.test.ts",
+    "src/components/ChatView.controls.test.ts",
     "src/components/ChatView.tsx",
     "src/components/SignInRequestCard.test.ts",
     "src/components/SignInRequestCard.tsx",
