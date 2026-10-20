@@ -22,6 +22,7 @@ person picks stays until someone changes it.
 | **Ask for approval** | Requests approval for commands and file changes, the way the provider's supervised mode does. |
 | **Auto-accept edits** | Approves file edits automatically; other actions can still require approval. Offered where the provider has such a mode (Claude, Grok, Qwen Code, Gemini CLI). |
 | **Approve for me** | Uses the provider's automatic review on Codex, Claude, Cursor, and Grok to approve routine actions and ask about others. Providers without an equivalent fall back to asking. |
+| **Full access** | Enables the provider's permissive mode for commands and edits, including potentially destructive or sensitive work. Residual native permission prompts are answered for you. OMB profile changes, routine actions, team setup, bot deletion, and enabled skill authoring apply without a second approval. Work handed on with `coordinate_bots` uses the receiving bot's setting, never the sender's — except from a Chief of Staff, whose level flows down (below). Actual questions and missing credentials still need your input. |
 
 Full access applies the moment you pick it: no confirmation dialog, no second
 step. It can be turned on from any client that can reach the app's API: the
@@ -149,8 +150,7 @@ driver repeats your answer for that exact operation until the native session
 ends. API models (OpenAI-compatible, MiniMax, Mistral, Grok API) have no
 native session, so their driver keeps the allow for that bot, that exact tool
 and that exact server (as launched: a changed command, URL or credential is
-another server, and a bridge into a VM or a Boat is new each turn) for the
-rest of the conversation, in memory until the server restarts. Another bot in
+another server) for the rest of the conversation, in memory until the server restarts. Another bot in
 the same room asks again.
 
 For a read-shaped tool from a configured custom MCP server, the card also

@@ -6,7 +6,7 @@ icon: Bot
 
 ## Bots are persistent teammates
 
-A bot keeps its identity, instructions, memory, approved skills, connected tools, and computer preference. Create separate bots when the role or access should differ. You do not need another bot just to start a different project or choose another model.
+A bot keeps its identity, instructions, memory, and approved skills. Create separate bots when the role or access should differ. You do not need another bot just to start a different project or choose another model.
 
 - A coding bot attached to one repository
 - A research bot with browser and document tools
@@ -39,7 +39,7 @@ A thread can choose its own model in the chat header and its Ask/Auto setting in
 
 All the bot's threads share its saved memory and skills; they do not automatically receive every sibling transcript. Folders are not separate accounts or privacy boundaries. Bot profiles can carry different access preferences, but app organization is not an operating-system sandbox.
 
-Threads can converse independently, but a physical computer, browser session, or shared project folder cannot safely have two agents changing it at once. OpenMausBot reports contention instead of allowing overlapping managed actions. New local-agent threads use separate working folders by default; existing pinned folders are retained.
+Threads can converse independently, but two agents changing the same project folder at once can overwrite each other's work. New local-agent threads use separate working folders by default; existing pinned folders are retained.
 
 ## Groups and teams
 

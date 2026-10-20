@@ -198,6 +198,9 @@
     "verification/desktop-viewer.md",
     "(message.messageId)}/image",
     "(message.id)}/image",
+    "\\/messages\\/([\\w-]+)\\/image",
+    "controlling the server's own desktop",
+    "desktop computer use",
     "tools, computer control",
     "approval.yourComputer.",
     "yourComputerQuestion"
@@ -232,6 +235,7 @@
     "apps/docs/content/docs/getting-started/first-bot.mdx",
     "apps/docs/content/docs/getting-started/quick-tour.mdx",
     "apps/docs/content/docs/index.mdx",
+    "apps/docs/content/docs/mobile/android-control.mdx",
     "apps/docs/content/docs/mobile/ios-companion.mdx",
     "apps/docs/content/docs/providers/index.mdx",
     "apps/docs/content/docs/security/index.mdx",

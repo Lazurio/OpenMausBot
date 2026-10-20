@@ -53,8 +53,8 @@ files, move it into the excluded `providers/` directory or outside the workspace
 before exporting or restoring. The app refuses that layout rather than copying
 or replacing its credentials.
 
-Wait for bots, approvals, provider sign-ins, and computer actions to finish.
-Stop external editors and managed desktops that write workspace files. The app
+Wait for bots, approvals, and provider sign-ins to finish.
+Stop external editors that write workspace files. The app
 temporarily pauses its own writers and takes a consistent SQLite snapshot. The
 current limit is **10 GB of workspace files and 100,000 entries**; exceeding it
 fails explicitly, never silently produces a partial backup.
@@ -97,8 +97,6 @@ copies. Shareable team templates remain separate from full backups.
 - Saved account credentials, API keys, connection settings, operating-system
   keychains, and phone pairing keys. Sign in or
   reconnect on the new machine; destination credentials remain untouched.
-- VM/container disk layers and remote Boat/VPS files. Durable mounted files
-  inside the workspace data directory are included, but the VM itself is not.
 - Other fleet workspaces, downloaded tools, caches, running processes, and
   active device sessions. Existing destination pairing and server identity stay
   in place; moving to a new server requires pairing with that server.
@@ -125,6 +123,3 @@ Copying the JSON directory alone does not necessarily make those credentials
 usable elsewhere. Settings exports deliberately leave saved credentials and
 connections behind; sign in again on a new machine. Raw filesystem snapshots
 and automatic restore safety copies must be protected separately.
-
-## Disposable computer filesystems
-

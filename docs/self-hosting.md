@@ -49,7 +49,7 @@ npx openmausbot start
 First launch asks you to choose AI access, connect an account or API key,
 and choose the default model for new bots. Existing sign-ins can be reused;
 Codex also offers device-code login for SSH. API-key connections currently
-support chat, not agent tools or computer use. The [setup guide](cli-onboarding.md)
+support chat, not agent tools. The [setup guide](cli-onboarding.md)
 explains the choices, key storage, and how to run setup again safely.
 
 It then starts the server and keeps your data in `~/.openmausbot`. If you
