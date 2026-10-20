@@ -34,7 +34,6 @@ export async function createConfiguredBot(
     method: "POST", body: JSON.stringify({ name: profile.name, title: profile.title,
       description: profile.description, ...chosenAi, section: profile.section,
       useDefaults: false, ...(visibility !== undefined ? { visibility } : {}), ...(reportsTo ? { reportsTo } : {}),
-      ...(Object.hasOwn(template.profile, "toolScope") ? { settings: { toolScope } } : {}),
       ...(preset ? { preset: preset.id } : {}) }),
   });
   let bot = response.bot;

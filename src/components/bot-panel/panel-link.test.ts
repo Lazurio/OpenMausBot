@@ -12,6 +12,7 @@ describe("named links into a bot's settings", () => {
   it("opens settings exactly as toggleSettings did, with or without a bot", () => {
     const dispatch = vi.fn();
     openBotSettings(dispatch, "usage");
+    openBotSettings(dispatch, "access", { botId: "atlas", page: "webhooks" });
     expect(dispatch.mock.calls).toEqual([
       [{ type: "toggleSettings", open: true, section: "usage" }],
       [{ type: "toggleSettings", open: true, section: "access", botId: "atlas" }],
@@ -33,6 +34,7 @@ describe("named links into a bot's settings", () => {
   it("never applies a link's page to another section, and falls back to the section's own place", () => {
     for (const { id } of BOT_SECTIONS) {
       expect(linkTarget(id, null)).toEqual(sectionTarget(id));
+      if (id !== "access") expect(linkTarget(id, link({ section: "access", page: "webhooks" }))).toEqual(sectionTarget(id));
     }
   });
 

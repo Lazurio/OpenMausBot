@@ -15,6 +15,7 @@ export type PageId =
   | "setup" | "model" | "instructions" | "approvals" | "always" | "routines"
   | "memory" | "skills"
   | "browser" | "folder" | "android"
+  | "voice" | "blurb" | "team" | "chiefteams" | "webhooks" | "visibility" | "slack"
   | "overview" | "prompt" | "history";
 
 /** The pages Simple mode draws; a link to any other page lands where its section does. */

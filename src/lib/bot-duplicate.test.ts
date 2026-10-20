@@ -14,12 +14,6 @@ describe("what a duplicated bot is created with", () => {
     expect(restrictedCopyRequest({ visibility: { people: ["ada@example.test"] } })).toEqual({ visibility: { people: ["ada@example.test"] } });
   });
 
-  it("carries the tool selection whenever the source has one, an empty one included", () => {
-    const scope = { allow: ["native:read"], deny: ["native:bash"] };
-    expect(restrictedCopyRequest({ toolScope: scope })).toEqual({ settings: { toolScope: scope } });
-    expect(restrictedCopyRequest({ toolScope: { allow: [] } })).toEqual({ settings: { toolScope: { allow: [] } } });
-  });
-
   it("keeps a copy off the helper model when its source is kept off it", () => {
     expect(restrictedCopyRequest({ helperModel: false })).toEqual({ settings: { helperModel: false } });
     // a value only a hand-edited bots.json could hold reads as never, as it does on the server
@@ -29,10 +23,9 @@ describe("what a duplicated bot is created with", () => {
   });
 
   it("carries every restriction together, in the one request that creates the copy", () => {
-    const source = { visibility: "admins" as const, toolScope: { allow: [] }, helperModel: false };
-    expect(restrictedCopyRequest(source)).toEqual({ visibility: "admins", settings: { toolScope: { allow: [] }, helperModel: false } });
+    const source = { visibility: "admins" as const, helperModel: false };
+    expect(restrictedCopyRequest(source)).toEqual({ visibility: "admins", settings: { helperModel: false } });
     // what the request body looks like on the wire
-    expect(JSON.parse(JSON.stringify(restrictedCopyRequest(source)))).toEqual({ visibility: "admins", settings: { toolScope: { allow: [] }, helperModel: false } });
-  });
+    expect(JSON.parse(JSON.stringify(restrictedCopyRequest(source)))).toEqual({ visibility: "admins", settings: { helperModel: false } });
   });
 });

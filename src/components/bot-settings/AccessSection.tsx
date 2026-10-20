@@ -10,7 +10,6 @@ import { shortPath } from "@/lib/short-path";
 import { useDesktopCapabilities } from "../DesktopCapabilities";
 import { Switch } from "../SettingsPrimitives";
 import { ProposalStatus } from "./ProposalStatus";
-import { ToolSelectionCard } from "./ToolSelectionCard";
 import { inputCls } from "./field";
 import type { useBotSettingsDerived } from "./useBotSettingsDerived";
 
@@ -131,8 +130,6 @@ export function AccessSection({
   return (
     <div className="flex flex-col gap-4">
       {shows("folder") && <WorkingFolder bot={bot} />}
-
-      {shows("tools") && <ToolSelectionCard key={bot.id} bot={bot} engineKind={derived.engine?.driverKind} />}
 
       {shows("browser") && <div className="rounded-xl bg-card p-4">
         <div className="flex items-center justify-between gap-4">

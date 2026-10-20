@@ -25,7 +25,6 @@ import { patchedGroups, roomAnswers, snapshotPatch } from "./room-frames";
 import { savedStateAction, type SavedOwner, type SavedSnapshot } from "./saved-state";
 export { awayFromMainThread, botOpensTo, openBot, openBotThread, openNotificationTarget, openThread, visibleNotificationThread, type ThreadTarget } from "./thread-navigation";
 import type { TurnDigest } from "../../shared/digest";
-import type { ToolScope } from "../../shared/tool-scope";
 import type { ModelVariantOption, RuntimeEvent } from "../../shared/runtime-events";
 import type { MausColor, MausMotion } from "@/lib/mascot";
 import type { BotAvatarCrop } from "../../shared/bot-avatar";
@@ -266,7 +265,6 @@ export interface TaskUsage {
 }
 
 export interface Bot extends DefaultBotFields {
-  toolScope?: ToolScope;
   waitingForTeammates?: boolean;
   id: string;
   threadId: string;
@@ -1173,7 +1171,6 @@ export function reducer(state: AppState, action: Action): AppState {
         awaitingThreadSnapshot: switchedThread || b.awaitingThreadSnapshot,
         // Complete frames omit cleared optional fields; copy them so the spread cannot keep stale values.
         browserProfile: action.bot.browserProfile,
-        toolScope: action.bot.toolScope,
         section: action.bot.section, managedSections: action.bot.managedSections,
         tasks: action.bot.tasks ? mergeTaskStamps(b.tasks, action.bot.tasks) : b.tasks,
         // Old approvals must never be sent to the replacement thread while its transcript loads.

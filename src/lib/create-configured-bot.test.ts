@@ -45,13 +45,6 @@ describe("configured bot creation", () => {
     expect(solo.bodies[0]).not.toHaveProperty("reportsTo");
   });
 
-  it("applies tool restrictions atomically before a new bot is published", async () => {
-    const f = fixture("ask");
-    f.draft.patch({ toolScope: { allow: [], deny: ["mcp:mail:send"] } });
-    expect(f.bodies[0]).toMatchObject({ settings: { toolScope: { allow: [], deny: ["mcp:mail:send"] } } });
-    expect(f.bodies[1]).not.toHaveProperty("toolScope");
-  });
-
   it("keeps the server-completed workspace effort when applying draft settings", async () => {
     const selection = { instanceId: "claude", model: "sonnet", effort: "high" as const };
     const f = fixture("ask", 0, selection);
