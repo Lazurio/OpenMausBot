@@ -104,8 +104,9 @@ builds them.
     and each change says which principle it serves.
 
 **Today against the principles (2026-10-19).**
-- **Done:** removed MausBot's own computers, integrations, sign-ins, Cloud
-  and telemetry (1, 3 and 8); per-bot tool selection, so every bot gets the
+- **Done:** removed MausBot's own computers and its own control of the
+  screen of the machine it runs on, integrations, sign-ins, Cloud and
+  telemetry (1, 3 and 8); per-bot tool selection, so every bot gets the
   Environment's tools (3); engine sign-in through the Launchpad (3); every
   bot at Full on every server, with T3 Code's four levels and no gate before
   Full, before Auto or before contacting another bot (2,
@@ -424,6 +425,22 @@ signed-in accounts, and integrations come from the Environment.
 - **Own computers**: Local VMs (Cua containers), the Boat cloud computer, VPS
   computers, lent, shared and team computers, "Works on" and
   `select_computer`. Bots work on the host and in the browser.
+- **Own computer control** (DEV-6673 task 214): bots controlling the screen of
+  the machine MausBot runs on through upstream's Cua driver (Linux, macOS and
+  Windows local control, the `computer` MCP tools of the `local` place and
+  their approval scope, the Computer part of the instructions), the person's
+  control lease (`/api/bots/<id>/computer/control`,
+  `/api/internal/computer-control`, the `computer-control` event), the wait and
+  park queue for a busy computer (`parked.computer`, `turn.wait_*`), screen
+  frames (the live `screen` event, the settled screen capture message,
+  `/api/threads/<id>/messages/<id>/image` and the CLI's `--screens` and
+  `--max-screens`), `/api/local-computer/interrupt`, the `local` place in
+  sign-in cards and prompts, the macOS permission recovery UI, the Cua build,
+  prepare and smoke scripts with their `package.json` wiring, and the
+  companion's per-device computer access with its desktop viewer relay. Bots
+  work in their shell and in the Environment browser; programs on the
+  Environment's own screen are a later Platform wave (root decision 0191 point
+  42).
 - **MausBot Cloud**: purchase and upsell, the Pro plan, Cloud credit, moving
   to and syncing with Cloud, and the OpenMausBot account sign-in
   (`openmausbot login`). The cloud-home server mode itself, upstream's own
@@ -463,8 +480,6 @@ signed-in accounts, and integrations come from the Environment.
   remote-desktop variant, the person's hand-back of the wheel, the sign-in
   banner it showed and the screen preview in the bot panel's Computer tab.
   The right panel Prohlížeč replaces it ([above](#the-browser-panel)).
-  Upstream's local computer and its control lease on the server stay as
-  upstream has them.
 - **Telemetry to upstream**: upstream's PostHog analytics and the welcome
   tour's name and e-mail form. `src/lib/analytics.ts` keeps upstream's
   function names as no-ops, so nothing is collected, stored or sent.
@@ -490,7 +505,7 @@ no shipped source, catalog or document may contain any more
 404 on the running server (`server/lazurio-removals.e2e.test.ts`). A rebuild
 on a new upstream tag re-applies each area by intent; the manifests say what
 must stay gone. The Electron desktop app is not part of the distribution, so
-its own Cloud and desktop-viewer code is left as upstream has it.
+its own Cloud, desktop-viewer and Cua driver code is left as upstream has it.
 
 ## The Lazurio shell
 

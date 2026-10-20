@@ -205,7 +205,6 @@
     "server/routes/status.ts",
     "server/routine-unanswered-wait.e2e.test.ts",
     "server/runtime-roots.e2e.test.ts",
-    "server/screen-frame-gate.test.ts",
     "server/session-credentials.e2e.test.ts",
     "server/sign-in-request.e2e.test.ts",
     "server/skills-library.test.ts",
@@ -219,11 +218,9 @@
     "server/team-backup.ts",
     "server/workspace-backup-policy.test.ts",
     "server/workspace-backup-policy.ts",
-    "shared/cloud-home.ts",
     "shared/new-bot-defaults.ts",
     "shared/package-format.ts",
     "shared/sign-in-request.ts",
-    "shared/tool-surface.ts",
     "shared/wire.ts"
   ],
   "forbidden": [
