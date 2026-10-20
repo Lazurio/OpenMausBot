@@ -48,6 +48,7 @@ import { duplicateBotProfile, restrictedCopyRequest } from "@/lib/bot-duplicate"
 import { botShowsUnread } from "@/lib/bot-unread";
 import { firstUnreadMessageId, threadOpensUnread, threadReadCursor } from "@/lib/unread-divider";
 import { parseComputerHelp } from "@/lib/computer-control";
+import { announceBotBrowserTab } from "@/lib/lazurio-browser-panel";
 import { answerResponse, dismissResponse } from "@/lib/card-answer";
 import { forgetLiveTurns, noteRuntimeTurn, sendStop } from "@/lib/stop-turn";
 import { readLastConversation, rememberConversation } from "@/lib/last-conversation";
@@ -3036,6 +3037,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           break;
         case "data":
           rawDispatch({ type: "dataSheet", sheet: frame.sheet });
+          break;
+        case "lazurio-browser-tab":
+          announceBotBrowserTab(frame.botId, frame.tabId);
           break;
         case "bot.deleted":
           botPatchQueue.cancel(frame.botId);

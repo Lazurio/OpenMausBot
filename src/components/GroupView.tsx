@@ -95,6 +95,7 @@ import { JumpToLatestButton } from "./JumpToLatestButton";
 import { HandoffChip } from "./HandoffReply"; import { TeammateChip } from "./TeammateChip"; import { useTeammates } from "@/state/team-people";
 import { RoomWorkingFolder } from "./RoomWorkingFolder";
 import { RoomBulletin } from "./RoomBulletin";
+import { useLazurioBrowserPanel } from "./LazurioBrowser";
 import { RoomHeader } from "./RoomHeader";
 import { useChatFindRequests } from "@/lib/chat-find";
 import { simpleRoomHeader } from "@/lib/room-panel";
@@ -910,6 +911,7 @@ export function GroupView({ group }: { group: Group }) {
     () => group.memberIds.map((id) => state.bots.find((b) => b.id === id)).filter((b): b is Bot => Boolean(b)),
     [group.memberIds, state.bots],
   );
+  useLazurioBrowserPanel(group.memberIds, group.messages);
   const speaker = members.find((b) => b.id === group.busyBotId);
   const threadWorking = roomThreadWorking(group, group.threadId);
   const threadSpeakerId = roomThreadSpeakerId(group, group.threadId);

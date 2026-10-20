@@ -43,6 +43,7 @@ import { useExternalChatLinks } from "@/hooks/use-external-chat-links";
 import { useReadShownChatOnFocus } from "@/hooks/use-read-shown-chat";
 import { usePresence } from "@/hooks/use-presence";
 import { ChatNotice } from "@/components/ChatErrorBanner";
+import { useBrowserPanelBotId } from "@/lib/lazurio-browser-panel";
 import { loadingLine } from "@/lib/app-loading";
 import { useAiSwitchKeeper } from "@/lib/ai-switch";
 import { useChiefStepOpen } from "@/lib/default-bot";
@@ -106,6 +107,8 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
   const group = state.groups.find((g) => g.id === state.selectedId);
   const chiefStep = useChiefStepOpen();
   const bot = group || chiefStep ? undefined : (state.bots.find((b) => b.id === state.selectedId) ?? state.bots[0]);
+  const roomPanelBotId = useBrowserPanelBotId();
+  const panelBot = bot ?? (group?.memberIds.includes(roomPanelBotId ?? "") ? state.bots.find((b) => b.id === roomPanelBotId) : undefined);
   const notificationFeed = useNotificationFeed() && !remoteClient;
   const advanced = useAdvancedMode();
   const roomPanelOpen = useRoomPanelShown({ group, state, simple: !advanced && !remoteClient });
@@ -251,6 +254,7 @@ function Shell({ viewer }: { viewer: WelcomeViewer | null }) {
           ? <RemoteAgentSettingsPanel bot={bot} overlay={state.computerOpen && !twoSidePanelsFit} />
           : <BotSettingsDialog key={`settings:${bot.id}`} bot={bot} overlay={(state.inspectorOpen || state.computerOpen || (notificationFeed && state.notificationsOpen)) && !twoSidePanelsFit} />
       )}
+      {state.computerOpen && panelBot && <LazurioBrowserPanel key={`browser-panel:${panelBot.id}`} bot={panelBot} />}
       {roomPanelOpen && group && (
         <RoomPanel key={`room:${group.id}`} group={group} overlay={notificationFeed && state.notificationsOpen && !twoSidePanelsFit} />
       )}

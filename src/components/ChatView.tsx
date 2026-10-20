@@ -805,6 +805,7 @@ export function ChatView({ bot: profile }: { bot: Bot }) {
 
   const { messages: allMessages, activeLeafId } = bot;
   const messages = useMemo(() => visibleMessages({ messages: allMessages, activeLeafId }), [allMessages, activeLeafId]);
+  useLazurioBrowserPanel([bot.id], messages);
   const lookups = useMemo(() => transcriptLookups(allMessages, messages), [allMessages, messages]);
   const liveTools = useMemo(() => liveToolIds(messages, bot), [messages, bot.busy, bot.turnStartedAt]);
   const recordedRun = useMemo(() => runSteps(messages, liveTools), [messages, liveTools]);
