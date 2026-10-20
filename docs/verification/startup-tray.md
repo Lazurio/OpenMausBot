@@ -13,7 +13,7 @@ real close button, mounts a disposable workspace, verifies it stays hidden,
 then restores it through the production tray controller. It selects the real
 Quit menu item programmatically. The printed evidence directory contains a
 receipt, progress log, screenshot, and disposable profile. No user workspace,
-server, credentials, computer-control driver, or installed application is used.
+server, credentials, or installed application is used.
 
 The fixture launches visible test windows. Do not launch Electron with
 `windowsHide: true` here: Windows would suppress the windows whose visibility

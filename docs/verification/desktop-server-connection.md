@@ -48,7 +48,7 @@ appear in the log.
 
 This verifies actual renderer/preload dispatch, with fixture IPC handlers
 substituting native confirmation, server persistence and navigation. It does
-not prove public DNS/TLS or a live computer-control session. The native
+not prove public DNS/TLS. The native
 connector portion does prove a real pairing exchange and cookie-authenticated
 registration; filesystem and MCP execution are covered below.
 Native menu items are selected programmatically; this is not a physical

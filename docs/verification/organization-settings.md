@@ -126,15 +126,14 @@ used.
   or account still clears it.
 - `pnpm vitest run server/managed-policy.test.ts server/managed-desktop.test.ts
   server/store-rename-instances.test.ts`: refusal sentences, MCP name/address
-  matching, computer-kind mapping, the real `bindTurnComputer` guard from
-  `index.ts`, expiry of the last policy; renewal and licence suspension applied
+  matching, the computers a desktop parent still sends dropped, expiry of the
+  last policy; renewal and licence suspension applied
   without restarting Company instances; stable Company ids across re-enrolment
   with the old id's native home and saved selections, cursors and handed
   records moved once.
 - Mutation checks (each failed its test, then was restored): strict expiry
   equality on the session response; treating the licence 503 as offline;
-  not restoring the saved policy on start; removing the `bindTurnComputer`
-  guard; replacing instances on a renewal; skipping the legacy-id rename;
+  not restoring the saved policy on start; replacing instances on a renewal; skipping the legacy-id rename;
   forgetting instead of adopting a legacy backup key.
 - Against the Admin itself (in the openmaus-cloud `feat/desktop-lifecycle`
   worktree, disposable fixtures): this client enrolled, reported its version

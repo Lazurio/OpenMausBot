@@ -494,8 +494,8 @@ running case.
 
 Compatibility, learned from pi: send `system` rather than the `developer` role,
 and declare no `effortLevels`. Keyless local servers need a placeholder key or
-their models stay hidden. Capability flags `computerMcp`, `agentsMcp`, and
-`images` set honestly — usually `false`.
+their models stay hidden. Capability flags `agentsMcp` and `images` set
+honestly — usually `false`.
 
 Add model-free tool-result pruning here rather than in item 7: a filter over the
 rebuild that drops stale tool output before any summarization runs. Cheap, no
@@ -529,8 +529,7 @@ this before item 6 exists to catch a hung turn.
 - A `queue.updated` runtime event carrying both pending queues.
 - Replace the 409 at `server/index.ts:755` with a queue where the driver supports
   it; stop locking the composer at `:840`; render queued messages as pending.
-- Drivers advertising `queueing: false` keep current behaviour, exactly as
-  `computerMcp` already gates the computer panel.
+- Drivers advertising `queueing: false` keep current behaviour.
 - Generation fencing (item 12) must be in place: a queued message must never be
   delivered into a turn from a superseded generation.
 

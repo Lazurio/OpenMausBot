@@ -55,7 +55,6 @@ Use only mapped, tested commands:
 - [Full Access without duplicate approvals](full-access.md)
 - [Exact command allowlist UI and saved rules](command-allowlist.md)
 - [The safety floor: a never-list no grant can allow](safety-floor.md)
-- [Waiting for an occupied desktop](computer-wait.md)
 - [Chat UI, driven headlessly](chat-ui.md)
 - [Chat widgets](widgets.md)
 - [Chat widgets: prompts to try with a real bot](widget-prompts.md)
@@ -124,10 +123,6 @@ The [external runtimes recipe](external-runtime.md) proves a bot's standing
 comms capability from `external-runtimes.json` against a disposable server and
 the fake engine: scope, on-demand token reads, `coordinate_bots` roots polled
 through `assignment_status`, and immediate dispatch to a free teammate.
-
-The [local computer launch regression](local-computer-launch.md) starts the
-host CUA gate through real Electron in a disposable home, without opening the
-desktop app or controlling the user's computer.
 
 The [bot settings fixture](bot-settings.md) checks profile saves, standing
 instructions, history restore, skill/memory refresh, and stale-response isolation.

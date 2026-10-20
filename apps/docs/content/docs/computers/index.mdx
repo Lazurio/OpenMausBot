@@ -1,19 +1,13 @@
 ---
-title: Give a bot a computer
+title: Where a bot works
 description: The computer a bot works on, running OpenMausBot.
 icon: Monitor
 ---
 
-A bot works on the computer running OpenMausBot: its shell and files there and, in the desktop app, this computer's own screen when a task needs desktop apps.
+A bot works on the computer running OpenMausBot through its shell and files there. It has no screen tools of its own: it does not open desktop apps or click on this computer's screen.
 
 On a Lazurio Environment, bots work in the Environment browser through `agent-browser` with their own session; elsewhere they have no browser.
 
-## Preview and takeover
+## Website sign-in
 
-The Computer panel can show live frames while an agent works.
-
-When a bot needs you to sign in to a website, it asks with a **Sign in needed** card instead of asking for a password in chat. **Open** goes to the computer the bot is working in, with **Take control**; **Done** hands it back and resumes the bot. See [Website sign-in](/docs/security/permissions-and-secrets#website-sign-in).
-
-<Callout type="warn" title="Preview is not permission">
-  Starting a screen preview does not grant the bot control. Local input requires a separate opt-in and remains subject to the computer-use safety boundary.
-</Callout>
+When a bot needs you to sign in to a website, it asks with a **Sign in needed** card instead of asking for a password in chat. You sign in yourself in the bot's tab of the Environment browser; **Done** resumes the bot. See [Website sign-in](/docs/security/permissions-and-secrets#website-sign-in).
