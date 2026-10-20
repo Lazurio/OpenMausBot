@@ -14,8 +14,10 @@ export interface BotBrowserTab {
   view: string;
   /** The bot's own agent-browser works in it. */
   agent: boolean;
-  /** The other strips that hold it too. */
+  /** The other strips that hold it too, of those this person may see. */
   alsoHeldBy: BotBrowserHolder[];
+  /** Other strips this person may not see hold it too (a restricted bot, a T3 Code thread): named by nothing. */
+  alsoHeldElsewhere: boolean;
 }
 
 /** `GET /api/bots/<bot>/browser`: the bot's strip, or none where the Environment declares no browser. */

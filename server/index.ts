@@ -484,7 +484,7 @@ import { createUpdateCheckRoutes, serverUpdateChecker } from "./routes/update-ch
 import { createInternalSignInRoutes } from "./routes/sign-in.ts";
 import { createInternalThreadRoutes } from "./routes/internal-threads.ts";
 import { createSignInCardRoutes } from "./routes/sign-in-cards.ts";
-import { createLazurioBrowserRoutes } from "./routes/lazurio-browser.ts";
+import { createLazurioBrowserRoutes, stripAudienceOf } from "./routes/lazurio-browser.ts";
 import { createInternalEscalateRoutes } from "./routes/internal-escalate.ts";
 import { createRoomHoldRoutes } from "./routes/room-holds.ts";
 import { createGroupRoutes } from "./routes/groups.ts";
@@ -10749,7 +10749,7 @@ ROUTES.push(createBotMemoryRoutes({
 }));
 ROUTES.push(createDeciderRoutes({ decider, config: () => cfg }), createNotificationRoutes(), createUpdateCheckRoutes({ check: serverUpdateChecker({ desktopManaged: DESKTOP_MANAGED, managed: Boolean(CLOUD_HOME || HOSTED_WORKSPACE) }) }));
 ROUTES.push(createSignInCardRoutes({ settle: settleSignIn, threadVisible: (auth, threadId) => visibleTo(viewerFor(auth)).thread(threadId) }));
-ROUTES.push(createLazurioBrowserRoutes({ browser: environmentBrowser, liveBot: (id) => Boolean(store.bot(id)) && !store.bot(id)!.hidden }));
+ROUTES.push(createLazurioBrowserRoutes({ browser: environmentBrowser, liveBot: (id) => Boolean(store.bot(id)) && !store.bot(id)!.hidden, audience: (auth) => stripAudienceOf(viewerFor(auth), visibleTo(viewerFor(auth))) }));
 ROUTES.push(createRoomHoldRoutes({
   group: (id) => store.group(id),
   setHold: (groupId, botId, held) => {

@@ -259,7 +259,11 @@ upstream's Computer panel and its own live view of the screen are removed
   /api/bots/<bot>/browser`: the bot's tabs, each with its Platform view
   `<view origin>/t/<id>` (the origin `lazurio browser link --json`
   declares), whether the bot's own agent-browser works in it and which other
-  strips hold it too (a dot marks both). Each tab is a frame of the view with
+  strips hold it too (a dot marks both). Another holder is named only to whoever
+  may see it, by the rules that gate `/api/bots/<bot>`: the Launchpad to
+  everyone, a bot to whoever may see that bot, a T3 Code thread or any other
+  strip only to whoever sees everything (the owner, an admin); anyone else gets
+  `alsoHeldElsewhere`, with no name or id. Each tab is a frame of the view with
   the contract's frame attributes; the bot and the person click and type in
   the same tab at once, and nothing is handed over or locked (point 13). The
   strip is read every 5 s while the browser is in view.
