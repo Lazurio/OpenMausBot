@@ -25,8 +25,9 @@
 //
 // People see a bot's strip in MausBot's right panel, Prohlížeč, as a T3 Code thread's: each tab
 // through the Platform's view `<view origin>/t/<id>`, the origin being the one the declaration's
-// link names (C3), and "+" opens the bot's window with `lazurio browser window --session bot-<id>`.
-// Nothing here frames, proxies or reads a page: the view is the Platform's.
+// link names (C3). The person's panel holds a tab (Nová karta, a link, a page's new tab, Vrátit)
+// and lets one go (×) in the same holder file, and a tab the bot's session newly binds is announced
+// so the panel opens on it (0195 point 15). Nothing here frames, proxies or reads a page.
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readdir, rm } from "node:fs/promises";
@@ -55,7 +56,7 @@ import {
   targetIdOf,
   viewAddressOf,
 } from "../lazurio/browser-contract/pure.js";
-import { lazurioAccountSite, type BotBrowserStrip, type BotBrowserTab } from "../shared/lazurio-browser.ts";
+import { lazurioAccountSite, type BotBrowserHolder, type BotBrowserStrip } from "../shared/lazurio-browser.ts";
 import { SIGN_IN_PROMPT } from "./system-prompt.ts";
 
 /** The Platform release whose contract module MausBot vendored (lazurio/browser-contract/provenance.json),
@@ -72,8 +73,6 @@ const DIGEST_LENGTH = 32;
 export const MAX_BOT_TABS = 128;
 const LINK_CHECK_MS = 10_000;
 const DONE_MS = 15_000;
-/** `lazurio browser window` opens a window and binds agent-browser's session to it. */
-const WINDOW_MS = 30_000;
 /** How long a declaration of the Environment browser (or its absence) is believed. */
 const DECLARATION_TTL_MS = 60_000;
 
@@ -109,8 +108,8 @@ export function environmentBrowserPrompt(session: string, declared: boolean): st
   ].join(" ") + SIGN_IN_PROMPT;
 }
 
-/** What "+" in the panel came to: the bot's window, or why there is none. */
-export type BotWindow = { kind: "opened"; tab: BotBrowserTab } | { kind: "unavailable" } | { kind: "failed" };
+/** Why the person's hold or release of a tab did not happen. */
+export type BotTabRefusal = "unavailable" | "bot-not-found" | "invalid-tab" | "too-many-tabs" | "holder-unreadable" | "hold-failed";
 
 export interface LazurioRun {
   code: number;
@@ -142,6 +141,9 @@ export interface EnvironmentBrowserSeams {
   alive?: (pid: number) => boolean;
   /** How often the strips are reconciled without a change seen; the contract's beat by default. */
   everyMs?: number;
+  /** A tab the bot's session newly bound joined its strip: the person's panel opens on it. Not for the
+   * bindings found at start. */
+  onNewTab?: (botId: string, tabId: string) => void;
   log?: (line: string) => void;
 }
 
@@ -155,9 +157,10 @@ export interface EnvironmentBrowser {
   tabs(botId: string): Promise<string[]>;
   /** A live bot's strip with the view of each tab, for the person's panel. */
   strip(botId: string): Promise<BotBrowserStrip>;
-  /** The bot's window (`lazurio browser window --session bot-<id>`): the one its session works in, else a new
-   * one bound to it; in its strip once this resolves. */
-  openWindow(botId: string): Promise<BotWindow>;
+  /** The person's panel holds a tab in the bot's strip (Nová karta, a link, a page's new tab, Vrátit). */
+  hold(botId: string, tabId: string): Promise<BotBrowserStrip | { refused: BotTabRefusal }>;
+  /** The person's panel lets go of a tab of the bot's strip (×); the hub ends it once nothing holds it. */
+  release(botId: string, tabId: string): Promise<BotBrowserStrip | { refused: BotTabRefusal }>;
   /** The tab the bot's session worked in at the last reconciliation, when its strip holds it; null otherwise. */
   boundTab(botId: string): string | null;
   /** What a sign-in card the bot asks for in the Environment browser names: the bot's tab, on which the person's
@@ -214,6 +217,10 @@ export function startEnvironmentBrowser(seams: EnvironmentBrowserSeams): Environ
   /** What this process knows of each live bot's strip, and the tab each session was bound to at the last reading. */
   const held = new Map<string, string[]>();
   const lastBinding = new Map<string, string>();
+  /** At the last reading: the strips that hold each tab, and the bot sessions whose daemon works in a tab. */
+  let holdersOf: ReadonlyMap<string, readonly BotBrowserHolder[]> = new Map();
+  const working = new Map<string, string>();
+  let started = false;
   /** The last refusal logged for each strip, so a full strip is said once, not on every beat. */
   const refusals = new Map<string, string>();
 
@@ -246,14 +253,20 @@ export function startEnvironmentBrowser(seams: EnvironmentBrowserSeams): Environ
     // The bots' sessions as agent-browser left them: bound to a tab, with or without a running daemon.
     const boundTo = new Map<string, string>();
     const running = new Set<string>();
-    if (sockets !== undefined) {
-      try {
-        const { holds } = await readHolds({ sockets }, alive);
-        for (const [target, sessions] of holds.bound) for (const session of sessions) if (session.startsWith(BOT_SESSION_PREFIX)) boundTo.set(session, target);
-        for (const sessions of holds.working.values()) for (const session of sessions) if (session.startsWith(BOT_SESSION_PREFIX)) running.add(session);
-      } catch (error) {
-        log(`agent-browser's sessions cannot be read: ${error instanceof Error ? error.message : String(error)}`);
+    working.clear();
+    try {
+      const { holds } = await readHolds({ holders: directory, sockets }, alive);
+      holdersOf = holds.holders;
+      for (const [target, sessions] of holds.bound) for (const session of sessions) if (session.startsWith(BOT_SESSION_PREFIX)) boundTo.set(session, target);
+      for (const [target, sessions] of holds.working) {
+        for (const session of sessions) {
+          if (!session.startsWith(BOT_SESSION_PREFIX)) continue;
+          running.add(session);
+          working.set(session, target);
+        }
       }
+    } catch (error) {
+      log(`the holds and agent-browser's sessions cannot be read: ${error instanceof Error ? error.message : String(error)}`);
     }
     let files: string[] = [];
     try {
@@ -303,8 +316,55 @@ export function startEnvironmentBrowser(seams: EnvironmentBrowserSeams): Environ
       refusals.delete(session);
       if (result.tabs.length) held.set(bot.id, result.tabs.map((tab) => tab.id));
       else held.delete(bot.id);
-      if (fresh && result.tabs.some((tab) => tab.id === target)) lastBinding.set(session, target);
+      if (fresh && result.tabs.some((tab) => tab.id === target)) {
+        lastBinding.set(session, target);
+        if (started) seams.onNewTab?.(bot.id, target);
+      }
     }
+    started = true;
+  };
+
+  /** One write of the holder files at a time: the reconciliation's and the person's holds and releases. */
+  let writing: Promise<unknown> = Promise.resolve();
+  const exclusive = <T>(work: () => Promise<T>): Promise<T> => {
+    const next = writing.then(work, work);
+    writing = next.catch(() => {});
+    return next;
+  };
+
+  const snapshot = (botId: string, origin: string): BotBrowserStrip => {
+    const own = botBrowserSession(botId);
+    const tabs = (held.get(botId) ?? []).map((tabId) => ({
+      tabId,
+      view: browserViewUrl(origin, tabId),
+      agent: working.get(own) === tabId,
+      alsoHeldBy: (holdersOf.get(tabId) ?? []).filter((holder) => holder.strip !== own).map(({ strip, label }) => ({ strip, label })),
+    }));
+    return { available: true, strip: own, viewOrigin: origin, tabs, current: boundTab(botId) };
+  };
+
+  /** The person's change of a bot's strip, written with the contract's one write (changeHolderFile). */
+  const change = async (botId: string, tabId: string, what: "hold" | "release"): Promise<BotBrowserStrip | { refused: BotTabRefusal }> => {
+    const origin = await viewOrigin();
+    if (origin === null || holders === undefined) return { refused: "unavailable" };
+    const tab = targetIdOf(tabId);
+    if (tab === null) return { refused: "invalid-tab" };
+    const bot = seams.bots().find((candidate) => candidate.id === botId && !candidate.hidden);
+    if (!bot) return { refused: "bot-not-found" };
+    await current;
+    return exclusive(async () => {
+      let result: Awaited<ReturnType<typeof changeHolderFile>>;
+      try {
+        result = await changeHolderFile(fileOf(bot, holders), { [what]: [tab] }, await now());
+      } catch (error) {
+        log(`${botBrowserSession(botId)}.json could not be written: ${error instanceof Error ? error.message : String(error)}`);
+        return { refused: "hold-failed" as const };
+      }
+      if (result.kind === "refused") return { refused: result.reason === "full" ? "too-many-tabs" as const : "holder-unreadable" as const };
+      if (result.tabs.length) held.set(botId, result.tabs.map((recorded) => recorded.id));
+      else held.delete(botId);
+      return snapshot(botId, origin);
+    });
   };
 
   // One reconciliation at a time; a change seen during one asks for one more.
@@ -321,7 +381,7 @@ export function startEnvironmentBrowser(seams: EnvironmentBrowserSeams): Environ
       try {
         do {
           again = false;
-          await reconcile(holders).catch((error) => log(`reconciliation failed: ${error instanceof Error ? error.message : String(error)}`));
+          await exclusive(() => reconcile(holders)).catch((error) => log(`reconciliation failed: ${error instanceof Error ? error.message : String(error)}`));
         } while (again && !stopped);
       } finally {
         current = null;
@@ -367,24 +427,10 @@ export function startEnvironmentBrowser(seams: EnvironmentBrowserSeams): Environ
       const origin = await viewOrigin();
       if (origin === null) return { available: false };
       await current;
-      const tabs = (held.get(botId) ?? []).map((tabId) => ({ tabId, view: browserViewUrl(origin, tabId) }));
-      return { available: true, viewOrigin: origin, tabs, current: boundTab(botId) };
+      return snapshot(botId, origin);
     },
-    async openWindow(botId) {
-      const origin = await viewOrigin();
-      if (origin === null) return { kind: "unavailable" };
-      const session = botBrowserSession(botId);
-      const answer = await run(["browser", "window", "--session", session, "--json"], WINDOW_MS).catch(() => null);
-      const parsed = answer ? parseBrowserCliAnswer(answer.stdout) : null;
-      if (parsed !== null && "available" in parsed && parsed.available === false) return { kind: "unavailable" };
-      const tabId = answer?.code === browserCliExit.done && parsed?.kind === "browser-window" && "targetId" in parsed ? targetIdOf(parsed.targetId) : null;
-      if (tabId === null) {
-        log(`lazurio browser window --session ${session} failed (exit ${answer?.code ?? "none"})`);
-        return { kind: "failed" };
-      }
-      await sync();
-      return { kind: "opened", tab: { tabId, view: browserViewUrl(origin, tabId) } };
-    },
+    hold: (botId, tabId) => change(botId, tabId, "hold"),
+    release: (botId, tabId) => change(botId, tabId, "release"),
     boundTab,
     signInTab(botId, url) {
       const tab = lazurioAccountSite(url) ? null : boundTab(botId);

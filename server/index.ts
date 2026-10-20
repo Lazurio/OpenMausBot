@@ -344,6 +344,7 @@ import { redactSecretsInText } from "./redact.ts";
 import { ROUTINE_RESTARTED, RoutineManager, type RoutineRun, type RoutineRunOn, type RoutineRunTrigger } from "./routines.ts";
 import { CalendarCallManager, type CalendarCall } from "./calendar-calls.ts";
 import { botBrowserSession, environmentBrowserPrompt, startEnvironmentBrowser } from "./lazurio-environment-browser.ts";
+import { BOT_BROWSER_TAB_EVENT } from "../shared/lazurio-browser.ts";
 import { createScreenFrameSource, type ScreenCapture } from "./screen-frame-source.ts";
 import { screenFrameHash, screenSurfaceForTool, screenTouchingTool, settledFrameIsNews } from "./screen-frame-gate.ts";
 import { asSchedule, RoutineRequestService } from "./routine-requests.ts"; import { ownerSpokeOnly } from "./cloud-routine-level.ts";
@@ -2690,7 +2691,8 @@ const store = new Store(
 );
 // Lazurio overlay (DEV-6673 M4a): bots work in the Environment browser through their own agent-browser session; the
 // server only keeps each bot's strip of tabs (server/lazurio-environment-browser.ts) and starts no browser of its own.
-const environmentBrowser = startEnvironmentBrowser({ env: process.env, bots: () => store.bots, onChange: (listener) => store.onChange(listener) });
+const environmentBrowser = startEnvironmentBrowser({ env: process.env, bots: () => store.bots, onChange: (listener) => store.onChange(listener),
+  onNewTab: (botId, tabId) => broadcast({ kind: BOT_BROWSER_TAB_EVENT, botId, tabId }) });
 const skillsHost = createSkillsLibraryHost({ store, cfg, appendSkillRequestCard, engineConfig: (instanceId) => providerConfigs()[instanceId] });
 const { listBotSkills, readBotSkillFile } = skillsHost;
 const cloudHealth = CLOUD_HOME ? createCloudHealth({ store, bus, dataDir: DATA_DIR, eventsDir: EVENTS_DIR, version: serverVersion(), image: process.env.OMB_CLOUD_IMAGE,
