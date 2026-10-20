@@ -74,15 +74,15 @@ describe("the header's right side", () => {
     return { markup, controls: markup.slice(markup.indexOf("data-chathead-controls"), markup.indexOf("role=\"log\"")) };
   };
 
-  it("shows only what applies in Simple mode: no model, computer or ⋯, which the bot panel holds", () => {
+  it("shows only what applies in Simple mode: no model or ⋯, which the bot panel holds, and the browser panel's button", () => {
     fixture.advanced = false;
     const { markup, controls } = header();
     expect(markup).not.toContain("data-test-model-control");
     expect(fixture.model).toBeNull();
-    expect(markup).not.toContain('data-tour="computer"');
     expect(markup).not.toContain('data-testid="chat-more"');
     expect(fixture.menus.find((menu) => menu.ariaLabel === "More")).toBeUndefined();
-    expect(controls).not.toContain("<button");
+    expect(controls.match(/<button/g)).toHaveLength(1);
+    expect(controls).toContain("data-lazurio-browser-button");
     expect(markup).toContain("data-chathead-pill");
     fixture.advanced = true;
   });
@@ -107,7 +107,7 @@ describe("the header's right side", () => {
     fixture.advanced = false;
     const { controls } = header({ ...bot, busy: true, tasks: (bot.tasks ?? []).map((task) => ({ ...task, busy: true })) });
     expect(controls).toContain('title="Stop this turn"');
-    expect(controls.match(/<button/g)).toHaveLength(1);
+    expect(controls.match(/<button/g)).toHaveLength(2);
     fixture.advanced = true;
   });
 
