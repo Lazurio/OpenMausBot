@@ -147,6 +147,7 @@ const SEND_ID_SCHEMA = {
   type: "string",
   description: "Optional id you make up for this send (16-80 letters, digits, - or _). Sending again with the same id returns the first send's receipt instead of a second message.",
 } as const;
+const INSTRUCTIONS_SCHEMA = { type: "string", description: "Optional standing instructions, the bot's SOUL.md: how it works and what it always or never does (at most 24,000 bytes)." } as const;
 
 const READ_ONLY = { readOnlyHint: true, destructiveHint: false, openWorldHint: false } as const;
 const ADDITIVE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
@@ -208,13 +209,14 @@ export const TOOLS: McpToolDefinition[] = [
   },
   {
     name: "create_bot",
-    description: "Create a new bot and optionally configure its profile, section, and exact model selection.",
+    description: "Create a new bot and optionally configure its profile, instructions, section, and exact model selection.",
     inputSchema: {
       type: "object",
       properties: {
         name: { type: "string", description: "Bot display name." },
         title: { type: "string", description: "Optional short role title." },
         description: { type: "string", description: "Optional persona or responsibility description." },
+        instructions: INSTRUCTIONS_SCHEMA,
         section: { type: "string", description: "Optional sidebar section." },
         instance_id: { type: "string", description: "Optional provider instance ID; model is required with it." },
         model: { type: "string", description: "Optional exact model ID; instance_id is required with it." },
@@ -235,6 +237,7 @@ export const TOOLS: McpToolDefinition[] = [
         name: { type: "string", description: "Optional bot display name." },
         title: { type: "string", description: "Optional short role title." },
         description: { type: "string", description: "Optional persona or responsibility description." },
+        instructions: INSTRUCTIONS_SCHEMA,
         section: { type: ["string", "null"], description: "Optional sidebar section. Null clears it." },
       },
       required: ["bot_id"],
@@ -919,6 +922,7 @@ export async function handleToolCall(
       const name = stringArg(args, "name", { max: 100 });
       const title = optionalStringArg(args, "title", { trim: false, allowEmpty: true, max: 200 });
       const description = optionalStringArg(args, "description", { trim: false, allowEmpty: true, max: 4_000 });
+      const instructions = optionalStringArg(args, "instructions", { trim: false, allowEmpty: true })?.trimEnd();
       const section = optionalStringArg(args, "section", { max: 60 });
       const wantsModel = args.instance_id !== undefined || args.model !== undefined || args.effort !== undefined;
       if (wantsModel && (args.instance_id === undefined || args.model === undefined)) {
@@ -933,6 +937,7 @@ export async function handleToolCall(
           ...(description !== undefined ? { description } : {}),
           ...(section !== undefined ? { section } : {}),
           ...(selection ? { modelSelection: selection, requireAvailableModel: true } : {}),
+          ...(instructions !== undefined ? { settings: { soul: instructions } } : {}),
         }),
       });
       if (!isRecord(created?.bot) || typeof created.bot.id !== "string") {
@@ -948,6 +953,7 @@ export async function handleToolCall(
       if (args.title !== undefined) patch.title = stringArg(args, "title", { trim: false, allowEmpty: true, max: 200 });
       if (args.description !== undefined) patch.description = stringArg(args, "description", { trim: false, allowEmpty: true, max: 4_000 });
       if ("section" in args) patch.section = args.section === null ? null : stringArg(args, "section", { max: 60 });
+      if (args.instructions !== undefined) patch.soul = stringArg(args, "instructions", { trim: false, allowEmpty: true }).trimEnd();
       if (!Object.keys(patch).length) throw new ToolInputError("provide at least one profile field to update");
       const result = await fetcher(`/api/bots/${encodeURIComponent(botId)}`, {
         method: "PATCH",

@@ -13,6 +13,7 @@ export const HEADLESS_USAGE = `Drive a running workspace (scripts, CI, other age
   openmausbot team apply FILE           make the workspace match a team file (team export writes one)
   openmausbot routine list | show | create | update | delete | run   scheduled work for a bot or room
   openmausbot webhook list | create | delete | rotate   addresses other apps call to start a bot's work
+  openmausbot bot list | show | create | update | model   your bots: make one, change its profile or its model
   openmausbot engine set claude --key-env ANTHROPIC_API_KEY   give it an engine without a screen
   openmausbot connect URL --code CODE --out FILE              get a token for a workspace elsewhere
   openmausbot new-bot | new-channel | set-model | edit | mcp

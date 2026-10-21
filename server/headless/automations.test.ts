@@ -42,6 +42,11 @@ function workspace() {
     { id: "w-deploy", endpointId: "wh_deploy", name: "Deploys", prompt: "Check the deploy.", botId: "b-henry", enabled: true, deliveryCount: 3, eventTypes: ["push"] },
   ];
   const ingress = { available: true, baseUrl: "http://127.0.0.1:18800" };
+  const instances: Rec[] = [
+    { instanceId: "claude", snapshot: { state: "available" }, models: { default: "claude-sonnet-5", options: [{ id: "claude-sonnet-5" }, { id: "claude-opus-5-5" }] },
+      capabilities: { effortLevels: ["low", "medium", "high"] } },
+    { instanceId: "cursor", snapshot: { state: "unavailable" }, models: { default: "auto", options: [{ id: "auto" }] }, capabilities: {} },
+  ];
   const writes: Array<{ method: string; path: string; body?: Rec }> = [];
   let created = 0;
   const request = vi.fn(async (path: string, init: RequestInit = {}) => {
@@ -49,6 +54,24 @@ function workspace() {
     const body = init.body ? JSON.parse(String(init.body)) : undefined;
     if (method !== "GET") writes.push({ method, path, ...(body && Object.keys(body).length ? { body } : {}) });
     if (path === "/api/bots?messages=0") return { bots, groups };
+    if (path === "/api/instances") return { instances };
+    if (path === "/api/bots" && method === "POST") {
+      if (body.name === "Refused") throw refused(409, "this workspace is limited to 4 bots");
+      const { settings, requireAvailableModel: _required, ...profile } = body;
+      const bot = { id: `b-new-${++created}`, title: "", description: "", modelSelection: { instanceId: "claude", model: "claude-sonnet-5" }, threadId: `t-new-${created}`,
+        tasks: [], ...profile, ...(settings?.soul === undefined ? {} : { soul: settings.soul }) };
+      bots.push(bot);
+      return { bot };
+    }
+    const botPatch = /^\/api\/bots\/([\w-]+)(?:\/tasks\/([\w-]+))?$/.exec(path);
+    if (botPatch && method === "PATCH") {
+      const bot = bots.find((candidate) => candidate.id === botPatch[1]);
+      if (!bot) throw refused(404, "no such bot");
+      const { requireAvailableModel: _required, ...patch } = body;
+      if (botPatch[2]) return { task: { threadId: botPatch[2], title: "Main", ...patch } };
+      Object.assign(bot, patch);
+      return { bot };
+    }
     if (path === "/api/routines" && method === "GET") return { routines, runs };
     if (path === "/api/routines" && method === "POST") {
       if (body.name === "Refused") throw refused(400, "Time must use HH:MM");
@@ -89,6 +112,7 @@ function workspace() {
     const code = await runHeadless(argv, { io, env: { OPENMAUSBOT_URL: "http://127.0.0.1:19996" }, request: request as any });
     return { code, out: out.join("\n"), err: err.join("\n"), json: () => JSON.parse(out.join("\n")) };
   };
+  return { bots, routines, webhooks, writes, request, run };
 }
 
 describe("openmausbot routine", () => {
@@ -281,5 +305,103 @@ describe("openmausbot bot", () => {
       "Webhooks:",
       "  Deploys · Henry · on · 3 calls · only push · id w-deploy · POST http://127.0.0.1:18800/hooks/wh_deploy",
     ].join("\n"));
+  });
+
+  it("creates a bot with its instructions from a file or stdin through create_bot, and prints the tool's result", async () => {
+    const w = workspace();
+    const file = join(dir, "scout.md");
+    writeFileSync(file, "Check each release.\nReport what failed.\n");
+    const made = await w.run(["bot", "create", "Scout", "--title", "Release scout", "--description", "Checks releases.", "--team", "Steward",
+      "--model", "claude/claude-opus-5-5", "--effort", "high", "--prompt-file", file, "--json"]);
+    expect(made.code, made.err).toBe(0);
+    expect(w.writes).toEqual([{ method: "POST", path: "/api/bots", body: {
+      name: "Scout", title: "Release scout", description: "Checks releases.", section: "Steward",
+      modelSelection: { instanceId: "claude", model: "claude-opus-5-5", effort: "high" }, requireAvailableModel: true,
+      settings: { soul: "Check each release.\nReport what failed." },
+    } }]);
+    expect(made.json()).toMatchObject({ success: true, bot: { id: "b-new-1", name: "Scout", title: "Release scout", section: "Steward" } });
+
+    const human = await w.run(["bot", "create", "--name", "Helper", "--prompt-file", "-"], "Answer in one line.\n");
+    expect(human.out).toBe("Created bot Helper (id b-new-2) on claude/claude-sonnet-5.\nGive it work with: openmausbot run b-new-2 \"…\"");
+    expect(w.writes[1]).toEqual({ method: "POST", path: "/api/bots", body: { name: "Helper", settings: { soul: "Answer in one line." } } });
+  });
+
+  it("changes only the profile fields given through update_bot_profile, and the instructions replace the old ones", async () => {
+    const w = workspace();
+    const updated = await w.run(["bot", "update", "henry", "--title", "Chief", "--prompt", "-"], "Delegate everything.\n");
+    expect(updated.code, updated.err).toBe(0);
+    expect(updated.out).toBe("Updated bot Henry: title, instructions.");
+    expect((await w.run(["bot", "update", "b-ada", "--name", "Ada L", "--description", "", "--no-team", "--json"])).json()).toMatchObject({
+      success: true, bot: { id: "b-ada", name: "Ada L", section: null },
+    });
+    expect((await w.run(["bot", "update", "Henry", "--team", "Research", "--prompt", ""])).code).toBe(0);
+    expect(w.writes).toEqual([
+      { method: "PATCH", path: "/api/bots/b-henry", body: { title: "Chief", soul: "Delegate everything." } },
+      { method: "PATCH", path: "/api/bots/b-ada", body: { name: "Ada L", description: "", section: null } },
+      { method: "PATCH", path: "/api/bots/b-henry", body: { section: "Research", soul: "" } },
+    ]);
+    expect(w.bots[0]).toMatchObject({ title: "Chief", section: "Research", soul: "" });
+  });
+
+  it("sets a bot's model through set_bot_model, checked against the engines, or one conversation's with --task", async () => {
+    const w = workspace();
+    const set = await w.run(["bot", "model", "Henry", "claude/claude-opus-5-5", "--effort", "high", "--json"]);
+    expect(set.code, set.err).toBe(0);
+    expect(set.json()).toMatchObject({ success: true, bot: { id: "b-henry", modelSelection: { instanceId: "claude", model: "claude-opus-5-5", effort: "high" } } });
+    expect((await w.run(["bot", "model", "ada", "claude/claude-sonnet-5"])).out).toBe("Ada now runs on claude/claude-sonnet-5.");
+    expect((await w.run(["bot", "model", "Henry", "claude/claude-sonnet-5", "--task", "t-henry"])).out).toBe("Henry now runs on claude/claude-sonnet-5 in thread t-henry.");
+    expect(w.writes).toEqual([
+      { method: "PATCH", path: "/api/bots/b-henry", body: { modelSelection: { instanceId: "claude", model: "claude-opus-5-5", effort: "high" }, requireAvailableModel: true } },
+      { method: "PATCH", path: "/api/bots/b-ada", body: { modelSelection: { instanceId: "claude", model: "claude-sonnet-5" }, requireAvailableModel: true } },
+      { method: "PATCH", path: "/api/bots/b-henry/tasks/t-henry", body: { modelSelection: { instanceId: "claude", model: "claude-sonnet-5" }, requireAvailableModel: true } },
+    ]);
+  });
+
+  it("refuses a wrong command line with exit 2 before anything is written", async () => {
+    const w = workspace();
+    const cases: Array<[string[], string]> = [
+      [["bot", "create"], "a name is required"],
+      [["bot", "create", "Scout", "--name", "Scout"], "give the name once: NAME or --name NAME"],
+      [["bot", "create", "Scout", "--effort", "high"], "--effort goes with --model"],
+      [["bot", "create", "Scout", "--model", "claude-opus-5-5"], "--model must be INSTANCE/MODEL"],
+      [["bot", "create", "Scout", "--model", "cursor/auto"], "model instance is unavailable: cursor"],
+      [["bot", "create", "Scout", "--model", "claude/gpt-9"], "model 'gpt-9' is not offered by instance 'claude'"],
+      [["bot", "create", "Scout", "--prompt", "x", "--prompt-file", "x.md"], "give the prompt one way"],
+      [["bot", "create", "Scout", "--prompt-file", join(dir, "missing.md")], "could not be read (ENOENT)"],
+      [["bot", "update", "Henry"], "give at least one change"],
+      [["bot", "update", "Henry", "--team", "Research", "--no-team"], "give --team or --no-team, not both"],
+      [["bot", "update", "Nobody", "--title", "x"], "no bot has the name or id \"Nobody\""],
+      [["bot", "update", "twin", "--title", "x"], "\"twin\" names 2 bots: Twin (id b-twin-1); twin (id b-twin-2)"],
+      [["bot", "model", "Henry"], "MODEL is required"],
+      [["bot", "model", "Henry", "claude"], "MODEL must be INSTANCE/MODEL"],
+      [["bot", "model", "Henry", "claude/claude-opus-5-5", "--effort", "max"], "effort 'max' is not offered by instance 'claude'"],
+      [["bot", "model", "Henry", "claude/claude-opus-5-5", "now"], "bot model takes at most 2 values"],
+    ];
+    for (const [argv, message] of cases) {
+      const ran = await w.run([...argv, "--json"]);
+      expect(ran.code, argv.join(" ")).toBe(2);
+      expect(ran.json().error, argv.join(" ")).toContain(message);
+    }
+    expect(w.writes).toEqual([]);
+  });
+
+  it("previews create, update and model with --dry-run and sends nothing", async () => {
+    const w = workspace();
+    expect((await w.run(["bot", "create", "Scout", "--model", "claude/claude-opus-5-5", "--prompt", "Be brief.", "--dry-run", "--json"])).json()).toEqual({
+      ok: true, dryRun: true, command: "bot create", tool: "create_bot",
+      arguments: { name: "Scout", instance_id: "claude", model: "claude-opus-5-5", instructions: "Be brief." },
+    });
+    expect((await w.run(["bot", "update", "Henry", "--title", "Chief", "--dry-run"])).out)
+      .toBe("Would call update_bot_profile with {\"bot_id\":\"b-henry\",\"title\":\"Chief\"}. Nothing was sent.");
+    expect((await w.run(["bot", "model", "Henry", "claude/claude-opus-5-5", "--dry-run", "--json"])).json().arguments)
+      .toEqual({ bot_id: "b-henry", instance_id: "claude", model: "claude-opus-5-5" });
+    expect(w.writes).toEqual([]);
+  });
+
+  it("passes the server's refusal on with exit 1", async () => {
+    const w = workspace();
+    const ran = await w.run(["bot", "create", "Refused", "--json"]);
+    expect(ran.code).toBe(1);
+    expect(ran.json()).toMatchObject({ ok: false, error: "this workspace is limited to 4 bots", exitCode: 1 });
   });
 });

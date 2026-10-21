@@ -88,6 +88,16 @@ const SECRET = {
   "dry-run": { type: "boolean" },
 } satisfies ParseArgsOptionsConfig;
 
+const BOT_PROFILE = {
+  name: { type: "string" },
+  title: { type: "string" },
+  description: { type: "string" },
+  team: { type: "string" },
+  prompt: { type: "string" },
+  "prompt-file": { type: "string" },
+  "dry-run": { type: "boolean" },
+} satisfies ParseArgsOptionsConfig;
+
 const VERBS: Record<string, { options: ParseArgsOptionsConfig; positionals: number }> = {
   doctor: { options: { wait: { type: "string" } }, positionals: 0 },
   bots: { options: {}, positionals: 0 },
@@ -160,6 +170,9 @@ const VERBS: Record<string, { options: ParseArgsOptionsConfig; positionals: numb
   "webhook rotate": { options: SECRET, positionals: 1 },
   "bot list": { options: {}, positionals: 0 },
   "bot show": { options: {}, positionals: 1 },
+  "bot create": { options: { ...BOT_PROFILE, model: { type: "string" }, effort: { type: "string" } }, positionals: 1 },
+  "bot update": { options: { ...BOT_PROFILE, "no-team": { type: "boolean" } }, positionals: 1 },
+  "bot model": { options: { effort: { type: "string" }, task: { type: "string" }, "dry-run": { type: "boolean" } }, positionals: 2 },
 };
 
 export const HEADLESS_VERBS: ReadonlySet<string> = new Set(Object.keys(VERBS).map((verb) => verb.split(" ")[0]!));
@@ -168,6 +181,7 @@ export const HEADLESS_VERBS: ReadonlySet<string> = new Set(Object.keys(VERBS).ma
 export const MUTATING_VERBS: ReadonlySet<string> = new Set([
   "send", "send-channel", "run", "interrupt", "new-bot", "new-channel", "set-model", "edit", "team apply", "engine set",
   "routine create", "routine update", "routine delete", "routine run", "webhook create", "webhook delete", "webhook rotate",
+  "bot create", "bot update", "bot model",
 ]);
 
 export type Flags = Record<string, string | boolean | string[] | undefined>;

@@ -7,7 +7,7 @@ OpenMausBot team while the desktop app and its harness are running.
 
 - list bots and channels, including their active task and current activity;
 - read bounded transcript pages and search local transcripts without returning screenshot pixels;
-- create and safely edit bot profiles, channels, and separate task conversations;
+- create and safely edit bot profiles and instructions, channels, and separate task conversations;
 - send work to a bot or channel, wait for either conversation to settle or need help, and interrupt its active turn;
 - list configured model instances and switch an idle bot to an exact available model;
 - list, read, create, change, pause, run and delete routines (scheduled work for a bot, or a goal for a room), and
@@ -147,6 +147,13 @@ cancellation is honored while a tool is waiting.
 `_`): sending again with the same id returns the first send's receipt instead of a second message. They
 return the stored message's `messageId` and `at`, or `queued: true` when the message waits behind the turn
 running there.
+
+`create_bot` and `update_bot_profile` take `instructions`, the bot's standing instructions (its SOUL.md,
+**Instructions** in the app): how it works and what it always or never does, at most 24,000 bytes; trailing
+whitespace is dropped. On `update_bot_profile` they replace the bot's instructions, and an empty string clears
+them. `description` is the line rosters and other bots see. The `openmausbot bot create`, `bot update` and
+`bot model` commands call `create_bot`, `update_bot_profile` and `set_bot_model`
+([docs/headless-cli.md](headless-cli.md#bots)).
 
 ## Routines and webhooks
 

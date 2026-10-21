@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { EXIT, flag, oneOf, parseCount, parseDuration, usageError, type Flags } from "./args.ts";
 import { dryRun, list } from "./commands.ts";
 import type { VerbContext, VerbOutcome } from "./context.ts";
+import { shortId } from "./output.ts";
 
 type Rec = Record<string, any>;
 
@@ -81,6 +82,8 @@ async function readPrompt(ctx: VerbContext): Promise<string | undefined> {
   const text = flag(ctx.flags, "prompt");
   const file = flag(ctx.flags, "prompt-file");
   if (text !== undefined && file !== undefined) throw usageError("give the prompt one way: --prompt TEXT, --prompt - (read from stdin) or --prompt-file FILE");
+  if ((file ?? text) === "-") return ctx.io.readStdin();
+  if (file === undefined) return text;
   try {
     return readFileSync(file, "utf8");
   } catch (error) {
@@ -311,6 +314,8 @@ export async function webhookRotate(ctx: VerbContext): Promise<VerbOutcome> {
 
 export const botList = (ctx: VerbContext): Promise<VerbOutcome> => list({ ...ctx, verb: "bots" });
 
+const modelName = (selection: Rec) => `${selection.instanceId}/${selection.model}${selection.effort ? `, effort ${selection.effort}` : ""}`;
+
 export async function botShow(ctx: VerbContext): Promise<VerbOutcome> {
   const client = await ctx.client();
   const bot = pick((await client.tool("list_bots", {})).bots ?? [], ctx.positionals[0], "bot", "openmausbot bot list");
@@ -320,10 +325,74 @@ export async function botShow(ctx: VerbContext): Promise<VerbOutcome> {
   return ok(result, [
     `${bot.name}${bot.title ? ` — ${bot.title}` : ""} · ${bot.section ? `team ${bot.section}` : "no team"}${bot.chiefOfStaff ? " · Chief of Staff" : ""} · `
       + `${bot.activity === "waiting-on-you" ? "waiting on you" : bot.busy ? "working" : bot.waitingForTeammates ? "waiting on teammates" : "idle"} · id ${bot.id}`,
+    ...(model?.instanceId ? [`Model: ${modelName(model)}`] : []),
     ...(bot.description ? [`About: ${bot.description}`] : []),
     `Conversations: ${(bot.tasks ?? []).length}`,
     ...(result.routines.length ? ["Routines:", ...result.routines.map((routine: Rec) => `  ${routineLine(routine, names)}`)] : ["Routines: none"]),
     ...(result.webhooks.length ? ["Webhooks:", ...result.webhooks.map((webhook: Rec) => `  ${webhookLine(webhook, names)}`)] : ["Webhooks: none"]),
     ...receiverDown(result.ingress),
   ]);
+}
+
+/** INSTANCE/MODEL, as `openmausbot models` lists them; the model tools check that the engine offers it. */
+function instanceModel(raw: string, name: string): Rec {
+  const value = raw.trim();
+  const slash = value.indexOf("/");
+  if (slash <= 0 || slash === value.length - 1) throw usageError(`${name} must be INSTANCE/MODEL, such as claude/claude-sonnet-5-5`, "openmausbot models lists them");
+  return { instance_id: value.slice(0, slash), model: value.slice(slash + 1) };
+}
+
+/** The profile flags as create_bot or update_bot_profile arguments. The prompt is the bot's instructions, its SOUL.md. */
+async function profileArgs(ctx: VerbContext): Promise<Rec> {
+  const { flags } = ctx;
+  if (flag(flags, "team") !== undefined && flags["no-team"] === true) throw usageError("give --team or --no-team, not both");
+  const instructions = await readPrompt(ctx);
+  return Object.fromEntries(Object.entries({
+    title: flag(flags, "title"), description: flag(flags, "description"), section: flags["no-team"] === true ? null : flag(flags, "team"), instructions,
+  }).filter(([, value]) => value !== undefined));
+}
+
+export async function botCreate(ctx: VerbContext): Promise<VerbOutcome> {
+  const { flags } = ctx;
+  if (ctx.positionals[0] !== undefined && flag(flags, "name") !== undefined) throw usageError("give the name once: NAME or --name NAME");
+  const name = flag(flags, "name") ?? ctx.positionals[0];
+  if (!name?.trim()) throw usageError("a name is required", "openmausbot bot create NAME [--title TEXT] [--model INSTANCE/MODEL] [--prompt-file FILE]");
+  const model = flag(flags, "model");
+  const effort = flag(flags, "effort");
+  if (model === undefined && effort !== undefined) throw usageError("--effort goes with --model", "openmausbot models lists them");
+  const args = { name, ...await profileArgs(ctx), ...(model === undefined ? {} : instanceModel(model, "--model")), ...(effort === undefined ? {} : { effort }) };
+  const preview = dryRun(ctx, "create_bot", args);
+  if (preview) return preview;
+  const result = await (await ctx.client()).tool("create_bot", args);
+  const { bot } = result;
+  return ok(result, [`Created bot ${bot.name} (id ${bot.id})${bot.section ? ` in team ${bot.section}` : ""}`
+    + `${bot.modelSelection?.instanceId ? ` on ${modelName(bot.modelSelection)}` : ""}.`, `Give it work with: openmausbot run ${bot.id} "…"`]);
+}
+
+export async function botUpdate(ctx: VerbContext): Promise<VerbOutcome> {
+  const name = flag(ctx.flags, "name");
+  const changes = { ...(name === undefined ? {} : { name }), ...await profileArgs(ctx) };
+  if (!Object.keys(changes).length) {
+    throw usageError("give at least one change, such as --title TEXT, --team TEAM or --prompt-file FILE", "openmausbot help bot update");
+  }
+  const args = { bot_id: (await pickBot(ctx, ctx.positionals[0])).id, ...changes };
+  const preview = dryRun(ctx, "update_bot_profile", args);
+  if (preview) return preview;
+  const result = await (await ctx.client()).tool("update_bot_profile", args);
+  return ok(result, [`Updated bot ${result.bot.name}: ${Object.keys(changes).map((key) => (key === "section" ? "team" : key)).join(", ")}.`]);
+}
+
+export async function botModel(ctx: VerbContext): Promise<VerbOutcome> {
+  const [wanted, model] = ctx.positionals;
+  if (model === undefined) throw usageError("MODEL is required: openmausbot bot model BOT INSTANCE/MODEL", "openmausbot models lists them");
+  const selection = instanceModel(model, "MODEL");
+  const bot = await pickBot(ctx, wanted);
+  const task = flag(ctx.flags, "task");
+  const effort = flag(ctx.flags, "effort");
+  const args = { bot_id: bot.id, ...(task === undefined ? {} : { task_id: task }), ...selection, ...(effort === undefined ? {} : { effort }) };
+  const preview = dryRun(ctx, "set_bot_model", args);
+  if (preview) return preview;
+  const result = await (await ctx.client()).tool("set_bot_model", args);
+  const now = (result.bot ?? result.task)?.modelSelection ?? { instanceId: selection.instance_id, model: selection.model, effort };
+  return ok(result, [`${bot.name} now runs on ${modelName(now)}${task === undefined ? "" : ` in thread ${shortId(task)}`}.`]);
 }

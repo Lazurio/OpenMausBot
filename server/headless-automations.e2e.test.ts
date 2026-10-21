@@ -1,4 +1,8 @@
+// The published `openmausbot` entry, run as a child process against an isolated server, manages bots, routines and
+// webhooks the way an agent on the same computer does (loopback is the owner; the server named by --port or OMB_PORT),
+// and the MCP server it serves reads back, or makes, the same state.
 import { spawn } from "node:child_process";
+import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -138,5 +142,57 @@ describe("openmausbot automations against a real server", () => {
     await ok(["webhook", "delete", "Deploys"]);
     expect(await call(credential.endpointUrl, renewed)).toBe(401);
     expect((await api("/api/webhooks")).webhooks).toEqual([]);
+  }, 180_000);
+});
+
+/** A bot as the server keeps it, without what every creation makes anew: its id, name, colour and first conversation. */
+const stored = async (id: string) => {
+  const { id: _id, name: _name, color: _color, createdAt: _at, threadId: _thread, mainThreadId: _main, tasks: _tasks, messages: _messages,
+    hasMore: _more, activeLeafId: _leaf, ...record } = (await api("/api/bots?messages=0")).bots.find((bot: any) => bot.id === id);
+  return record;
+};
+
+describe("openmausbot bot against a real server", () => {
+  it("creates a bot with its instructions, gives it work and follows it to the end with the command line alone", async () => {
+    const { bot } = await ok(["bot", "create", "Scout", "--title", "Release scout", "--model", "claude/claude-opus-5-5", "--effort", "high",
+      "--prompt-file", "-"], {}, "Answer every question in one line.\n");
+    expect(await stored(bot.id)).toMatchObject({ title: "Release scout", soul: "Answer every question in one line.",
+      modelSelection: { instanceId: "claude", model: "claude-opus-5-5", effort: "high" } });
+
+    expect(await ok(["run", "Scout", "Say hello."])).toMatchObject({ ok: true, exitCode: 0, state: "completed" });
+    const turn = JSON.parse(readFileSync(fixture.fixtureDumpPath, "utf8"));
+    expect(JSON.stringify(turn.prompt)).toContain("Say hello.");
+    expect(turn.systemPrompt).toContain("Answer every question in one line.");
+  }, 180_000);
+
+  it("makes the same bot as MCP create_bot, from the same profile, model and instructions", async () => {
+    const file = join(dir, "twin.md");
+    writeFileSync(file, "Read the changelog first.\nThen answer.\n");
+    const fromCli = (await ok(["bot", "create", "Twin", "--title", "Researcher", "--description", "Reads changelogs.", "--team", "Research",
+      "--model", "claude/claude-sonnet-5-5", "--effort", "low", "--prompt-file", file])).bot;
+    const fromMcp = (await mcpCall("create_bot", { name: "Twin by MCP", title: "Researcher", description: "Reads changelogs.", section: "Research",
+      instance_id: "claude", model: "claude-sonnet-5-5", effort: "low", instructions: "Read the changelog first.\nThen answer.\n" })).bot;
+    const made = await stored(fromCli.id);
+    expect(made).toMatchObject({ section: "Research", soul: "Read the changelog first.\nThen answer." });
+    expect(await stored(fromMcp.id)).toEqual(made);
+  }, 180_000);
+
+  it("changes a bot's profile and model, and MCP reads the same bot back", async () => {
+    const before = await stored((await ok(["bot", "show", "Scout"])).bot.id);
+    expect((await ok(["bot", "update", "Scout", "--title", "Changelog scout", "--dry-run"])).dryRun).toBe(true);
+    expect(await stored((await ok(["bot", "show", "Scout"])).bot.id)).toEqual(before);
+
+    const { bot } = await ok(["bot", "update", "Scout", "--name", "Changelog scout", "--title", "Reads changelogs", "--prompt", "Two lines at most.",
+      "--port", port], { OMB_PORT: "" });
+    await ok(["bot", "model", "changelog scout", "claude/claude-haiku-5-5", "--effort", "low"]);
+    expect(await stored(bot.id)).toMatchObject({ title: "Reads changelogs", soul: "Two lines at most.",
+      modelSelection: { instanceId: "claude", model: "claude-haiku-5-5", effort: "low" } });
+    expect((await mcpCall("list_bots", {})).bots.find((candidate: any) => candidate.id === bot.id)).toMatchObject({
+      name: "Changelog scout", title: "Reads changelogs", modelSelection: { instanceId: "claude", model: "claude-haiku-5-5", effort: "low" } });
+
+    const refused = await cli(["bot", "model", "Changelog scout", "cursor/auto", "--json"]);
+    expect(refused.code).toBe(2);
+    expect(JSON.parse(refused.stdout).error).toBe("model instance is unavailable: cursor");
+    expect((await stored(bot.id)).modelSelection).toMatchObject({ model: "claude-haiku-5-5" });
   }, 180_000);
 });
