@@ -149,6 +149,18 @@ jobs:
             docs/headless-cli.md
             docs/mcp-server.md
             docs/verification/headless-cli.md
+            # Codex follows the Environment's Codex configuration, as Lazurio's
+            # T3 Code does: the driver's account read also asks config/read,
+            # and a provider Codex's system layer sets that needs no OpenAI
+            # sign-in takes bare model ids, counts as signed in and names the
+            # default model (server/drivers/lazurio-codex-environment.ts). The
+            # fake app-server reports such a layer, the identity tests follow
+            # the combined read, and codex.ts's ratchet count moves (listed above).
+            server/drivers/codex.ts
+            server/drivers/codex-catalog.ts
+            server/drivers/codex-identity.ts
+            server/drivers/codex-identity.test.ts
+            server/testing/fake-codex-app-server.ts
           )
           # Lazurio ships the open-source edition: upstream's enterprise/
           # folder (OpenMausBot Enterprise License, no redistribution or

@@ -26,6 +26,8 @@
 //   FAKE_CODEX_APPROVAL_REQUEST  JSON {method, params} override in approval mode
 //   FAKE_CODEX_ACCOUNT_EMAIL  synthetic ChatGPT identity (default ada@example.test)
 //   FAKE_CODEX_ACCOUNT_MODE  chatgpt (default) | api-key | none | unsupported | error | hang
+//   FAKE_CODEX_PROVIDER_LAYER  JSON {layer: "system" | "user", model_provider, model?, requires_openai_auth?}: that layer
+//     sets the provider, as config/read's origins and account/read's requiresOpenaiAuth report it (codex-cli 0.163.0)
 //   FAKE_CODEX_RESUME_ERROR  JSON-RPC error rejecting thread/resume
 //   FAKE_CODEX_ARCHIVED  "1": thread/resume says the session is archived until thread/unarchive; "unarchive-fails": unarchive is refused too
 //   FAKE_CODEX_STARTUP_DELAY_MS  hold the initialize reply this long, like a loaded host
@@ -167,6 +169,22 @@ const shellEnvironmentPolicy = (): unknown => {
   const supplied: unknown = process.env.FAKE_CODEX_SHELL_ENVIRONMENT_POLICY ? JSON.parse(process.env.FAKE_CODEX_SHELL_ENVIRONMENT_POLICY) : {};
   if (!supplied || typeof supplied !== "object" || Array.isArray(supplied)) return supplied;
   return { ...unset, ...supplied, ...(shellExcludeOverride !== undefined ? { exclude: shellExcludeOverride, filters: null } : {}) };
+};
+const providerLayer = process.env.FAKE_CODEX_PROVIDER_LAYER
+  ? JSON.parse(process.env.FAKE_CODEX_PROVIDER_LAYER) as { layer: "system" | "user"; model_provider: string; model?: string; requires_openai_auth?: boolean }
+  : null;
+const providerLayerConfig = (): { config: Record<string, unknown>; origins: Record<string, unknown> } => {
+  if (!providerLayer) return { config: {}, origins: {} };
+  const origin = {
+    name: providerLayer.layer === "system"
+      ? { type: "system", file: "/etc/codex/config.toml" }
+      : { type: "user", file: `${process.env.CODEX_HOME ?? `${process.env.HOME}/.codex`}/config.toml`, profile: null },
+    version: "sha256:fixture",
+  };
+  return {
+    config: { model_provider: providerLayer.model_provider, model: providerLayer.model ?? null },
+    origins: { model_provider: origin, ...(providerLayer.model ? { model: origin } : {}) },
+  };
 };
 let developerInstructions = "";
 let resumedThread: string | null = null;
@@ -448,7 +466,7 @@ process.stdin.on("data", (chunk) => {
         const account = accountMode === "none" || mode === "logged-out" ? null
           : accountMode === "api-key" ? { type: "apiKey" }
           : { type: "chatgpt", email: process.env.FAKE_CODEX_ACCOUNT_EMAIL ?? "ada@example.test", planType: "pro" };
-        out({ jsonrpc: "2.0", id: msg.id, result: { account, requiresOpenaiAuth: true } });
+        out({ jsonrpc: "2.0", id: msg.id, result: { account, requiresOpenaiAuth: providerLayer ? providerLayer.requires_openai_auth === true : true } });
         break;
       }
       case "model/list":
@@ -521,8 +539,9 @@ process.stdin.on("data", (chunk) => {
                 const match = process.argv[index - 1] === "-c" ? /^features\.(\w+)=(true|false)$/.exec(arg) : null;
                 return match && process.env.FAKE_CODEX_IGNORE_FEATURES !== "1" ? [[match[1], match[2] === "true"]] : [];
               })),
+              ...providerLayerConfig().config,
             },
-            origins: {},
+            origins: providerLayerConfig().origins,
           },
         });
         break;
