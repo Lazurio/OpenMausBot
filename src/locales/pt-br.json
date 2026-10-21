@@ -2676,8 +2676,6 @@
   "computer.android.agentNote": "O controle pelo agente usa esta mesma conexão USB autorizada. Não é preciso app complementar no celular, conta, Tailscale nem pareamento sem fio.",
   "computer.android.harnessNote": "Depois de conectado, peça a qualquer Maus compatível para abrir um app Android ou concluir uma tarefa no seu celular. A skill Phone Harness incluída carrega sozinha nos pedidos de celular.",
   "computer.android.step2": "Ative as opções do desenvolvedor tocando sete vezes em {buildNumber}, em Sobre o telefone, depois ative {usbDebugging}.",
-  "mcp.claude.title": "Usar também meus servidores MCP do Claude Code",
-  "mcp.claude.aria": "Usar meus servidores MCP do Claude Code",
   "mcp.claude.error": "Não foi possível salvar esta configuração. Tente novamente.",
   "mcp.claudeSkills.title": "Usar também minhas habilidades do Claude Code",
   "mcp.claudeSkills.desc": "Ligado: os bots do Claude também carregam todas as habilidades da sua pasta ~/.claude/skills, direto da pasta: scripts e arquivos de referência incluídos, e suas edições chegam a eles na hora. Só as habilidades vêm junto; seus hooks, servidores MCP e CLAUDE.md ficam de fora, então bots com limites de ferramentas continuam funcionando.",

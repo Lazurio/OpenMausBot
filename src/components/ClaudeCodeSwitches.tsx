@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { claudeUserMcpEnabled, claudeUserSkillsEnabled } from "@/lib/feature-flags";
+import { claudeUserSkillsEnabled } from "@/lib/feature-flags";
 import { t } from "@/lib/i18n";
 import type { LocaleKey } from "@/locales";
 import { api, useStore, type ConfigStatus } from "@/state/store";
 import { Switch } from "./SettingsPrimitives";
 
-type Feature = "claudeUserMcp" | "claudeUserSkills";
+type Feature = "claudeUserSkills";
 
-function ClaudeConfigSwitch({ feature, enabled, prefix }: { feature: Feature; enabled: boolean; prefix: "mcp.claude" | "mcp.claudeSkills" }) {
+function ClaudeConfigSwitch({ feature, enabled, prefix }: { feature: Feature; enabled: boolean; prefix: "mcp.claudeSkills" }) {
   const { dispatch } = useStore();
   const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -47,13 +47,8 @@ function ClaudeConfigSwitch({ feature, enabled, prefix }: { feature: Feature; en
   );
 }
 
-/** What Claude bots take from this machine's own Claude Code setup: its MCP servers, and its skills. */
+/** What Claude bots take from this machine's own Claude Code setup beyond its MCP servers, which they always load: its skills. */
 export function ClaudeCodeSwitches() {
   const { state } = useStore();
-  return (
-    <>
-      <ClaudeConfigSwitch feature="claudeUserMcp" enabled={claudeUserMcpEnabled(state.config)} prefix="mcp.claude" />
-      <ClaudeConfigSwitch feature="claudeUserSkills" enabled={claudeUserSkillsEnabled(state.config)} prefix="mcp.claudeSkills" />
-    </>
-  );
+  return <ClaudeConfigSwitch feature="claudeUserSkills" enabled={claudeUserSkillsEnabled(state.config)} prefix="mcp.claudeSkills" />;
 }

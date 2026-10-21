@@ -62,10 +62,9 @@ describe("turn fields from Settings", () => {
     expect(readFileSync(join(home, ".claude", "skills", "deploy", "SKILL.md"), "utf8")).toBe("mine");
   });
 
-  it("keeps the MCP switch its own, and an organization's MCP limit wins", () => {
-    const on = { features: { claudeUserMcp: true } } as AppConfig;
-    expect(settingsTurnFields(on, temp(), false, temp()).mcpFromUserConfig).toBe(true);
-    expect(settingsTurnFields(on, temp(), true, temp()).mcpFromUserConfig).toBe(false);
-    expect(settingsTurnFields(on, temp(), false, temp())).not.toHaveProperty("userSkillsDir");
+  it("always loads the machine's own MCP servers, unless an organization's MCP limit wins", () => {
+    expect(settingsTurnFields({} as AppConfig, temp(), false, temp()).mcpFromUserConfig).toBe(true);
+    expect(settingsTurnFields({} as AppConfig, temp(), true, temp()).mcpFromUserConfig).toBe(false);
+    expect(settingsTurnFields({} as AppConfig, temp(), false, temp())).not.toHaveProperty("userSkillsDir");
   });
 });

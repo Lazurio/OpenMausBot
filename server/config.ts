@@ -69,7 +69,6 @@ const featureConfigSchema = z.object({
   showToolCalls: z.boolean().optional(),
   /** Run a routine in the conversation it reports to, not a hidden thread. Off unless true. */
   routinesInConversation: z.boolean().optional(),
-  claudeUserMcp: z.boolean().optional(), // Claude bots also load this machine's Claude Code MCP servers. Off unless true: tools cost tokens.
   claudeUserSkills: z.boolean().optional(), // Claude bots also load the skills in ~/.claude/skills, in place. Off unless true.
   /** LLM-generated titles for new threads. Off unless true. */
   llmThreadTitles: z.boolean().optional(),
@@ -322,7 +321,7 @@ export interface AppConfig extends HelperConfig {
   threads?: { maxConcurrentPerBot: number; eventLogMaxBytes?: number; eventLogRetentionDays?: number };
   context?: { rebuildBytes?: number; compactAt?: number; autoCompact?: boolean; roomCompactAt?: number; roomSessions?: boolean; replayToolHistory?: boolean };
   memory?: { captureQuietMs?: number; tidyHour?: number };
-  features?: { skillAuthoring?: boolean; skillReview?: boolean; skillReviewSteps?: number; showToolCalls?: boolean; claudeUserMcp?: boolean; claudeUserSkills?: boolean; llmThreadTitles?: boolean; autoRecall?: boolean; routinesInConversation?: boolean; skillsLibrary?: boolean; shareLearnedSkills?: "off" | "ask" | "auto"; roomMemoryCapture?: boolean; parallelRoomJobs?: boolean; chiefEscalations?: boolean; acpPlanLines?: boolean; agentsToolBridge?: boolean };
+  features?: { skillAuthoring?: boolean; skillReview?: boolean; skillReviewSteps?: number; showToolCalls?: boolean; claudeUserSkills?: boolean; llmThreadTitles?: boolean; autoRecall?: boolean; routinesInConversation?: boolean; skillsLibrary?: boolean; shareLearnedSkills?: "off" | "ask" | "auto"; roomMemoryCapture?: boolean; parallelRoomJobs?: boolean; chiefEscalations?: boolean; acpPlanLines?: boolean; agentsToolBridge?: boolean };
   onboarding?: { completedAt?: string; version?: number; reelSeen?: boolean; hintsSeen?: string[]; firstTurnAt?: string };
   instances?: InstanceConfigMap;
 }
@@ -426,10 +425,6 @@ export function showToolCallsEnabled(cfg: AppConfig): boolean {
 
 export function routinesInConversationEnabled(cfg: AppConfig): boolean {
   return cfg.features?.routinesInConversation === true;
-}
-
-export function claudeUserMcpEnabled(cfg: Pick<AppConfig, "features">): boolean {
-  return cfg.features?.claudeUserMcp === true;
 }
 
 export function llmThreadTitlesEnabled(cfg: AppConfig): boolean {

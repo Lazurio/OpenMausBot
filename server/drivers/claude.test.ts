@@ -1336,17 +1336,42 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     expect(seen.settings?.claudeMdExcludes).toBeUndefined();
   });
 
-  it("loads the machine's own MCP servers when the turn asks, keeping the rest isolated", async () => {
-    await create();
+  it("forwards the machine's user-scope MCP servers when the turn asks, keeping the rest isolated", async () => {
+    const home = join(scratch, "user-mcp-home");
+    const projectDir = join(scratch, "user-mcp-project");
+    mkdirSync(home, { recursive: true });
+    mkdirSync(projectDir, { recursive: true });
+    const computer = { type: "stdio", command: "/opt/cua-driver", args: ["mcp", "--socket", "/run/driver.sock"], env: {} };
+    writeFileSync(join(home, ".claude.json"), JSON.stringify({ mcpServers: { computer, docs: { command: "user-docs" }, ogb: { command: "sh" } }, projects: {} }));
+    writeFileSync(join(projectDir, ".mcp.json"), JSON.stringify({ mcpServers: { docs: { command: "project-docs" } } }));
     const dump = join(scratch, "user-mcp.json");
-    process.env.FAKE_CLAUDE_DUMP = dump;
+    await create(undefined, { FAKE_CLAUDE_DUMP: dump, HOME: home });
 
-    await instance.adapter.sendTurn({ threadId: "t-user-mcp", text: "hi", mcpFromUserConfig: true });
+    await instance.adapter.sendTurn({ threadId: "t-user-mcp", text: "hi", cwd: projectDir, mcpFromUserConfig: true });
     await recorder.until((e) => e.type === "turn.completed");
-
     const seen = JSON.parse(readFileSync(dump, "utf8"));
-    expect(seen.argv).not.toContain("--strict-mcp-config");
+    expect(seen.argv).toContain("--strict-mcp-config");
     expect(seen.argv[seen.argv.indexOf("--setting-sources") + 1]).toBe("project");
+    expect(seen.mcpConfig.mcpServers.computer).toEqual(computer);
+    // the project's server of the same name wins, as in Claude Code, and a harness mount is never shadowed
+    expect(JSON.stringify(seen.mcpConfig.mcpServers.docs)).toContain("project-docs");
+    expect(seen.mcpConfig.mcpServers.ogb.command).toBe(process.execPath);
+
+    await instance.adapter.sendTurn({ threadId: "t-no-user-mcp", text: "hi", cwd: projectDir });
+    await recorder.until((e) => e.type === "turn.completed" && e.threadId === "t-no-user-mcp");
+    expect(JSON.parse(readFileSync(dump, "utf8")).mcpConfig.mcpServers.computer).toBeUndefined();
+  });
+
+  it("reads the user-scope MCP servers from CLAUDE_CONFIG_DIR when it is set", async () => {
+    const account = join(scratch, "user-mcp-account");
+    mkdirSync(account, { recursive: true });
+    writeFileSync(join(account, ".claude.json"), JSON.stringify({ mcpServers: { computer: { command: "/opt/cua-driver", args: ["mcp"] } } }));
+    const dump = join(scratch, "user-mcp-account.json");
+    await create(undefined, { FAKE_CLAUDE_DUMP: dump, CLAUDE_CONFIG_DIR: account });
+
+    await instance.adapter.sendTurn({ threadId: "t-user-mcp-account", text: "hi", mcpFromUserConfig: true });
+    await recorder.until((e) => e.type === "turn.completed");
+    expect(JSON.parse(readFileSync(dump, "utf8")).mcpConfig.mcpServers.computer).toEqual({ command: "/opt/cua-driver", args: ["mcp"] });
   });
 
   it("adds the person's own skills folder when the turn asks, keeping everything else isolated", async () => {

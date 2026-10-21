@@ -1,5 +1,5 @@
 export interface FeatureFlagConfig {
-  features?: { skillAuthoring?: boolean; skillReview?: boolean; skillReviewSteps?: number; showToolCalls?: boolean; claudeUserMcp?: boolean; claudeUserSkills?: boolean; routinesInConversation?: boolean; llmThreadTitles?: boolean; skillsLibrary?: boolean; shareLearnedSkills?: "off" | "ask" | "auto"; roomMemoryCapture?: boolean };
+  features?: { skillAuthoring?: boolean; skillReview?: boolean; skillReviewSteps?: number; showToolCalls?: boolean; claudeUserSkills?: boolean; routinesInConversation?: boolean; llmThreadTitles?: boolean; skillsLibrary?: boolean; shareLearnedSkills?: "off" | "ask" | "auto"; roomMemoryCapture?: boolean };
 }
 
 export function skillAuthoringEnabled(config: FeatureFlagConfig | null | undefined): boolean {
@@ -44,10 +44,6 @@ export function showToolCallsEnabled(config: FeatureFlagConfig | null | undefine
 
 export function routinesInConversationEnabled(config: FeatureFlagConfig | null | undefined): boolean {
   return config?.features?.routinesInConversation === true;
-}
-
-export function claudeUserMcpEnabled(config: FeatureFlagConfig | null | undefined): boolean {
-  return config?.features?.claudeUserMcp === true;
 }
 
 export function claudeUserSkillsEnabled(config: FeatureFlagConfig | null | undefined): boolean {

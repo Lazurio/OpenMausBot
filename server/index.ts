@@ -113,7 +113,6 @@ import {
   saveConfig,
   showToolCallsEnabled,
   routinesInConversationEnabled,
-  claudeUserMcpEnabled,
   skillAuthoringEnabled,
   skillReviewEnabled,
   skillReviewSteps,
@@ -8219,7 +8218,7 @@ async function runClaimedGroupMemberTurn(
     if (roomReset || displaced) broadcast({ kind: "group", group: publicGroupState(store.group(groupId) ?? group) });
     const roomShareNote = skillsHost.shareNote(bot, threadId, Boolean(workspace));
     const clock = turnClockLine(Date.now(), hostTimeZone());
-    const roomUserMcp = claudeUserMcpEnabled(cfg) && !managedPolicy.restrictsMcp();
+    const roomUserMcp = !managedPolicy.restrictsMcp();
     const roomSession = roomSessions.dispatch({
       threadId, botId: readyBot.id, claimId: internalGeneration, instance, guestConfined: roomGuestConfined, reset: Boolean(roomReset), hooks: Boolean(integrations.hooks),
       context: () => ({ ...roomMemberContexts.forThread(threadId)?.[readyBot.id], compactAt: nativeCompactTokens(instance) }),
@@ -9917,7 +9916,6 @@ function configStatus() {
       shareLearnedSkills: skillsHost.mode(),
       showToolCalls: showToolCallsEnabled(cfg),
       routinesInConversation: routinesInConversationEnabled(cfg),
-      claudeUserMcp: claudeUserMcpEnabled(cfg),
       claudeUserSkills: claudeUserSkillsEnabled(cfg),
       autoRecall: autoRecallEnabled(cfg),
       roomMemoryCapture: roomMemoryCaptureEnabled(cfg),
