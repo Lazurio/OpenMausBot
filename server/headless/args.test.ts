@@ -41,7 +41,7 @@ describe("parseCommand", () => {
 
   it("knows which verbs change something", () => {
     for (const verb of ["send", "run", "interrupt", "team apply", "engine set", "routine create", "routine update", "routine delete", "routine run",
-      "webhook create", "webhook delete", "webhook rotate"]) expect(MUTATING_VERBS.has(verb), verb).toBe(true);
+      "webhook create", "webhook delete", "webhook rotate", "bot create", "bot update", "bot model"]) expect(MUTATING_VERBS.has(verb), verb).toBe(true);
     for (const verb of ["doctor", "bots", "wait", "messages", "export", "events", "team export", "engine list", "routine list", "routine show",
       "webhook list", "bot list", "bot show"]) expect(MUTATING_VERBS.has(verb), verb).toBe(false);
     expect([...HEADLESS_VERBS].sort()).toEqual(["bot", "bots", "channels", "connect", "doctor", "edit", "engine", "events", "export", "interrupt", "mcp",
@@ -54,6 +54,14 @@ describe("parseCommand", () => {
     });
     expect(parseCommand(["webhook", "rotate", "w1", "--secret-file", "hook.secret", "--force"]).flags).toMatchObject({ "secret-file": "hook.secret", force: true });
     expect(parseCommand(["bot", "show", "Henry"])).toMatchObject({ verb: "bot show", positionals: ["Henry"] });
+    expect(parseCommand(["bot", "create", "Scout", "--model", "claude/claude-opus-5-5", "--prompt-file", "-"])).toMatchObject({
+      verb: "bot create", positionals: ["Scout"], flags: { model: "claude/claude-opus-5-5", "prompt-file": "-" },
+    });
+    expect(parseCommand(["bot", "update", "Scout", "--no-team", "--prompt", "Be brief."]).flags).toMatchObject({ "no-team": true, prompt: "Be brief." });
+    expect(parseCommand(["bot", "model", "Scout", "claude/claude-haiku-5-5", "--effort", "low"])).toMatchObject({
+      verb: "bot model", positionals: ["Scout", "claude/claude-haiku-5-5"], flags: { effort: "low" },
+    });
+    expect(usage(() => parseCommand(["bot", "delete", "Scout"]))).toEqual({ message: "bot needs one of: list, show, create, update, model", exitCode: EXIT.usage });
     expect(usage(() => parseCommand(["routine", "pause"]))).toEqual({ message: "routine needs one of: list, show, create, update, delete, run", exitCode: EXIT.usage });
     expect(usage(() => parseCommand(["webhook", "list", "--show-secret"]))).toMatchObject({ exitCode: 2, message: expect.stringContaining("--show-secret") });
   });

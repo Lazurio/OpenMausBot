@@ -86,6 +86,7 @@ one of its conversations.
 | `routine create`, `routine update`, `routine delete`, `routine run` | Schedule work for a bot or a goal for a room, change or pause it, delete it, run it once now. |
 | `webhook list`, `webhook create`, `webhook delete`, `webhook rotate` | Addresses other apps call to start a bot's work, and their secrets (below). |
 | `bot list`, `bot show BOT` | Your bots (as `bots`), or one bot with its routines and webhooks. |
+| `bot create NAME`, `bot update BOT`, `bot model BOT MODEL` | Make a bot with its instructions, change its profile or instructions, change its model (below). |
 | `mcp` | The OpenMausBot MCP server on stdin and stdout ([docs/mcp-server.md](mcp-server.md)). |
 
 The message for `send` and `run` can be the next word, `--text TEXT`,
@@ -209,6 +210,34 @@ Claude bot (engine `claude`); `--only-claude-api` keeps it to "Claude (API
 key)" bots (engine `claudeApi`). `--install` installs the engine's command if
 it is missing, and waits for the install to finish (minutes on a fresh
 machine). Changing keys needs a session with full access.
+
+## Bots
+
+`bot create`, `bot update` and `bot model` make a bot and change it as the MCP
+server's `create_bot`, `update_bot_profile` and `set_bot_model` do: each command
+calls that tool, so a bot made here is the same record as one an MCP client makes
+from the same values. BOT is a name (in any case) or an id; a name two bots share
+is refused with their ids.
+
+```sh
+openmausbot bot create Scout --title "Release scout" --model claude/claude-sonnet-5-5 --prompt-file scout.md
+openmausbot run Scout "Check today's release and report what failed."
+openmausbot bot update Scout --prompt-file scout.md    # its new instructions
+openmausbot bot model Scout claude/claude-opus-5-5 --effort high
+```
+
+The prompt is the bot's instructions, its SOUL.md (**Instructions** in the app):
+how it works and what it always or never does, at most 24,000 bytes. Give it as
+`--prompt TEXT` or `--prompt-file FILE`, or as `-` with either to read it from
+stdin. `bot update` replaces the instructions with it, and an empty prompt clears
+them. `--description` is the line rosters and other bots see, `--title` its role,
+`--team TEAM` its team (`bot update --no-team` takes it out of one) and
+`bot update --name` renames it; `bot update` changes only what you give it.
+MODEL is `INSTANCE/MODEL` as `openmausbot models` lists them, and `--effort` a
+level that engine offers; without `--model` a new bot starts on the workspace's
+default model. `bot model` changes an idle bot's model, or with `--task ID` only
+that idle conversation's. All three take `--dry-run`, which prints the request and
+sends nothing.
 
 ## Routines and webhooks
 
@@ -485,5 +514,7 @@ file (`--token-file`).
 
 `openmausbot mcp` serves the same operations as MCP tools on stdin and stdout
 ([docs/mcp-server.md](mcp-server.md)): `wait_for_conversation` waits on the
-same job, and returns the same result, as `wait`, and the routine and webhook
-tools are what the `routine` and `webhook` commands call.
+same job, and returns the same result, as `wait`; `create_bot`,
+`update_bot_profile` and `set_bot_model` are what `bot create`, `bot update` and
+`bot model` call, and the routine and webhook tools what the `routine` and
+`webhook` commands call.
