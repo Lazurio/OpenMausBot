@@ -131,7 +131,9 @@ jobs:
             # tools of the Lazurio file scripts/mcp-automations.ts (three more
             # lines: the file-size ratchet's count for it, listed above, moves
             # with it), and the documents of the command line, the MCP server
-            # and its verification.
+            # and its verification. Bots from the same command (issue #55):
+            # create_bot and update_bot_profile also take a bot's instructions
+            # (six more lines in the ratchet).
             scripts/mcp-server.ts
             server/cli-usage.ts
             server/headless/args.ts
