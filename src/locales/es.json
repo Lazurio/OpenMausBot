@@ -2822,7 +2822,7 @@
   "computer.android.step2": "Activa las opciones de desarrollador tocando {buildNumber} siete veces en Acerca del teléfono y luego activa {usbDebugging}.",
   "mcp.claude.error": "No se pudo guardar este ajuste. Inténtalo de nuevo.",
   "mcp.claudeSkills.title": "Usar también mis habilidades de Claude Code",
-  "mcp.claudeSkills.desc": "Activado: los bots de Claude también cargan todas las habilidades de tu carpeta ~/.claude/skills, directamente desde la carpeta: con sus scripts y archivos de referencia, y tus cambios les llegan al instante. Solo se incluyen las habilidades; tus hooks, servidores MCP y CLAUDE.md quedan fuera, así que los bots con límites de herramientas siguen funcionando.",
+  "mcp.claudeSkills.desc": "Activado: los bots de Claude también cargan todas las habilidades de tu carpeta ~/.claude/skills, directamente desde la carpeta: con sus scripts y archivos de referencia, y tus cambios les llegan al instante. Este interruptor solo controla las habilidades; tus hooks y CLAUDE.md quedan fuera. Los servidores MCP registrados en tu configuración de usuario de Claude Code llegan a todos los bots de Claude, esté activado o no.",
   "mcp.claudeSkills.aria": "Usar mis habilidades de Claude Code",
   "mcp.paste.notRecognized": "Eso no parece un enlace de servidor ni un comando de configuración. Comprueba que lo copiaste entero o rellénalo tú en «Editar detalles».",
   "mcp.paste.badJson": "Ese bloque de configuración está cortado o dañado. Vuelve a copiarlo entero y pégalo aquí.",
