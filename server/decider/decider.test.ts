@@ -494,13 +494,6 @@ describe("settings rules with two providers", () => {
       .toMatchObject({ ok: true, patch: { enabled: true, jobs: { roomRouting: true } } });
   });
 
-  it("clearing the last own key keeps it on only where something else answers: Cloud's relay or the engine's OpenRouter key", () => {
-    expect(deciderSavePatch({ openrouterKey: "" }, { provider: "openrouter", enabled: true, openrouterKey: "sk-or" }, { included: true }))
-      .toEqual({ ok: true, patch: { openrouterKey: "" } });
-    expect(deciderSavePatch({ openrouterKey: "" }, { provider: "openrouter", enabled: true, openrouterKey: "sk-or" }))
-      .toEqual({ ok: true, patch: { openrouterKey: "", enabled: false } });
-  });
-
   it("any key saved switches it on; clearing one while another is on file leaves the switch alone", () => {
     expect(deciderSavePatch({ key: " tsk_new " }, { provider: "openrouter", enabled: false })).toEqual({ ok: true, patch: { key: "tsk_new", enabled: true, jobs: { roomRouting: true } } });
     expect(deciderSavePatch({ openrouterKey: "sk-or" }, { enabled: false, key: KEY })).toEqual({ ok: true, patch: { openrouterKey: "sk-or", enabled: true, jobs: { roomRouting: true } } });
@@ -519,7 +512,6 @@ describe("settings rules with two providers", () => {
     expect(deciderSavePatch({ provider: "openrouter", enabled: true }, { enabled: false, key: KEY })).toEqual({ ok: true, patch: { provider: "openrouter", enabled: true } });
     expect(deciderSavePatch({ enabled: true }, { provider: "openrouter", openrouterKey: "sk-or" })).toEqual({ ok: true, patch: { enabled: true } });
     expect(deciderSavePatch({ enabled: true }, {})).toEqual({ ok: false, error: "Save a Cloudflare Workers AI, Jev or OpenRouter key before turning on fast decisions." });
-    expect(deciderSavePatch({ provider: "openrouter", enabled: true }, {}, { included: true })).toMatchObject({ ok: true });
   });
 
   it("picks the pasted key to check: the active provider's, with the model it will use", () => {

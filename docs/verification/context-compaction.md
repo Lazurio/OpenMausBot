@@ -90,7 +90,7 @@ Every other turn is the call described above, unchanged:
 | **Its measured context here is lower than after its turn before, in the same native session** | whole transcript. A session's context only grows from one turn's end to the next, so it was compacted, trimmed or replaced, whatever the hooks said |
 | Its last turn here ended more than ten minutes ago (the driver's own idle time, counted from when that turn ended, however long it ran) | whole transcript |
 | It missed more lines than the window holds | whole transcript |
-| Its model, folder, instructions, approval level, tools, connections or `claudeUserMcp` changed, or the engine instance was reloaded | whole transcript |
+| Its model, folder, instructions, approval level, tools or connections changed, or the engine instance was reloaded | whole transcript |
 | A guest's turn | whole transcript, nothing remembered |
 
 A compaction is therefore noticed in two ways: the engine's hook says so

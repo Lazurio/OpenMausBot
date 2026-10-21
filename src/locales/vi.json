@@ -2620,8 +2620,6 @@
   "computer.android.agentNote": "Tính năng điều khiển qua tác tử sử dụng cùng kết nối USB đã được ủy quyền này. Không cần ứng dụng đồng hành trên điện thoại, tài khoản, Tailscale hay ghép nối không dây.",
   "computer.android.harnessNote": "Sau khi kết nối, hãy yêu cầu bất kỳ Maus tương thích nào mở một ứng dụng Android hoặc hoàn thành một nhiệm vụ trên điện thoại của bạn. Kỹ năng Phone Harness đi kèm sẽ tự động tải cho các yêu cầu liên quan đến điện thoại.",
   "computer.android.step2": "Bật Tùy chọn cho nhà phát triển bằng cách nhấn vào {buildNumber} bảy lần trong mục Giới thiệu về điện thoại, sau đó bật {usbDebugging}.",
-  "mcp.claude.title": "Dùng cả máy chủ MCP từ Claude Code của tôi",
-  "mcp.claude.aria": "Sử dụng máy chủ MCP Claude Code của tôi",
   "mcp.claude.error": "Không thể lưu cài đặt này. Hãy thử lại.",
   "chat.error.manageUsage": "Quản lý mức sử dụng",
   "engineSetup.grok.notInstalled": "Grok với gói thuê bao grok.com của bạn chưa được cài đặt ở đây. Hãy sử dụng khóa API xAI để thay thế.",

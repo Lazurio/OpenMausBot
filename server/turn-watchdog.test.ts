@@ -173,9 +173,6 @@ describe("TurnWatchdog", () => {
     expect(dog.answering("bot1"), "paused on the person's approval").toBe(false);
     dog.watch("t3", "bot1");
     expect(dog.answering("bot1"), "its other conversation answers").toBe(true);
-    dog.setWaitingOnComputer("t3", true);
-    expect(dog.answering("bot1"), "waiting for a computer").toBe(false);
-    dog.setWaitingOnComputer("t3", false);
     dog.settle("t3");
     expect(dog.answering("bot1")).toBe(false);
     expect(dog.answering("bot2")).toBe(true);

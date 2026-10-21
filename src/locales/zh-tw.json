@@ -2292,8 +2292,6 @@
   "computer.android.agentNote": "機器人控制使用的是同一條已授權的 USB 連線。不需要手機隨附應用程式、帳戶、Tailscale 或無線配對。",
   "computer.android.harnessNote": "連線之後，即可請任何相容的 Maus 開啟 Android 應用程式，或在你的手機上完成任務。隨附的 Phone Harness 技能會在收到手機相關要求時自動載入。",
   "computer.android.step2": "在「關於手機」中連續點按 {buildNumber} 七次以啟用開發人員選項，然後開啟 {usbDebugging}。",
-  "mcp.claude.title": "同時使用我的 Claude Code MCP 伺服器",
-  "mcp.claude.aria": "使用我的 Claude Code MCP 伺服器",
   "mcp.claude.error": "無法儲存此設定，請再試一次。",
   "chat.error.manageUsage": "管理用量",
   "engineSetup.grok.notInstalled": "這裡尚未安裝可搭配 grok.com 訂閱使用的 Grok。請改用 xAI API 金鑰。",

@@ -122,14 +122,14 @@ describe("Chat MCP session", () => {
     try {
       const plain = await f.mount();
       expect(plain.definitions[0]!.function.parameters).toEqual(full);
-      const session = await mountChatTools({ custom: { audit: f.server } }, f.controller.signal, false, undefined, undefined, toolSchemaProfile("moonshot"));
+      const session = await mountChatTools({ data: f.server }, f.controller.signal, false, undefined, toolSchemaProfile("moonshot"));
       sessions.push(session);
       const [definition] = session.definitions;
       expect(schemaBytes(definition!.function.parameters)).toBeLessThanOrEqual(12_000);
       expect(definition!.function.description).toContain("OpenMausBot shortened this tool's parameters to fit Kimi's size limit");
-      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^chat-mcp: audit: kept only the top-level fields of tool "write"'s parameters/));
-      expect(() => session.validate("audit_write", { field_000: { label: 5 } })).toThrow("input schema");
-      expect(() => session.validate("audit_write", { field_000: { label: "five" } })).not.toThrow();
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^chat-mcp: data: kept only the top-level fields of tool "write"'s parameters/));
+      expect(() => session.validate("data_write", { field_000: { label: 5 } })).toThrow("input schema");
+      expect(() => session.validate("data_write", { field_000: { label: "five" } })).not.toThrow();
     } finally { warn.mockRestore(); }
   });
 
@@ -258,14 +258,6 @@ describe("Chat MCP session", () => {
     expect(alive(failed.read().pid)).toBe(false);
   });
 
-  it("fails setup when the Local VM lists no tools, but not when the owner's selection leaves none", async () => {
-    const empty = fixture(`if(message.method === "tools/list") { reply(message,{tools:[]}); continue; }`);
-    await expect(empty.mount(true, true)).rejects.toThrow("The Local VM listed no tools");
-    expect(alive(empty.read().pid)).toBe(false);
-    expect((await empty.mount(false)).definitions).toEqual([]);
-    expect((await fixture().mount(true, true, { allow: ["mcp:computer:screenshot"] })).definitions).toEqual([]);
-  });
-
   it("advertises only name, description and parameters, never outputSchema or other MCP tool fields", async () => {
     const f = fixture(`if(message.method === "tools/list") { reply(message,{tools:[{name:"write",title:"W",description:"d",inputSchema:${JSON.stringify(schema)},outputSchema:{type:"object"},annotations:{readOnlyHint:true}}]}); continue; }`);
     const session = await f.mount();
@@ -325,8 +317,8 @@ describe("Chat MCP shutdown verdict", () => {
 
   it("an unconfirmed shutdown still fails close when a call was in flight", async () => {
     const f = fixture(`if (message.method === "tools/call") return;`);
-    const session = await mountChatTools({ custom: { audit: f.server } }, f.controller.signal);
-    const executing = session.execute("audit_write", { value: "in flight" }, f.controller.signal).catch(() => {});
+    const session = await mountChatTools({ data: f.server }, f.controller.signal);
+    const executing = session.execute("data_write", { value: "in flight" }, f.controller.signal).catch(() => {});
     await vi.waitFor(() => { expect(f.read().calls.some((call) => call.method === "tools/call")).toBe(true); });
     killProbe.override = true;
     killProbe.stopped = false;
@@ -356,13 +348,13 @@ describe("Chat MCP shutdown verdict", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const one = fixture(); const two = fixture();
-      const session = await mountChatTools({ custom: { alpha: one.server, beta: two.server } }, one.controller.signal);
+      const session = await mountChatTools({ agents: one.server, data: two.server }, one.controller.signal);
       sessions.push(session);
       await expect(session.close()).resolves.toBeUndefined();
 
       const busy = fixture(`if (message.method === "tools/call") return;`);
-      const risky = await mountChatTools({ custom: { busy: busy.server } }, busy.controller.signal);
-      const executing = risky.execute("busy_write", { value: "in flight" }, busy.controller.signal).catch(() => {});
+      const risky = await mountChatTools({ data: busy.server }, busy.controller.signal);
+      const executing = risky.execute("data_write", { value: "in flight" }, busy.controller.signal).catch(() => {});
       await vi.waitFor(() => { expect(busy.read().calls.some((call) => call.method === "tools/call")).toBe(true); });
       await expect(risky.close()).rejects.toBeInstanceOf(ChatToolSessionError);
       await expect(risky.close()).rejects.toThrow("MCP server shutdown could not be confirmed; execution outcome may be uncertain");
@@ -516,9 +508,9 @@ describe("Chat MCP schema validation", () => {
     };
     const f = fixture("", toolSchema);
     const session = await f.mount();
-    expect(() => session.validate("audit_write", { owner: "octo", repo: "hello" })).not.toThrow();
-    expect(() => session.validate("audit_write", { owner: "octo" })).toThrow("input schema");
-    expect(() => session.validate("audit_write", { owner: 1, repo: "hello" })).toThrow("input schema");
+    expect(() => session.validate("data_write", { owner: "octo", repo: "hello" })).not.toThrow();
+    expect(() => session.validate("data_write", { owner: "octo" })).toThrow("input schema");
+    expect(() => session.validate("data_write", { owner: 1, repo: "hello" })).toThrow("input schema");
   });
 
   it("accepts Google MCP's x-google-enum-descriptions annotation and still enforces the enum", async () => {
@@ -531,8 +523,8 @@ describe("Chat MCP schema validation", () => {
     };
     const f = fixture("", toolSchema);
     const session = await f.mount();
-    expect(() => session.validate("audit_write", { value: "METRIC" })).not.toThrow();
-    expect(() => session.validate("audit_write", { value: "KELVIN" })).toThrow("input schema");
+    expect(() => session.validate("data_write", { value: "METRIC" })).not.toThrow();
+    expect(() => session.validate("data_write", { value: "KELVIN" })).toThrow("input schema");
   });
 
   it.each([

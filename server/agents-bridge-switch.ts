@@ -20,7 +20,7 @@ export const agentsProxyLaunch = () => ({ command: process.execPath, args: [SPAW
  * hand its MCP children this server's environment, where OMB_AGENTS_TOOL_BRIDGE=1 is the operator switch. */
 export const AGENTS_PROXY_ENV = { ...AGENTS_NODE_FLAG, [TOOL_BRIDGE_ENV]: "0" } as const;
 
-type BridgeConfig = { features?: { agentsToolBridge?: boolean; claudeUserMcp?: boolean } };
+type BridgeConfig = { features?: { agentsToolBridge?: boolean } };
 
 /** The workspace switch: `{"features": {"agentsToolBridge": true}}` in ~/.openmausbot/config.json, or
  * OMB_AGENTS_TOOL_BRIDGE set to exactly "1" or "0", which wins over the saved setting. */
@@ -202,8 +202,10 @@ function claudeSettings(file: string, managed: boolean): SettingsReading {
 
 /** Why a Claude Code turn is not bridged, or null. `--allowedTools mcp__agents` pre-allows the whole
  * agents server, so the harness asks nothing by name; what the CLI itself reads is checked here. */
-function claudeRefusal(cfg: BridgeConfig, engine: BridgeEngine, env: NodeJS.ProcessEnv, host: EngineHost): string | null {
-  if ({ ...env, ...engine.environment }.OMB_CLAUDE_INHERIT_USER_CONFIG === "1" || cfg.features?.claudeUserMcp === true) {
+function claudeRefusal(engine: BridgeEngine, env: NodeJS.ProcessEnv, host: EngineHost): string | null {
+  // The user-scope MCP servers a Claude turn gets hold no rule about a tool's name and never shadow a harness
+  // server; rules live in settings, which stay the project's (--setting-sources) and are checked below.
+  if ({ ...env, ...engine.environment }.OMB_CLAUDE_INHERIT_USER_CONFIG === "1") {
     return "the bot inherits this machine's own Claude Code setup";
   }
   const config = engine.config && typeof engine.config === "object" ? engine.config as { tools?: unknown; disallowedTools?: unknown } : {};
@@ -244,14 +246,13 @@ function claudeRefusal(cfg: BridgeConfig, engine: BridgeEngine, env: NodeJS.Proc
  *               tool, hidden reads would lose their read-only marks, and Grok has a native use_tool.
  *   the rest    have not been shown to qualify. */
 export function engineBridgeRefusal(
-  cfg: BridgeConfig,
   engine: BridgeEngine | null | undefined,
   env: NodeJS.ProcessEnv = process.env,
   host: EngineHost = { home: homedir(), managedPolicyFiles: claudeManagedPolicyFiles() },
 ): string | null {
   if (!engine) return "no engine";
   const { driverKind } = engine;
-  if (driverKind === "claudeAgent") return claudeRefusal(cfg, engine, env, host);
+  if (driverKind === "claudeAgent") return claudeRefusal(engine, env, host);
   if (CHAT_RUNTIME_DRIVERS.has(driverKind)) return null;
   if (driverKind === "codex") return "Codex reads its own layered configuration and hooks, which this version does not examine";
   if (driverKind === "piAgent") return "Pi loads the person's own extensions, which can block a tool by its name, and this version does not examine them";
@@ -269,7 +270,7 @@ export function agentsToolBridgeRefusal(
 ): string | null {
   try {
     if (!agentsToolBridgeEnabled(cfg, env)) return "the switch is off";
-    return engineBridgeRefusal(cfg, engine, env, host);
+    return engineBridgeRefusal(engine, env, host);
   } catch (error) {
     const kind = logWord(() => (error instanceof Error ? error.name : typeof error));
     const code = logWord(() => (error as { code?: unknown } | null)?.code, true);

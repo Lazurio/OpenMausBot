@@ -1634,8 +1634,6 @@
   "computer.android.agentNote": "智能体控制使用的正是这条已授权的 USB 连接。无需手机配套应用、账号、Tailscale 或无线配对。",
   "computer.android.harnessNote": "连接后，可以让任何兼容的 Maus 打开 Android 应用或在手机上完成任务。处理手机相关请求时，内置的 Phone Harness 技能会自动加载。",
   "computer.android.step2": "在“关于手机”中点击{buildNumber}七次以启用开发者选项，然后开启{usbDebugging}。",
-  "mcp.claude.title": "同时使用我的 Claude Code MCP 服务器",
-  "mcp.claude.aria": "使用我的 Claude Code MCP 服务器",
   "mcp.claude.error": "无法保存此设置，请再试一次。",
   "engineSetup.grok.notInstalled": "这里尚未安装可搭配 grok.com 订阅使用的 Grok。请改用 xAI API 密钥。",
   "settings.domain.title": "连接你的网域",

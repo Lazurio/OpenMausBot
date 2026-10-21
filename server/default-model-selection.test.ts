@@ -139,7 +139,7 @@ describe("new bot default: one ranking with the welcome, tested AIs first", () =
   });
   const grok = ready("grok", "grokAgent", "grok-default");
   const kimi = ready("kimi", "kimiAgent", "kimi-default");
-  const chatgpt = ready("chatgpt", "codex", "gpt-default", { chatgptPlan: true });
+  const chatgpt = ready("chatgpt", "codex", "gpt-default");
   const claudeReady = ready("claude", "claudeAgent", "claude-default");
   const openCodeFree = ready("opencodeGo", "opencodeGo", "opencode/big-pickle", { freeFallback: true });
   const pick = (instances: SelectableInstance[], context = {}) => selectDefaultModelSelection(instances, undefined, context).instanceId;
@@ -259,7 +259,7 @@ describe("new bot default model selection wiring in index.ts", () => {
   };
   const companyClaude = { ...claude, instanceId: "company.fixture.anthropic", models: { default: "company-claude", options: [{ id: "company-claude", label: "Company" }] } };
   const signedOut = { ...claude, snapshot: { state: "available", authenticated: false } satisfies ProviderSnapshot };
-  function server(instances: unknown[], { enrolled = false, companyModelsOnly = false, saved, credit = null, configs = {}, answered }: { enrolled?: boolean; companyModelsOnly?: boolean; saved?: ModelSelection; credit?: string | null; configs?: Record<string, { enabled?: boolean; access?: EngineAccess }>; answered?: (instance: SelectableInstance) => boolean | undefined } = {}) {
+  function server(instances: unknown[], { enrolled = false, companyModelsOnly = false, saved, configs = {}, answered }: { enrolled?: boolean; companyModelsOnly?: boolean; saved?: ModelSelection; configs?: Record<string, { enabled?: boolean; access?: EngineAccess }>; answered?: (instance: SelectableInstance) => boolean | undefined } = {}) {
     const managedPolicy = new ManagedDesktopPolicy();
     if (companyModelsOnly) managedPolicy.apply({ organizationId: "11111111-1111-4111-8111-111111111111", organizationName: "Fixture Company", expiresAt: Date.now() + 60_000,
       version: 1, companyModelsOnly: true, allowedEngines: "all", mcp: { allowCustom: true, allowlist: [] },
@@ -268,7 +268,7 @@ describe("new bot default model selection wiring in index.ts", () => {
     const describe = vi.fn(async () => instances);
     const defaultSelection = new Function("hostedModels", "cfg", "registry", "managedDesktop", "managedPolicy", "BUILT_IN_DRIVERS", "selectDefaultModelSelection", "cloudCredit", "providerConfigs", "heldKeys", "withInstanceConfig", "testedAi",
       `${code}; return defaultSelection;`)(undefined, { defaultModelSelection: saved }, { describe }, managedDesktop, managedPolicy,
-      [{ driverKind: "claudeAgent", metadata: { displayName: "Claude" } }], selectDefaultModelSelection, cloudCredit, () => configs, null, withInstanceConfig,
+      [{ driverKind: "claudeAgent", metadata: { displayName: "Claude" } }], selectDefaultModelSelection, undefined, () => configs, null, withInstanceConfig,
       { answered: answered ?? (() => undefined) }) as (saved?: ModelSelection | null, instances?: readonly SelectableInstance[]) => Promise<ModelSelection>;
     return { defaultSelection, describe, close: () => managedPolicy.close() };
   }

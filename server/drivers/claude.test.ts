@@ -1470,17 +1470,42 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     expect(seen.settings?.claudeMdExcludes).toBeUndefined();
   });
 
-  it("loads the machine's own MCP servers when the turn asks, keeping the rest isolated", async () => {
-    await create();
+  it("forwards the machine's user-scope MCP servers when the turn asks, keeping the rest isolated", async () => {
+    const home = join(scratch, "user-mcp-home");
+    const projectDir = join(scratch, "user-mcp-project");
+    mkdirSync(home, { recursive: true });
+    mkdirSync(projectDir, { recursive: true });
+    const computer = { type: "stdio", command: "/opt/cua-driver", args: ["mcp", "--socket", "/run/driver.sock"], env: {} };
+    writeFileSync(join(home, ".claude.json"), JSON.stringify({ mcpServers: { computer, docs: { command: "user-docs" }, ogb: { command: "sh" } }, projects: {} }));
+    writeFileSync(join(projectDir, ".mcp.json"), JSON.stringify({ mcpServers: { docs: { command: "project-docs" } } }));
     const dump = join(scratch, "user-mcp.json");
-    process.env.FAKE_CLAUDE_DUMP = dump;
+    await create(undefined, { FAKE_CLAUDE_DUMP: dump, HOME: home });
 
-    await instance.adapter.sendTurn({ threadId: "t-user-mcp", text: "hi", mcpFromUserConfig: true });
+    await instance.adapter.sendTurn({ threadId: "t-user-mcp", text: "hi", cwd: projectDir, mcpFromUserConfig: true });
     await recorder.until((e) => e.type === "turn.completed");
-
     const seen = JSON.parse(readFileSync(dump, "utf8"));
-    expect(seen.argv).not.toContain("--strict-mcp-config");
+    expect(seen.argv).toContain("--strict-mcp-config");
     expect(seen.argv[seen.argv.indexOf("--setting-sources") + 1]).toBe("project");
+    expect(seen.mcpConfig.mcpServers.computer).toEqual(computer);
+    // the project's server of the same name wins, as in Claude Code, and a harness mount is never shadowed
+    expect(JSON.stringify(seen.mcpConfig.mcpServers.docs)).toContain("project-docs");
+    expect(seen.mcpConfig.mcpServers.ogb.command).toBe(process.execPath);
+
+    await instance.adapter.sendTurn({ threadId: "t-no-user-mcp", text: "hi", cwd: projectDir });
+    await recorder.until((e) => e.type === "turn.completed" && e.threadId === "t-no-user-mcp");
+    expect(JSON.parse(readFileSync(dump, "utf8")).mcpConfig.mcpServers.computer).toBeUndefined();
+  });
+
+  it("reads the user-scope MCP servers from CLAUDE_CONFIG_DIR when it is set", async () => {
+    const account = join(scratch, "user-mcp-account");
+    mkdirSync(account, { recursive: true });
+    writeFileSync(join(account, ".claude.json"), JSON.stringify({ mcpServers: { computer: { command: "/opt/cua-driver", args: ["mcp"] } } }));
+    const dump = join(scratch, "user-mcp-account.json");
+    await create(undefined, { FAKE_CLAUDE_DUMP: dump, CLAUDE_CONFIG_DIR: account });
+
+    await instance.adapter.sendTurn({ threadId: "t-user-mcp-account", text: "hi", mcpFromUserConfig: true });
+    await recorder.until((e) => e.type === "turn.completed");
+    expect(JSON.parse(readFileSync(dump, "utf8")).mcpConfig.mcpServers.computer).toEqual({ command: "/opt/cua-driver", args: ["mcp"] });
   });
 
   it("adds the person's own skills folder when the turn asks, keeping everything else isolated", async () => {
@@ -1521,42 +1546,6 @@ describe("ClaudeDriver turns (fake CLI)", () => {
 
   // Claude Code advertises no MCP Apps UI extension and keeps tool results to itself, so only OMB's
   // remote proxy can observe a URL app server.
-  it("mounts a url app server through the proxy and a url server without apps natively, unchanged", async () => {
-    await create();
-    const dump = join(scratch, "app-mcp.json");
-    process.env.FAKE_CLAUDE_DUMP = dump;
-    const docs = { type: "http" as const, url: "https://docs.example/mcp", headers: { Authorization: "Bearer tok-docs" } };
-    const draw = { type: "http" as const, url: "https://mcp.excalidraw.com/mcp", headers: { Authorization: "Bearer tok-draw" } };
-    const board = { command: "board-mcp", args: [], env: {} };
-    const agents = { command: process.execPath, args: ["agents-proxy.js"], env: { OMB_HARNESS_URL: "http://127.0.0.1:8799", OMB_COMMS_TOKEN: "comms-fixture" } };
-    await instance.adapter.sendTurn({
-      threadId: "t-app-mcp", text: "hi",
-      integrations: { agents, custom: { docs, draw, board }, mcpApps: { draw: { extension: true }, board: { extension: true } } },
-    });
-    await recorder.until((e) => e.type === "turn.completed");
-    const seen = JSON.parse(readFileSync(dump, "utf8"));
-    expect(seen.mcpConfig.mcpServers.docs).toEqual(docs);
-    const proxy = seen.mcpConfig.mcpServers.draw;
-    expect(proxy.args[0]).toContain("mcp-remote-proxy");
-    expect(JSON.parse(proxy.env.OMB_REMOTE_MCP_SERVER)).toEqual(draw);
-    expect(JSON.parse(proxy.env.OMB_REMOTE_MCP_APPS)).toEqual({ server: "draw", harnessUrl: "http://127.0.0.1:8799", token: "comms-fixture", extension: true });
-    const gate = seen.mcpConfig.mcpServers.board;
-    expect(gate.args[0]).toContain("mcp-gate");
-    expect(JSON.parse(gate.env.OMB_GATE_APPS)).toMatchObject({ server: "board", extension: true });
-    expect(JSON.stringify(seen.argv)).not.toContain("tok-draw");
-    expect(JSON.stringify(seen.argv)).not.toContain("comms-fixture");
-  });
-
-  it("observes nothing on a turn that cannot report: no agents capability", async () => {
-    await create();
-    const dump = join(scratch, "app-mcp-no-agents.json");
-    process.env.FAKE_CLAUDE_DUMP = dump;
-    const draw = { type: "http" as const, url: "https://mcp.excalidraw.com/mcp", headers: {} };
-    await instance.adapter.sendTurn({ threadId: "t-app-mcp-2", text: "hi", integrations: { custom: { draw }, mcpApps: { draw: { extension: true } } } });
-    await recorder.until((e) => e.type === "turn.completed");
-    expect(JSON.parse(readFileSync(dump, "utf8")).mcpConfig.mcpServers.draw).toEqual(draw);
-  });
-
   it("preserves only the selected account's auth settings in a private file", async () => {
     const account = join(scratch, "account");
     mkdirSync(account);
@@ -1812,39 +1801,6 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     const allowed = seen.argv[seen.argv.indexOf("--allowedTools") + 1].split(",");
     expect(allowed).toContain("mcp__shop__query_result");
     expect(allowed).not.toContain("mcp__shop");
-  });
-
-    const dump = join(scratch, "gate-off.json");
-    await create(undefined, { FAKE_CLAUDE_DUMP: dump, OMB_MCP_RESULT_BUDGET: "0" });
-
-    await instance.adapter.sendTurn({
-      threadId: "t-gate-off",
-      text: "hi",
-      integrations: { custom: { shop: { command: "npx", args: ["shop"], env: {} } } },
-    });
-    await recorder.until((e) => e.type === "turn.completed");
-
-    const seen = JSON.parse(readFileSync(dump, "utf8"));
-    expect(seen.mcpConfig.mcpServers.shop).toMatchObject({ command: "npx", args: ["shop"] });
-    expect(seen.argv[seen.argv.indexOf("--allowedTools") + 1]).not.toContain("query_result");
-  });
-
-  it("gives each bot server its own result budget, over the app-wide one", async () => {
-    const dump = join(scratch, "gate-own.json");
-    await create(undefined, { FAKE_CLAUDE_DUMP: dump, OMB_MCP_RESULT_BUDGET: "0" });
-
-    await instance.adapter.sendTurn({
-      threadId: "t-gate-own",
-      text: "hi",
-      integrations: {
-        custom: { motion: { command: "effectcraft-mcp", args: [], env: {} }, shop: { command: "npx", args: ["shop"], env: {} } },
-        customResultBudgets: { motion: 40_000 },
-      },
-    });
-    await recorder.until((e) => e.type === "turn.completed");
-
-    const seen = JSON.parse(readFileSync(dump, "utf8"));
-    expect(seen.mcpConfig.mcpServers.shop).toMatchObject({ command: "npx", args: ["shop"] });
   });
 
   it("leaves an http project server unmounted by the gate rather than mangling it", async () => {

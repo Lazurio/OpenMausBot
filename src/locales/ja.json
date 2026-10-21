@@ -3071,8 +3071,6 @@
   "computer.android.agentNote": "エージェントによる操作も、この承認済みの USB 接続を使います。スマートフォン用のコンパニオンアプリ、アカウント、Tailscale、無線ペアリングは不要です。",
   "computer.android.harnessNote": "接続したら、対応する Maus に Android アプリを開いてもらったり、スマートフォン上での作業を頼んだりできます。スマートフォン関連の依頼では、同梱の Phone Harness スキルが自動で読み込まれます。",
   "computer.android.step2": "「端末情報」で{buildNumber}を 7 回タップして開発者向けオプションを有効にし、次に{usbDebugging}を有効にしてください。",
-  "mcp.claude.title": "自分の Claude Code の MCP サーバーも使う",
-  "mcp.claude.aria": "自分の Claude Code の MCP サーバーを使う",
   "mcp.claude.error": "この設定を保存できませんでした。もう一度お試しください。",
   "mcp.claudeSkills.title": "Claude Codeのスキルも使用する",
   "mcp.claudeSkills.aria": "Claude Codeのスキルを使用",

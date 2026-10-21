@@ -21,7 +21,6 @@ import { CursorAgentDriver } from "./cursor.ts";
 import { QwenAgentDriver } from "./qwen.ts";
 import { removeTempDir } from "../../testing/cleanup.ts";
 import { TurnWatchdog } from "../../turn-watchdog.ts";
-import { wideSchema } from "../../testing/oversized-tool-schema.ts";
 import * as procs from "../../procs.ts";
 import * as quietStatus from "./quiet-status.ts";
 
@@ -1094,14 +1093,12 @@ describe("ACP turns (fake CLI)", () => {
     await instance.adapter.sendTurn({
       threadId: "t-own-http", text: "go",
       integrations: {
-        browser: { command: process.execPath, args: ["/app/dist-server/harness-mcp-proxy.js", "browser"], env: { OMB_HARNESS_URL: harness, OMB_MCP_TOKEN_BROWSER: "synthetic-browser-capability" } },
-        custom: { notes: { command: process.execPath, args: ["/tmp/notes-mcp.js"], env: {} } },
+        data: { command: process.execPath, args: ["/app/dist-server/harness-mcp-proxy.js", "data"], env: { OMB_HARNESS_URL: harness, OMB_MCP_TOKEN_DATA: "synthetic-data-capability" } },
       },
     });
     expect(await recorder.until((event) => event.type === "turn.completed")).toMatchObject({ ok: true });
     expect(JSON.parse(readFileSync(`${dump}.mcp.json`, "utf8"))).toEqual([
-      { type: "http", name: "browser", url: `${harness}/api/internal/mcp-http/browser`, headers: [{ name: "authorization", value: "Bearer synthetic-browser-capability" }] },
-      { name: "notes", command: process.execPath, args: ["/tmp/notes-mcp.js"], env: [] },
+      { type: "http", name: "data", url: `${harness}/api/internal/mcp-http/data`, headers: [{ name: "authorization", value: "Bearer synthetic-data-capability" }] },
     ]);
   });
 

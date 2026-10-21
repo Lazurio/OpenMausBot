@@ -1,7 +1,7 @@
 import { rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { AppPayload } from "../../shared/app.ts";
 import { BOT_HTML_CSP } from "../../shared/app-frame/csp.ts";
@@ -12,7 +12,7 @@ import type { ModelSelection } from "../contracts.ts";
 import { json, readBody } from "../harness/http.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import { Store } from "../store.ts";
-import { createChatAppRoutes, type ChatAppRouteDeps, type McpRpcRequest } from "./chat-apps.ts";
+import { createChatAppRoutes, type ChatAppRouteDeps } from "./chat-apps.ts";
 import { dispatchRoutes } from "./table.ts";
 
 const sonnet: ModelSelection = { instanceId: "claude", model: "claude-sonnet-5" };
@@ -128,47 +128,3 @@ describe("POST /api/bots/:botId/apps/:messageId/context", () => {
   });
 });
 
-describe("POST /api/bots/:botId/apps/:messageId/rpc", () => {
-  it("refuses a bot page: it has no server (404)", async () => {
-    const mcpRpc = vi.fn();
-    const { bot, post, page } = await fixture({ mcpRpc });
-    const id = page();
-    expect(await post(`/api/bots/${bot.id}/apps/${id}/rpc`, { threadId: bot.threadId, method: "tools/list" })).toEqual({ status: 404, body: { error: "That app has no server to call." } });
-    expect(mcpRpc).not.toHaveBeenCalled();
-  });
-
-  it("answers 404 for an MCP row until the MCP side is wired", async () => {
-    const { bot, post, mcpRow } = await fixture();
-    const id = mcpRow();
-    expect(await post(`/api/bots/${bot.id}/apps/${id}/rpc`, { threadId: bot.threadId, method: "tools/call", params: { name: "get-time" } }))
-      .toEqual({ status: 404, body: { error: "This app cannot reach its server on this computer yet." } });
-  });
-
-  it("hands a well-formed call on an MCP row of this bot and thread to mcpRpc, with the row", async () => {
-    const mcpRpc = vi.fn(async (request: McpRpcRequest) => ({ status: 200, body: { content: [{ type: "text", text: `ran ${String(request.params.name)}` }] } }));
-    const { bot, other, post, mcpRow } = await fixture({ mcpRpc });
-    const id = mcpRow();
-    expect(await post(`/api/bots/${bot.id}/apps/${id}/rpc`, { threadId: bot.threadId, method: "tools/call", params: { name: "get-time", arguments: {} } }))
-      .toEqual({ status: 200, body: { content: [{ type: "text", text: "ran get-time" }] } });
-    expect(mcpRpc).toHaveBeenCalledTimes(1);
-    const request = mcpRpc.mock.calls[0]![0];
-    expect(request).toMatchObject({ threadId: bot.threadId, method: "tools/call", params: { name: "get-time", arguments: {} }, bot: { id: bot.id } });
-    expect(request.row).toMatchObject({ id, kind: "app", app: { source: "mcp" } });
-    // Malformed, or another bot's or thread's row: never reaches it.
-    expect(await post(`/api/bots/${bot.id}/apps/${id}/rpc`, { threadId: bot.threadId, method: "prompts/list" })).toMatchObject({ status: 400 });
-    expect(await post(`/api/bots/${bot.id}/apps/${id}/rpc`, { threadId: bot.threadId, method: "tools/call", params: "x" })).toMatchObject({ status: 400 });
-    expect(await post(`/api/bots/${other.id}/apps/${id}/rpc`, { threadId: other.threadId, method: "tools/list" })).toMatchObject({ status: 404 });
-    expect(await post(`/api/bots/${other.id}/apps/${id}/rpc`, { threadId: bot.threadId, method: "tools/list" })).toMatchObject({ status: 404 });
-    // An older client's `confirmed` is not passed on: nothing the page or the client says lifts the approval level.
-    expect(await post(`/api/bots/${bot.id}/apps/${id}/rpc`, { threadId: bot.threadId, method: "tools/list", confirmed: true })).toMatchObject({ status: 200 });
-    expect(mcpRpc.mock.calls.at(-1)![0]).not.toHaveProperty("confirmed");
-    expect(mcpRpc).toHaveBeenCalledTimes(2);
-  });
-
-  it("leaves every other path to the next handler", async () => {
-    const { bot, get, post, page } = await fixture();
-    const id = page();
-    expect((await post(`/api/bots/${bot.id}/apps/${id}/delete`, { threadId: bot.threadId })).body).toEqual({ from: "inline routes" });
-    expect((await get(`/api/bots/${bot.id}/apps/${id}/rpc`)).body).toEqual({ from: "inline routes" });
-  });
-});

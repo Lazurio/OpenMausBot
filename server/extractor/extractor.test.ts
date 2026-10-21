@@ -8,7 +8,7 @@ import workersFixture from "./fixtures/workers-ai-clairic.json" with { type: "js
 import {
   EXTRACT_LIMITS, extractRequestProblem, INBOX_FIELDS, parseExtractResponse, extractFits,
 } from "./contract.ts";
-import { createExtractor, describeExtractor, extractorAccount } from "./index.ts";
+import { createExtractor, extractorAccount } from "./index.ts";
 import { openrouterExtractSchema } from "./remote.ts";
 import type { ExtractInput, ExtractSeam, FieldSchema } from "./types.ts";
 

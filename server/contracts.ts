@@ -155,7 +155,7 @@ export interface SendTurnInput {
     dweb?: { url: string };
   };
   cwd?: string;
-  /** Also load the person's own CLI MCP setup (Claude Code user scope, claude.ai connectors). */
+  /** Also load the machine's own MCP servers: Claude Code's user scope (`~/.claude.json`). */
   mcpFromUserConfig?: boolean;
   /** Claude Code loads the person's own `~/.claude/skills` from this folder's `.claude/skills` (`--add-dir`). */
   userSkillsDir?: string;

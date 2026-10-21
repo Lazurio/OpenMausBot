@@ -9,11 +9,10 @@ import { CSP_META_PREFIX } from "../shared/app-frame/document.ts";
 import { APP_HELPER_SOURCE } from "../shared/app-frame/helper.ts";
 import { AppDocs } from "./app-docs.ts";
 import {
-  appContextBlock, appDocument, AppMessageRate, createAppCard, createChatApps, pageVersion, prepareAppMessage, publishablePage, rowRate, setAppContext,
-  showPublishedPage, withAppContext, type ChatApps,
+  appContextBlock, appDocument, AppMessageRate, createAppCard, createChatApps, pageVersion, prepareAppMessage, rowRate, setAppContext,
+  withAppContext, type ChatApps,
 } from "./chat-apps.ts";
 import { folderPageCsp } from "../shared/app-frame/csp.ts";
-import { readPageBundle } from "./pages/bundle.ts";
 import { createAgentCard, type AgentCardStore } from "./chat-widgets.ts";
 import type { Message, StoreChange } from "./store.ts";
 
@@ -240,63 +239,15 @@ describe("a folder page", () => {
     expect(rows(THREAD)).toEqual([]);
   });
 
-  it("publishes with its files beside index.html, and update_html takes a folder too", async () => {
+  it("update_html takes a folder too", async () => {
     const { row, docs, store } = setup();
     const where = folders();
     await createAppCard({ store, docs, bot: SCOUT, threadId: THREAD, input: { tool: "show_html", path: "dash", title: "Dash" }, folders: where.of });
-    const page = publishablePage({ store, docs, threadId: THREAD, messageId: "m1" });
-    if (!page.ok) throw new Error("not publishable");
-    expect(page.folder).toBe(join(realpathSync.native(where.mine), "dash"));
-    expect(Object.fromEntries(page.files.map((file) => [file.path, file.data.toString()]))).toMatchObject({ "app.js": "draw()", "data.parquet": "PAR1 PAR1" });
     writeFileSync(join(where.mine, "dash", "app.js"), "drawMore()");
     expect(await createAppCard({ store, docs, bot: SCOUT, threadId: THREAD, input: { tool: "update_html", app_id: "m1", path: "dash" }, folders: where.of })).toEqual({ ok: true, messageId: "m1" });
     expect(row("m1").app).toMatchObject({ rev: 1, title: "Dash" });
     expect(docs.readFile(row("m1").app!.doc, "app.js")?.toString()).toBe("drawMore()");
     expect(docs.readFile(row("m1").app!.history![0]!, "app.js")?.toString()).toBe("draw()");
-  });
-});
-
-describe("publish_page in the chat", () => {
-  const LIVE = { state: "live" as const, title: "Dash", pageId: "page000000000000000000001", url: "https://page000000000000000000001.mausbot.page/", usage: { pages: 1, limit: 5 } };
-
-  async function folder() {
-    const base = realpathSync(mkdtempSync(join(tmpdir(), "omb-published-")));
-    mkdirSync(join(base, "dash"));
-    writeFileSync(join(base, "dash", "index.html"), "<h1>Dash</h1>");
-    writeFileSync(join(base, "dash", "data.csv"), "a\n1");
-    return { base, bundle: async () => readPageBundle("dash", [base]) };
-  }
-
-  it("shows the published page as its own inline card, with the link", async () => {
-    const { store, docs, row } = setup();
-    const { bundle } = await folder();
-    const id = showPublishedPage({ store, docs, threadId: THREAD, card: LIVE, bundle: await bundle() });
-    expect(id).toBe("m1");
-    expect(row("m1")).toMatchObject({ kind: "app", text: "[App] Dash\nDash", publishedPage: LIVE, app: { source: "html", title: "Dash", rev: 0 } });
-    expect(docs.readFile(row("m1").app!.doc, "data.csv")?.toString()).toBe("a\n1");
-  });
-
-  it("gives the link to the card that already shows the folder, as its next version, instead of posting a second card", async () => {
-    const { store, docs, row, rows } = setup();
-    const { base, bundle } = await folder();
-    await createAppCard({ store, docs, bot: SCOUT, threadId: THREAD, input: { tool: "show_html", path: "dash", title: "Dash" }, folders: async () => ({ roots: [base], vmWorkspace: null }) });
-    writeFileSync(join(base, "dash", "data.csv"), "a\n2");
-    expect(showPublishedPage({ store, docs, threadId: THREAD, card: LIVE, bundle: await bundle() })).toBe("m1");
-    expect(rows(THREAD)).toHaveLength(1);
-    expect(row("m1")).toMatchObject({ publishedPage: LIVE, app: { rev: 1 } });
-    expect(row("m1").text).toBe("[App] Dash\nDash");
-    expect(docs.readFile(row("m1").app!.doc, "data.csv")?.toString()).toBe("a\n2");
-    expect(showPublishedPage({ store, docs, threadId: THREAD, card: { ...LIVE, url: `${LIVE.url}?again` }, bundle: await bundle() })).toBe("m1");
-    expect(row("m1")).toMatchObject({ app: { rev: 1 }, publishedPage: { url: `${LIVE.url}?again` } });
-  });
-
-  it("leaves a room, a limit card and a page with no index.html to the plain link card", async () => {
-    const { store, docs, rows } = setup(["room-1"]);
-    const { bundle } = await folder();
-    expect(showPublishedPage({ store, docs, threadId: "room-1", card: LIVE, bundle: await bundle() })).toBeNull();
-    expect(showPublishedPage({ store, docs, threadId: THREAD, card: { state: "limit", title: "Dash", message: "Used up." }, bundle: await bundle() })).toBeNull();
-    expect(showPublishedPage({ store, docs, threadId: THREAD, card: LIVE, bundle: { source: "/x", files: [{ path: "a.csv", data: Buffer.from("a") }], bytes: 1, skipped: [] } })).toBeNull();
-    expect(rows(THREAD)).toEqual([]);
   });
 });
 
@@ -323,40 +274,6 @@ describe("versions", () => {
     const app: AppPayload = { v: 1, source: "html", title: "t", doc: "d3", rev: 3, history: ["d1", "d2"], bytes: 1, border: true, network: { connect: [], resources: [] } };
     expect([pageVersion(app), pageVersion(app, 3), pageVersion(app, 2), pageVersion(app, 1), pageVersion(app, 0), pageVersion(app, 1.5), pageVersion(app, -1)])
       .toEqual([{ doc: "d3", rev: 3 }, { doc: "d3", rev: 3 }, { doc: "d2", rev: 2 }, { doc: "d1", rev: 1 }, null, null, null]);
-  });
-});
-
-describe("publishablePage", () => {
-  it("serves an HTML page with the theme colours and a quiet mausbot, and a jsx page as static HTML with its transpiled code", () => {
-    const { call, store, docs } = setup();
-    call({ tool: "show_html", html: PAGE, title: "Sales" });
-    call({ tool: "show_html", jsx: JSX_PAGE, title: "Pricing" });
-    const html = publishablePage({ store, docs, threadId: THREAD, messageId: "m1" });
-    expect(html).toMatchObject({ ok: true, title: "Sales", rev: 0 });
-    if (!html.ok) throw new Error("not publishable");
-    expect(html.files.map((file) => file.path)).toEqual(["index.html"]);
-    const page = html.files[0]!.data.toString();
-    expect(page).toMatch(/^<!DOCTYPE html><style>:root\{color-scheme:light dark;/);
-    expect(page).toContain("window.mausbot={theme:");
-    expect(page).not.toContain("Content-Security-Policy");
-    expect(page.endsWith("<h1>Sales</h1><p>Up 12%</p><script>draw()</script></body></html>")).toBe(true);
-    const jsx = publishablePage({ store, docs, threadId: THREAD, messageId: "m2" });
-    if (!jsx.ok) throw new Error("not publishable");
-    const shell = jsx.files[0]!.data.toString();
-    expect(shell).toContain("window.__mausbotPage=function(require,module,exports){");
-    expect(shell).toContain("_react.useState.call(void 0, \"Pro\")");
-    expect(shell).not.toContain("useState(\"Pro\")");
-    expect(shell).toContain("page: window.__mausbotPage })");
-    expect(shell).not.toContain(", source: ");
-  });
-
-  it("refuses another thread's row, an MCP app and a version no longer kept", () => {
-    const { call, store, docs } = setup();
-    call({ tool: "show_html", html: PAGE, title: "Sales" });
-    store.appendMessage(THREAD, { role: "bot", kind: "app", text: "x", app: { v: 1, source: "mcp", title: "Excalidraw", doc: "", rev: 0, bytes: 1, border: true, network: { connect: [], resources: [] }, mcp: { server: "excalidraw", tool: "create_view", resourceUri: "ui://excalidraw/mcp-app.html" } } });
-    expect(publishablePage({ store, docs, threadId: "elsewhere", messageId: "m1" })).toMatchObject({ ok: false, status: 404 });
-    expect(publishablePage({ store, docs, threadId: THREAD, messageId: "m2" })).toMatchObject({ ok: false, status: 409 });
-    expect(publishablePage({ store, docs, threadId: THREAD, messageId: "m1", rev: 4 })).toMatchObject({ ok: false, status: 404 });
   });
 });
 

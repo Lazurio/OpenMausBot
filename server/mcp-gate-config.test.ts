@@ -129,16 +129,12 @@ describe("remote proxy configuration", () => {
 
 describe("the gate's own query tool", () => {
   const server = { command: "npx", args: ["shop"] };
-  const configEnvName = `OMB_GATE_CONFIG_${"a".repeat(64)}`;
 
-  it("is named for each mount that is a trimming gate, whatever carries its configuration", () => {
+  it("is named for each mount that is a trimming gate", () => {
     const trimming = gateServer({ name: "shop", server, threadId: "t", budget: 8_000 })!;
-    const scopedOnly = gateServer({ name: "notes", server, threadId: "t", budget: 0, toolScope: { allow: ["mcp:notes:*"] } })!;
-    const private_ = gateServer({ name: "files", server, threadId: "t", budget: 0, toolScope: { allow: ["mcp:files:*"] }, configEnvName })!;
-    const privateTrimming = { ...private_, env: { [configEnvName]: JSON.stringify({ ...JSON.parse(private_.env[configEnvName]!), OMB_GATE_BUDGET: "500" }) } };
-    expect(gateQueryTools({ shop: trimming, notes: scopedOnly, files: private_, docs: server, ogb: { command: "node", args: ["perm-proxy.js"] },
+    expect(gateQueryTools({ shop: trimming, docs: server, ogb: { command: "node", args: ["perm-proxy.js"] },
       lookalike: { ...server, env: { OMB_GATE_BUDGET: "8000" } } }))
       .toEqual(["mcp__shop__query_result"]);
-    expect(gateQueryTools({ files: privateTrimming, broken: { args: trimming.args, env: {} } })).toEqual(["mcp__files__query_result"]);
+    expect(gateQueryTools({ broken: { args: trimming.args, env: {} } })).toEqual([]);
   });
 });

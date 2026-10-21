@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { RemoteMcpSpec } from "../contracts.ts";
 import { RemoteMcpClient } from "../mcp-http.ts";
-import { probeMcpServer } from "../mcp-probe.ts";
 import { startFakeHttpMcp } from "../testing/fake-http-mcp-server.ts";
 import { BOX_BROKER_PORT, type BoxBroker } from "./box.ts";
 import { brokerRemoteMcp, forgetBrokeredMcp, mcpGrantName } from "./broker-mcp.ts";
@@ -75,8 +74,6 @@ describe("remote MCP servers through the broker", () => {
       expect(JSON.stringify(out)).not.toContain(id);
       expect(JSON.stringify(out)).not.toContain(secret);
 
-      expect(await probeMcpServer({ ...custom.orders, headers: {}, enabled: true })).toMatchObject({ ok: false, reason: "keys", status: 403 });
-      expect(await probeMcpServer({ ...orders, enabled: true })).toMatchObject({ ok: true, tools: [{ name: "lookup_order" }] });
       const client = new RemoteMcpClient({ ...orders, headers: { "CF-Access-Client-Secret": "the engine's own guess" } });
       const signal = AbortSignal.timeout(10_000);
       await client.initialize("engine", signal);

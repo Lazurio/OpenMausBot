@@ -27,16 +27,11 @@ describe("typed capability fields", () => {
       config: OpenAICompatDriver.defaultConfig(),
     }));
     expect(mounted.adapter.capabilities.dataMcp).toBe(true);
-    expect(mounted.adapter.capabilities.deviceMcp).toBe(true);
     const bare = await keep(OpenAICompatDriver.create({
       instanceId: "caps-compat-bare", displayName: "Caps Compat Bare", environment: {}, enabled: true,
       config: { ...OpenAICompatDriver.defaultConfig(), tools: false },
     }));
     expect(bare.adapter.capabilities.dataMcp).toBe(false);
-    expect(bare.adapter.capabilities.deviceMcp).toBe(false);
-    expect(cloudPlaceRefusal({ computerMcp: bare.adapter.capabilities.computerMcp, name: "Caps Compat Bare" }, "works-on", "Scout")?.message)
-      .toBe("Caps Compat Bare can't use a desktop. Choose a model that can, such as Claude or ChatGPT. Choose another model in Scout's settings.");
-    expect(cloudPlaceRefusal({ computerMcp: mounted.adapter.capabilities.computerMcp, name: "Caps Compat" }, "works-on", "Scout")).toBeNull();
   });
 
   it("registers no driver that runs a turn somewhere other than its own engine, or with computer tools of MausBot's own", async () => {

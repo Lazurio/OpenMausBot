@@ -108,17 +108,13 @@ describe("setupSystemPrompt working-folder clause and result ordering", () => {
 
 describe("setupSystemPrompt for a Chief of Staff", () => {
   it("tells a Chief to stay the Chief and add the job to what it already does", () => {
-    const chief = setupSystemPrompt(true, { chief: true, connectedApps: AVAILABLE });
+    const chief = setupSystemPrompt(true, { chief: true });
     expect(chief).toContain("You are also the Chief of Staff, and setting yourself up does not change that");
     expect(chief).toContain("add this job to your standing instructions instead of replacing them");
-    for (const prompt of [setupSystemPrompt(true, { connectedApps: AVAILABLE }), setupSystemPrompt(true, { chief: false, connectedApps: AVAILABLE })]) {
+    for (const prompt of [setupSystemPrompt(true, {}), setupSystemPrompt(true, { chief: false })]) {
       expect(prompt).not.toContain("Chief of Staff");
     }
-    expect(setupSystemPrompt(false, { chief: true, connectedApps: AVAILABLE })).toBe("");
-  });
-});
-
-
+    expect(setupSystemPrompt(false, { chief: true })).toBe("");
   });
 });
 

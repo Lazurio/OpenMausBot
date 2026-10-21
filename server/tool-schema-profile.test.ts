@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { CLOUD_COMPUTER_TOOLS } from "./cloud-computer-tools.ts";
 import { DATA_TOOLS } from "./data/tools.ts";
 import bridgedAgents from "./drivers/agents-catalog-goldens/bridged.tools-list.json" with { type: "json" };
 import fullAgents from "./drivers/agents-catalog-goldens/full.tools-list.json" with { type: "json" };
-import { HIGHLEVEL_TOOLS } from "./highlevel/tools.ts";
 import { createPageSchema, wideSchema } from "./testing/oversized-tool-schema.ts";
 import { fitToolSchema, schemaBytes, toolSchemaProfile, toolSchemaProfileFor, type ToolSchemaProfile } from "./tool-schema-profile.ts";
 
@@ -164,8 +162,8 @@ describe("which turns carry a schema profile", () => {
 
 describe("OpenMausBot's own tools", () => {
   const catalogs: Array<[string, ReadonlyArray<{ name: string; inputSchema: unknown }>]> = [
-    ["data", DATA_TOOLS], ["highlevel", HIGHLEVEL_TOOLS], ["cloud computer", CLOUD_COMPUTER_TOOLS],
     ["agents (full)", fullAgents.tools], ["agents (bridged)", bridgedAgents.tools],
+    ["data", DATA_TOOLS],
   ];
 
   it.each(catalogs)("fit every profile as written: %s", (_name, tools) => {

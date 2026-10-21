@@ -38,7 +38,7 @@ describe("Store message cache", () => {
     const reply = store.appendMessage(bot.threadId, { role: "bot", kind: "text", text: "reply" });
     store.patchMessage(bot.threadId, reply.id, { text: "edited reply" });
     store.branchMessage(bot.threadId, first.id, "second try");
-    for (let i = 0; i < 5; i++) store.appendMessage(bot.threadId, { role: "bot", kind: "screen", png: `frame-${i}`, mime: "image/png" });
+    for (let i = 0; i < 5; i++) store.appendMessage(bot.threadId, { role: "bot", kind: "text", text: `note-${i}` });
     const before = store.messagesFor(bot.threadId);
     const snapshot = structuredClone({ messages: before, leaf: store.activeLeaf(bot.threadId), path: store.activePath(bot.threadId) });
 

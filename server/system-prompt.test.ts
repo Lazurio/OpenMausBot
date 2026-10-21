@@ -173,7 +173,7 @@ describe("SIGN_IN_PROMPT", () => {
 
 describe("shared sentences", () => {
   it("each begins with one space so they concatenate onto the persona line", () => {
-    for (const sentence of [COMPOSIO_PROMPT, CREDENTIAL_PROMPT, TRIGGER_PROMPT, ROUTINE_EXECUTION_PROMPT, AUTOMATION_REPLY_PROMPT, LEARN_PROMPT, WEBHOOK_PROMPT, PROFILE_PROMPT, SIGN_IN_PROMPT]) {
+    for (const sentence of [CREDENTIAL_PROMPT, TRIGGER_PROMPT, ROUTINE_EXECUTION_PROMPT, AUTOMATION_REPLY_PROMPT, LEARN_PROMPT, WEBHOOK_PROMPT, PROFILE_PROMPT, SIGN_IN_PROMPT]) {
       expect(sentence.startsWith(" ")).toBe(true);
       expect(sentence.startsWith("  ")).toBe(false);
     }

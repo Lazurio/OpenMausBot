@@ -2620,8 +2620,6 @@
   "computer.android.agentNote": "Ajan kontrolü aynı yetkilendirilmiş USB bağlantısını kullanır. Telefon yardımcı uygulaması, hesap, Tailscale veya kablosuz eşleme gerekmez.",
   "computer.android.harnessNote": "Bağlandıktan sonra, telefonunuzda bir Android uygulamasını açması veya bir görevi tamamlaması için uyumlu herhangi bir Maus'tan istekte bulunun. Birlikte gelen Phone Harness becerisi telefon istekleri için otomatik olarak yüklenir.",
   "computer.android.step2": "Telefon hakkında bölümünde {buildNumber} seçeneğine yedi kez dokunarak Geliştirici seçeneklerini etkinleştirin, ardından {usbDebugging} özelliğini açın.",
-  "mcp.claude.title": "Claude Code MCP sunucularımı da kullan",
-  "mcp.claude.aria": "Claude Code MCP sunucularımı kullan",
   "mcp.claude.error": "Bu ayar kaydedilemedi. Tekrar deneyin.",
   "chat.error.manageUsage": "Kullanımı yönet",
   "engineSetup.grok.notInstalled": "grok.com aboneliğinizle çalışan Grok burada kurulu değil. Bunun yerine bir xAI API anahtarı kullanın.",

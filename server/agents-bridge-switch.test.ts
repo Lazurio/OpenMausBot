@@ -97,12 +97,12 @@ describe("which engines a turn is bridged on", () => {
     // the chat-completions runtime, by every driver that runs on it
     ["openai-compat"], ["cerebras"], ["grok"], ["groq"], ["meta"], ["minimax"], ["mistral"],
   ])("bridges %s", (driverKind) => {
-    expect(engineBridgeRefusal(ON, { driverKind }, {}, HOST)).toBeNull();
+    expect(engineBridgeRefusal({ driverKind }, {}, HOST)).toBeNull();
     expect(agentsToolBridgeEnv(ON, { driverKind }, {})).toEqual(on);
   });
 
   it("bridges Claude Code, on a current CLI in a folder whose settings name none of these tools", () => {
-    expect(engineBridgeRefusal(ON, CLAUDE, {}, HOST)).toBeNull();
+    expect(engineBridgeRefusal(CLAUDE, {}, HOST)).toBeNull();
     expect(agentsToolBridgeEnv(ON, CLAUDE, {})).toEqual(on);
   });
 
@@ -112,7 +112,7 @@ describe("which engines a turn is bridged on", () => {
     // /etc/codex/config.toml and managed_config.toml, and its PreToolUse and
     // PermissionRequest hooks: each can take a rule about a tool by name.
     const reason = "Codex reads its own layered configuration and hooks, which this version does not examine";
-    expect(engineBridgeRefusal(ON, { driverKind: "codex", instanceId: "codex" }, {}, HOST)).toBe(reason);
+    expect(engineBridgeRefusal({ driverKind: "codex", instanceId: "codex" }, {}, HOST)).toBe(reason);
     // whatever its environment says about where that configuration is
     expect(agentsToolBridgeEnv(ON, { driverKind: "codex", environment: { CODEX_HOME: join(folder(), "gone") } }, { HOME: folder() })).toEqual(off);
     expect(agentsToolBridgeEnv({}, { driverKind: "codex" }, { OMB_AGENTS_TOOL_BRIDGE: "1" })).toEqual(off);
@@ -124,8 +124,8 @@ describe("which engines a turn is bridged on", () => {
     // extension's tool_call handler sees the name in the call, as this
     // server's own does (drivers/pi-mcp-extension.ts).
     const reason = "Pi loads the person's own extensions, which can block a tool by its name, and this version does not examine them";
-    expect(engineBridgeRefusal(ON, { driverKind: "piAgent", instanceId: "pi" }, {}, HOST)).toBe(reason);
-    expect(engineBridgeRefusal(ON, { driverKind: "piAgent", cwd: folder() }, {}, HOST)).toBe(reason);
+    expect(engineBridgeRefusal({ driverKind: "piAgent", instanceId: "pi" }, {}, HOST)).toBe(reason);
+    expect(engineBridgeRefusal({ driverKind: "piAgent", cwd: folder() }, {}, HOST)).toBe(reason);
     expect(agentsToolBridgeEnv(ON, { driverKind: "piAgent" }, {})).toEqual(off);
     expect(agentsToolBridgeEnv({}, { driverKind: "piAgent" }, { OMB_AGENTS_TOOL_BRIDGE: "1" })).toEqual(off);
   });
@@ -137,7 +137,7 @@ describe("which engines a turn is bridged on", () => {
     // not shown to qualify, and anything nobody has heard of
     ["museCode"], ["someFutureDriver"], [""],
   ])("does not bridge %s", (driverKind) => {
-    expect(engineBridgeRefusal(ON, { driverKind, version: "2.1.232" }, {}, HOST)).toEqual(expect.any(String));
+    expect(engineBridgeRefusal({ driverKind, version: "2.1.232" }, {}, HOST)).toEqual(expect.any(String));
     expect(agentsToolBridgeEnv(ON, { driverKind }, {})).toEqual(off);
     expect(agentsToolBridgeEnv({}, { driverKind }, { OMB_AGENTS_TOOL_BRIDGE: "1" })).toEqual(off);
   });
@@ -148,7 +148,7 @@ describe("which engines a turn is bridged on", () => {
 
   it("sorts the default fleet the same way: its Claude and API-model engines, and none of Codex, Pi or its ACP agents", () => {
     const fleet = instanceConfigs({});
-    const bridged = new Set(Object.entries(fleet).filter(([, instance]) => engineBridgeRefusal(ON, turnEngine({ instanceId: "any", driverKind: instance.driver }, { any: instance }, { version: "2.1.232 (Claude Code)" }, CLAUDE.cwd), {}, HOST) === null).map(([id]) => id));
+    const bridged = new Set(Object.entries(fleet).filter(([, instance]) => engineBridgeRefusal(turnEngine({ instanceId: "any", driverKind: instance.driver }, { any: instance }, { version: "2.1.232 (Claude Code)" }, CLAUDE.cwd), {}, HOST) === null).map(([id]) => id));
     for (const id of ["claude", "openaiCompat", "mistral", "cerebras", "groq", "meta"]) expect(bridged.has(id), id).toBe(true);
     // the default `grok` is the ACP agent, not the API-key driver
     for (const id of ["codex", "pi", "grok", "kimi", "droid", "cursor", "antigravity", "opencodeGo", "museCode", "qwen", "hermes", "cline"]) expect(bridged.has(id), id).toBe(false);
@@ -161,9 +161,9 @@ describe("which engines a turn is bridged on", () => {
       expect(agentsToolBridgeEnv(ON, CLAUDE, { OMB_CLAUDE_INHERIT_USER_CONFIG: "1" })).toEqual(off);
       expect(agentsToolBridgeEnv(ON, { ...CLAUDE, environment: { OMB_CLAUDE_INHERIT_USER_CONFIG: "1" } }, {})).toEqual(off);
       // the instance's environment is laid over the server's, as the driver lays it
-      // and the person's own Claude Code MCP servers are part of that setup
-      // neither is a reason on another engine
       expect(agentsToolBridgeEnv(ON, { ...CLAUDE, environment: { OMB_CLAUDE_INHERIT_USER_CONFIG: "0" } }, { OMB_CLAUDE_INHERIT_USER_CONFIG: "1" })).toEqual(on);
+      // it is no reason on another engine
+      expect(agentsToolBridgeEnv(ON, { driverKind: "openai-compat" }, { OMB_CLAUDE_INHERIT_USER_CONFIG: "1" })).toEqual(on);
     });
 
     const PATTERNS = "the engine's tool patterns name the agents server or match tools by pattern";

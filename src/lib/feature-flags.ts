@@ -42,10 +42,6 @@ export function showToolCallsEnabled(config: FeatureFlagConfig | null | undefine
   return config?.features?.showToolCalls === true;
 }
 
-export function claudeUserMcpEnabled(config: FeatureFlagConfig | null | undefined): boolean {
-  return config?.features?.claudeUserMcp === true;
-}
-
 export function claudeUserSkillsEnabled(config: FeatureFlagConfig | null | undefined): boolean {
   return config?.features?.claudeUserSkills === true;
 }

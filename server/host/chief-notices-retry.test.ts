@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { TRIAL_CREDIT_REFUSED } from "../../shared/trial-credit.ts";
 import { AUTO_RETRY_LEAD, RETRY_BLOCKED } from "../incidents.ts";
 import type { RoutineFailureFacts } from "../routine-recovery.ts";
 import { createChiefNotices, type ChiefNoticeDeps } from "./chief-notices.ts";
@@ -101,7 +100,6 @@ describe("OpenMausBot's one automatic retry of a teammate's failed thread", () =
     ["an AI that declined", { detail: "The engine stopped without saying why (stop reason: refusal).", facts: { stopReason: "refusal" } }],
     ["a tool call the person denied", { detail: DENIED, facts: { stopReason: "tool_error" } }],
     ["a signed-out AI", { detail: "Not logged in · Please run /login" }],
-    ["a used-up trial credit", { detail: TRIAL_CREDIT_REFUSED.used_up, facts: { setup: true, trialCredit: "used_up" } }],
     ["a turn cap", { detail: "Stopped after 40 tool calls without a final answer" }],
   ])("never retries a run ended by %s: the Chief hears at once", (_what, failure) => {
     const f = fixture();

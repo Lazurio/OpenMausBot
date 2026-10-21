@@ -149,10 +149,9 @@ export function claudeInheritWarning(env: NodeJS.ProcessEnv): ProviderSnapshot["
     title: "Bots inherit this machine's Claude Code setup",
     message:
       "OMB_CLAUDE_INHERIT_USER_CONFIG=1 is set on the OpenMausBot process, so every Claude bot also loads this " +
-      "computer's own MCP servers, connectors, skills, hooks and personal CLAUDE.md on every turn — often thousands " +
-      "of extra tokens per model call, and tools nobody gave the bot. Unless a bot genuinely needs a server from " +
-      "your user-scope Claude config, remove the variable and restart; add the server under Settings → MCP servers " +
-      "or the bot project's .mcp.json instead.",
+      "computer's own connectors, skills, hooks, settings and personal CLAUDE.md on every turn — often thousands " +
+      "of extra tokens per model call, and tools nobody gave the bot. Bots already get the MCP servers of your " +
+      "user-scope Claude config; unless a bot genuinely needs the rest, remove the variable and restart.",
   };
 }
 
@@ -822,7 +821,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
       claudeEnvironment(config.managed ? undefined : model, { ...process.env, ...input.environment }, config.configDir, input.environment);
     const catalogEnv = environment();
     if (inheritsUserConfig(catalogEnv)) {
-      console.error(`claude (${instanceId}): OMB_CLAUDE_INHERIT_USER_CONFIG=1 — bots inherit this machine's Claude Code MCP servers, skills, hooks and CLAUDE.md on every turn; remove it unless a bot needs a user-scope server`);
+      console.error(`claude (${instanceId}): OMB_CLAUDE_INHERIT_USER_CONFIG=1 — bots inherit this machine's Claude Code connectors, skills, hooks, settings and CLAUDE.md on every turn; remove it unless a bot needs them`);
     }
     let models = config.managedModels ? { default: config.managedModels[0], options: config.managedModels.map(id => ({ id, label: id })) } : STATIC_CLAUDE_MODELS;
     const refreshModels = async () => {
@@ -1063,7 +1062,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
       const isolated = !inheritsUserConfig(turnEnvironment);
       if (isolated) {
         // Without these every turn gets this machine's MCP servers, connectors, skills, hooks and CLAUDE.md (one desktop: 407 tools, ~10k tokens).
-        if (!turn.mcpFromUserConfig && claudeCliSupports(cliVersion, "--strict-mcp-config")) args.push("--strict-mcp-config");
+        if (claudeCliSupports(cliVersion, "--strict-mcp-config")) args.push("--strict-mcp-config");
         if (claudeCliSupports(cliVersion, "--setting-sources")) args.push("--setting-sources", "project");
         if (turn.userSkillsDir) args.push("--add-dir", turn.userSkillsDir);
       }
@@ -1120,6 +1119,12 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
           if (Object.hasOwn(mcpServers, name)) continue;
           mcpServers[name] = server;
           botOwned.add(name);
+        }
+      }
+      // The machine's own servers come last, as in Claude Code, and stay ungated like a server it loads itself.
+      if (isolated && turn.mcpFromUserConfig && !turn.guestConfined) {
+        for (const [name, server] of Object.entries(userMcpServers(turnEnvironment))) {
+          if (!Object.hasOwn(mcpServers, name)) mcpServers[name] = server;
         }
       }
       for (const name of botOwned) {

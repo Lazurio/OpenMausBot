@@ -177,9 +177,13 @@ describe("Settings in Simple mode", () => {
     const html = open("updates");
     expect(html).toMatch(/>OpenMausBot [^<]+<\/div>/);
     for (const shown of ["Check for updates", "Replay welcome tour", "Diagnostics"]) expect(placement(html, shown), shown).toBe("shown");
+  });
+
   it("keeps the Claude Code skills switch under MCP calls in Advanced, with no switch for the MCP servers Claude bots always load", () => {
     fixture.advancedMode = true;
     const html = render();
+    expect(html.indexOf('aria-label="Use my Claude Code skills"')).toBeGreaterThan(html.indexOf("MCP calls"));
+    expect(html).not.toContain("Claude Code MCP servers");
   });
 
   it("checks the server's version from a browser", () => {

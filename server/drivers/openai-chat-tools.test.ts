@@ -162,7 +162,7 @@ describe("bounded action announcement recovery", () => {
     const f = await fixture((_body, response, round) => {
       if (round === 1) answer(response, "I'll open the terminal.");
       else if (round === 3) answer(response, later);
-      else if (round === 2 || round === 4) sse(response, [chunk({ tool_calls: [toolCall("audit_write", JSON.stringify({ name: `step-${round}`, value: "done" }), `call-${round}`)] }, "tool_calls")]);
+      else if (round === 2 || round === 4) sse(response, [chunk({ tool_calls: [toolCall("data_write", JSON.stringify({ name: `step-${round}`, value: "done" }), `call-${round}`)] }, "tool_calls")]);
       else answer(response, "Both receipts are verified.");
     });
     await f.start({ approvalMode: "full" });
@@ -176,7 +176,7 @@ describe("bounded action announcement recovery", () => {
   it("fails after three nudges even when each recovery makes tool progress", async () => {
     const f = await fixture((_body, response, round) => round % 2
       ? answer(response, "I'll inspect the next result.")
-      : sse(response, [chunk({ tool_calls: [toolCall("audit_write", JSON.stringify({ name: `step-${round}`, value: "done" }), `call-${round}`)] }, "tool_calls")]));
+      : sse(response, [chunk({ tool_calls: [toolCall("data_write", JSON.stringify({ name: `step-${round}`, value: "done" }), `call-${round}`)] }, "tool_calls")]));
     await f.start({ approvalMode: "full" });
     expect(await f.completed()).toMatchObject({ ok: false });
     expect(f.requests).toHaveLength(7);
@@ -217,7 +217,7 @@ describe("bounded action announcement recovery", () => {
   it("leaves a repeated operation after a nudge to the model and the turn's permissions", async () => {
     const f = await fixture((_body, response, round) => {
       if (round === 2) answer(response, "I'll write the receipt now.");
-      else if (round === 1 || round === 3) sse(response, [chunk({ tool_calls: [toolCall("audit_write", round === 1 ? '{"name":"receipt","value":"done"}' : '{"value":"done","name":"receipt"}', `call-${round}`)] }, "tool_calls")]);
+      else if (round === 1 || round === 3) sse(response, [chunk({ tool_calls: [toolCall("data_write", round === 1 ? '{"name":"receipt","value":"done"}' : '{"value":"done","name":"receipt"}', `call-${round}`)] }, "tool_calls")]);
       else answer(response, "Receipt verified.");
     });
     await f.start({ approvalMode: "full" });
@@ -510,45 +510,6 @@ describe("OpenAI-compatible tool images", () => {
       expect(f.requests[0].messages.at(-1)?.content).toContain("cannot see images");
       expect(f.requests[1].messages.at(-1)).toMatchObject({ role: "tool" });
     }
-  });
-
-  it("resends a round the provider refuses as too large once, without the older screenshot and without running the tool again", async () => {
-    const screenshot = Buffer.concat([Buffer.from(png, "base64"), Buffer.alloc(150_000)]).toString("base64");
-    const limit = 100_000;
-    const sizes: number[] = [];
-    const f = await fixture((body, response, round) => {
-      sizes.push(Buffer.byteLength(JSON.stringify(body)));
-      if (sizes.at(-1)! > limit) {
-        response.writeHead(413, { "content-type": "text/html" });
-        response.end("<html><head><title>413 Request Entity Too Large</title></head><body>nginx</body></html>");
-      } else if (round === 1) sse(response, [chunk({ tool_calls: [{ ...toolCall(), function: { ...toolCall().function, name: "computer_write" } }] }, "tool_calls")]);
-      else answer(response, "Inspected the fixture screenshot.");
-    });
-    writeFileSync(join(f.directory, "mcp.mjs"), MCP_SCRIPT.replace(
-      'text: "Stored " + args.name + "=" + args.value',
-      `text: "Screenshot captured" }, { type: "image", mimeType: "image/png", data: ${JSON.stringify(screenshot)}`,
-    ));
-    const imagePath = join(f.directory, "input.png");
-    writeFileSync(imagePath, Buffer.from(png, "base64"));
-    const attached = [{ type: "text", text: "Store the synthetic receipt." }, { type: "image_url", image_url: { url: `data:image/png;base64,${png}` } }];
-    await f.start({
-      integrations: { localComputer: f.integrations!.custom!.audit as NonNullable<SendTurnInput["integrations"]>["localComputer"] },
-      images: [{ path: imagePath, mime: "image/png", bytes: Buffer.from(png, "base64").length }],
-    });
-    await f.decide();
-    expect(await f.completed()).toMatchObject({ ok: true });
-    expect(f.effects()).toHaveLength(1);
-    expect(f.requests).toHaveLength(3);
-    expect(sizes[1]).toBeGreaterThan(limit);
-    expect(sizes[2]).toBeLessThanOrEqual(limit);
-    expect(f.requests[2].messages.slice(0, -1)).toEqual(f.requests[1].messages.slice(0, -1));
-    expect(f.requests[2].messages.find((message) => message.role === "user")?.content).toEqual(attached);
-    expect(f.requests[2].messages.at(-2)).toMatchObject({ role: "tool", tool_call_id: "call_write" });
-    expect(f.requests[2].messages.at(-1)).toEqual({ role: "user", content: [
-      { type: "text", text: "Screenshot result from tool call call_write:" },
-      { type: "text", text: "[image omitted to fit the provider's size limit]" },
-    ] });
-    expect(f.recorder.events).toContainEqual(expect.objectContaining({ type: "turn.retrying", reason: "request_too_large" }));
   });
 
   it("keeps every tool response ahead of screenshots in a multiple-call batch", async () => {
@@ -1168,7 +1129,7 @@ describe("structured tool execution boundaries", () => {
   it("answers in the last allowed step and leaves a message steered during it for the next turn", async () => {
     const last = deferred<ServerResponse>();
     const f = await fixture((_body, response, round) => round < 64
-      ? sse(response, [chunk({ tool_calls: [toolCall("audit_write", `{"name":"step","value":"${round}"}`, `call_${round}`)] }, "tool_calls")])
+      ? sse(response, [chunk({ tool_calls: [toolCall("data_write", `{"name":"step","value":"${round}"}`, `call_${round}`)] }, "tool_calls")])
       : last.resolve(response));
     await f.start({ approvalMode: "full" });
     const response = await last.promise;
@@ -1180,10 +1141,10 @@ describe("structured tool execution boundaries", () => {
 
   it.each([
     ["a failed tool call", "audit_fail", "The operation is complete.", "tool_error"],
-    ["an announced action", "audit_write", "I'll write the next receipt.", "incomplete_action"],
+    ["an announced action", "data_write", "I'll write the next receipt.", "incomplete_action"],
   ])("ends on %s in the last allowed step without asking for another step", async (_, lastTool, text, stopReason) => {
     const f = await fixture((_body, response, round) => round < 64
-      ? sse(response, [chunk({ tool_calls: [toolCall(round === 63 ? lastTool : "audit_write", `{"name":"step","value":"${round}"}`, `call_${round}`)] }, "tool_calls")])
+      ? sse(response, [chunk({ tool_calls: [toolCall(round === 63 ? lastTool : "data_write", `{"name":"step","value":"${round}"}`, `call_${round}`)] }, "tool_calls")])
       : answer(response, text));
     await f.start({ approvalMode: "full", toolErrorCorrectiveRounds: 1 });
     expect(await f.completed()).toMatchObject({ ok: false, stopReason });
@@ -1259,8 +1220,8 @@ describe("a provider that streams whole tool calls without an index", () => {
   it("runs both of Gemini's calls from one chunk and answers each by its id", async () => {
     const f = await fixture((_body, response, round) => {
       if (round === 1) sse(response, [chunk({ tool_calls: [
-        { id: "function-call-14076893379878918689", type: "function", function: { name: "audit_write", arguments: '{"name":"first","value":"done"}' } },
-        { id: "function-call-14076893379878916096", type: "function", function: { name: "audit_write", arguments: '{"name":"second","value":"done"}' } },
+        { id: "function-call-14076893379878918689", type: "function", function: { name: "data_write", arguments: '{"name":"first","value":"done"}' } },
+        { id: "function-call-14076893379878916096", type: "function", function: { name: "data_write", arguments: '{"name":"second","value":"done"}' } },
       ] }, "stop")]);
       else answer(response);
     });

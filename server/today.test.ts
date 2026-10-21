@@ -176,7 +176,6 @@ describe("needs you", () => {
     const rex = w.store.createBot({ name: "Rex", modelSelection: { instanceId: "claude", model: "claude-sonnet-5" } });
     const zed = w.store.createBot({ name: "Zed", modelSelection: { instanceId: "grok", model: "grok-5" } });
     const lou = w.store.createBot({ name: "Lou", modelSelection: { instanceId: "claude", model: "claude-sonnet-5" } });
-    const kai = w.store.createBot({ name: "Kai", modelSelection: { instanceId: "claude", model: "claude-sonnet-5" } });
     w.fail(w.atlas.threadId, at(9), "Invalid API key · Please run /login", { setup: true });
     w.fail(lou.threadId, at(8), "401 Unauthorized: OAuth token has expired");
     w.fail(w.pepper.threadId, at(9, 30), "You've hit your usage limit. Try again at 3pm.");

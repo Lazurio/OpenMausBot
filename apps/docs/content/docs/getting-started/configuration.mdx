@@ -64,6 +64,7 @@ Source and headless installations can give separate Claude instances different b
 
 A bot on the Claude engine gets its integrations (agents, phone), its own project's `.mcp.json` and the MCP servers of this machine's Claude Code user scope (`~/.claude.json`, what `claude mcp add --scope user` registers), as every agent on the machine does; on a Lazurio Environment these include Executor and Computer Use. A project server wins over a user-scope one of the same name. It does **not** load the rest of this machine's Claude Code setup: claude.ai connectors, your skills and agents, your hooks and settings, or your personal `~/.claude/CLAUDE.md`. Loading those into every turn of every bot cost one measured desktop about 407 extra tools and 10k tokens per model call.
 
+`OMB_CLAUDE_INHERIT_USER_CONFIG=1` on the OpenMausBot process turns that isolation off again, for every Claude bot, until the variable is removed. It exists to recover a bot that genuinely depended on your hooks or settings, and it is easy to forget: nothing in the chat looks different, only the token usage does. While it is set, **Settings → Engines** shows a warning on the Claude engine and the server logs one line at startup. The supported fix is to register the server the bot needs in the user scope or the bot project's `.mcp.json`, then unset the variable and restart.
 
 ### ACP session reuse
 
