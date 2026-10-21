@@ -2816,7 +2816,7 @@
   "computer.android.step2": "Enable Developer options by tapping {buildNumber} seven times in About phone, then turn on {usbDebugging}.",
   "mcp.claude.error": "Could not save this setting. Try again.",
   "mcp.claudeSkills.title": "Also use my Claude Code skills",
-  "mcp.claudeSkills.desc": "On: Claude bots also load every skill in your ~/.claude/skills folder, straight from the folder: scripts and reference files included, and your edits reach them right away. Only skills come along; your hooks, MCP servers and CLAUDE.md stay out, so bots with tool limits keep working.",
+  "mcp.claudeSkills.desc": "On: Claude bots also load every skill in your ~/.claude/skills folder, straight from the folder: scripts and reference files included, and your edits reach them right away. This switch covers skills only; your hooks and CLAUDE.md stay out. The MCP servers registered in your Claude Code user settings reach every Claude bot whether this is on or off.",
   "mcp.claudeSkills.aria": "Use my Claude Code skills",
   "chat.error.manageUsage": "Manage usage",
   "engineSetup.grok.notInstalled": "Grok with your grok.com subscription isn't installed on this server. Use an xAI API key instead.",

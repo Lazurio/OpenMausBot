@@ -2678,7 +2678,7 @@
   "computer.android.step2": "Ative as opções do desenvolvedor tocando sete vezes em {buildNumber}, em Sobre o telefone, depois ative {usbDebugging}.",
   "mcp.claude.error": "Não foi possível salvar esta configuração. Tente novamente.",
   "mcp.claudeSkills.title": "Usar também minhas habilidades do Claude Code",
-  "mcp.claudeSkills.desc": "Ligado: os bots do Claude também carregam todas as habilidades da sua pasta ~/.claude/skills, direto da pasta: scripts e arquivos de referência incluídos, e suas edições chegam a eles na hora. Só as habilidades vêm junto; seus hooks, servidores MCP e CLAUDE.md ficam de fora, então bots com limites de ferramentas continuam funcionando.",
+  "mcp.claudeSkills.desc": "Ligado: os bots do Claude também carregam todas as habilidades da sua pasta ~/.claude/skills, direto da pasta: scripts e arquivos de referência incluídos, e suas edições chegam a eles na hora. Esta chave controla só as habilidades; seus hooks e CLAUDE.md ficam de fora. Os servidores MCP registrados nas suas configurações de usuário do Claude Code chegam a todos os bots do Claude, com a chave ligada ou desligada.",
   "mcp.claudeSkills.aria": "Usar minhas habilidades do Claude Code",
   "chat.error.manageUsage": "Gerenciar uso",
   "engineSetup.grok.notInstalled": "O Grok com sua assinatura do grok.com não está instalado neste servidor. Use uma chave de API da xAI.",
