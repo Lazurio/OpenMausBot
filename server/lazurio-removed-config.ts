@@ -10,6 +10,8 @@ const REMOVED_CONFIG_KEYS: ReadonlyArray<readonly string[]> = [
   ["newBotDefaults", "profile", "approvePeerComms"],
   // DEV-6673, LAZURIO.md principle 3: every bot gets the Environment's tools; there is no per-bot tool selection.
   ["newBotDefaults", "profile", "toolScope"],
+  // DEV-6673, LAZURIO.md principles 3 and 5: Claude bots always load the Environment's Claude Code MCP servers.
+  ["features", "claudeUserMcp"],
   // DEV-6673 M4a: MausBot's own browser; bots work in the Environment browser.
   ["browserEngine"], ["browserProfiles"], ["features", "browser"],
   ...["browser", "browserProfile"].map((key) => ["newBotDefaults", "profile", key]),

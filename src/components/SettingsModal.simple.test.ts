@@ -118,10 +118,10 @@ describe("Settings in Simple mode", () => {
     expect(blocks(html)).toEqual(["general"]);
   });
 
-  it("keeps the Claude Code switches under MCP calls, now that MausBot has no MCP servers page", () => {
+  it("keeps the Claude Code skills switch under MCP calls, with no switch for the MCP servers Claude bots always load", () => {
     const html = render();
-    expect(html.indexOf('aria-label="Use my Claude Code MCP servers"')).toBeGreaterThan(html.indexOf("MCP calls"));
-    expect(html).toContain("Also use my Claude Code skills");
+    expect(html.indexOf('aria-label="Use my Claude Code skills"')).toBeGreaterThan(html.indexOf("MCP calls"));
+    expect(html).not.toContain("Claude Code MCP servers");
   });
 
   it("stacks Model providers, API keys and Decision model on AI, each under its heading", () => {

@@ -72,8 +72,9 @@ one line is logged naming the kind of error and nothing of what was read.
 Claude Code is not bridged when any of these holds:
 
 - The bot inherits this machine's own Claude Code setup
-  (`OMB_CLAUDE_INHERIT_USER_CONFIG=1`, or **Also use my Claude Code MCP
-  servers**).
+  (`OMB_CLAUDE_INHERIT_USER_CONFIG=1`). The MCP servers of the machine's Claude
+  Code user scope, which every Claude turn gets, are no reason: they hold no rule
+  about a tool's name, and a harness server of the same name wins.
 - An entry of the engine's `tools` or `disallowedTools`, which go to the CLI as
   written (`server/drivers/claude.ts:1580-1583`), names the agents server or
   has a wildcard in a tool's name.

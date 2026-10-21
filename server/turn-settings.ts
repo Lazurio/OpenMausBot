@@ -1,7 +1,7 @@
 import { lstatSync, mkdirSync, readlinkSync, rmdirSync, statSync, symlinkSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { claudeUserMcpEnabled, mcpCallTimeoutMinutes, type AppConfig } from "./config.ts";
+import { mcpCallTimeoutMinutes, type AppConfig } from "./config.ts";
 import { correctiveRounds } from "./host/loop-guard.ts";
 
 export function claudeUserSkillsEnabled(cfg: AppConfig): boolean {
@@ -65,7 +65,7 @@ export function settingsTurnFields(cfg: AppConfig, dataDir: string, restrictsMcp
   const userSkillsDir = claudeUserSkillsEnabled(cfg) ? claudeUserSkillsDir(dataDir, home) : null;
   if (!claudeUserSkillsEnabled(cfg)) forgetClaudeUserSkillsDir(dataDir);
   return {
-    mcpFromUserConfig: claudeUserMcpEnabled(cfg) && !restrictsMcp,
+    mcpFromUserConfig: !restrictsMcp,
     ...(userSkillsDir ? { userSkillsDir } : {}),
     mcpCallTimeoutMs: mcpCallTimeoutMinutes(cfg) * 60_000,
     toolErrorCorrectiveRounds: correctiveRounds(cfg),
