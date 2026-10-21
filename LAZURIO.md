@@ -174,6 +174,31 @@ upstream's card with its own CLI command, run on the Environment's machine;
 ACP's native `authenticate` for them is that same CLI login, not a
 credential MausBot holds.
 
+**Codex on the Environment's own AI (decided on 2026-10-21, the Organization
+Admin).** Lazurio Machines configure Codex for the Organization's AI pool or
+gateway in its system layer, `/etc/codex/config.toml`: a model provider that
+needs no OpenAI sign-in and, for a gateway, its one model. Codex then needs no
+ChatGPT login, and Lazurio's T3 Code reads it so. MausBot asks Codex the same
+way, on the app-server it already asks for the account at every engine check:
+the effective configuration (`config/read`, whose `origins` name the layer of
+each value) and the account (`account/read`, `requiresOpenaiAuth`). When the
+system layer sets a provider other than `openai` that needs no OpenAI sign-in,
+Codex counts as signed in and shows no sign-in card; a bare model id goes
+without `modelProvider`, so Codex uses its configured provider for turns,
+resumed threads and background calls; and the configuration's `model` is
+Codex's default, so new bots default to Codex with it. A provider set anywhere
+else (the person's own `~/.codex/config.toml`, a project's `.codex`, a flag),
+`openai` and an answer MausBot cannot read keep upstream's routing: a bare id
+is an official model and goes to `openai`, so a local provider such as oMLX
+never takes an official model. Visitors of a public Environment keep every
+MausBot feature, routines included; the provider's spending cap is the
+backstop. The Lazurio side is `server/drivers/lazurio-codex-environment.ts`
+with hooks in the Codex driver, its catalog and its account read;
+`server/drivers/lazurio-codex-environment.test.ts` and
+`server/lazurio-codex-environment.e2e.test.ts` cover that layer, an `openai`
+provider with and without a login, an unreadable configuration and a local
+provider in `~/.codex/config.toml`.
+
 The person's language comes from the shell's document, `lazurio.shell.v1` at
 `/.lazurio/shell.json` on this origin (`locale`; Czech unless the profile is
 English). The link is shown only when everything binds to this Environment:

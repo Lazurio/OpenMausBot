@@ -38,7 +38,8 @@ import { commandSummary, toolDetailPreview } from "../tool-summary.ts";
 import { codexDeveloperInstructions, syncCodexInstructions } from "./codex-instructions.ts";
 import { volatileContextNote, withContextNote } from "./prompt-split.ts";
 import type { ApprovalMode } from "../../shared/approval-mode.ts";
-import { codexAccountEmail, codexHome } from "./codex-identity.ts";
+import { type CodexAccount, codexHome, readCodexAccount } from "./codex-identity.ts";
+import { codexEnvironmentCatalog, type CodexEnvironmentProvider } from "./lazurio-codex-environment.ts";
 import { CODEX_MISSING_CREDENTIALS, CODEX_SIGN_IN_EXPIRED, codexNotSignedIn, codexSignInExpired, codexSignInRefused, codexUserError, type CodexRoute } from "./codex-errors.ts";
 import { codexLoginCheck, codexLoginStatus, storedCodexLogin } from "./codex-login.ts";
 import { keyRejected, noteKeyAccepted, noteKeyRejected } from "../key-rejections.ts";
@@ -485,6 +486,13 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
     const loginRefused = () => { const mark = loginMark(); if (mark) noteKeyRejected(...mark); };
     const loginAccepted = (mark = loginMark()) => { if (mark) noteKeyAccepted(...mark); };
     const loginRejected = () => { const mark = loginMark(); return mark !== null && keyRejected(...mark); };
+    // Lazurio: the provider of the Environment's Codex configuration, as the latest engine check read it; a
+    // turn waits for a check under way. The server checks the engines before it runs turns.
+    let codexEnvironment: CodexEnvironmentProvider | null = null;
+    let accountRead: Promise<CodexAccount> | null = null;
+    const readAccount = () => accountRead ??= readCodexAccount(config.cli, childEnv())
+      .then((account) => { codexEnvironment = account.environment; return account; }).finally(() => { accountRead = null; });
+    const configuredEnvironment = async () => accountRead ? (await accountRead).environment : codexEnvironment;
     const listeners = new Set<RuntimeEventListener>();
     interface Turn {
       stop: () => Promise<boolean>;
@@ -534,8 +542,9 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
       const { threadId } = turn;
       const approvalMode: ApprovalMode = turn.approvalMode ?? (config.fullAuto ? "full" : "ask");
       let autoAcceptPermissions = approvalMode === "full";
+      const configured = await configuredEnvironment();
       const chatgptTurn = ownLogin &&
-        decodeCodexSelection(turn.model || models.default).modelProvider === OFFICIAL_CODEX_PROVIDER;
+        decodeCodexSelection(turn.model || models.default, configured).modelProvider === OFFICIAL_CODEX_PROVIDER;
       const route: CodexRoute = chatgptTurn ? "own" : "other";
       const signedOut = chatgptTurn && await loginCheck(childEnv()) === "missing";
       assertNotRemoved();
@@ -1313,7 +1322,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
         autoAcceptPermissions = approvalMode === "full";
         const selection = config.managed
           ? { model: turn.model, modelProvider: "openmaus_company" }
-          : decodeCodexSelection(turn.model);
+          : decodeCodexSelection(turn.model, configured);
         const cursor = typeof turn.resumeCursor === "string" ? turn.resumeCursor : null;
         let startedModel: string | null = null;
         let resumedNativeThread = false;
@@ -1438,6 +1447,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
 
   const snapshot = async (): Promise<ProviderSnapshot> => {
     const env = childEnv();
+    const reading = config.managed ? null : readAccount();
     const version = await new Promise<string | null>((resolve) => {
       execCli(config.cli, ["--version"], { timeout: 8000, env }, (err, stdout) =>
         resolve(err ? null : stdout.trim()),
@@ -1448,12 +1458,14 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
     const previousCliVersion = modelsCliVersion;
     modelsCliVersion = version;
     if (previousCliVersion !== null && previousCliVersion !== version) await refreshModels();
+    const account = await reading;
+    if (account?.environment) return { state: "available", version, authenticated: true, update: await codexReleaseUpdate(version, config.cli), billing: "subscription" };
     const authenticated = await codexLoginStatus(config.cli, env) === "signed-in";
     if (authenticated && loginRejected()) {
       return { state: "available", version, authenticated: false, reason: CODEX_SIGN_IN_EXPIRED,
         update: await codexReleaseUpdate(version, config.cli), billing: "subscription" };
     }
-    const email = authenticated ? await codexAccountEmail(config.cli, env) : null;
+    const email = authenticated ? account?.email ?? null : null;
     return {
       state: "available",
       version,
@@ -1477,9 +1489,10 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
       }
       providerArgs = managedCodexArgs(config.managed);
     }
-    const id = codexBackgroundModel(models);
+    const configured = await configuredEnvironment();
+    const id = configured?.model ?? codexBackgroundModel(models);
     if (!id) throw new Error("Codex lists no model for background calls. Refresh models in Settings → Model providers → Codex.");
-    const selection = config.managed ? { model: id, modelProvider: null } : decodeCodexSelection(id);
+    const selection = config.managed ? { model: id, modelProvider: null } : decodeCodexSelection(id, configured);
     if (!config.managed) providerArgs = codexLocalProviderArgs(env, id);
     return runCodexOneShot({
       spawn: spawnCli,
@@ -1501,7 +1514,7 @@ export const CodexDriver: ProviderDriver<CodexConfig> = {
     displayName: input.displayName,
     enabled: input.enabled,
     get models() {
-      return models;
+      return codexEnvironmentCatalog(models, codexEnvironment);
     },
     refreshModels,
     ...(startupModelRefresh ? { startupModelRefresh } : {}),
