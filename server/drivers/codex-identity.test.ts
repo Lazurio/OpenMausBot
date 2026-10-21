@@ -4,10 +4,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { removeTempDir } from "../testing/cleanup.ts";
-import { codexAccountEmail, codexHome } from "./codex-identity.ts";
+import { codexHome, readCodexAccount } from "./codex-identity.ts";
 
 const FAKE_CLI = join(dirname(fileURLToPath(import.meta.url)), "..", "testing", "fake-codex-app-server.ts");
 const BELL = String.fromCharCode(7);
+
+const codexAccountEmail = async (...args: Parameters<typeof readCodexAccount>) => (await readCodexAccount(...args)).email;
 
 describe("Codex account identity", () => {
   let home: string;
@@ -40,6 +42,7 @@ describe("Codex account identity", () => {
     expect(calls().calls).toEqual([
       { method: "initialize", params: { clientInfo: { name: "openmausbot", version: "1" } } },
       { method: "initialized", params: {} },
+      { method: "config/read", params: { includeLayers: false } },
       { method: "account/read", params: { refreshToken: false } },
     ]);
     expect(calls().env.CODEX_HOME).toBe(join(home, ".codex"));
@@ -94,7 +97,7 @@ describe("Codex account identity", () => {
       '    if (message.method !== "account/read") continue;',
       '    process.stderr.write("synthetic-private-token-must-not-escape");',
       '    if (process.env.EDGE_MODE === "malformed") process.stdout.write("not-json\\n");',
-      '    if (process.env.EDGE_MODE === "oversized") process.stdout.write("x".repeat(20_000));',
+      '    if (process.env.EDGE_MODE === "oversized") process.stdout.write("x".repeat(300_000));',
       '    if (process.env.EDGE_MODE === "secret-error") process.stdout.write(JSON.stringify({ id: message.id, error: { message: "synthetic-private-token-must-not-escape" } }) + "\\n");',
       '  }',
       '});',

@@ -8,6 +8,7 @@ import type { ModelCatalog } from "../contracts.ts";
 import { qualifiedModelLabel } from "../contracts.ts";
 import { killCliTree, spawnCli } from "../procs.ts";
 import { codexHome } from "./codex-identity.ts";
+import type { CodexEnvironmentProvider } from "./lazurio-codex-environment.ts";
 import { mergeLocalInject } from "./local-inject.ts";
 
 export const STATIC_CODEX_MODELS: ModelCatalog = {
@@ -38,7 +39,7 @@ export function encodeCodexSelection(provider: string, model: string): string {
   return `${provider}${SEP}${model}`;
 }
 
-export function decodeCodexSelection(id: string | null | undefined): {
+export function decodeCodexSelection(id: string | null | undefined, environment?: CodexEnvironmentProvider | null): {
   model: string | null;
   modelProvider: string | null;
 } {
@@ -48,7 +49,8 @@ export function decodeCodexSelection(id: string | null | undefined): {
     return { model: id.slice(sep + SEP.length), modelProvider: id.slice(0, sep) };
   }
   // A bare id is official: a new cloud model must not fall through to the user's local provider.
-  return { model: id, modelProvider: MODEL_ID.test(id) ? OFFICIAL_CODEX_PROVIDER : null };
+  // Lazurio: the Environment's own provider takes it, as Codex's configuration says.
+  return { model: id, modelProvider: !environment && MODEL_ID.test(id) ? OFFICIAL_CODEX_PROVIDER : null };
 }
 
 interface CodexAppServerModel {
