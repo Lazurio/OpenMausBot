@@ -188,6 +188,7 @@ NodeTest.test("the Lazurio shell slot survives a rebuild on a new upstream tag",
   // Padding, not margin: #root is full width under an overflow-hidden body.
   // Upstream's own safe-area inset stays inside the rail's padding.
   NodeAssert.match(page, /body > #root \{ box-sizing: border-box; padding-left: calc\(var\(--lazurio-rail-width, 0px\) \+ env\(safe-area-inset-left, 0px\)\); \}/);
+  NodeAssert.match(page, /<lazurio-rail app="automate"><\/lazurio-rail>\s*<div id="root"><\/div>\s*<lazurio-buddy><\/lazurio-buddy>/);
   // The column head is the first thing in the sidebar's top bar, above the upstream top row.
   NodeAssert.match(sidebar, /<GlassBar edge="top">\n(?:\s*\{\/\*[^\n]*\*\/\}\n)?\s*\{createElement\("lazurio-column-head", \{ active: "automate" \}\)\}/);
   NodeAssert.equal(sidebar.match(/lazurio-column-head/g)?.length, 1);
