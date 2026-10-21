@@ -368,12 +368,25 @@ that the server starts no browser or agent-browser process.
   start on it and nothing needs setting; Full also survives an engine
   change. Questions and missing credentials still reach a person; GitHub
   rights and branch rules stay the limit.
+- **Bots and automations from the command line**: `openmausbot routine`,
+  `webhook` and `bot list|show|create|update|model`, and the same routine and
+  webhook operations as tools of `openmausbot mcp`
+  ([`docs/headless-cli.md`](docs/headless-cli.md#bots)).
+  Agents and Buddy make bots, give them their instructions and models, and
+  manage MausBot's automations through this CLI, as a person does in the app
+  and on its Automations page, in every Environment they reach, without
+  attaching the MCP server. The Environment
   is the boundary (Lazurio decision 0172), and the server trusts a caller on
   its own computer as its owner, named by the port of the Machine's MausBot
   (`--port` or `OMB_PORT`). On an Environment the command is the release's
   `cli.js` under `~/.local/share/lazurio/mausbot/current/`, run with the
   Environment's `node`. A webhook's secret is printed only with
   `--show-secret`, or saved to a file only its owner can read. Each command
+  calls its MCP tool (`scripts/mcp-automations.ts` for routines and webhooks;
+  `create_bot`, `update_bot_profile` and `set_bot_model` for bots, the first
+  two also taking a bot's instructions, its SOUL.md), which uses the app's own
+  routes, so a bot the CLI makes is the same record as one MCP makes.
+  Upstream-friendly; propose it upstream.
 
 ## What the overlay removes
 
