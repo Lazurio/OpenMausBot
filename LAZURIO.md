@@ -78,6 +78,15 @@ builds them.
    contract. MausBot builds no browser, viewer, profile manager, egress proxy
    or `agent-browser` configuration of its own.
 5. **Programs run on the Environment's screen.** Programs installed in the
+   Environment (Blender, for example) run on its one screen. Bots control
+   them through the Environment's Computer Use, the `computer` tools every
+   agent on the Environment gets, taking turns with the other agents, since
+   there is one mouse and keyboard; the browser keeps running beside it.
+   Computer Use is a service of the Environment, not of MausBot (Operator
+   decision of 2026-10-21): LazurioPlatform runs it on the screen and
+   registers it for every agent like Executor, and MausBot keeps no computer
+   machinery of its own. People watch the screen on the Environment desktop,
+   the second wave of the Environment browser plan (DEV-6646).
 6. **Everything starts in the Lazurio Folder.** Bots start in the Folder,
    read its `AGENTS.md` and guides, and create worktrees as those guides say.
 7. **Results reach people through Chat.** A bot hands a result worth
@@ -98,6 +107,7 @@ builds them.
     an exact upstream tag, Lazurio-only code lives in Lazurio-named modules,
     and each change says which principle it serves.
 
+**Today against the principles (2026-10-21).**
 - **Done:** removed MausBot's own computers and its own control of the
   screen of the machine it runs on, integrations, sign-ins, Cloud and
   telemetry (1, 3 and 8); per-bot tool selection, so every bot gets the
@@ -110,6 +120,8 @@ builds them.
   browser and Computer panel are removed (4,
   [The Environment browser](#the-environment-browser)); the Folder as every
   bot's start (6).
+- **Not yet:** no report to Chat (7). Bots get the Environment's Computer Use
+  (5) as soon as the Platform registers it; MausBot needs nothing more.
 
 Until a gap is closed the sections below describe the code as it is; plan
 DEV-6673 tracks each gap.
@@ -127,6 +139,17 @@ upstream own keep `openmausbot` (the release assets, the npm package and its
 Bots use the Environment's sign-ins like every other agent there (Lazurio
 decisions 0162 and 0172), Composio included: they work in the Lazurio
 Folder, read its agent instructions and call the `composio` CLI the operator
+signed in from the Launchpad Settings, and get the MCP servers the Platform
+registers for every agent, Executor and Computer Use (`computer`) among them.
+Codex bots read them from `~/.codex/config.toml` themselves. A Claude bot's
+turn runs isolated from the person's Claude Code setup, so the server forwards
+the user scope of `~/.claude.json` (where `claude mcp add --scope user`
+writes) with the Folder's `.mcp.json`; Claude Code 2.1.306 would read that
+scope only together with the person's settings and hooks. A project server
+wins over a user one of the same name, and neither shadows MausBot's own.
+Other engines (pi, the ACP agents, the API models) get only MausBot's own
+servers and whatever their own CLI configures; the Platform registers for
+Codex and Claude, the engines the Launchpad signs in. MausBot's own
 connected apps, computers and sign-ins are removed from the code
 ([below](#what-the-overlay-removes)). Narrower access than the Environment's
 means a separate Environment.
@@ -399,11 +422,16 @@ signed-in accounts, and integrations come from the Environment.
 - **Own integrations**: Composio (key, managed broker and its Worker,
   connector tools, per-bot app switches, the Apps panel and its sidebar
   button), HighLevel, Whop, the tool directory for big apps, the per-bot MCP
+  server registry, the first-run import of other apps' settings, skills
+  and MCP servers, and the switch that left the machine's own MCP servers out
+  of Claude bots (`features.claudeUserMcp`, refused with 400 and dropped from
   a saved config). Since v0.1.130 also treg research and the X card with
   their keys, the phone's apps as bot tools, app-event Automations (app
   triggers, `list_trigger_events`), MCP app connections, a team's shared
   connections, apps a bot inherits from its Chief and the suggestion to add
   a helper-model key. Every Claude bot gets the Environment's user-scope MCP
+  servers with the Folder's `.mcp.json`; Codex bots read
+  `~/.codex/config.toml` ([above](#in-a-lazurio-environment)).
 - **Own sign-ins**: saved logins (`fill_login`), 1Password and the in-app
   Claude, Codex and Grok sign-in flows, the ChatGPT plan engine with its own
   OpenAI sign-in (the Codex engine already reads the Environment's ChatGPT
@@ -442,6 +470,10 @@ signed-in accounts, and integrations come from the Environment.
   `export --force` still removes the captures an earlier export listed. The
   documentation no longer offers viewing a computer, a Boat or a VPS, or control
   of the host, and the manifest's forbidden strings keep those claims out. Bots
+  work in their shell and the Environment browser, and with the programs on the
+  Environment's screen through the Environment's Computer Use, the `computer`
+  tools LazurioPlatform registers for every agent (principle 5); none of the
+  machinery above comes back for it.
 - **MausBot Cloud**: purchase and upsell, the Pro plan and its pop-up, Cloud
   credit, the usage meter and plan cards, sleep and wake, a Cloud's first
   hour, what a Cloud's bots say to connect and the keys it holds, the Team
