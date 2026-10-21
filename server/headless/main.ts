@@ -1,8 +1,8 @@
 import { HEADLESS_USAGE } from "../cli-usage.ts";
 import { EXIT, HeadlessError, MUTATING_VERBS, parseCommand } from "./args.ts";
 import {
-  botList, botShow, routineCreate, routineDelete, routineList, routineRun, routineShow, routineUpdate, webhookCreate, webhookDelete, webhookList,
-  webhookRotate,
+  botCreate, botList, botModel, botShow, botUpdate, routineCreate, routineDelete, routineList, routineRun, routineShow, routineUpdate, webhookCreate,
+  webhookDelete, webhookList, webhookRotate,
 } from "./automations.ts";
 import { explain, loadMcp, openClient, type ClientDeps, type HeadlessClient } from "./client.ts";
 import { doctor, edit, interrupt, list, messages, newBot, newChannel, send, setModel } from "./commands.ts";
@@ -110,9 +110,18 @@ export const VERB_HELP: Record<string, string> = {
   --show-secret prints it. Without a prompt, each call's own task field is the work.`,
   "webhook delete": "openmausbot webhook delete WEBHOOK [--dry-run]\n  Delete a webhook (by name or id); its address stops answering.",
   "webhook rotate": "openmausbot webhook rotate WEBHOOK (--secret-file FILE [--force] | --show-secret) [--dry-run]\n  Give a webhook a new secret; the old one stops working at once.",
-  bot: "openmausbot bot list | bot show BOT\n  Your bots, or one bot with its routines and webhooks.",
+  bot: "openmausbot bot list | show | create | update | model   (see help bot create)\n  Your bots: one with its routines and webhooks, a new one, its profile or its model.",
   "bot list": "openmausbot bot list\n  Your bots and what each is doing (the same as openmausbot bots).",
   "bot show": "openmausbot bot show BOT\n  One bot by name or id: its team, model and conversations, and its routines and webhooks.",
+  "bot create": `openmausbot bot create NAME [--title TEXT] [--description TEXT] [--team TEAM] [--model INSTANCE/MODEL [--effort E]]
+                [--prompt TEXT | --prompt-file FILE] [--dry-run]
+  Make a bot. The prompt is its instructions (its SOUL.md): how it works and what it always or never does
+  (--prompt - or --prompt-file - reads them from stdin). --description is the line rosters and other bots see.
+  Without --model it starts on the workspace's default model. Then give it work with openmausbot run.`,
+  "bot update": `openmausbot bot update BOT [--name NAME] [--title TEXT] [--description TEXT] [--team TEAM | --no-team]
+                [--prompt TEXT | --prompt-file FILE] [--dry-run]
+  Change a bot's profile (by name or id): only what you give changes, and a prompt replaces its instructions.`,
+  "bot model": "openmausbot bot model BOT INSTANCE/MODEL [--effort E] [--task ID] [--dry-run]\n  Change an idle bot's model (or one idle conversation's, with --task); openmausbot models lists them.",
 };
 
 export interface HeadlessOptions {
@@ -132,7 +141,8 @@ const VERBS: Record<string, (ctx: VerbContext) => Promise<VerbOutcome>> = {
   "team apply": teamApplyVerb, "team export": teamExportVerb, "engine set": engineVerb, "engine list": engineVerb, connect: connectVerb,
   "routine list": routineList, "routine show": routineShow, "routine create": routineCreate, "routine update": routineUpdate,
   "routine delete": routineDelete, "routine run": routineRun, "webhook list": webhookList, "webhook create": webhookCreate,
-  "webhook delete": webhookDelete, "webhook rotate": webhookRotate, "bot list": botList, "bot show": botShow,
+  "webhook delete": webhookDelete, "webhook rotate": webhookRotate, "bot list": botList, "bot show": botShow, "bot create": botCreate,
+  "bot update": botUpdate, "bot model": botModel,
 };
 
 async function execute(argv: readonly string[], options: HeadlessOptions, io: HeadlessIo): Promise<{ outcome: VerbOutcome; output: Output; client?: HeadlessClient }> {

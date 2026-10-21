@@ -17,7 +17,13 @@ creates a routine and pauses, reschedules, runs and deletes it, the server's
 `GET /api/routines` showing each change; it saves a webhook's secret to a
 `0600` file, the webhook accepts a call with that secret and refuses a wrong
 one, a rotation turns the old secret away, no output carries a secret, and
-`openmausbot mcp` lists the same routines and webhooks.
+`openmausbot mcp` lists the same routines and webhooks. In the same file, the
+entry makes a bot with its instructions read from stdin, `run` gives it work and
+waits until it is done, and the fake engine's system prompt for that turn holds
+the instructions; `bot create` makes the same record as `create_bot` through
+`openmausbot mcp` from the same values; `bot update` and `bot model` change the
+bot (`--dry-run` changes nothing), `openmausbot mcp` reads it back, and a model
+no available engine offers is refused with exit 2.
 
 ```sh
 pnpm exec vitest run server/headless-cli.e2e.test.ts server/headless-automations.e2e.test.ts
