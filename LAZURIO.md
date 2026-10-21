@@ -554,8 +554,9 @@ The slot is two upstream files, each its own line in
 `allowed_upstream_changes`:
 
 - `index.html`: `<script type="module" src="/.lazurio/shell.js" vite-ignore>`
-  (Vite leaves the tag as it is and bundles nothing), `<lazurio-rail>` before
-  `#root` and `<lazurio-buddy>` after it, and
+  (Vite leaves the tag as it is and bundles nothing), `<lazurio-rail app="automate">` before
+  `#root` (with `app`, a click on an Organization in the rail stays in Automate,
+  root decision 0185 point 1) and `<lazurio-buddy>` after it, and
   `body > #root { box-sizing: border-box; padding-left: calc(var(--lazurio-rail-width, 0px) + env(safe-area-inset-left, 0px)); }`
   (padding, not margin, so the app never overflows past the right edge; the
   rail positions itself), and the shell's colour roles on `:root`
