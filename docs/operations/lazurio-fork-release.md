@@ -152,6 +152,7 @@ never committed.
 New bots start on Full access, upstream's default (#2808); the overlay keeps
 it on every server and removes upstream's gates before it
 ([`LAZURIO.md`](../../LAZURIO.md#access-levels)).
+A browser pairs without a typed code only where the Environment gives it one (`GET /.lazurio/mausbot/pairing`); elsewhere it pairs with a code as upstream's does.
 
 ### The Environment browser contract
 

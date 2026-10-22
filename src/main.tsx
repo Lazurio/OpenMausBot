@@ -2,7 +2,9 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import {
+  BROWSER_SIGN_IN_FAILED, previewBrowserSignIn, readSessionState, SERVICE_TRUST_REASON, takeBrowserSignInFromLocation,
 } from "./lib/session";
+import { enterFromPairLink, selfPair } from "./lib/lazurio-self-pairing";
 import { bootstrapBrand } from "./lib/brand";
 import { applySkinChoice, readSkinChoice } from "./lib/skins";
 import { applyChatWidth, readChatWidth } from "./lib/chat-width";
@@ -26,6 +28,9 @@ async function chooseRoot(): Promise<React.ReactNode> {
       const preview = await previewBrowserSignIn(signIn);
       return preview ? <BrowserSignInPage credential={signIn} owner={preview.owner} /> : <PairPage initialCode={null} reason={BROWSER_SIGN_IN_FAILED} />;
     }
+    // Lazurio overlay (pair straight in): a connected browser, or one the Environment pairs, opens the app at once.
+    const entry = await enterFromPairLink();
+    return entry.app ? <App /> : <PairPage initialCode={entry.initialCode} />;
   }
   const session = await readSessionState();
   // Lazurio overlay (pair straight in): the Environment pairs a browser its gateway let in.
