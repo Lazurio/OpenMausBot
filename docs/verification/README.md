@@ -66,6 +66,7 @@ Use only mapped, tested commands:
 - [Engines and Doctor](engines.md)
 - [Cline engine and native loopback qualification](cline.md)
 - [Claude coordination and turn-scoped tools](claude-tool-lifecycle.md)
+- [Lazurio Environment integrations and transition](lazurio-environment-integrations.md)
 - [Codex bot instructions](codex-instructions.md)
 - [Codex native search](codex-native-search.md)
 - [Codex helper event isolation](codex-helpers.md)
