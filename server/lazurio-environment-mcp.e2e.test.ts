@@ -14,6 +14,7 @@ import { launchVerificationServer, runControlOmb, verificationServerEnvironment 
 import { waitForExit } from "./testing/cleanup.ts";
 
 // The entry LazurioPlatform registers with `claude mcp add --scope user` and `codex mcp add`.
+const EXECUTOR = { type: "stdio", command: "/fixture/bin/executor", args: ["mcp"], env: {} };
 const COMPUTER = { type: "stdio", command: "/home/operator/.local/bin/cua-driver", args: ["mcp", "--socket", "/run/user/1000/lazurio-computer/driver.sock"], env: {} };
 
 it("hands Claude and Codex bots the Environment's registered MCP servers, with no switch to leave them out", async () => {
@@ -47,9 +48,10 @@ it("hands Claude and Codex bots the Environment's registered MCP servers, with n
   try {
     await waitForExit(fixture.child, { signal: "SIGTERM" });
     // The Environment's home as LazurioPlatform leaves it, and a config.json in which upstream's switch was saved off.
-    writeFileSync(join(home, ".claude.json"), JSON.stringify({ mcpServers: { computer: COMPUTER } }));
+    writeFileSync(join(home, ".claude.json"), JSON.stringify({ mcpServers: { computer: COMPUTER, executor: EXECUTOR } }));
     mkdirSync(join(home, ".codex"), { recursive: true });
-    writeFileSync(join(home, ".codex", "config.toml"), `[mcp_servers.computer]\ncommand = "${COMPUTER.command}"\nargs = ${JSON.stringify(COMPUTER.args)}\n`);
+    const codexConfig = `[mcp_servers.executor]\ncommand = "${EXECUTOR.command}"\nargs = ${JSON.stringify(EXECUTOR.args)}\n[mcp_servers.computer]\ncommand = "${COMPUTER.command}"\nargs = ${JSON.stringify(COMPUTER.args)}\n`;
+    writeFileSync(join(home, ".codex", "config.toml"), codexConfig);
     const configPath = join(home, "config.json");
     const config = JSON.parse(readFileSync(configPath, "utf8"));
     config.instances.codex.environment = { FAKE_CODEX_DUMP: codexDump };
@@ -77,6 +79,7 @@ it("hands Claude and Codex bots the Environment's registered MCP servers, with n
     // Claude Code's user-scope servers reach the turn as registered; the rest of the machine's setup stays out.
     const claude = JSON.parse(readFileSync(fixture.fixtureDumpPath, "utf8"));
     expect(claude.mcpConfig.mcpServers.computer).toEqual(COMPUTER);
+    expect(claude.mcpConfig.mcpServers.executor).toEqual(EXECUTOR);
     expect(claude.argv).toContain("--strict-mcp-config");
     expect(claude.argv[claude.argv.indexOf("--setting-sources") + 1]).toBe("project");
 
@@ -86,6 +89,20 @@ it("hands Claude and Codex bots the Environment's registered MCP servers, with n
     expect(codex.env.CODEX_HOME).toBeUndefined();
     expect((codex.argv as string[]).filter((arg) => arg.startsWith("mcp_servers.computer"))).toEqual([]);
     expect(codex.argv).not.toContain("--profile");
+    expect(readFileSync(join(home, ".codex", "config.toml"), "utf8")).toBe(codexConfig);
+    expect((codex.argv as string[]).filter((arg) => arg.startsWith("mcp_servers.executor"))).toEqual([]);
+
+    const refreshedExecutor = { ...EXECUTOR, args: ["mcp", "--fixture-revision", "2"] };
+    writeFileSync(join(home, ".claude.json"), JSON.stringify({ mcpServers: { computer: COMPUTER, executor: refreshedExecutor } }));
+    await turn(bots.claude.id, bots.claude.threadId);
+    const refreshed = JSON.parse(readFileSync(fixture.fixtureDumpPath, "utf8"));
+    expect(refreshed.mcpConfig.mcpServers.executor).toEqual(refreshedExecutor);
+
+    writeFileSync(join(home, ".claude.json"), JSON.stringify({ mcpServers: { computer: COMPUTER } }));
+    await turn(bots.claude.id, bots.claude.threadId);
+    const disconnected = JSON.parse(readFileSync(fixture.fixtureDumpPath, "utf8"));
+    expect(disconnected.mcpConfig.mcpServers).not.toHaveProperty("executor");
+    expect(disconnected.mcpConfig.mcpServers.computer).toEqual(COMPUTER);
   } finally {
     if (server) await waitForExit(server, { signal: "SIGTERM" });
     await fixture.close();
