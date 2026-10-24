@@ -1,5 +1,9 @@
 # Verifying OpenMausBot
 
+The [Lazurio passive migration harness](lazurio-migration-acceptance.md) qualifies
+an exact release against an offline copy without live models or integrations.
+It is a separate, explicitly authorized run, not part of normal fixture launch.
+
 OpenMausBot has one development control surface: `pnpm control:omb`. It runs
 the published `openmausbot` verbs (docs/headless-cli.md), which call the MCP
 tools in `scripts/mcp-server.ts`, so verification uses the same URL

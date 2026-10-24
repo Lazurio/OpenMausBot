@@ -84,18 +84,22 @@ receive real credentials or the production data directory.
    sources, private outputs, deduplication and error reporting. Deployment and
    pilot activation are distinct decisions. This PR authorizes neither.
 
-## Return plan
+## Recovery plan
 
-Before update, establish whether the standard release mechanism supports a
-rollback and whether candidate startup rewrites configuration or data. If a
-consistent restoration cannot be demonstrated, do not start the update.
+LazurioPlatform F21 (root 0166) replaces program rollback with forward repair
+and Recovery mode. Do not promise an older program/configuration snapshot as a
+supported recovery operation. A data backup preserves evidence and enables a
+separately qualified, schema-compatible data repair; it does not authorize a
+downgrade or manual selector replacement.
 
-On a failed gate: prevent new work through the approved lifecycle, retain
-redacted diagnostics, restore the prior pinned release **and its matching
-configuration/data snapshot** via that lifecycle, and verify the old browser
-path with jobs still disabled. Repointing only a binary/symlink is insufficient
-if configuration or data changed. Do not re-enable the legacy Composio connector
-or reconnect accounts as an implicit fallback. Provider sessions/grants may
-have changed independently; validate them again before any approved resumption.
-No routine or failed turn is automatically replayed. If the supported rollback
-path is unavailable, stop and ask the release owner rather than inventing one.
+Before production update, qualify the exact release with the
+[passive migration harness](lazurio-migration-acceptance.md), prove consistent
+backup and data repair, and resolve Organization separation. Passive fixture
+transformations (notably disabled memory upkeep) do not establish a production
+maintenance mode. Without a supported procedure preventing all automatic work,
+do not activate the candidate.
+
+On failure retain diagnostics, prevent new work by the supported lifecycle and
+repair forward, escalating to the release owner when needed. Do not re-enable
+the legacy connector, replay failed work or reconnect accounts as an implicit
+fallback. Revalidate provider identity and scopes before any authorized resume.

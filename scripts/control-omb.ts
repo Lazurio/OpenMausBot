@@ -13,6 +13,7 @@ import { runHeadlessCommand } from "../server/headless/main.ts";
 import type { handleToolCall, request } from "./mcp-server.ts";
 import { launchUi, runControlOmbUi } from "./testing/control-omb-ui.ts";
 import { removeTempDir, waitForExit } from "../server/testing/cleanup.ts";
+import { migrationCommand, MIGRATION_HELP } from "./testing/lazurio-migration-acceptance.ts";
 import { freePortBlock } from "../server/testing/ports.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -74,6 +75,8 @@ mutating (an explicit --url or OPENMAUSBOT_URL/OMB_PORT is required):
 
 ${HELP_UI}
 
+${MIGRATION_HELP}
+
 isolated fixture:
   node --experimental-strip-types scripts/control-omb.ts launch
 
@@ -111,6 +114,7 @@ export async function runControlOmb(
   if (command === "help" || command === "--help" || command === "-h") return HELP;
   if (command === "launch") throw new ControlOmbError("launch is available only from the executable CLI");
   if (command === "ui") return runControlOmbUi(args);
+  if (command === "migration") return migrationCommand(args);
   return runHeadlessCommand(argv, {
     env: dependencies.env ?? process.env,
     ...(dependencies.callTool ? { callTool: dependencies.callTool } : {}),
@@ -368,6 +372,7 @@ export async function launchVerificationServer(
 }
 
 export function controlResultSucceeded(command: string, result: unknown): boolean {
+  if (command === "migration") return typeof result === "string" || (result as { status?: string })?.status === "PASS";
   if (command === "doctor") return (result as { ok?: unknown })?.ok === true;
   if (command === "wait") return (result as { status?: unknown })?.status === "settled";
   if (command === "ui" || command === "run" || command === "team") return (result as { ok?: unknown })?.ok !== false;
@@ -386,6 +391,7 @@ function requireForegroundTerminal(command: string): void {
 
 async function main() {
   const command = process.argv[2] ?? "help";
+  if (command === "migration") requireForegroundTerminal("migration");
   if (command === "ui" && process.argv[3] === "launch") {
     requireForegroundTerminal("ui launch");
     await launchUi(process.argv.slice(4));
