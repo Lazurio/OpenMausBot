@@ -9,6 +9,18 @@ import { prepareMigrationCopy, separatePaths } from "./lazurio-migration-snapsho
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 export const MIGRATION_HELP = "migration qualify --archive ABS --manifest ABS --snapshot ABS --work ABS --evidence ABS --input-kind synthetic|private-lumbio [--observe-ms 90000] (Linux x64 only; explicitly starts the isolated candidate)";
 
+/** A partial worker report must never override failed isolation or missing monitoring evidence. */
+export function migrationVerdict(input: {
+  exitCode: number | null; cancelled: boolean; complete: boolean; tracePresent: boolean;
+  workerStatus: unknown; scenarios: unknown; unexpectedConnects: number;
+}): "PASS" | "FAIL" | "BLOCKED" {
+  if (input.unexpectedConnects > 0 || input.workerStatus === "FAIL") return "FAIL";
+  if (input.cancelled || input.exitCode !== 0 || !input.complete || !input.tracePresent) return "BLOCKED";
+  const scenarios = input.scenarios;
+  if (!Array.isArray(scenarios) || !["first-start", "second-start"].every((id) => scenarios.some((entry) => entry?.id === id && entry.status === "PASS"))) return "BLOCKED";
+  return input.workerStatus === "PASS" ? "PASS" : "BLOCKED";
+}
+
 export function migrationIsolationArgs(work: string, candidate: string, harness: string, node: string, observeMs: number, parentNet: string): string[] {
   const args = ["--unshare-all", "--die-with-parent", "--new-session", "--clearenv", "--cap-drop", "ALL", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--dir", "/bin", "--dir", "/usr", "--dir", "/usr/lib"];
   for (const path of ["/lib", "/lib64", "/usr/lib"]) if (existsSync(path)) args.push("--ro-bind", realpathSync(path), path);
@@ -107,8 +119,11 @@ async function qualify(argv: string[]): Promise<unknown> {
   const network = existsSync(trace) ? readFileSync(trace, "utf8") : "";
   const external = network.split("\n").filter((line) => /AF_INET6?\b/.test(line)
     && !(/127\.0\.0\.1/.test(line) && /htons\(1997[12]\)/.test(line)));
+  const status = migrationVerdict({ exitCode: code, cancelled, complete: existsSync(join(runtime, "worker-complete")),
+    tracePresent: network.length > 0, workerStatus: worker.status, scenarios: worker.scenarios, unexpectedConnects: external.length });
   const report = { schema: "lazurio.migration-acceptance.v1", candidate: MIGRATION_CANDIDATE, at: new Date().toISOString(), inputKind: values["input-kind"], transformations,
-    ...worker, status: cancelled && code !== 0 ? "BLOCKED" : external.length ? "FAIL" : worker.status,
+    ...worker, status,
+    ...(status !== worker.status ? { reason: "isolation-or-evidence-incomplete" } : {}),
     unexpectedConnectAttempts: external.length, checks: { artifact: "PASS", privateInputNotExported: true },
   };
   writeFileSync(join(evidence, "report.json"), JSON.stringify(report, null, 2), { mode: 0o600 });

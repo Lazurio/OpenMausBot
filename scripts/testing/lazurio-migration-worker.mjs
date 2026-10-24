@@ -17,6 +17,17 @@ let candidateStarted = false;
 const result = { status: "BLOCKED", scenarios: [], reason: "not-started", browser: "NOT_RUN" };
 const check = (condition, reason) => { if (!condition) throw new Error(reason); };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const normalizedSql = (sql) => sql.replace(/\bIF NOT EXISTS\s+/gi, "").replace(/\s+/g, " ").trim().toLowerCase();
+const schemaAdditions = {
+  messages_thread_at: "CREATE INDEX messages_thread_at ON messages(thread_id, at)",
+  notification_log: `CREATE TABLE notification_log (
+    id TEXT PRIMARY KEY, at INTEGER NOT NULL, kind TEXT NOT NULL,
+    bot_id TEXT NOT NULL, bot_name TEXT NOT NULL, thread_id TEXT NOT NULL,
+    group_id TEXT, title TEXT NOT NULL, body TEXT NOT NULL, avatar_url TEXT,
+    read INTEGER NOT NULL DEFAULT 0
+  )`,
+  notification_log_at: "CREATE INDEX notification_log_at ON notification_log(at)",
+};
 function rows(db, table) {
   return db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(table)
     ? db.prepare(`SELECT * FROM ${table}`).all().map(stable).sort() : [];
@@ -24,10 +35,18 @@ function rows(db, table) {
 function snapshot() {
   const db = new DatabaseSync(join(data, "messages.db"), { readOnly: true });
   let tables;
+  let schema;
   try {
+    schema = Object.fromEntries(db.prepare("SELECT name, sql FROM sqlite_master WHERE sql IS NOT NULL").all().map((row) => [row.name, row.sql]));
+    for (const table of ["messages", "thread_state", "chat_followups", "command_receipts", "memory_files"]) check(Boolean(schema[table]), "required-table-missing");
+    check(db.prepare("PRAGMA quick_check").all().every((row) => row.quick_check === "ok"), "database-integrity-failed");
     check(rows(db, "chat_followups").length === 0, "followups-present");
     check(rows(db, "notification_log").length === 0, "automatic-notification-created");
     tables = Object.fromEntries(["messages", "thread_state", "command_receipts", "memory_files"].map((table) => [table, rows(db, table)]));
+    check(!tables.messages.some((line) => {
+      const row = JSON.parse(line);
+      return row.kind === "goal.run" && JSON.parse(row.json).goalRun?.status === "working";
+    }), "working-goal-present");
   } finally { db.close(); }
   const protectedFiles = {};
   for (const directory of ["attachments", "events", "native", "checkpoints"]) {
@@ -52,7 +71,7 @@ function snapshot() {
     }
   };
   walk(data);
-  return { bots: JSON.parse(readFileSync(join(data, "bots.json"), "utf8")), config: readFileSync(join(data, "config.json"), "utf8"), tables, protectedFiles, files };
+  return { bots: JSON.parse(readFileSync(join(data, "bots.json"), "utf8")), config: readFileSync(join(data, "config.json"), "utf8"), tables, schema, protectedFiles, files };
 }
 function noWork() {
   if (existsSync("/work/guard-events.ndjson")) check(!readFileSync("/work/guard-events.ndjson", "utf8").split("\n").filter(Boolean).some((line) => JSON.parse(line).kind === "denied"), "engine-generation-or-unknown-request");
@@ -112,6 +131,11 @@ async function boot(pass) {
   noWork();
 }
 function compare(before, after, second = false) {
+  for (const [name, sql] of Object.entries(before.schema)) check(after.schema[name] === sql, "existing-schema-changed");
+  for (const [name, sql] of Object.entries(after.schema)) {
+    if (before.schema[name] === undefined) check(!second && schemaAdditions[name] && normalizedSql(schemaAdditions[name]) === normalizedSql(sql), "unexpected-schema-addition");
+  }
+  for (const [name, sql] of Object.entries(schemaAdditions)) check(typeof after.schema[name] === "string" && normalizedSql(after.schema[name]) === normalizedSql(sql), "expected-schema-missing");
   check(stable(before.tables) === stable(after.tables), "message-or-memory-content-changed");
   check(stable(before.protectedFiles) === stable(after.protectedFiles), "protected-files-changed");
   check(before.config === after.config, "config-file-changed");

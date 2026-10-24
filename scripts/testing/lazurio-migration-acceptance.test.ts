@@ -1,9 +1,9 @@
-import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, linkSync, mkdtempSync, mkdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { migrationCommand, migrationIsolationArgs } from "./lazurio-migration-acceptance.ts";
-import { inspectMigrationSnapshot, separatePaths } from "./lazurio-migration-snapshot.ts";
+import { migrationCommand, migrationIsolationArgs, migrationVerdict } from "./lazurio-migration-acceptance.ts";
+import { inspectMigrationSnapshot, prepareMigrationCopy, separatePaths } from "./lazurio-migration-snapshot.ts";
 
 const directories: string[] = [];
 function fixture() {
@@ -39,6 +39,12 @@ describe("migration launcher admission, without launching any candidate", () => 
     const linked = fixture();
     symlinkSync(join(linked, "config.json"), join(linked, "link"));
     expect(() => inspectMigrationSnapshot(linked)).toThrow("special-file");
+    const hardlinked = fixture();
+    linkSync(join(hardlinked, "config.json"), join(hardlinked, "second-link"));
+    expect(() => inspectMigrationSnapshot(hardlinked)).toThrow("special-file");
+    const credentialFile = fixture();
+    writeFileSync(join(credentialFile, ".env"), "FIXTURE_ONLY=true");
+    expect(() => inspectMigrationSnapshot(credentialFile)).toThrow();
   });
   it("builds an empty-root namespace without inheriting network or home", () => {
     const args = migrationIsolationArgs("/fixture/work", "/fixture/artifact", "/fixture/harness", "/fixture/node", 90_000, "net:[fixture]");
@@ -49,5 +55,25 @@ describe("migration launcher admission, without launching any candidate", () => 
     expect(args).not.toContain("/run/user");
     expect(args).not.toContain("--dev-bind");
     expect(args).not.toContain("/");
+  });
+  it("requires clean isolation exit and complete evidence even when the worker says PASS", () => {
+    const complete = { exitCode: 0, cancelled: false, complete: true, tracePresent: true, workerStatus: "PASS",
+      scenarios: [{ id: "first-start", status: "PASS" }, { id: "second-start", status: "PASS" }], unexpectedConnects: 0 };
+    expect(migrationVerdict(complete)).toBe("PASS");
+    for (const partial of [{ exitCode: 1 }, { exitCode: null }, { cancelled: true }, { complete: false }, { tracePresent: false }, { scenarios: [] }, { workerStatus: "unknown" }]) {
+      expect(migrationVerdict({ ...complete, ...partial })).toBe("BLOCKED");
+    }
+    expect(migrationVerdict({ ...complete, unexpectedConnects: 1 })).toBe("FAIL");
+    expect(migrationVerdict({ ...complete, workerStatus: "FAIL" })).toBe("FAIL");
+  });
+  it("keeps the original read-only file unchanged while making its private copy writable", () => {
+    const snapshot = fixture();
+    const work = realpathSync(mkdtempSync(join(tmpdir(), "migration-copy-unit-")));
+    directories.push(work);
+    chmodSync(join(snapshot, "config.json"), 0o400);
+    prepareMigrationCopy(snapshot, work);
+    expect(statSync(join(snapshot, "config.json")).mode & 0o777).toBe(0o400);
+    expect(statSync(join(work, "data/config.json")).mode & 0o777).toBe(0o600);
+    expect(statSync(join(work, "data")).mode & 0o777).toBe(0o700);
   });
 });

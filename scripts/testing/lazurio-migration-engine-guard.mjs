@@ -19,6 +19,7 @@ if (args.length === 1 && args[0] === "--version") {
   for await (const line of createInterface({ input: process.stdin })) {
     let message;
     try { message = JSON.parse(line); } catch { deny(); }
+    if (!message || typeof message !== "object" || typeof message.method !== "string") deny();
     const method = message.method;
     if (method === "initialized" || method === "notifications/initialized") { record("initialized"); continue; }
     let result;

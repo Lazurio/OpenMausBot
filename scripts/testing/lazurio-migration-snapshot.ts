@@ -1,4 +1,4 @@
-import { cpSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 
 export function separatePaths(paths: string[]): void {
@@ -19,9 +19,9 @@ export function inspectMigrationSnapshot(root: string): void {
     for (const entry of readdirSync(directory)) {
       const path = join(directory, entry);
       const stat = lstatSync(path);
-      if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile())) throw new Error("snapshot-special-file");
+      if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile()) || stat.isFile() && stat.nlink !== 1) throw new Error("snapshot-special-file");
       if (++count > 100_000 || (bytes += stat.size) > 512 * 1024 * 1024) throw new Error("snapshot-too-large");
-      if (/^(?:\.composio|\.executor|\.ssh|\.claude|\.codex|providers|sessions\.json(?:\.open)?|hook-tokens|browser-engine-key|environment-id|openmausbot-server\.lease)$/.test(entry)
+      if (/^(?:\.composio|\.executor|\.ssh|\.claude|\.codex|\.env(?:\..*)?|\.netrc|\.npmrc|auth\.json|providers|sessions\.json(?:\.open)?|hook-tokens|browser-engine-key|environment-id|openmausbot-server\.lease)$/.test(entry)
         || /(?:-wal|-shm)$/.test(entry)) throw new Error("snapshot-not-sanitized-or-not-consistent");
       if (stat.isDirectory()) walk(path);
     }
@@ -48,6 +48,16 @@ export function prepareMigrationCopy(snapshot: string, work: string): string[] {
   inspectMigrationSnapshot(snapshot);
   const data = join(work, "data");
   cpSync(snapshot, data, { recursive: true, errorOnExist: true, force: false });
+  inspectMigrationSnapshot(data);
+  const privateWritableCopy = (path: string) => {
+    const stat = lstatSync(path);
+    if (stat.isDirectory()) {
+      chmodSync(path, 0o700);
+      for (const entry of readdirSync(path)) privateWritableCopy(join(path, entry));
+    } else if (stat.isFile() && stat.nlink === 1) chmodSync(path, 0o600);
+    else throw new Error("unsafe-working-copy");
+  };
+  privateWritableCopy(data);
   mkdirSync(join(work, "home"), { mode: 0o700 });
   mkdirSync(join(work, "cwd"), { mode: 0o700 });
   const config = JSON.parse(readFileSync(join(data, "config.json"), "utf8"));
@@ -64,5 +74,5 @@ export function prepareMigrationCopy(snapshot: string, work: string): string[] {
     if (bot.projects?.length) throw new Error("project-paths-need-explicit-fixture-support");
   }
   writeFileSync(join(data, "bots.json"), JSON.stringify(bots), { mode: 0o600 });
-  return ["instances use discovery-only guards", "all bots memoryUpkeep=false", "bot and task cwd=/work/cwd"];
+  return ["working-copy directories=0700 and files=0600", "instances use discovery-only guards", "all bots memoryUpkeep=false", "bot and task cwd=/work/cwd"];
 }

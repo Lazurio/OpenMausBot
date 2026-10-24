@@ -72,6 +72,8 @@ data before any private snapshot is used.
 The untouched input is never written. In its working copy only:
 
 - both engine IDs point to discovery-only guards;
+- working-copy directories/files become owner-only writable (0700/0600), without
+  changing the source snapshot's permissions;
 - every bot has `memoryUpkeep: false`;
 - bot/task working directories point inside the fixture;
 - project-bearing bots are refused until their paths have an explicit contract.
@@ -96,6 +98,11 @@ overrides. Only known removed settings, redundant model copies, derived thread
 timestamps, migration markers and missing SOUL mirrors are accepted. Other data
 file changes fail; only the explicitly enumerated SQLite/lease/session operational
 files are exempt from byte equality. Second start must not change bot data again.
+Database integrity and existing schema must remain valid; only the exact expected
+notification table/index and message-ordering index may be added. A PASS also
+requires a zero exit status from the isolation supervisor, both scenario results,
+the worker completion marker and a nonempty network trace. Missing evidence,
+cancellation and abnormal supervisor exit cannot inherit the worker's PASS.
 
 `report.json` records the candidate, UTC time, input kind, transformations, scope,
 scenario verdicts and unexpected connect count. Application logs and migrated
