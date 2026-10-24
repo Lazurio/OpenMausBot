@@ -28,7 +28,7 @@ describe("migration launcher admission, without launching any candidate", () => 
     expect(() => separatePaths([root, join(root, "nested")])).toThrow("overlapping");
   });
   it("refuses credentials, a live WAL, automatic work and links", () => {
-    for (const name of ["messages.db-wal", "routines.json", "sessions.json"]) {
+    for (const name of ["messages.db-wal", "routines.json", "sessions.json", "calendar-calls.json", "memory-capture-pending.json", "room-handoffs.json"]) {
       const root = fixture();
       writeFileSync(join(root, name), "{}");
       expect(() => inspectMigrationSnapshot(root)).toThrow();

@@ -39,7 +39,8 @@ export function inspectMigrationSnapshot(root: string): void {
       || bot.busy || bot.activity && bot.activity !== "idle"
       || (bot.tasks ?? []).some((task: Record<string, unknown>) => task.busy || task.activity && task.activity !== "idle" || task.goal || task.queue)) throw new Error("unsupported-or-active-bot");
   }
-  for (const file of ["routines.json", "webhooks.json", "github-intake.json", "runtime.db", "groups.json", "external-runtimes.json"]) {
+  for (const file of ["routines.json", "webhooks.json", "github-intake.json", "runtime.db", "groups.json", "external-runtimes.json",
+    "calendar-calls.json", "memory-capture-pending.json", "room-handoffs.json"]) {
     if (readdirSync(root).includes(file)) throw new Error("automatic-work-state-present");
   }
 }

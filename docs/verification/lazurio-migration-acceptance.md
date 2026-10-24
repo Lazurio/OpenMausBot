@@ -26,6 +26,9 @@ bots.json and a consistent messages.db. Create it through an owner-approved
 consistent backup before this harness; never copy a running DB without its WAL.
 The harness rejects WAL/SHM inputs, symlinks, special files, sessions, provider
 directories, CLI credentials, active bots and saved automation/coordinator state.
+The latter includes calendar calls, pending memory capture and legacy room handoffs,
+not only routines and webhooks. Hard-linked files and common credential files are
+also refused. The copied tree is checked again before configuration is read.
 The supported config shape is deliberately restricted to profile/onboarding and
 an optional synthetic Composio section whose three values are `fixture-only`.
 Do not pass a production directory. The harness does not sanitize raw credentials
