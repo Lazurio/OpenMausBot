@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { appendFileSync, closeSync, existsSync, lstatSync, openSync, readFileSync, readdirSync, readlinkSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { migrationDiagnostic, validModelCache } from "./lazurio-migration-contract.mjs";
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const stable = (value) => JSON.stringify(value, (_key, item) => item && !Array.isArray(item) && typeof item === "object"
@@ -14,6 +15,7 @@ if (!Number.isSafeInteger(duration) || duration < 90_000 || duration > 300_000) 
 let child;
 let logFd;
 let candidateStarted = false;
+let phase = "admission";
 const result = { status: "BLOCKED", scenarios: [], reason: "not-started", browser: "NOT_RUN" };
 const check = (condition, reason) => { if (!condition) throw new Error(reason); };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -74,10 +76,14 @@ function snapshot() {
   return { bots: JSON.parse(readFileSync(join(data, "bots.json"), "utf8")), config: readFileSync(join(data, "config.json"), "utf8"), tables, schema, protectedFiles, files };
 }
 function noWork() {
+  if (existsSync("/work/network-events.ndjson")) check(!readFileSync("/work/network-events.ndjson", "utf8").split("\n").filter(Boolean).some((line) => JSON.parse(line).kind === "denied-network-request"), "candidate-network-request-denied");
   if (existsSync("/work/guard-events.ndjson")) check(!readFileSync("/work/guard-events.ndjson", "utf8").split("\n").filter(Boolean).some((line) => JSON.parse(line).kind === "denied"), "engine-generation-or-unknown-request");
   if (existsSync(join(data, "runtime.db"))) {
     const db = new DatabaseSync(join(data, "runtime.db"), { readOnly: true });
-    try { check(rows(db, "assignments").length === 0, "automatic-assignment-created"); } finally { db.close(); }
+    try {
+      db.exec("PRAGMA busy_timeout=5000");
+      check(rows(db, "assignments").length === 0, "automatic-assignment-created");
+    } finally { db.close(); }
   }
   for (const file of ["routines.json", "webhooks.json", "github-intake.json"]) check(!existsSync(join(data, file)), "automatic-work-file-created");
 }
@@ -104,6 +110,7 @@ async function boot(pass) {
       HOME: "/work/home", USERPROFILE: "/work/home", PATH: "/harness/bin", TZ: "UTC", LANG: "C.UTF-8",
       XDG_CONFIG_HOME: "/work/home/.config", XDG_CACHE_HOME: "/work/home/.cache", XDG_DATA_HOME: "/work/home/.local/share", XDG_RUNTIME_DIR: "/work/run",
       TMPDIR: "/tmp", OMB_DATA_DIR: data, OMB_DEFAULT_BOT_CWD: "/work/cwd", OMB_WEBHOOK_PORT: "19972", OMB_TEST_SEALED_PATH: "1",
+      NODE_OPTIONS: "--import=/harness/lazurio-migration-network-guard.mjs",
     }, stdio: ["ignore", logFd, logFd],
   });
   candidateStarted = true;
@@ -144,6 +151,14 @@ function compare(before, after, second = false) {
   const markers = new Set(["thread-model-copies-cleared", "asked-at-filled"]);
   for (const file of new Set([...Object.keys(before.files), ...Object.keys(after.files)])) {
     if (before.files[file] === after.files[file] || operational.test(file) || file === "bots.json") continue;
+    if (!second && !before.files[file] && file === "environment-id") {
+      check(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\s*$/.test(readFileSync(join(data, file), "utf8")), "invalid-new-environment-identity");
+      continue;
+    }
+    if (!second && !before.files[file] && /^providers\/engine-models\/(?:codex|claude|claudeApi|cursor)\.json$/.test(file)) {
+      check(validModelCache(JSON.parse(readFileSync(join(data, file), "utf8"))), "invalid-new-model-cache");
+      continue;
+    }
     if (!second && markers.has(file) && !before.files[file] && after.files[file]) continue;
     const mirror = before.bots.find((bot) => file === `bots/${bot.id}/SOUL.md`);
     if (!second && mirror && !before.files[file] && after.files[file] === hash(mirror.soul)) continue;
@@ -192,18 +207,23 @@ try {
   check(config.instances?.codex?.config?.cli === "/harness/guard-codex" && config.instances?.claude?.config?.cli === "/harness/guard-claude", "unguarded-engine");
   check(JSON.parse(readFileSync(join(data, "bots.json"), "utf8")).every((bot) => bot.memoryUpkeep === false), "memory-upkeep-enabled");
   const before = snapshot();
+  phase = "first-start";
   await boot(1);
+  phase = "first-compare";
   const first = snapshot();
   compare(before, first);
   result.scenarios.push({ id: "first-start", status: "PASS" });
+  phase = "second-start";
   await boot(2);
+  phase = "second-compare";
   compare(first, snapshot(), true);
   result.scenarios.push({ id: "second-start", status: "PASS" });
   result.status = "PASS";
   result.reason = "passive-data-migration-only";
 } catch (error) {
+  result.diagnostic = migrationDiagnostic(error, phase);
   result.status = candidateStarted ? "FAIL" : "BLOCKED";
-  result.reason = error instanceof Error && /^[a-z0-9-]+$/.test(error.message) ? error.message : "migration-check-error";
+  result.reason = error instanceof Error && /^[a-z0-9-]+$/.test(error.message) ? error.message : `migration-check-${result.diagnostic.code}`;
 } finally {
   try { await stop(); } catch { result.status = "FAIL"; result.reason = "candidate-stop-failed"; }
   writeFileSync("/work/result.json", JSON.stringify(result, null, 2), { mode: 0o600 });

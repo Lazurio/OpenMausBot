@@ -1,9 +1,9 @@
 # Passive migration acceptance of 0.1.115-lazurio.7
 
-Status: **Draft; not executed.** This harness changes no production application,
+Status: **Draft; synthetic passive migration PASS (2026-10-25).** This harness changes no production application,
 connection, account, service or schedule. Its CLI explicitly starts a disposable
 candidate, so do not invoke `migration qualify` without separate authorization.
-Unit tests exercise admission and argument construction only, never the candidate.
+Unit tests exercise admission, discovery guards and negative contracts, never the candidate. Runtime qualification requires its own explicit invocation.
 
 ## Intent and boundary
 
@@ -45,8 +45,8 @@ approved disposable directories later.
 
 ## Admission and execution contract
 
-The future invocation takes explicit `--archive`, `--manifest`, `--snapshot`,
-`--work`, `--evidence` and `--input-kind synthetic|private-lumbio` absolute paths;
+The invocation takes explicit `--archive`, `--manifest`, `--snapshot`,
+`--work`, `--evidence` and `--input-kind synthetic|private-org` absolute paths;
 `--observe-ms` defaults to 90000, range 90000–300000, for **each** of two starts.
 Use the foreground `node --experimental-strip-types scripts/control-omb.ts`
 entrypoint with `migration qualify`; package-manager wrapping is refused.
@@ -66,9 +66,7 @@ checks that host runtime paths are absent and verifies the fixture guards and
 memory flags. The `strace` parent follows network connect calls only, never
 exec argv or read/write buffers. Only fixture loopback ports 19971/19972 are
 accepted. Namespace enforcement prevents external connectivity; tracing detects
-unexpected attempts. Failure stops the candidate. These mechanisms are not yet
-runtime-qualified; their negative admission checks must be exercised on synthetic
-data before any private snapshot is used.
+unexpected attempts. Failure stops the candidate. Qualification results apply only to the exact harness revision and synthetic fixture recorded in the evidence; they do not authorize private inputs.
 
 ## Recorded fixture transformations
 
@@ -84,8 +82,15 @@ The untouched input is never written. In its working copy only:
 The baseline is taken **after** these transformations; they are reported separately
 from the candidate's migration. The guards return synthetic version/auth/catalog
 answers and reject every generation, session start/resume and unknown request.
+The exact additional CLI forms `codex login status`, `claude --help` and `claude auth status --json` return only fictional discovery data. Extra arguments and unknown RPCs fail closed, with fixed operation categories instead of raw payloads.
 No prompts, arguments or environment values enter their journal. The native CLIs,
 OAuth and live MCP servers are absent. Ordinary happy-mode fakes are not used.
+
+## Network instrumentation
+
+The pinned CLI spawns its server with a fresh Node argv. An explicit fixture-only `NODE_OPTIONS=--import=/harness/lazurio-migration-network-guard.mjs` therefore carries the fetch guard into both processes and their Node descendants. The parent environment is still cleared, the archive is unchanged and all mounts/network namespaces and the syscall allowlist stay unchanged.
+
+The guard returns empty synthetic JSON catalogs, without opening any socket, for exact bodyless GETs from `server/drivers/local-inject.ts`: `/v1/models` on loopback ports 8080, 11434, 52415, 1234 and 8888; `/v1/models/status` on 8080; `/api/ps` on 11434; and `/api/v0/models` on 1234. It forwards only `GET http://127.0.0.1:19971/api/health` to the real fixture, always with redirects refused. The exact bodyless GET to `https://registry.npmjs.org/@openai/codex/latest` in `server/drivers/codex-release.ts` receives a synthetic offline 503 response, not a latest-version claim; no package download is permitted. Every other fetch records a fixed denial and fails the run even if the application catches it. Native HTTP/socket bypasses remain visible to strace; no additional socket destination is allowed. This tests passive migration with model discovery instrumented, not real provider connectivity.
 
 ## Acceptance and evidence
 
@@ -99,8 +104,7 @@ After graceful stop, compare logical messages/thread state/receipts/memory rows,
 protected file hashes, unchanged config bytes, bot/thread identity and model
 overrides. Only known removed settings, redundant model copies, derived thread
 timestamps, migration markers and missing SOUL mirrors are accepted. Other data
-file changes fail; only the explicitly enumerated SQLite/lease/session operational
-files are exempt from byte equality. Second start must not change bot data again.
+file changes fail. On the first start only, creation of a valid v4 `environment-id` and the four bounded metadata-only model catalogs (`codex`, `claude`, `claudeApi`, `cursor`) is permitted. Neither may change on the second start. Model cache shapes reject credential/prompt fields. Only the explicitly enumerated SQLite/lease/session operational files are exempt from byte equality. Second start must not change bot data again.
 Database integrity and existing schema must remain valid; only the exact expected
 notification table/index and message-ordering index may be added. A PASS also
 requires a zero exit status from the isolation supervisor, both scenario results,
@@ -108,7 +112,7 @@ the worker completion marker and a nonempty network trace. Missing evidence,
 cancellation and abnormal supervisor exit cannot inherit the worker's PASS.
 
 `report.json` records the candidate, UTC time, input kind, transformations, scope,
-scenario verdicts and unexpected connect count. Application logs and migrated
+scenario verdicts and unexpected connect count. Errors include fixed phase/category diagnostics, without raw exception text. Runtime-state polling waits at most five seconds for a concurrent SQLite startup lock; an unresolved lock still fails, never skips the check. Application logs and migrated
 data stay in the private work directory. `PASS` covers passive migration only.
 Browser, real account/scopes, external provider behavior, interruption drills and
 the production maintenance procedure remain separate qualification gates.
@@ -121,3 +125,22 @@ parent-death behavior and PID namespace contain descendants. Preserve evidence,
 fix the cause and retry with new empty outputs and the original offline snapshot.
 Never retry against the partially migrated copy. No downgrade, service restart,
 connection switch, OAuth, routine replay or production recovery is authorized here.
+
+## Recorded synthetic qualification
+
+On 2026-10-25 at 12:05:20 UTC, the pinned archive passed both 90-second
+observations on Linux x64 / Node 24.21.0, using an entirely generated fixture
+with two bots, four threads, 146 messages and one fictional attachment. The
+first-start data/schema comparisons and second-start idempotence both passed;
+the supervisor exited zero, the worker completion marker was present and the
+connect trace contained zero destinations outside the unchanged allowlist.
+The archive SHA-256 and GitHub attestation were verified separately. Original
+fixture hashes remained unchanged. No production data, accounts or services
+were used, copied or changed. The candidate archive was not patched.
+
+This result uses the synthetic discovery instrumentation described above. It
+does not qualify real providers, browser flows, actual accounts/permissions,
+private snapshots, interruption recovery or production maintenance. Prior
+failed attempts are retained as diagnostics; only a fresh final copy passed.
+The harness corrections and remaining review context are tracked in
+[issue #64](https://github.com/Lazurio/OpenMausBot/issues/64).

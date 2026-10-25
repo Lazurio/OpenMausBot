@@ -7,7 +7,7 @@ import { MIGRATION_CANDIDATE, unpackMigrationCandidate } from "./lazurio-migrati
 import { prepareMigrationCopy, separatePaths } from "./lazurio-migration-snapshot.ts";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
-export const MIGRATION_HELP = "migration qualify --archive ABS --manifest ABS --snapshot ABS --work ABS --evidence ABS --input-kind synthetic|private-lumbio [--observe-ms 90000] (Linux x64 only; explicitly starts the isolated candidate)";
+export const MIGRATION_HELP = "migration qualify --archive ABS --manifest ABS --snapshot ABS --work ABS --evidence ABS --input-kind synthetic|private-org [--observe-ms 90000] (Linux x64 only; explicitly starts the isolated candidate)";
 
 /** A partial worker report must never override failed isolation or missing monitoring evidence. */
 export function migrationVerdict(input: {
@@ -48,7 +48,7 @@ async function qualify(argv: string[]): Promise<unknown> {
   } });
   const observe = Number(values["observe-ms"]);
   if (!Number.isSafeInteger(observe) || observe < 90_000 || observe > 300_000) throw new Error("invalid-observation-period");
-  if (!["synthetic", "private-lumbio"].includes(values["input-kind"] ?? "")) throw new Error("explicit-input-kind-required");
+  if (!["synthetic", "private-org"].includes(values["input-kind"] ?? "")) throw new Error("explicit-input-kind-required");
   for (const field of ["archive", "manifest", "snapshot", "work", "evidence"] as const) {
     const path = values[field];
     if (!path || resolve(path) !== path || realpathSync(path) !== path) throw new Error("explicit-existing-real-paths-required");
@@ -83,12 +83,14 @@ async function qualify(argv: string[]): Promise<unknown> {
   mkdirSync(harness, { mode: 0o700 });
   mkdirSync(join(harness, "bin"), { mode: 0o700 });
   copyFileSync(join(HERE, "lazurio-migration-worker.mjs"), join(harness, "worker.mjs"));
+  for (const file of ["lazurio-migration-contract.mjs", "lazurio-migration-network-guard.mjs"]) copyFileSync(join(HERE, file), join(harness, file));
   for (const engine of ["codex", "claude"]) {
     copyFileSync(join(HERE, "lazurio-migration-engine-guard.mjs"), join(harness, `guard-${engine}`));
     chmodSync(join(harness, `guard-${engine}`), 0o500);
     copyFileSync(join(harness, `guard-${engine}`), join(harness, "bin", engine));
     chmodSync(join(harness, "bin", engine), 0o500);
   }
+  copyFileSync(join(HERE, "lazurio-migration-contract.mjs"), join(harness, "bin/lazurio-migration-contract.mjs"));
   const args = migrationIsolationArgs(runtime, join(unpacked, "package"), harness, realpathSync(process.execPath), observe, readlinkSync("/proc/self/ns/net"));
   // strace records connect addresses only, never argv, read/write buffers or model text.
   const trace = join(evidence, "connections.log");

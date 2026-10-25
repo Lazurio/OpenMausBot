@@ -1,11 +1,108 @@
-import { chmodSync, linkSync, mkdtempSync, mkdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, linkSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { migrationCommand, migrationIsolationArgs, migrationVerdict } from "./lazurio-migration-acceptance.ts";
 import { inspectMigrationSnapshot, prepareMigrationCopy, separatePaths } from "./lazurio-migration-snapshot.ts";
+import { engineInvocation, migrationDiagnostic, migrationFetch, validModelCache } from "./lazurio-migration-contract.mjs";
 
 const directories: string[] = [];
+
+describe("migration discovery contract", () => {
+  it("accepts only bounded model catalog metadata, never provider credentials or arbitrary files", () => {
+    const catalog = { default: "fixture", options: [{ id: "fixture", label: "Fixture" }] };
+    expect(validModelCache(catalog)).toBe(true);
+    for (const extra of [{ apiKey: "fictional-secret" }, { prompt: "fictional-secret" }, { custom: "not-a-boolean" }, { contextWindow: -1 }]) {
+      expect(validModelCache({ ...catalog, options: [{ ...catalog.options[0], ...extra }] })).toBe(false);
+    }
+    expect(validModelCache({ ...catalog, token: "fictional-secret" })).toBe(false);
+    expect(validModelCache({ ...catalog, options: [] })).toBe(false);
+  });
+  it("admits exact read-only CLI probes and refuses extra arguments and generation", () => {
+    expect(engineInvocation(true, ["login", "status"])).toBe("login-status");
+    expect(engineInvocation(false, ["--help"])).toBe("help");
+    expect(engineInvocation(false, ["auth", "status", "--json"])).toBe("auth-status");
+    expect(engineInvocation(true, ["app-server"])).toBe("app-server");
+    for (const args of [["login"], ["login", "status", "--token", "fictional-secret"], ["app-server", "--unknown"], ["auth", "status"], ["--version", "extra"]]) {
+      for (const codex of [true, false]) expect(engineInvocation(codex, args)).toMatch(/^denied-/);
+    }
+    expect(engineInvocation(false, ["-p", "fictional prompt"])).toBe("denied-generation-cli");
+    expect(engineInvocation(true, ["exec", "fictional prompt"])).toBe("denied-generation-cli");
+  });
+  it("answers only the pinned local discovery GETs with empty synthetic catalogs", async () => {
+    const journal: string[] = [];
+    const fetch = migrationFetch((kind: string) => journal.push(kind));
+    for (const [port, path] of [[8080, "/v1/models"], [8080, "/v1/models/status"], [11434, "/v1/models"], [11434, "/api/ps"],
+      [52415, "/v1/models"], [1234, "/v1/models"], [1234, "/api/v0/models"], [8888, "/v1/models"]]) {
+      expect(await (await fetch(`http://127.0.0.1:${port}${path}`)).json()).toEqual({ data: [], models: [] });
+    }
+    expect(journal).toEqual(Array(8).fill("synthetic-local-discovery"));
+  });
+  it("refuses generation, body-bearing discovery, redirects and every other fetch without leaking inputs", async () => {
+    const journal: string[] = [];
+    const fetch = migrationFetch((kind: string) => journal.push(kind));
+    for (const url of ["https://example.test/fictional-secret", "http://127.0.0.1:11434/v1/chat/completions",
+      "http://127.0.0.1:8080/v1/models?token=fictional-secret", "http://localhost:8080/v1/models", "http://127.0.0.1:19971/api/health"]) {
+      await expect(fetch(url)).rejects.toThrow("migration-network-request-denied");
+    }
+    await expect(fetch("http://127.0.0.1:8080/v1/models", { method: "POST", body: "fictional prompt" })).rejects.toThrow();
+    const bodyOnly = { body: "fictional prompt" };
+    await expect(fetch("http://127.0.0.1:8080/v1/models", bodyOnly)).rejects.toThrow();
+    await expect(fetch(new Request("http://127.0.0.1:8080/v1/models", { method: "POST", body: "fictional prompt" }))).rejects.toThrow();
+    expect(journal).toEqual(Array(8).fill("denied-network-request"));
+  });
+  it("reports fixed error categories and phases without exception contents", () => {
+    expect(migrationDiagnostic(new TypeError("fictional-secret"), "first-start")).toEqual({ phase: "first-start", code: "type-error" });
+    expect(migrationDiagnostic({ code: "ERR_SQLITE_ERROR", message: "database is locked" }, "first-start")).toEqual({ phase: "first-start", code: "sqlite-busy" });
+    expect(migrationDiagnostic(new Error("fictional-secret"), "second-start")).toEqual({ phase: "second-start", code: "unknown-error" });
+  });
+  it("forwards only fixture health and prohibits following redirects", async () => {
+    const calls: unknown[] = [];
+    const fetch = migrationFetch(() => {}, async (...args: unknown[]) => { calls.push(args); return Response.json({ app: "openmausbot" }); });
+    await fetch("http://127.0.0.1:19971/api/health", { redirect: "follow" });
+    expect(calls).toEqual([["http://127.0.0.1:19971/api/health", { redirect: "error" }]]);
+    await expect(fetch("http://127.0.0.1:19971/api/health?token=fictional-secret")).rejects.toThrow();
+    await expect(fetch("http://127.0.0.1:19971/api/health", { method: "POST" })).rejects.toThrow();
+    await expect(fetch("http://127.0.0.1:19971/api/internal/send")).rejects.toThrow();
+    expect(calls).toHaveLength(1);
+  });
+  it("keeps the known release metadata check offline without permitting package downloads", async () => {
+    const events: string[] = [];
+    const fetch = migrationFetch((kind: string) => events.push(kind), async () => { throw new Error("must-not-connect"); });
+    expect((await fetch("https://registry.npmjs.org/@openai/codex/latest")).status).toBe(503);
+    expect(events).toEqual(["synthetic-release-offline"]);
+    for (const url of ["https://registry.npmjs.org/@openai/codex/-/codex-0.160.1.tgz", "https://registry.npmjs.org/@openai/codex/latest?token=fictional-secret"]) {
+      await expect(fetch(url)).rejects.toThrow("migration-network-request-denied");
+    }
+    await expect(fetch("https://registry.npmjs.org/@openai/codex/latest", { method: "POST" })).rejects.toThrow();
+  });
+  it("the executable guard denies session/generation RPC and extra CLI arguments without logging their payload", () => {
+    const root = fixture();
+    const journal = join(root, "journal.ndjson");
+    const models = join(root, "models.json");
+    writeFileSync(models, '["fixture-model"]');
+    const guard = join(root, "codex");
+    writeFileSync(guard, readFileSync(new URL("./lazurio-migration-engine-guard.mjs", import.meta.url), "utf8")
+      .replace('"/work/guard-events.ndjson"', JSON.stringify(journal)).replace('"/work/fixture-models.json"', JSON.stringify(models)));
+    copyFileSync(new URL("./lazurio-migration-contract.mjs", import.meta.url), join(root, "lazurio-migration-contract.mjs"));
+    const login = spawnSync(process.execPath, [guard, "login", "status"], { encoding: "utf8", timeout: 5000 });
+    expect(login.status).toBe(0);
+    expect(login.stdout).toContain("Logged in using ChatGPT");
+    for (const method of ["thread/start", "thread/resume", "turn/start", "fictional-secret"]) {
+      const request = JSON.stringify({ id: 1, method, params: { prompt: "fictional-secret" } });
+      const call = spawnSync(process.execPath, [guard, "app-server"], { input: `${request}\n`, encoding: "utf8", timeout: 5000 });
+      expect(call.status).toBe(78);
+      expect(call.stdout).toBe("");
+    }
+    expect(spawnSync(process.execPath, [guard, "login", "status", "fictional-secret"], { timeout: 5000 }).status).toBe(78);
+    const events = readFileSync(journal, "utf8");
+    expect(events).toContain("denied-session-or-generation-rpc");
+    expect(events).toContain("denied-unknown-rpc");
+    expect(events).toContain("denied-unknown-cli");
+    expect(events).not.toContain("fictional-secret");
+  });
+});
 function fixture() {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "migration-unit-")));
   directories.push(root);
