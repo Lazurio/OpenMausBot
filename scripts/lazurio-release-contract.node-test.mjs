@@ -221,6 +221,42 @@ NodeTest.test("the rail's padding on #root outranks upstream's #root padding (#3
   }
 });
 
+// LazurioPlatform decision F60, addendum of 2026-10-25: Buddy's launcher stands in the
+// window's bottom-right corner in every app, and while it is drawn the shell sets
+// --lazurio-buddy-clearance, the width it takes from the right edge. The composer column,
+// a chat's and a room's, gives up as much of it as the gutter of its centred cap leaves
+// short, so the send button stays clear of the launcher; unset, the padding is 0.
+NodeTest.test("the composer column keeps Buddy's launcher corner free, and nothing moves without it", async () => {
+  const [page, styles, chat, room] = await Promise.all([
+    read("index.html"),
+    read("src/styles.css"),
+    read("src/components/ChatView.tsx"),
+    read("src/components/GroupView.tsx"),
+  ]);
+  const clearance = "var(--lazurio-buddy-clearance, 0px)";
+  NodeAssert.ok(
+    page.includes(`<style>#root .chat-column-dock { padding-right: clamp(0px, ${clearance} - (100% - var(--chat-column-max) - 2.5rem) / 2, ${clearance}); }</style>`),
+    "index.html pads the composer column by what its gutter leaves short of the launcher's clearance",
+  );
+  // Every read falls back to 0px, so without the property the clamp's ceiling is 0.
+  NodeAssert.deepEqual([...page.matchAll(/var\(--lazurio-buddy-clearance([^)]*)\)/g)].map(([, fallback]) => fallback), [", 0px", ", 0px"]);
+  // The gutter in the rule is the column's own: upstream's centred cap, and no padding of
+  // its own, which the rule would override.
+  const dock = [...styles.matchAll(/\n\.chat-column-dock \{([^}]*)\}/g)].map(([, body]) => body);
+  NodeAssert.equal(dock.length, 1, "src/styles.css styles the composer column once");
+  NodeAssert.equal(styles.match(/\.chat-column-dock\b/g)?.length, 1, "and nowhere else");
+  NodeAssert.match(dock[0], /margin-inline: auto;/);
+  NodeAssert.match(dock[0], /max-width: calc\(var\(--chat-column-max\) \+ 2\.5rem\);/);
+  NodeAssert.doesNotMatch(dock[0], /padding/);
+  for (const [name, source] of [["ChatView", chat], ["GroupView", room]]) {
+    const classes = /ref=\{composerDockRef\} className="([^"]*)"/.exec(source)?.[1]?.split(" ") ?? [];
+    NodeAssert.ok(classes.includes("chat-column-dock"), `${name}'s composer sits in the column`);
+    // Absolutely placed across its pane, so 100% is the pane's width for the cap and the padding alike.
+    NodeAssert.ok(classes.includes("absolute") && classes.includes("inset-x-0"), `${name}'s column spans its pane`);
+    NodeAssert.deepEqual(classes.filter((utility) => /^p[xytrblse]?-/.test(utility)), [], `${name}'s column has no padding of its own`);
+  }
+});
+
 NodeTest.test("the shell takes the active skin's colours through its roles", async () => {
   const [page, styles] = await Promise.all([read("index.html"), read("src/styles.css")]);
   const block = /<style>\s*:root \{([^}]*)\}\s*<\/style>/.exec(page)?.[1];

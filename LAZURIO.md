@@ -435,6 +435,9 @@ that the server starts no browser or agent-browser process.
   two also taking a bot's instructions, its SOUL.md), which uses the app's own
   routes, so a bot the CLI makes is the same record as one MCP makes.
   Upstream-friendly; propose it upstream.
+- **The Lazurio shell slot** in `index.html` and the sidebar, with the room
+  the composer keeps for Buddy's launcher ([below](#the-lazurio-shell));
+  outside Lazurio nothing renders and nothing moves.
 
 ## What the overlay removes
 
@@ -609,6 +612,9 @@ The slot is two upstream files, each its own line in
   root decision 0185 point 1) and `<lazurio-buddy>` after it, and
   `body > #root { box-sizing: border-box; padding-left: calc(var(--lazurio-rail-width, 0px) + env(safe-area-inset-left, 0px)); }`
   (padding, not margin, so the app never overflows past the right edge; the
+  rail positions itself), the room the composer column keeps for Buddy's
+  launcher ([below](#room-for-buddys-launcher)), and the shell's colour roles
+  on `:root` ([below](#colours-of-the-shell)).
 - `src/components/Sidebar.tsx`: `<lazurio-column-head active="automate">` as
   the first child of the sidebar's top bar, above upstream's own top row,
   which stays with all its controls, in the Simple and the full sidebar
@@ -618,6 +624,53 @@ The release contract test checks both, so a rebuild on a new upstream tag
 that loses the slot fails CI. The switch and the rail are plain links to the
 Environment's other origins, so MausBot's router does not change. Nothing
 renders outside Lazurio: without `/.lazurio/shell.js` the elements stay
+undefined, the rail's width is 0, the composer keeps its full width and the
+app behaves as upstream (the browser only logs the failed script). MausBot
+itself is not renamed, and only the Environment skin recolours it
+([below](#the-environment-skin)).
+
+### Room for Buddy's launcher
+
+**Decided on 2026-10-25 (LazurioPlatform decision F60, its addendum of
+2026-10-25).** Buddy's launcher, a 58 px disc, stands 22 px from the window's
+right and bottom edges in every app. While it is drawn, the shell sets
+`--lazurio-buddy-clearance` on the document, the width the launcher takes
+from the window's right edge:
+`calc(58px + var(--lazurio-buddy-right, 22px) + env(safe-area-inset-right, 0px))`.
+MausBot's composer column (`.chat-column-dock`, in a chat and in a room)
+comes within 20 px of its pane's right edge, so the launcher would cover the
+send button and the controls beside it. One rule in `index.html` keeps the
+column out of that corner, as the rail's padding keeps `#root` clear of the
+rail:
+
+```css
+#root .chat-column-dock { padding-right: clamp(0px, var(--lazurio-buddy-clearance, 0px) - (100% - var(--chat-column-max) - 2.5rem) / 2, var(--lazurio-buddy-clearance, 0px)); }
+```
+
+- **Only what the gutter leaves short.** On a wide window the column stops
+  at its cap (upstream's `max-width: calc(var(--chat-column-max) + 2.5rem)`
+  in `src/styles.css`) and centres, which leaves a gutter at its right. The
+  column gives up as much of the clearance as that gutter leaves short: a
+  column as wide as its pane ends the whole clearance short of the edge, a
+  centred one with a gutter wider than the launcher keeps its width. `100%`
+  is the pane's width for the cap and the padding alike.
+- **The composer keeps its 20 px from the launcher**, as from the edge
+  without it. Everything in the column moves with it: the composer and what
+  stacks on it (attachments, queued messages, an approval) and, in a chat,
+  the run card, a call bar and the jump to the latest message.
+- **Unset, nothing moves.** Outside Lazurio, under a Platform before the
+  addendum and wherever Buddy is not drawn, the padding is 0. A release of
+  this fork can therefore go out before that Platform release, as the
+  addendum's rollout order asks.
+
+Known limits: the rule assumes the pane reaches the window's right edge.
+With a side panel open (Prohlížeč, bot settings, the inspector, activity)
+the column still gives up the clearance, while the launcher stands over the
+panel's corner. In Advanced mode the backdrop behind the composer's lower
+half stops where the room begins, so the transcript can show beside and
+below the launcher, as it does around the composer in Simple mode. The
+release contract test pins the rule, the cap it repeats and that nothing
+upstream pads the column, so a rebuild that changes either fails CI.
 
 ### Colours of the shell
 

@@ -105,6 +105,13 @@ jobs:
             # the file-size ratchet (index.ts, the new github-intake.ts), listed above.
             server/webhooks.ts
             # The Lazurio shell slot (issue #16): the loader, the rail, the
+            # padding rule, the shell's colour roles from the skin's tokens,
+            # Buddy and the room the composer column keeps for his launcher
+            # in index.html, and the column head at the top of the sidebar
+            # (two more Sidebar.tsx lines in the file-size ratchet, listed
+            # above). The shell itself is served by the Environment's
+            # Launchpad; without it nothing renders, nothing reads the roles
+            # and nothing moves.
             index.html
             src/components/Sidebar.tsx
             # The Environment skin (Lazurio decision 0208), added the way
