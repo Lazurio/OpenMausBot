@@ -120,8 +120,33 @@ const plainId = (value: string): string | null => {
   return value;
 };
 
-export function threadRefUrl(ref: { botId: string; threadId: string }): string {
-  return THREAD_URL_PREFIX + encodeURIComponent(ref.threadId) + "?bot=" + encodeURIComponent(ref.botId);
+export function threadRefUrl(ref: ThreadRefAddress): string {
+  const owner = ref.botId === undefined ? "" : "?bot=" + encodeURIComponent(ref.botId);
+  return THREAD_URL_PREFIX + encodeURIComponent(ref.threadId) + owner;
+}
+
+const CONVERSATION_PATH_PREFIX = "/c/";
+
+/** The web address of one conversation on the app's own origin: `/c/<thread id>`. */
+export function conversationPath(threadId: string): string {
+  return CONVERSATION_PATH_PREFIX + encodeURIComponent(threadId);
+}
+
+export function isConversationPath(pathname: string): boolean {
+  return pathname.startsWith(CONVERSATION_PATH_PREFIX);
+}
+
+/** The thread a conversation's web address names, spelled exactly as `conversationPath` spells it. */
+export function parseConversationPath(pathname: string): ThreadRefAddress | null {
+  if (!isConversationPath(pathname)) return null;
+  let threadId: string;
+  try {
+    threadId = decodeURIComponent(pathname.slice(CONVERSATION_PATH_PREFIX.length));
+  } catch {
+    return null;
+  }
+  const thread = threadId.includes("/") ? null : plainId(threadId);
+  return thread && conversationPath(thread) === pathname ? { threadId: thread } : null;
 }
 
 export function parseThreadRefUrl(value: string): ThreadRefAddress | null {

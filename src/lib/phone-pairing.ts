@@ -2,6 +2,7 @@ import type { LocaleKey } from "@/locales";
 import type { Action } from "@/state/store";
 import { readMembership } from "./membership";
 import { isOwnerOrAdmin, readSessionState, type SessionState } from "./session";
+import { conversationPath, parseConversationPath } from "./thread-refs";
 
 export type PhonePairingTarget = "computer" | "cloud" | "server";
 
@@ -98,6 +99,9 @@ export function takePhonePairingRequest(href: string): string | null {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
-export function pairedDestination(search: string): string {
-  return new URLSearchParams(search).get("desktop-settings") === "phone" ? "/?desktop-settings=phone" : "/";
+/** Security: every destination is a path written here, never one taken from the address, so pairing never leaves this origin. */
+export function pairedDestination(location: { pathname: string; search: string }): string {
+  const conversation = parseConversationPath(location.pathname);
+  if (conversation) return conversationPath(conversation.threadId);
+  return new URLSearchParams(location.search).get("desktop-settings") === "phone" ? "/?desktop-settings=phone" : "/";
 }

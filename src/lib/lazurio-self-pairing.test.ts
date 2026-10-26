@@ -137,3 +137,11 @@ it("the app's address pairs a signed-out browser with the Environment's code", a
   expect(await selfPair(server({ session: UNAUTHENTICATED, pairing: () => json(200, { kind: "mausbot-pairing", code: SELF_CODE, expiresAt: 1 }) }))).toBe(true);
   expect(pairedCodes()).toEqual([SELF_CODE]);
 });
+
+it("a conversation's address keeps the person's target: the Environment pairs the browser there and the address stays", async () => {
+  const loc = open("/c/8b1b1d62-9d3c-4a1e-9f2a-3c5d7e9b1a04");
+  expect(await selfPair(server({ session: UNAUTHENTICATED, pairing: () => json(200, { kind: "mausbot-pairing", code: SELF_CODE }) }))).toBe(true);
+  expect(pairedCodes()).toEqual([SELF_CODE]);
+  expect(address).toEqual([]);
+  expect(loc.pathname).toBe("/c/8b1b1d62-9d3c-4a1e-9f2a-3c5d7e9b1a04");
+});

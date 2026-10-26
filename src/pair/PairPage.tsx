@@ -43,7 +43,7 @@ export function PairPage({ initialCode, reason }: { initialCode: string | null; 
     let active = true;
     void pairWithCode({ code: initialCode, label, attemptId }).then((result) => {
       if (!active) return;
-      if (result.ok) { location.replace(pairedDestination(location.search)); return; }
+      if (result.ok) { location.replace(pairedDestination(location)); return; }
       setOpening(false);
       setError(result.error);
     });
@@ -69,7 +69,7 @@ export function PairPage({ initialCode, reason }: { initialCode: string | null; 
     const result = await pairWithCode({ code, label, attemptId });
     setBusy(false);
     if (result.ok) {
-      location.replace(pairedDestination(location.search));
+      location.replace(pairedDestination(location));
       return;
     }
     setError(result.error);
@@ -93,7 +93,7 @@ export function PairPage({ initialCode, reason }: { initialCode: string | null; 
         {opening ? null : connected ? (
           <p className="mt-4 text-[13.5px]">
             This browser is already connected.{" "}
-            <a href="/" className="text-accent underline">
+            <a href={pairedDestination(location)} className="text-accent underline">
               Open the app
             </a>
           </p>

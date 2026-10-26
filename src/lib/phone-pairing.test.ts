@@ -157,11 +157,42 @@ describe("the ?desktop-settings=phone request", () => {
   });
 
   it("survives pairing, and nothing else does", () => {
-    expect(pairedDestination("?desktop-settings=phone")).toBe("/?desktop-settings=phone");
-    expect(pairedDestination("?desktop-settings=phone&next=https://evil.example")).toBe("/?desktop-settings=phone");
-    expect(pairedDestination("?desktop-settings=workspaces")).toBe("/");
-    expect(pairedDestination("?next=//evil.example")).toBe("/");
-    expect(pairedDestination("")).toBe("/");
+    const at = (search: string) => pairedDestination({ pathname: "/pair", search });
+    expect(at("?desktop-settings=phone")).toBe("/?desktop-settings=phone");
+    expect(at("?desktop-settings=phone&next=https://evil.example")).toBe("/?desktop-settings=phone");
+    expect(at("?desktop-settings=workspaces")).toBe("/");
+    expect(at("?next=//evil.example")).toBe("/");
+    expect(at("")).toBe("/");
+  });
+});
+
+describe("a conversation's web address", () => {
+  const uuid = "8b1b1d62-9d3c-4a1e-9f2a-3c5d7e9b1a04";
+
+  it("survives pairing where the pairing page shows: in place, at the address", () => {
+    expect(pairedDestination({ pathname: `/c/${uuid}`, search: "" })).toBe(`/c/${uuid}`);
+    expect(pairedDestination({ pathname: `/c/${uuid}`, search: "?desktop-settings=phone" })).toBe(`/c/${uuid}`);
+    expect(pairedDestination({ pathname: "/pair", search: `?c=${uuid}` })).toBe("/");
+  });
+
+  it("never leads off this origin, whatever the address holds", () => {
+    const origin = "https://mausbot.example.test";
+    const hostile = [
+      ["/c/%2F%2Fevil.example", ""],
+      ["/c/https:%2F%2Fevil.example", ""],
+      ["/c//evil.example", ""],
+      ["//evil.example/c/" + uuid, ""],
+      ["/c/%5Cevil.example", ""],
+      ["/c/%0D%0Aevil", ""],
+      ["/c/" + uuid, "?next=https://evil.example"],
+      ["/pair", "?next=//evil.example&desktop-settings=phone"],
+    ] as const;
+    for (const [pathname, search] of hostile) {
+      const destination = pairedDestination({ pathname, search });
+      expect({ pathname, destination, origin: new URL(destination, origin).origin }).toEqual({ pathname, destination, origin });
+      expect(destination).toMatch(/^\/(?!\/)/);
+    }
+    expect(pairedDestination({ pathname: "/c/%5Cevil.example", search: "" })).toBe("/c/%5Cevil.example");
   });
 });
 
