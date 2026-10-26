@@ -157,6 +157,21 @@ jobs:
             server/drivers/codex-identity.ts
             server/drivers/codex-identity.test.ts
             server/testing/fake-codex-app-server.ts
+            # A web address for one conversation, /c/<thread id> (issue #67):
+            # the address and its parser, the hook that opens it the way a
+            # desktop chat link opens once the bots have loaded, and
+            # pairedDestination, which keeps it through the pairing page, with
+            # the pairing page's calls and the tests of each. The page fallback
+            # of server/index.ts already serves the app at any path, and
+            # docs/headless-cli.md (listed above) names the address.
+            src/lib/thread-refs.ts
+            src/lib/thread-refs.test.ts
+            src/hooks/use-external-chat-links.ts
+            src/hooks/use-external-chat-links.test.ts
+            src/lib/phone-pairing.ts
+            src/lib/phone-pairing.test.ts
+            src/pair/PairPage.tsx
+            src/pair/PairPage.test.ts
           )
           # Lazurio ships the open-source edition: upstream's enterprise/
           # folder (OpenMausBot Enterprise License, no redistribution or
