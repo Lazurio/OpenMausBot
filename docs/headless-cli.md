@@ -130,6 +130,13 @@ keeps the words MCP clients already read: `settled` there only says the
 conversation stopped working, so a lead whose work failed is `settled` with
 `state: "failed"` and exit 1.
 
+The result names the conversation as `threadId` (`--wait none --json` prints
+it with `sendId` and `since`). A browser opens that conversation at
+`/c/<threadId>` on the address people use for the server: the app opens it
+with its bot once the bots have loaded, a browser that still has to pair keeps
+the address through the pairing, and an id the app does not know opens the
+app with its notice that the conversation is gone.
+
 `wait TARGET` takes the same options. If nothing is running it returns at
 once with exit 0. `--for turn` waits only for the conversation's own turn.
 `--since MS` (the number `run` prints, and puts in its "wait again" line)

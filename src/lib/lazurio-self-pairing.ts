@@ -36,6 +36,7 @@ export async function enterFromPairLink(fetchImpl: typeof fetch = fetch): Promis
   const initialCode = takePairingCodeFromLocation();
   const session = await readSessionState(fetchImpl);
   if (isConnected(session) || (session.kind === "unauthenticated" && await selfPair(fetchImpl))) {
+    history.replaceState(null, "", pairedDestination(location));
     return { app: true };
   }
   return { app: false, initialCode };

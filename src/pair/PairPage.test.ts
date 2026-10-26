@@ -13,9 +13,10 @@ const code = "ABCD-EFGH-JK23";
 const render = (initialCode: string | null) => { f.effects = []; return renderToStaticMarkup(createElement(PairPage, { initialCode })); };
 const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
 let replaced: string[];
+const page = (pathname: string) => vi.stubGlobal("location", { pathname, search: "", replace: (url: string) => replaced.push(url) });
 beforeEach(() => {
   f.pair.mockReset(); replaced = [];
-  vi.stubGlobal("location", { replace: (url: string) => replaced.push(url) });
+  page("/");
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -35,6 +36,14 @@ it("opening My Cloud from the app needs no click and no code to type", async () 
   f.effects[0](); await flush();
   expect(f.pair).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ code }));
   expect(replaced).toEqual(["/"]);
+});
+
+it("pairing at a conversation's address lands in that conversation", async () => {
+  vi.stubGlobal("window", { ogb: { workspaces: {} } });
+  page("/c/scout-report");
+  f.pair.mockResolvedValue({ ok: true });
+  render(code); f.effects[0](); await flush();
+  expect(replaced).toEqual(["/c/scout-report"]);
 });
 
 it("a code that no longer works falls back to the form, with the reason", async () => {

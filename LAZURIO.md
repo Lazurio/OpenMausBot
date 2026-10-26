@@ -435,6 +435,26 @@ that the server starts no browser or agent-browser process.
   two also taking a bot's instructions, its SOUL.md), which uses the app's own
   routes, so a bot the CLI makes is the same record as one MCP makes.
   Upstream-friendly; propose it upstream.
+- **A web address for one conversation** (issue #67): `/c/<threadId>` on
+  MausBot's origin opens that conversation with its bot, once the bots have
+  loaded, through the navigation the desktop app's chat links use
+  (`openChatLink`); then the address bar shows `/` again. Pairing keeps the
+  address: the Environment pairs a browser there in place, and after a code
+  typed on the pairing page the app lands on the same address, which it
+  writes itself from the thread id, so pairing never leads off the origin.
+  The gateway's sign-in keeps the whole address too. An id the app does not
+  know opens the app with its notice that the conversation is gone, and an
+  address that names no conversation opens the app on `/`; neither is an
+  error page. Buddy links a bot to its work with it: Delegace builds the
+  link from the `threadId` that `openmausbot run … --json` prints and the
+  MausBot origin of the Environment where the bot runs (LazurioPlatform
+  `src/buddy/delegace`). `src/lib/thread-refs.ts` (the address),
+  `src/hooks/use-external-chat-links.ts` (opening it) and
+  `src/lib/phone-pairing.ts` (`pairedDestination`); see
+  [`docs/headless-cli.md`](docs/headless-cli.md#run-and-wait).
+  `scripts/testing/conversation-address.e2e.test.ts` opens the address in a
+  real Chrome on the built app and a fixture server (`OMB_UI_E2E=1`, as
+  upstream's browser recipes). Upstream-friendly; propose it upstream.
 - **The Lazurio shell slot** in `index.html` and the sidebar, with the room
   the composer keeps for Buddy's launcher ([below](#the-lazurio-shell));
   outside Lazurio nothing renders and nothing moves.

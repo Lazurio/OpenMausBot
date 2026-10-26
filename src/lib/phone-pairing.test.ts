@@ -165,64 +165,51 @@ describe("the ?desktop-settings=phone request", () => {
   });
 
   it("survives pairing, and nothing else does", () => {
-    expect(pairedDestination("?desktop-settings=phone")).toBe("/?desktop-settings=phone");
-    expect(pairedDestination("?desktop-settings=phone&next=https://evil.example")).toBe("/?desktop-settings=phone");
-    expect(pairedDestination("?desktop-settings=workspaces")).toBe("/");
-    expect(pairedDestination("?next=//evil.example")).toBe("/");
-    expect(pairedDestination("")).toBe("/");
+    const at = (search: string) => pairedDestination({ pathname: "/pair", search });
+    expect(at("?desktop-settings=phone")).toBe("/?desktop-settings=phone");
+    expect(at("?desktop-settings=phone&next=https://evil.example")).toBe("/?desktop-settings=phone");
+    expect(at("?desktop-settings=workspaces")).toBe("/");
+    expect(at("?next=//evil.example")).toBe("/");
+    expect(at("")).toBe("/");
   });
 });
 
-describe("the person's Cloud as a destination on this computer", () => {
-  const origin = "https://home-7f3k2.fly.dev";
-  const paid = (patch: Partial<CloudAccountState> = {}): CloudAccountState => ({
-    status: "connected", entitlement: { plan: "pro", tier: "personal", status: "active", expiresAt: null, version: 1 }, machine: { status: "ready", origin }, ...patch,
+describe("a conversation's web address", () => {
+  const uuid = "8b1b1d62-9d3c-4a1e-9f2a-3c5d7e9b1a04";
+
+  it("survives pairing where the pairing page shows: in place, at the address", () => {
+    expect(pairedDestination({ pathname: `/c/${uuid}`, search: "" })).toBe(`/c/${uuid}`);
+    expect(pairedDestination({ pathname: `/c/${uuid}`, search: "?desktop-settings=phone" })).toBe(`/c/${uuid}`);
+    expect(pairedDestination({ pathname: "/pair", search: `?c=${uuid}` })).toBe("/");
   });
 
-  it("a paid plan, any tier, with the Cloud Ready, is offered", () => {
-    for (const tier of [undefined, "personal", "pro", "max", "team"]) {
-      expect(cloudPhoneDestination(paid({ entitlement: { plan: "pro", ...(tier ? { tier } : {}), status: "active", expiresAt: null, version: 1 } }))).toBe("ready");
+  it("never leads off this origin, whatever the address holds", () => {
+    const origin = "https://mausbot.example.test";
+    const hostile = [
+      ["/c/%2F%2Fevil.example", ""],
+      ["/c/https:%2F%2Fevil.example", ""],
+      ["/c//evil.example", ""],
+      ["//evil.example/c/" + uuid, ""],
+      ["/c/%5Cevil.example", ""],
+      ["/c/%0D%0Aevil", ""],
+      ["/c/" + uuid, "?next=https://evil.example"],
+      ["/pair", "?next=//evil.example&desktop-settings=phone"],
+    ] as const;
+    for (const [pathname, search] of hostile) {
+      const destination = pairedDestination({ pathname, search });
+      expect({ pathname, destination, origin: new URL(destination, origin).origin }).toEqual({ pathname, destination, origin });
+      expect(destination).toMatch(/^\/(?!\/)/);
     }
-    expect(cloudPhoneDestination(paid({ checking: true }))).toBe("ready");
+    expect(pairedDestination({ pathname: "/c/%5Cevil.example", search: "" })).toBe("/c/%5Cevil.example");
   });
+});
 
-  it("a paid plan whose Cloud is not Ready is a hint only", () => {
-    for (const machine of [{ status: "provisioning" }, { status: "stopped", origin }, { status: "payment-problem", origin }, { status: "failed", origin }] as const) {
-      expect(cloudPhoneDestination(paid({ machine }))).toBe("not-ready");
-    }
-    expect(cloudPhoneDestination(paid({ machine: undefined }))).toBe("not-ready");
-  });
-
-  it("a Team or Business plan has no Cloud of its own to pair here: nothing, never 'once it's ready'", () => {
-    const acme = [{ id: "team-acme", name: "Acme", role: "owner" as const, machine: { status: "ready" as const, origin: "https://omb-t-2.fly.dev" } }];
-    for (const tier of ["team", "business"]) {
-      expect(cloudPhoneDestination(paid({ entitlement: { plan: "pro", tier, status: "active", expiresAt: null, version: 1 }, machine: undefined, teams: acme })), tier).toBeNull();
-    }
-  });
-
-  it("no paid plan, signed out or not known yet: nothing", () => {
-    expect(cloudPhoneDestination(null)).toBeNull();
-    expect(cloudPhoneDestination({ status: "signed-out" })).toBeNull();
-    expect(cloudPhoneDestination({ status: "signed-out", message: "restoring" })).toBeNull();
-    expect(cloudPhoneDestination(paid({ entitlement: { plan: "free", status: "inactive", expiresAt: null, version: 1 } }))).toBeNull();
-    expect(cloudPhoneDestination(paid({ entitlement: { plan: "pro", status: "inactive", expiresAt: null, version: 1 } }))).toBeNull();
-    expect(cloudPhoneDestination({ status: "unavailable", lastPlan: { tier: "pro", active: true }, machine: { status: "ready", origin } })).toBeNull();
-    expect(cloudPhoneDestination({ status: "reauth-required", lastPlan: { tier: "pro", active: true } })).toBeNull();
-  });
-
-  it("joins this computer's line, first, and only on this computer", () => {
+describe("where the phone pairs", () => {
+  it("only with this server", () => {
     const here = connectPhoneEntry("computer", null);
-    expect(phoneDestinations(here, "ready").map((d) => [d.id, d.target, t(d.subtitleKey)])).toEqual([
-      ["cloud", "cloud", "to the Cloud (always on)"],
-      ["here", "computer", "to this computer"],
-    ]);
-    expect(phoneDestinations(here, "not-ready").map((d) => [d.id, d.noteKey && t(d.noteKey)])).toEqual([["here", "The Cloud shows here once it's ready."]]);
-    expect(phoneDestinations(here, null).map((d) => [d.id, d.noteKey])).toEqual([["here", undefined]]);
-    const cloud = connectPhoneEntry("cloud", access(admin));
-    for (const state of ["ready", "not-ready", null] as const) {
-      expect(phoneDestinations(cloud, state).map((d) => [d.id, t(d.subtitleKey), d.noteKey])).toEqual([["here", "to the Cloud", undefined]]);
-      expect(phoneDestinations(connectPhoneEntry("server", access(admin)), state).map((d) => d.id)).toEqual(["here"]);
-      expect(phoneDestinations(null, state)).toEqual([]);
-    }
+    expect(phoneDestinations(here).map((d) => [d.id, d.target, t(d.subtitleKey)])).toEqual([["here", "computer", "to this computer"]]);
+    expect(phoneDestinations(connectPhoneEntry("cloud", access(admin))).map((d) => [d.id, t(d.subtitleKey)])).toEqual([["here", "to the Cloud"]]);
+    expect(phoneDestinations(connectPhoneEntry("server", access(admin))).map((d) => d.id)).toEqual(["here"]);
+    expect(phoneDestinations(null)).toEqual([]);
   });
 });

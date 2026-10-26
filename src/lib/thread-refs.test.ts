@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  conversationPath,
+  parseConversationPath,
   parseThreadRefUrl,
   remarkThreadRefs,
   resolveThreadRefAddress,
@@ -246,4 +248,39 @@ describe("canonical thread links", () => {
     }
   });
 
+});
+
+describe("a conversation's web address", () => {
+  const uuid = "8b1b1d62-9d3c-4a1e-9f2a-3c5d7e9b1a04";
+
+  it("is /c/<thread id> on the app's own origin, read back as the thread a chat link names", () => {
+    expect(conversationPath(uuid)).toBe(`/c/${uuid}`);
+    expect(parseConversationPath(`/c/${uuid}`)).toEqual({ threadId: uuid });
+    expect(threadRefUrl({ threadId: uuid })).toBe(`openmausbot://thread/${uuid}`);
+    expect(parseThreadRefUrl(threadRefUrl({ threadId: uuid }))).toEqual({ threadId: uuid });
+    expect(parseConversationPath(conversationPath("a b"))).toEqual({ threadId: "a b" });
+  });
+
+  it("names no thread for any other path, a second spelling or an id a chat link refuses", () => {
+    for (const miss of [
+      "/",
+      "/pair",
+      "/c",
+      "/c/",
+      "/C/" + uuid,
+      "//c/" + uuid,
+      `/c/${uuid}/`,
+      `/c/${uuid}/extra`,
+      "/c/a%2Fb",
+      "/c/%2F%2Fevil.example",
+      "/c/%61bc",
+      "/c/a b",
+      "/c/%E0%A4%A",
+      "/c/%0A",
+      "/c/" + "x".repeat(257),
+    ]) {
+      expect(parseConversationPath(miss)).toBeNull();
+    }
+    expect(parseConversationPath("/c/" + "x".repeat(256))).toEqual({ threadId: "x".repeat(256) });
+  });
 });

@@ -1,8 +1,8 @@
-import { teamPlan } from "../../electron/cloud-team-plan.mjs";
 import type { LocaleKey } from "@/locales";
 import type { Action } from "@/state/store";
 import { readMembership } from "./membership";
 import { isOwnerOrAdmin, readSessionState, type SessionState } from "./session";
+import { conversationPath, parseConversationPath } from "./thread-refs";
 
 export type PhonePairingTarget = "computer" | "cloud" | "server";
 
@@ -104,8 +104,12 @@ export function takePhonePairingRequest(href: string): string | null {
 }
 
 /** Where a page signed in by the app goes next: the phone pairing, or back to a path of this same server. */
-export function pairedDestination(search: string): string {
-  const params = new URLSearchParams(search);
+/** Security: a conversation's address is written here from its thread id, and `next` is a same-origin path checked
+ * here, so pairing never leaves this origin. */
+export function pairedDestination(location: { pathname: string; search: string }): string {
+  const conversation = parseConversationPath(location.pathname);
+  if (conversation) return conversationPath(conversation.threadId);
+  const params = new URLSearchParams(location.search);
   if (params.get("desktop-settings") === "phone") return "/?desktop-settings=phone";
   const next = params.get("next");
   return next && /^\/(?!\/)/.test(next) && !next.startsWith("/pair") && !/[\\\s]/.test(next) ? next : "/";
