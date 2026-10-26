@@ -1,5 +1,9 @@
 # Verifying OpenMausBot
 
+The [Lazurio passive migration harness](lazurio-migration-acceptance.md) qualifies
+an exact release against an offline copy without live models or integrations.
+It is a separate, explicitly authorized run, not part of normal fixture launch.
+
 OpenMausBot has one development control surface: `pnpm control:omb`. It runs
 the published `openmausbot` verbs (docs/headless-cli.md), which call the MCP
 tools in `scripts/mcp-server.ts`, so verification uses the same URL
@@ -66,6 +70,7 @@ Use only mapped, tested commands:
 - [Engines and Doctor](engines.md)
 - [Cline engine and native loopback qualification](cline.md)
 - [Claude coordination and turn-scoped tools](claude-tool-lifecycle.md)
+- [Lazurio Environment integrations and transition](lazurio-environment-integrations.md)
 - [Codex bot instructions](codex-instructions.md)
 - [Codex native search](codex-native-search.md)
 - [Codex helper event isolation](codex-helpers.md)
