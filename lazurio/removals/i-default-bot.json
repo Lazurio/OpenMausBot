@@ -1,0 +1,21 @@
+{
+  "area": "Seeded MausBot helper",
+  "why": "An Environment's bots are the ones its person or Organization makes, such as the Steward team: the server adds no undeletable \"MausBot\" helper with Chief-level tools beside them, and its name stays the app's. A new place's first bot is an ordinary Chief.",
+  "files": [
+    "server/default-bot.e2e.test.ts"
+  ],
+  "forbidden": [
+    "ensureDefaultBot(store, { dataDir: DATA_DIR })",
+    "testedAi.seed({",
+    "createDefaultBot(this"
+  ],
+  "routes": [],
+  "changes": [
+    "docs/verification/mausbot.md",
+    "server/default-bot.test.ts",
+    "server/index.ts",
+    "server/package-import.test.ts",
+    "server/store.test.ts",
+    "server/store.ts"
+  ]
+}

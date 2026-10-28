@@ -578,6 +578,16 @@ signed-in accounts, and integrations come from the Environment.
   (`report_bug`) with the recent log it attached, and the "Product updates by
   email" question in the web and desktop apps. `src/lib/analytics.ts` keeps upstream's
   function names as no-ops, so nothing is collected, stored or sent.
+- **The seeded MausBot helper** (Organization Admin decision of 2026-10-28):
+  upstream makes every place an undeletable "MausBot" bot with Chief-level
+  tools at its first start, and adds one beside an existing install's bots on
+  update. An Environment's bots are the ones its person or Organization makes
+  (the Steward team, say), and MausBot stays the app's name, so the
+  distribution makes none: a new place's first bot is an ordinary Chief
+  (`Store.seedIfEmpty`), and no start adds a bot to an existing place. A
+  `default-bot.json` a data dir may hold is read by nothing at start. The
+  Team Cloud paths that would make a member's own MausBot stay as inert as
+  Team Cloud itself. `server/lazurio-no-default-bot.e2e.test.ts`.
 
 A write that names a removed setting (`PUT /api/config` with `box`, `vps`,
 `localVm`, `composio`, `treg`, `mcpServers`, `features.sharedComputers`,

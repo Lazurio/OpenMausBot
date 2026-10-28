@@ -29,18 +29,14 @@ describe("MausBot, every person's helper", () => {
   beforeEach(() => rmSync(DATA_DIR, { recursive: true, force: true }));
   afterEach(() => readTeamRolesWith(() => null));
 
-  it("gives a fresh install one MausBot, its Chief, in chrome, introduced once", () => {
+  it("seeds a fresh install with no MausBot: its first bot is an ordinary Chief", () => {
     const store = new Store(selection);
     store.seedIfEmpty();
-    boot(store);
-    boot(store);
     const again = new Store(selection);
     again.seedIfEmpty();
-    boot(again);
     expect(again.bots).toHaveLength(1);
-    const maus = placeMausBots(again)[0]!;
-    expect(maus).toMatchObject({ name: "MausBot", color: "chrome", chiefOfStaff: true, defaultBot: {} });
-    expect(intros(again, maus)).toHaveLength(1);
+    expect(placeMausBots(again)).toEqual([]);
+    expect(again.bots[0]).toMatchObject({ chiefOfStaff: true });
   });
 
   it("gives an existing install without one a MausBot once on update, beside its Chief, which stays exactly as it was", () => {
@@ -208,7 +204,7 @@ describe("MausBot, every person's helper", () => {
 
   it("gives each Team Cloud member their own private MausBot, and the team no MausBot of its own", () => {
     const store = new Store(selection);
-    store.seedIfEmpty({ defaultBot: false });
+    store.seedIfEmpty();
     expect(store.bots).toHaveLength(1);
     expect(store.bots[0]).toMatchObject({ chiefOfStaff: true });
     expect(store.bots[0]?.defaultBot).toBeUndefined();

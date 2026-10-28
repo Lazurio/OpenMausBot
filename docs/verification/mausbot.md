@@ -6,25 +6,30 @@ bots, a helper beside them. It is never deleted or archived; the person takes it
 off the sidebar with "Show MausBot in the sidebar" in Settings → General, which
 its menu's **Hide from sidebar** also turns off.
 
+The Lazurio distribution makes no MausBot: a new place's first bot is an
+ordinary Chief, and a server start adds no bot to an existing place
+([`LAZURIO.md`](../../LAZURIO.md)). This page describes the MausBot that
+upstream's code still makes for a Team Cloud member, a mode Lazurio leaves
+inert.
+
 ## Automated checks
 
 ```sh
-pnpm exec vitest run server/default-bot.test.ts server/default-bot.e2e.test.ts \
+pnpm exec vitest run server/default-bot.test.ts \
   server/team-setup-requests.test.ts src/lib/default-bot.test.ts src/components/MausBotWelcome.test.ts \
   src/lib/mausbot-landing.test.ts
 ```
 
-- `server/default-bot.test.ts`: a fresh install gets one MausBot once; an
-  existing install gets one once on update and its Chief is untouched; a new
+- `server/default-bot.test.ts`: a fresh install is seeded with an ordinary
+  Chief and no MausBot; `ensureDefaultBot`, which no Lazurio start calls, gives
+  an existing install one once and leaves its Chief untouched; a new
   install's renamed MausBot is adopted, not duplicated; the intro shows once,
   not after it was answered or dismissed; delete and archive are refused; a
   move to My Cloud and coming home leave exactly one; each Team Cloud member
   gets their own; a Team User's MausBot holds no Chief tools.
-- `server/default-bot.e2e.test.ts`: on a real fixture server, `DELETE
-  /api/bots/:id` answers 409, the switch hides and shows it, and a MausBot that
-  is not the Chief creates a bot with `create_bot`.
-- `server/mausbot-notifications.test.ts`, `server/drivers/agents-mausbot-tools.test.ts`
-  and the second case of `server/default-bot.e2e.test.ts`: MausBot alone gets
+- `server/lazurio-no-default-bot.e2e.test.ts`: on a real fixture server, a new
+  place starts with one ordinary Chief and no MausBot.
+- `server/mausbot-notifications.test.ts` and `server/drivers/agents-mausbot-tools.test.ts`: MausBot alone gets
   `list_unread_notifications` and `mark_notifications_read`, listed last.
   The list returns the unread feed (bounded, trimmed) with a lean per item;
   marking read takes only finished work (`done`, `delegation-settled`), leaves

@@ -313,10 +313,10 @@ export function createTestedAi(deps: TestedAiDeps) {
       return selection;
     },
     /** Replaces store.seedIfEmpty at start: the bot it makes follows the default. */
-    seed(options?: Parameters<Store["seedIfEmpty"]>[0]): void {
+    seed(): void {
       const store = deps.store();
       const first = store.needsSeed();
-      store.seedIfEmpty(options);
+      store.seedIfEmpty();
       listen();
       const bot = first ? store.bots.find((candidate) => candidate.chiefOfStaff) ?? store.bots[0] : undefined;
       if (!bot) return;
