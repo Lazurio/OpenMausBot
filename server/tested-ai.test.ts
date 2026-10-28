@@ -492,13 +492,12 @@ describe("testing an AI with one tiny message before a new bot's default trusts 
 });
 
 describe("test messages in the background", () => {
-  it("are on unless OMB_AI_CHECKS=0, and under vitest only when a test asks for them, so fake engines log only the turns a test sends", () => {
-    expect(backgroundAiChecks({})).toBe(true);
-    expect(backgroundAiChecks({ OMB_AI_CHECKS: "0" })).toBe(false);
-    expect(backgroundAiChecks({ OMB_AI_CHECKS: " 0 " })).toBe(false);
-    expect(backgroundAiChecks({ VITEST: "true" })).toBe(false);
-    expect(backgroundAiChecks({ VITEST: "true", OMB_AI_CHECKS: "1" })).toBe(true);
-    expect(backgroundAiChecks({ OMB_TEST_SEALED_PATH: "1" })).toBe(false);
-    expect(backgroundAiChecks({ OMB_TEST_SEALED_PATH: "1", OMB_AI_CHECKS: "1" })).toBe(true);
+  it("are off unless OMB_AI_CHECKS=1, in and out of tests", () => {
+    for (const env of [{}, { OMB_AI_CHECKS: "0" }, { OMB_AI_CHECKS: " 0 " }, { OMB_AI_CHECKS: "" }, { OMB_AI_CHECKS: "true" }, { VITEST: "true" }, { OMB_TEST_SEALED_PATH: "1" }]) {
+      expect(backgroundAiChecks(env), JSON.stringify(env)).toBe(false);
+    }
+    for (const env of [{ OMB_AI_CHECKS: "1" }, { OMB_AI_CHECKS: " 1 " }, { VITEST: "true", OMB_AI_CHECKS: "1" }, { OMB_TEST_SEALED_PATH: "1", OMB_AI_CHECKS: "1" }]) {
+      expect(backgroundAiChecks(env), JSON.stringify(env)).toBe(true);
+    }
   });
 });

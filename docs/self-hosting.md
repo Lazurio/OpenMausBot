@@ -822,7 +822,8 @@ run, in this order: a Claude account, a ChatGPT plan, Gemini, Grok, then the
 rest in the order of `instances`; OpenCode running only Zen's free no-login
 models comes last.
 
-The server picks at once at start, then sends the person's own engines one
+The server picks at once at start. Started with `OMB_AI_CHECKS=1`, it then
+sends the person's own engines one
 tiny test message each in the background ("Reply with the single word OK",
 90 seconds at most), best first, stopping at the first that answers. One
 miss alone doesn't move the default: that engine is tried again two minutes
@@ -840,8 +841,9 @@ The first bot the app made follows the default until someone writes to it
 or picks a model for it or one of its conversations: it moves only after a
 test result, only to an engine that answered, and only away from one whose
 latest test missed or that is signed out or turned off, or up to a better
-one. A status read that timed out moves nothing. No other bot ever moves. To stop the
-background test messages, start the server with `OMB_AI_CHECKS=0`.
+one. A status read that timed out moves nothing. No other bot ever moves. The
+Lazurio distribution sends no background test messages unless the server starts
+with `OMB_AI_CHECKS=1`; unset or any other value leaves them off.
 
 ### The decision log
 

@@ -76,6 +76,10 @@ jobs:
             # that only the ACP driver's 5 s cancel fallback ends, so it fails
             # about one run in four on the plain tag; the poll waits longer.
             server/live-call.e2e.test.ts
+            # No background AI test messages unless OMB_AI_CHECKS=1: the switch
+            # and its unit test, and the self-hosting page that describes it.
+            server/tested-ai.ts
+            server/tested-ai.test.ts
             # The open-source edition: upstream's shard weights drop the
             # removed enterprise/server/workspace-access.test.ts, and the
             # documents that describe the layer say it is upstream's and link there.

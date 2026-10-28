@@ -458,6 +458,14 @@ that the server starts no browser or agent-browser process.
 - **The Lazurio shell slot** in `index.html` and the sidebar, with the room
   the composer keeps for Buddy's launcher ([below](#the-lazurio-shell));
   outside Lazurio nothing renders and nothing moves.
+- **No background AI test messages** (Organization Admin decision of
+  2026-10-28): upstream sends each signed-in engine a tiny test message in the
+  background and moves the default model by the answers. An Environment's
+  engines and their costs are the Environment's, so the distribution sends
+  none unless the server starts with `OMB_AI_CHECKS=1`; unset, `0` or any
+  other value leaves them off, whatever the Machines release sets. The
+  person's own Check again still tests an engine. `backgroundAiChecks` in
+  `server/tested-ai.ts`; `server/lazurio-ai-checks.e2e.test.ts`.
 
 ## What the overlay removes
 
