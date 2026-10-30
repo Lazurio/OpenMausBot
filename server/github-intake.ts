@@ -572,15 +572,15 @@ export class GithubIntake {
     this.state.settled = Object.fromEntries(settled);
     this.persist();
 
-    const rateLimited = errors.find((error) => error instanceof GhError && error.kind === "rate_limited");
-    if (rateLimited) return finish("rate_limited", errorText(rateLimited));
-    if (deferred.length) return finish(deferred[0].state, deferred[0].message);
-    if (errors.length) return finish("error", errorText(errors[0]));
     if (this.reminders) {
       if (!this.accountId) return finish("error", "GitHub did not identify the reminder author by immutable account id");
       try { await this.reminders.poll(this.accountId); }
       catch (error) { return finish("error", errorText(error)); }
     }
+    const rateLimited = errors.find((error) => error instanceof GhError && error.kind === "rate_limited");
+    if (rateLimited) return finish("rate_limited", errorText(rateLimited));
+    if (deferred.length) return finish(deferred[0].state, deferred[0].message);
+    if (errors.length) return finish("error", errorText(errors[0]));
     return finish("ok");
   }
 

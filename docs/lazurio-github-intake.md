@@ -81,8 +81,9 @@ without reconciliation. Keep the journal when migrating the server.
 Repository, pull request and comment listings read up to ten pages of 100;
 reaching the bound or an API error reports incomplete coverage instead of
 claiming success. Permissions, target configuration, GitHub outages and the
-poll interval limit coverage. The scan runs only after the normal intake poll
-succeeds. This is a reminder, not a GitHub merge gate. A required check needs a
+poll interval limit coverage. The scan requires the normal intake's identity,
+target and candidate discovery to succeed, but does not wait for review work
+to finish. This is a reminder, not a GitHub merge gate. A required check needs a
 publisher with Checks write, hosting, repository installation and an Admin's
 branch protection or ruleset. Assignment can change without a head change,
 so an asynchronous check alone still races a merge.
