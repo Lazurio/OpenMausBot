@@ -120,10 +120,15 @@ for a real defect the pull request introduces or leaves and approves with
 everything else as non-blocking notes, reports every finding in one review
 grouped as "Blocking" and "Non-blocking", and files a finding outside the
 pull request's purpose as an issue in the owning repository instead of
-blocking on it. It also removes the pull request's worktree and local branch
-as soon as its verdict is on GitHub or the work stops. An existing team takes
-1.1.2 through the same explicitly authorized update of its shared-instruction
-block; its next real review on GitHub shows whether the team follows it.
+blocking on it. An approval carries its non-blocking notes in the review body.
+A worker keeps exactly one clone of a repository that is not in the Lazurio
+Folder, outside the Folder. It removes the pull request's worktree and local
+branch as soon as its verdict is on GitHub or the work stops, unless the
+worktree holds commits or changes that are not pushed: then it keeps the
+worktree and names exactly what is unpushed in its result. An existing team
+takes 1.1.2 through the same explicitly authorized update of its
+shared-instruction block; its next real review on GitHub shows whether the team
+follows it.
 
 An assignment is not authority for separate releases, infrastructure applies,
 repository settings or credentials. The shipped team explains these bounds.
