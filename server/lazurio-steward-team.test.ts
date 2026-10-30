@@ -43,15 +43,18 @@ describe("the Lazurio Steward team package", () => {
   it("blocks only real defects and reports every finding in one review on GitHub", () => {
     expect(brief).toContain("REQUEST_CHANGES is for a real defect");
     expect(brief).toContain("approve and write it in the review as non-blocking");
+    expect(brief).toContain("event=APPROVE -f body=");
     expect(brief).toContain("When in doubt, do not block.");
     expect(brief).toContain("Find everything in one pass.");
     expect(brief).toMatch(/grouped as "Blocking" .+ and "Non-blocking"/);
     expect(brief).toMatch(/outside this pull request's purpose becomes a GitHub issue .+; it never blocks the pull request/);
   });
 
-  it("removes each pull request's worktree and local branch when the work ends", () => {
+  it("removes each pull request's worktree and local branch when the work ends, but never unpushed work", () => {
     expect(brief).toContain("git worktree remove --force");
     expect(brief).toContain("git worktree prune");
     expect(brief).toContain("git branch -D");
+    expect(brief).toContain("unless it holds commits or changes you have not pushed: then keep it");
+    expect(brief).toContain("never clone into the Folder");
   });
 });
