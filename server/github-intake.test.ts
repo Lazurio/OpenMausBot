@@ -283,6 +283,8 @@ describe("githubIntakeConfigFromEnv", () => {
     expect(() => githubIntakeConfigFromEnv({ OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_SCOPE: "everything" })).toThrow(/OMB_GITHUB_INTAKE_SCOPE/);
     expect(() => githubIntakeConfigFromEnv({ OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_EXCLUDE: "not a repo" })).toThrow(/OMB_GITHUB_INTAKE_EXCLUDE/);
     expect(() => githubIntakeConfigFromEnv({ OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_INTERVAL_SECONDS: "fast" })).toThrow(/OMB_GITHUB_INTAKE_INTERVAL_SECONDS/);
+    expect(() => githubIntakeConfigFromEnv({ OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_REMINDER_SIGNATURE: "Pablo" })).toThrow(/explicit owners/);
+    expect(() => githubIntakeConfigFromEnv({ OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_OWNERS: "acme", OMB_GITHUB_INTAKE_REMINDER_SIGNATURE: "Name\nother" })).toThrow(/single safe signature/);
   });
 
   it("reads scope, owners, exclusions and a bounded interval", () => {

@@ -19,6 +19,7 @@ import { dirname } from "node:path";
 import { z } from "zod";
 
 import { writeFileAtomic } from "./atomic.ts";
+import { UnassignedReminders } from "./github-unassigned-reminders.ts";
 import type { JsonValue } from "./schema.ts";
 import type { WebhookEvent, WebhookManager, WebhookReceiveResult, WebhookTrigger } from "./webhooks.ts";
 
@@ -79,6 +80,8 @@ export interface GithubIntakeConfig {
   ghPath?: string;
   /** Explicit activation of assignment-as-completion; existing assignments are not retroactive. */
   assignmentHandoff?: boolean;
+  /** Enable reminders with this signature; owners must be explicitly scoped. */
+  reminderSignature?: string;
 }
 
 const OWNER = /^[a-z0-9](?:[a-z0-9-]{0,38})$/;
@@ -115,8 +118,10 @@ export function githubIntakeConfigFromEnv(env: NodeJS.ProcessEnv = process.env):
   const assignmentFlag = (env.OMB_GITHUB_INTAKE_ASSIGNMENTS ?? "").trim().toLowerCase();
   if (!["", "0", "false", "1", "true"].includes(assignmentFlag)) throw new Error("OMB_GITHUB_INTAKE_ASSIGNMENTS must be 0 or 1");
   const assignmentHandoff = assignmentFlag === "1" || assignmentFlag === "true";
+  const reminderSignature = (env.OMB_GITHUB_INTAKE_REMINDER_SIGNATURE ?? "").trim();
+  if (reminderSignature && (!owners.length || !/^[\p{L}\p{N} ._-]{1,60}$/u.test(reminderSignature))) throw new Error("OMB_GITHUB_INTAKE_REMINDER_SIGNATURE needs explicit owners and a single safe signature");
   const ghPath = (env.OMB_GITHUB_INTAKE_GH ?? "").trim();
-  return { bot, scope, owners, exclude, intervalMs: seconds * 1_000, ...(ghPath ? { ghPath } : {}), ...(assignmentHandoff ? { assignmentHandoff } : {}) };
+  return { bot, scope, owners, exclude, intervalMs: seconds * 1_000, ...(ghPath ? { ghPath } : {}), ...(assignmentHandoff ? { assignmentHandoff } : {}), ...(reminderSignature ? { reminderSignature } : {}) };
 }
 
 /** True when one line of the comment, outside quotes and code, is exactly the
@@ -359,6 +364,7 @@ export interface GithubIntakeOptions {
   /** Wraps each delivery and state write (the server's maintenance claim).
    * Throwing defers the work to the next poll. */
   guard?: <T>(work: () => T) => T;
+  claim?: () => () => void;
   concurrency?: number;
   /** Read the existing native execution receipt; absence is never proof of completion. */
   runState?: (runId: string) => { status: string; startedAt?: number } | null;
@@ -399,6 +405,7 @@ export class GithubIntake {
   private readonly guard: <T>(work: () => T) => T;
   private readonly excluded: RegExp[];
   private readonly concurrency: number;
+  private readonly reminders?: UnassignedReminders;
   private state: IntakeState;
   private accountId?: number;
   private running: Promise<PollSummary> | null = null;
@@ -425,6 +432,7 @@ export class GithubIntake {
     this.guard = options.guard ?? ((work) => work());
     this.excluded = this.config.exclude.map(patternRegex);
     this.concurrency = Math.max(1, options.concurrency ?? GH_CONCURRENCY);
+    if (this.config.reminderSignature) this.reminders = new UnassignedReminders({ gh: options.gh, file: `${options.file}.reminders`, config: this.config, guard: this.guard, claim: options.claim });
     this.state = this.load();
     if (this.config.assignmentHandoff && this.state.assignmentActivatedAt === undefined) {
       this.state.assignmentActivatedAt = this.now();
@@ -568,6 +576,11 @@ export class GithubIntake {
     if (rateLimited) return finish("rate_limited", errorText(rateLimited));
     if (deferred.length) return finish(deferred[0].state, deferred[0].message);
     if (errors.length) return finish("error", errorText(errors[0]));
+    if (this.reminders) {
+      if (!this.accountId) return finish("error", "GitHub did not identify the reminder author by immutable account id");
+      try { await this.reminders.poll(this.accountId); }
+      catch (error) { return finish("error", errorText(error)); }
+    }
     return finish("ok");
   }
 

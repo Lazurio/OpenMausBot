@@ -68,6 +68,10 @@ describe.skipIf(process.platform === "win32")("a server started with OMB_GITHUB_
       ...process.env,
       OMB_GITHUB_INTAKE: "1",
       OMB_GITHUB_INTAKE_BOT: "Henry",
+      OMB_GITHUB_INTAKE_SCOPE: "requested",
+      OMB_GITHUB_INTAKE_OWNERS: "",
+      OMB_GITHUB_INTAKE_EXCLUDE: "",
+      OMB_GITHUB_INTAKE_REMINDER_SIGNATURE: "",
       OMB_GITHUB_INTAKE_ASSIGNMENTS: "1",
       OMB_GITHUB_INTAKE_GH: gh,
     });

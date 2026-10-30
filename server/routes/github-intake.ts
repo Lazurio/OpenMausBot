@@ -63,6 +63,7 @@ export function createLazurioGithubIntake(deps: LazurioGithubIntakeDeps): { rout
         bots: deps.bots,
         runState: deps.runState,
         guard: maintenanceGuard(deps.maintenance),
+        claim: () => deps.maintenance.request(),
       })
     : null;
   return {
