@@ -60,6 +60,9 @@ than Henry imports the same team, renames its leader and sets
 
 ## Triggers
 
+Unassigned pull request reminders are being designed in issue #76; the current
+intake does not discover all unassigned pull requests or prevent their merge.
+
 Every trigger needs an open pull request. Drafts are skipped until they are
 marked ready.
 
