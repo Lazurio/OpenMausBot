@@ -13,6 +13,7 @@ const raw = JSON.parse(readFileSync(new URL("../lazurio/teams/steward.openmaus.j
 describe("the Lazurio Steward team package", () => {
   const document = parsePackageDocument(raw, { trust: "file" });
   const pkg = document.package;
+  const brief = pkg.team?.brief ?? "";
 
   it("is a version 2 package with a leader and three workers", () => {
     expect(document).toMatchObject({ format: "openmaus.package", version: 2 });
@@ -30,7 +31,6 @@ describe("the Lazurio Steward team package", () => {
   });
 
   it("names the rules the intake relies on, without a persona name", () => {
-    const brief = pkg.team?.brief ?? "";
     expect(brief).toContain(PUBLISH_MARKER);
     expect(brief).toContain("AGENTS.md");
     expect(brief).toContain("commit_id");
@@ -38,5 +38,20 @@ describe("the Lazurio Steward team package", () => {
     for (const text of [brief, ...pkg.agents.map((agent) => agent.soul ?? "")]) {
       expect(text).not.toMatch(/henry|pablo/i);
     }
+  });
+
+  it("blocks only real defects and reports every finding in one review on GitHub", () => {
+    expect(brief).toContain("REQUEST_CHANGES is for a real defect");
+    expect(brief).toContain("approve and write it in the review as non-blocking");
+    expect(brief).toContain("When in doubt, do not block.");
+    expect(brief).toContain("Find everything in one pass.");
+    expect(brief).toMatch(/grouped as "Blocking" .+ and "Non-blocking"/);
+    expect(brief).toMatch(/outside this pull request's purpose becomes a GitHub issue .+; it never blocks the pull request/);
+  });
+
+  it("removes each pull request's worktree and local branch when the work ends", () => {
+    expect(brief).toContain("git worktree remove --force");
+    expect(brief).toContain("git worktree prune");
+    expect(brief).toContain("git branch -D");
   });
 });

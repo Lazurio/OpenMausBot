@@ -114,6 +114,17 @@ existing one. This instruction-only update needs no new server behavior,
 receipt reset, activation cutoff or runtime restart; independently verify the
 next real assignment before claiming the worker behavior is fixed.
 
+Steward team **1.1.2** sets the review bar in the same shared instructions
+(Organization Admin decision of 2026-10-30). A worker requests changes only
+for a real defect the pull request introduces or leaves and approves with
+everything else as non-blocking notes, reports every finding in one review
+grouped as "Blocking" and "Non-blocking", and files a finding outside the
+pull request's purpose as an issue in the owning repository instead of
+blocking on it. It also removes the pull request's worktree and local branch
+as soon as its verdict is on GitHub or the work stops. An existing team takes
+1.1.2 through the same explicitly authorized update of its shared-instruction
+block; its next real review on GitHub shows whether the team follows it.
+
 An assignment is not authority for separate releases, infrastructure applies,
 repository settings or credentials. The shipped team explains these bounds.
 
