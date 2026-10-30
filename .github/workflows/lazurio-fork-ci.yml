@@ -114,6 +114,10 @@ jobs:
             # the webhook queue in-process. Its wiring (one route module, start
             # and stop) also changes server/index.ts, scripts/control-omb.ts and
             # the file-size ratchet (index.ts, the new github-intake.ts), listed above.
+            # The WhatsApp intake is wired the same way (its route module, a
+            # runtime-event subscription, start and stop in server/index.ts, and
+            # in scripts/control-omb.ts a fixture that starts it only on a fake
+            # wacli its caller hands over) and changes no other upstream file.
             server/webhooks.ts
             # The Lazurio shell slot (issue #16): the loader, the rail, the
             # padding rule, the shell's colour roles from the skin's tokens,
