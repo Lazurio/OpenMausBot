@@ -26,6 +26,7 @@ the server behaves exactly as upstream OpenMausBot.
 | `OMB_GITHUB_INTAKE_EXCLUDE` | Comma-separated `owner/repo` patterns (`*` matches anything) left out of the `organization` scope, e.g. `acme/infra,acme/productionspace-*`. |
 | `OMB_GITHUB_INTAKE_INTERVAL_SECONDS` | Poll interval, default 90, bounded to 30–3600. |
 | `OMB_GITHUB_INTAKE_ASSIGNMENTS` | `1` enables assignment handoff as the scoped completion/merge mandate. Off by default for an explicit migration; only assignments after first activation qualify. |
+| `OMB_GITHUB_INTAKE_REMINDER_SIGNATURE` | Opt in to unassigned PR reminders, signed with this single-line name. Requires explicit `OMB_GITHUB_INTAKE_OWNERS`. |
 | `OMB_GITHUB_INTAKE_GH` | The `gh` executable; default `gh` on `PATH`. |
 
 An unknown value stops the server at start with the reason. Example for a
@@ -57,6 +58,35 @@ intake reports `no_target` and does not query GitHub beyond the account.
 Two bots with the same name are refused; use the id then. A persona other
 than Henry imports the same team, renames its leader and sets
 `OMB_GITHUB_INTAKE_BOT` to the new name.
+
+## Unassigned pull request reminders
+
+Setting `OMB_GITHUB_INTAKE_REMINDER_SIGNATURE` enables a separate scan in
+either intake scope. It scans non-archived repositories the signed-in account
+can push to, whose owner is listed in `OMB_GITHUB_INTAKE_OWNERS`, excluding
+`OMB_GITHUB_INTAKE_EXCLUDE`. Only open, non-draft pull requests with no
+assignee receive a comment asking for a responsible person. This includes the
+account's own pull requests. The intake rereads each PR before posting, but an
+assignment can still change between that read and the comment.
+
+One reminder is sent per PR, even if its assignment is later removed. A
+durable journal alongside `github-intake.json` records an attempt before
+posting; a comment bearing the marker and the same immutable GitHub author ID
+also proves delivery. If an attempt has an uncertain outcome, the intake
+reports an error and does not retry automatically. An operator must inspect
+GitHub and the pending journal entry before resolving it. Do not run multiple
+reminder instances against the same repositories or restore an old journal
+without reconciliation. Keep the journal when migrating the server.
+
+Repository, pull request and comment listings read up to ten pages of 100;
+reaching the bound or an API error reports incomplete coverage instead of
+claiming success. Permissions, target configuration, GitHub outages and the
+poll interval limit coverage. The scan requires the normal intake's identity,
+target and candidate discovery to succeed, but does not wait for review work
+to finish. This is a reminder, not a GitHub merge gate. A required check needs a
+publisher with Checks write, hosting, repository installation and an Admin's
+branch protection or ruleset. Assignment can change without a head change,
+so an asynchronous check alone still races a merge.
 
 ## Triggers
 

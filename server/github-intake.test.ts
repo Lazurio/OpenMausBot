@@ -111,7 +111,7 @@ class FakeGitHub {
   private answer(args: string[]): GhResult {
     if (this.missing) return { ok: false, code: null, stderr: "spawn gh ENOENT", missing: true };
     expect(args[0]).toBe("api");
-    const path = args[args.length - 1];
+    const path = args[1];
     this.calls.push(path);
     if (this.login === null) {
       return { ok: false, code: 4, stderr: "To get started with GitHub CLI, please run:  gh auth login" };
@@ -146,6 +146,8 @@ class FakeGitHub {
         pull_request: { url: `https://api.github.test/repos/${pr.repo}/pulls/${pr.number}` },
       })) });
     }
+    const listPulls = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/pulls$/);
+    if (listPulls) return ok(paged(this.prs.filter((pr) => pr.repo === listPulls[1] && pr.open).map((pr) => ({ number: pr.number, state: "open", draft: pr.draft, assignees: pr.assignees.map(identity) }))));
     let m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/pulls\/(\d+)(\/reviews)?$/);
     if (m) {
       const pr = this.find(m[1], Number(m[2]));
@@ -164,8 +166,12 @@ class FakeGitHub {
       const pr = this.find(m[1], Number(m[2]));
       if (!pr) return notFound;
       if (m[3] === "comments") {
+        if (args.includes("-f")) {
+          const posted = this.comment(pr, this.login!, args[args.indexOf("-f") + 1].slice(5));
+          return ok({ id: posted.id, user: identity(posted.user), body: posted.body, created_at: posted.at });
+        }
         return ok(paged(pr.comments.map((c) => ({
-          id: c.id, user: { login: c.user }, body: c.body, created_at: c.at,
+          id: c.id, user: identity(c.user), body: c.body, created_at: c.at,
           html_url: `https://github.test/${pr.repo}/pull/${pr.number}#issuecomment-${c.id}`,
         }))));
       }
@@ -283,6 +289,8 @@ describe("githubIntakeConfigFromEnv", () => {
     expect(() => githubIntakeConfigFromEnv({ OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_SCOPE: "everything" })).toThrow(/OMB_GITHUB_INTAKE_SCOPE/);
     expect(() => githubIntakeConfigFromEnv({ OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_EXCLUDE: "not a repo" })).toThrow(/OMB_GITHUB_INTAKE_EXCLUDE/);
     expect(() => githubIntakeConfigFromEnv({ OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_INTERVAL_SECONDS: "fast" })).toThrow(/OMB_GITHUB_INTAKE_INTERVAL_SECONDS/);
+    expect(() => githubIntakeConfigFromEnv({ OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_REMINDER_SIGNATURE: "Pablo" })).toThrow(/explicit owners/);
+    expect(() => githubIntakeConfigFromEnv({ OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_OWNERS: "acme", OMB_GITHUB_INTAKE_REMINDER_SIGNATURE: "Name\nother" })).toThrow(/single safe signature/);
   });
 
   it("reads scope, owners, exclusions and a bounded interval", () => {
@@ -1021,5 +1029,19 @@ describe("GitHub intake: delivery is not completion", () => {
     await intake.pollOnce();
     expect(intake.status().state).toBe("needs_recovery");
     expect(h.events().map(event => event.number)).toEqual([7, 8]);
+  });
+
+  it("continues reminders while an unrelated review needs recovery", async () => {
+    const h = harness({ owners: ["acme"], reminderSignature: "Pablo" });
+    h.github.repos.push({ full_name: "acme/app", push: true });
+    h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"], assignees: ["alice"] });
+    const intake = new GithubIntake({ ...h.intakeOptions, runState: (id) => h.runs.get(id) ?? null });
+    await intake.pollOnce();
+    h.runs.set("run-1", { status: "completed" });
+    const unassigned = h.github.pr({ repo: "acme/app", number: 8 });
+    await intake.pollOnce();
+    expect(intake.status().state).toBe("needs_recovery");
+    expect(unassigned.comments).toHaveLength(1);
+    expect(unassigned.comments[0].body).toContain("— Pablo");
   });
 });
