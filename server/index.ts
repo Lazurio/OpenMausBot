@@ -488,6 +488,7 @@ import { createInstanceRoutes } from "./routes/instances.ts";
 import { createStatusRoutes } from "./routes/status.ts";
 import { createLiveRoutes } from "./routes/live.ts";
 import { createLazurioGithubIntake } from "./routes/github-intake.ts";
+import { createLazurioWhatsappIntake } from "./routes/whatsapp-intake.ts";
 import { createNotificationRoutes } from "./routes/notifications.ts";
 import { createTodayRoutes } from "./routes/today.ts"; import { createSidebarSectionRoutes } from "./routes/sidebar-sections.ts";
 import { createToolTimingRoute, createUsageRoutes } from "./routes/usage.ts";
@@ -9710,6 +9711,11 @@ ROUTES.push(createDataRoutes({
 const githubIntake = createLazurioGithubIntake({ dataDir: DATA_DIR, webhooks, bots: () => store.bots, maintenance: workspaceMaintenance,
   runState: (runId) => routines!.listRuns().find((run) => run.id === runId) ?? null, runs: () => routines!.listRuns() });
 ROUTES.push(githubIntake.routes);
+// Lazurio WhatsApp intake: off unless OMB_WHATSAPP_INTAKE=1.
+const whatsappIntake = createLazurioWhatsappIntake({ dataDir: DATA_DIR, webhooks, bots: () => store.bots, maintenance: workspaceMaintenance,
+  runState: (runId) => routines!.listRuns().find((run) => run.id === runId) ?? null });
+ROUTES.push(whatsappIntake.routes);
+bus.subscribe((event: RuntimeEvent) => whatsappIntake.observe(event));
 ROUTES.push(createLiveRoutes({
   calls: liveCalls,
   resolveTarget: (botId, threadId) => {
@@ -11983,6 +11989,7 @@ server.listen(PORT, "127.0.0.1", async () => {
   routines!.start(); proactive.start();
   limitClock.start();
   githubIntake.start();
+  whatsappIntake.start();
   memoryUpkeep.start();
 });
 
@@ -12044,6 +12051,7 @@ const gracefulShutdown = createGracefulShutdown({
     async () => { await managedDesktop.close(); await registry.disposeAll(); },
     async () => { await dataEngine.closeAll().catch((error) => console.warn("data: close failed", error)); },
     () => environmentBrowser.stop(),
+    () => whatsappIntake.stop(),
     () => liveCalls.shutdown(),
     () => flushAllProfileHistory(),
     () => flushAllMemoryJournals(),

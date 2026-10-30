@@ -14,6 +14,7 @@ import type { handleToolCall, request } from "./mcp-server.ts";
 import { launchUi, runControlOmbUi } from "./testing/control-omb-ui.ts";
 import { removeTempDir, waitForExit } from "../server/testing/cleanup.ts";
 import { freePortBlock } from "../server/testing/ports.ts";
+import { whatsappIntakeFixtureEnvironment, type WhatsappIntakeFixture } from "../server/testing/whatsapp-intake-fixture.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 /** Outside the bot name pool, so no suite can plan a bot that collides with the
@@ -243,7 +244,10 @@ export async function launchVerificationServer(
   _removedBoatFixture?: undefined,
   /** Programmatic web UI qualification against the fixture's static server. */
   staticDir?: string,
+  /** Lazurio: the WhatsApp intake on the caller's fake wacli; the launcher's own OMB_WHATSAPP_INTAKE* never cross. */
+  whatsappIntake?: WhatsappIntakeFixture,
 ): Promise<VerificationServer> {
+  const whatsappIntakeEnv = whatsappIntake ? whatsappIntakeFixtureEnvironment(whatsappIntake) : {};
   // OMB_TEST_PORTS=19975-19999 keeps a recipe's fixture in a range of its own.
   const range = /^(\d+)-(\d+)$/.exec((parentEnv.OMB_TEST_PORTS ?? process.env.OMB_TEST_PORTS)?.trim() ?? "");
   const port = range ? await freePortBlock([0, 1], Number(range[1]), Number(range[2]) - Number(range[1])) : await freePortBlock([0, 1]);
@@ -284,6 +288,7 @@ export async function launchVerificationServer(
   const childEnv = verificationServerEnvironment(parentEnv, dataDir, port);
   if (enterprise) Object.assign(childEnv, { OMB_ENTERPRISE_DIR: enterprise.dir, OMB_LICENSE_KEY: enterprise.licenseKey });
   if (staticDir) childEnv.OMB_STATIC_DIR = staticDir;
+  Object.assign(childEnv, whatsappIntakeEnv);
   // Lazurio overlay (DEV-6673 M4a): OMB_TEST_ENVIRONMENT_BROWSER=1 stands in for a Lazurio Environment that
   // declares its browser: a fake Platform CLI at ~/.local/bin/lazurio answers `browser link --json` and
   // `browser done --json` (each call logged to ~/lazurio-calls.log), and a runtime directory holds the bots'

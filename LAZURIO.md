@@ -402,6 +402,16 @@ that the server starts no browser or agent-browser process.
   ([`docs/lazurio-github-intake.md`](docs/lazurio-github-intake.md)). Off
   unless `OMB_GITHUB_INTAKE=1`. Wired through the route module
   `server/routes/github-intake.ts`.
+- **WhatsApp intake**: model-free handling of the WhatsApp groups one support
+  bot answers in, through the Environment's paired wacli. Only the groups the
+  operator maps reach the bot, one group per run through a managed webhook per
+  group; a reply goes only to the group that asked, and plain-code guards
+  (commercial language, another client's name or login, a foreign repository
+  or Environment link, the run's tool log, rate limits) and the operator's STOP
+  turn it into a draft for the operator, who also gets escalations and a daily
+  digest ([`docs/lazurio-whatsapp-intake.md`](docs/lazurio-whatsapp-intake.md)).
+  Off unless `OMB_WHATSAPP_INTAKE=1`. Wired through the route module
+  `server/routes/whatsapp-intake.ts`.
 - **Steward team**: [`lazurio/teams/steward.openmaus.json`](lazurio/teams/steward.openmaus.json),
   a leader (Henry, Chief of Staff, delegating through `coordinate_bots`) and
   three workers who review pull requests on their exact head and publish only
