@@ -3,7 +3,7 @@
 // `gh` that answers from an in-memory model of pull requests; delivery goes
 // through a real WebhookManager, so every accepted event is the same queued,
 // UNTRUSTED-wrapped webhook run an HTTP delivery would be.
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -25,7 +25,11 @@ import { WorkspaceBackupMaintenance } from "./workspace-backup-maintenance.ts";
 
 type Permission = "admin" | "maintain" | "write" | "triage" | "read";
 
-interface FakeReview { user: string; commit: string; state: "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | "DISMISSED" }
+interface FakeReview { user: string; commit: string; state: "APPROVED" | "CHANGES_REQUESTED" | "COMMENTED" | "DISMISSED"; at?: string }
+type FakeEvent =
+  | { event: "assigned" | "unassigned"; assignee: string; at: string; actor?: string }
+  | { event: "review_requested" | "review_request_removed"; reviewer: string; at: string; actor: string }
+  | { event: "head_ref_force_pushed"; at: string; actor: string };
 interface FakeComment { id: number; user: string; body: string; at: string }
 interface FakePr {
   repo: string;
@@ -38,7 +42,7 @@ interface FakePr {
   requested: string[];
   reviews: FakeReview[];
   assignees: string[];
-  events: Array<{ event: "assigned" | "unassigned"; assignee: string; at: string; actor?: string }>;
+  events: FakeEvent[];
   comments: FakeComment[];
   updated: number;
 }
@@ -62,6 +66,8 @@ class FakeGitHub {
   maxInFlight = 0;
   private clock = Date.parse("2026-09-30T08:00:00Z");
   private commentId = 100;
+  /** Committer dates by SHA; a head made in `pr()` is a minute older than the pull request. */
+  readonly committed = new Map<string, string>();
 
   get now(): number { return this.clock; }
 
@@ -76,6 +82,8 @@ class FakeGitHub {
       requested: [], reviews: [], assignees: [], events: [], comments: [], updated: 0, ...init,
     };
     pr.updated = this.clock;
+    if (!this.committed.has(pr.head)) this.committed.set(pr.head, new Date(this.clock - 60_000).toISOString());
+    for (const review of pr.reviews) review.at ??= new Date(this.clock).toISOString();
     this.prs.push(pr);
     return pr;
   }
@@ -85,9 +93,37 @@ class FakeGitHub {
     mutate(pr);
     this.tick();
     pr.updated = this.clock;
+    for (const review of pr.reviews) review.at ??= new Date(this.clock).toISOString();
   }
 
-  push(pr: FakePr, head: string): void { this.change(pr, (p) => { p.head = head; }); }
+  push(pr: FakePr, head: string, committedAt?: string): void {
+    this.change(pr, (p) => { p.head = head; });
+    this.committed.set(head, committedAt ?? new Date(this.clock).toISOString());
+  }
+  /** A force push of the head; GitHub stamps the event itself. */
+  forcePush(pr: FakePr, head: string, committedAt: string): void {
+    this.push(pr, head, committedAt);
+    pr.events.push({ event: "head_ref_force_pushed", actor: pr.author, at: new Date(this.clock).toISOString() });
+  }
+  request(pr: FakePr, reviewer: string, actor = pr.author): void {
+    this.change(pr, (p) => {
+      if (!p.requested.includes(reviewer)) p.requested.push(reviewer);
+      p.events.push({ event: "review_requested", reviewer, actor, at: new Date(this.clock + 60_000).toISOString() });
+    });
+  }
+  unrequest(pr: FakePr, reviewer: string, actor = pr.author): void {
+    this.change(pr, (p) => {
+      p.requested = p.requested.filter((login) => login !== reviewer);
+      p.events.push({ event: "review_request_removed", reviewer, actor, at: new Date(this.clock + 60_000).toISOString() });
+    });
+  }
+  /** The account submits a review: GitHub drops its pending request. */
+  review(pr: FakePr, user: string, state: FakeReview["state"]): void {
+    this.change(pr, (p) => {
+      p.requested = p.requested.filter((login) => login !== user);
+      p.reviews.push({ user, commit: p.head, state });
+    });
+  }
   assign(pr: FakePr, who: string, actor = "alice"): void {
     this.change(pr, (p) => { p.assignees.push(who); p.events.push({ event: "assigned", assignee: who, actor, at: new Date(this.clock + 60_000).toISOString() }); });
   }
@@ -150,13 +186,13 @@ class FakeGitHub {
     if (m) {
       const pr = this.find(m[1], Number(m[2]));
       if (!pr) return notFound;
-      if (m[3]) return ok(paged(pr.reviews.map((review, i) => ({ id: i + 1, user: identity(review.user), commit_id: review.commit, state: review.state }))));
+      if (m[3]) return ok(paged(pr.reviews.map((review, i) => ({ id: i + 1, user: identity(review.user), commit_id: review.commit, state: review.state, submitted_at: review.at }))));
       return ok({
         number: pr.number, title: pr.title, html_url: `https://github.test/${pr.repo}/pull/${pr.number}`,
         state: pr.open ? "open" : "closed", draft: pr.draft, user: identity(pr.author),
         head: { sha: pr.head }, base: { ref: "main" },
         assignees: pr.assignees.map(identity),
-        requested_reviewers: pr.requested.map((login) => ({ login })),
+        requested_reviewers: pr.requested.map(identity),
       });
     }
     m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)\/(comments|events)$/);
@@ -170,7 +206,17 @@ class FakeGitHub {
         }))));
       }
       // Events page like GitHub's, 100 at a time, so a long history spans pages.
-      return ok(pr.events.slice((page - 1) * 100, page * 100).map((e, i) => ({ id: (page - 1) * 100 + i + 1, event: e.event, assignee: identity(e.assignee), actor: identity(e.assignee), assigner: e.actor ? identity(e.actor) : null, created_at: e.at })));
+      return ok(pr.events.slice((page - 1) * 100, page * 100).map((e, i) => {
+        const id = (page - 1) * 100 + i + 1;
+        if ("reviewer" in e) return { id, event: e.event, actor: identity(e.actor), review_requester: identity(e.actor), requested_reviewer: identity(e.reviewer), created_at: e.at };
+        if (!("assignee" in e)) return { id, event: e.event, actor: identity(e.actor), created_at: e.at };
+        return { id, event: e.event, assignee: identity(e.assignee), actor: identity(e.assignee), assigner: e.actor ? identity(e.actor) : null, created_at: e.at };
+      }));
+    }
+    m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/commits\/([0-9a-f]{40})$/);
+    if (m) {
+      const date = this.committed.get(m[2]);
+      return date ? ok({ sha: m[2], commit: { committer: { name: "A", email: "a@example.test", date } } }) : notFound;
     }
     m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/collaborators\/([^/]+)\/permission$/);
     if (m) {
@@ -222,6 +268,11 @@ function harness(overrides: Partial<GithubIntakeConfig> & { assignmentHandoff?: 
   let run = 0;
   const receipts = new Map<string, string>();
   const runs = new Map<string, { status: string; startedAt?: number }>();
+  /** The native queue as the server lists it: every run with its webhook and delivery id. */
+  const nativeRuns = () => [...receipts].map(([receipt, id]) => {
+    const [webhookId, ...rest] = receipt.split(":");
+    return { id, status: runs.get(id)?.status ?? "queued", webhookId, deliveryId: rest.join(":") };
+  });
   const webhooks = new WebhookManager({
     file: join(dir, "webhooks.json"),
     botState: (botId) => (bots.some((bot) => bot.id === botId) ? "ready" : "missing"),
@@ -252,7 +303,7 @@ function harness(overrides: Partial<GithubIntakeConfig> & { assignmentHandoff?: 
   };
   const intake = new GithubIntake(intakeOptions);
   return {
-    dir, github, bots, queued, webhooks, logs, intake, intakeOptions, runs,
+    dir, github, bots, queued, webhooks, logs, intake, intakeOptions, runs, nativeRuns,
     setPending: (value: number) => { pending = value; },
     events: () => queued.map((entry) => eventOf(entry.prompt)),
   };
@@ -1021,5 +1072,256 @@ describe("GitHub intake: delivery is not completion", () => {
     await intake.pollOnce();
     expect(intake.status().state).toBe("needs_recovery");
     expect(h.events().map(event => event.number)).toEqual([7, 8]);
+  });
+});
+
+describe("GitHub intake: verdicts and explicit review requests", () => {
+  function recoveryHarness(options: { dir?: string } = {}) {
+    const h = harness({}, options);
+    const intakeOptions = { ...h.intakeOptions, runState: (id: string) => h.runs.get(id) ?? null, runs: h.nativeRuns };
+    return { ...h, intake: new GithubIntake(intakeOptions), intakeOptions };
+  }
+
+  it("reviews a new head again when GitHub carried an older APPROVED onto it through a base merge", async () => {
+    const h = harness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.github.review(pr, "henry-bot", "APPROVED");
+    await h.intake.pollOnce();
+    // The base merge keeps the diff, so GitHub moves the record's commit_id
+    // to the new head and keeps its submitted_at.
+    h.github.push(pr, HEAD_B);
+    h.github.change(pr, (p) => { p.reviews[0].commit = HEAD_B; });
+    h.github.request(pr, "henry-bot");
+    await h.intake.pollOnce();
+
+    expect(h.events().map((event) => [event.head_sha, event.reason])).toEqual([[HEAD_A, "review_requested"], [HEAD_B, "review_requested"]]);
+    expect(h.events()[1]).toMatchObject({ request: { event_id: 1, requester: "alice" }, last_verdict: { state: "APPROVED", after_head_change: false } });
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(2);
+  });
+
+  it("does not trust a backdated committer date after a content-identical force push", async () => {
+    const h = harness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.github.review(pr, "henry-bot", "APPROVED");
+    h.github.forcePush(pr, HEAD_B, "2026-01-01T00:00:00Z");
+    h.github.change(pr, (p) => { p.reviews[0].commit = HEAD_B; });
+    await h.intake.pollOnce();
+    expect(h.events().map((event) => [event.head_sha, event.reason])).toEqual([[HEAD_A, "review_requested"], [HEAD_B, "reviewed_before"]]);
+  });
+
+  it("re-reviews the same head exactly once after changes requested, an answer and a new request", async () => {
+    const h = recoveryHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    h.github.change(pr, (p) => { p.events.push({ event: "review_requested", reviewer: "henry-bot", actor: "alice", at: new Date(h.github.now).toISOString() }); });
+    await h.intake.pollOnce();
+    h.runs.set("run-1", { status: "completed" });
+    h.github.review(pr, "henry-bot", "CHANGES_REQUESTED");
+    await h.intake.pollOnce();
+    // The author's answer alone is not a request.
+    h.github.comment(pr, "alice", "Fixed in the description, please look again.");
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(1);
+
+    h.github.request(pr, "henry-bot");
+    await h.intake.pollOnce();
+    await h.intake.pollOnce();
+    expect(h.events().map((event) => [event.head_sha, event.reason, event.request?.event_id])).toEqual([
+      [HEAD_A, "review_requested", 1],
+      [HEAD_A, "review_rerequested", 2],
+    ]);
+    expect(h.events()[1].last_verdict).toMatchObject({ state: "CHANGES_REQUESTED", after_head_change: true });
+    expect(h.intake.status().recent[0]).toMatchObject({ outcome: "delivered", requestEventId: 2, requester: "alice", runId: "run-2" });
+
+    // A restart and a lost state file still leave one run: the native queue
+    // holds the request's run, and its receipt answers a delivery again.
+    await new GithubIntake(h.intakeOptions).pollOnce();
+    rmSync(h.intakeOptions.file);
+    const fresh = new GithubIntake(h.intakeOptions);
+    await fresh.pollOnce();
+    expect(h.queued).toHaveLength(2);
+    rmSync(h.intakeOptions.file);
+    const unaware = new GithubIntake({ ...h.intakeOptions, runs: undefined });
+    await unaware.pollOnce();
+    expect(h.queued).toHaveLength(2);
+    expect(unaware.status().recent[0]).toMatchObject({ outcome: "duplicate", requestEventId: 2, runId: "run-2" });
+
+    // The verdict after the request answers it.
+    h.runs.set("run-2", { status: "completed" });
+    h.github.review(pr, "henry-bot", "APPROVED");
+    await fresh.pollOnce();
+    expect(fresh.status()).toMatchObject({ state: "ok" });
+    expect(fresh.status().recent[0]).toMatchObject({ outcome: "already_reviewed", reason: "APPROVED already on this head" });
+    expect(h.queued).toHaveLength(2);
+  });
+
+  it("orders requests and verdicts: an older request never reopens a newer verdict", async () => {
+    const h = harness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7 });
+    h.github.request(pr, "henry-bot");
+    await h.intake.pollOnce();
+    // A second request while the review runs is answered by that review.
+    h.github.request(pr, "steward");
+    h.github.change(pr, (p) => { p.events.push({ event: "review_requested", reviewer: "henry-bot", actor: "matej", at: new Date(h.github.now).toISOString() }); });
+    h.github.review(pr, "henry-bot", "CHANGES_REQUESTED");
+    h.github.change(pr, (p) => { p.requested.push("henry-bot"); });
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(1);
+    expect(h.intake.status().recent[0]).toMatchObject({ outcome: "already_reviewed" });
+
+    h.github.request(pr, "henry-bot", "matej");
+    await h.intake.pollOnce();
+    expect(h.events().map((event) => [event.reason, event.request?.requester])).toEqual([["review_requested", "alice"], ["review_rerequested", "matej"]]);
+  });
+
+  it("does not deliver a request removed before the poll, nor treat a request of another reviewer as its own", async () => {
+    const h = harness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.github.review(pr, "henry-bot", "CHANGES_REQUESTED");
+    await h.intake.pollOnce();
+    h.github.request(pr, "henry-bot");
+    h.github.unrequest(pr, "henry-bot");
+    h.github.request(pr, "steward");
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(1);
+  });
+
+  it("lets queued work finish when the request is removed, without recovery noise or a second run", async () => {
+    const h = recoveryHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.runs.set("run-1", { status: "completed" });
+    h.github.review(pr, "henry-bot", "CHANGES_REQUESTED");
+    h.github.request(pr, "henry-bot");
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(2);
+    h.github.unrequest(pr, "henry-bot");
+    await h.intake.pollOnce();
+    h.runs.set("run-2", { status: "completed" });
+    await h.intake.pollOnce();
+    expect(h.intake.status().state).toBe("ok");
+    expect(h.queued).toHaveLength(2);
+  });
+
+  it("waits for a queued request's run when the head moves, then reviews the new head once", async () => {
+    const h = recoveryHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7 });
+    h.github.request(pr, "henry-bot");
+    await h.intake.pollOnce();
+    h.github.push(pr, HEAD_B);
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(1);
+    h.runs.set("run-1", { status: "completed" });
+    await h.intake.pollOnce();
+    await h.intake.pollOnce();
+    expect(h.events().map((event) => [event.head_sha, event.request?.event_id])).toEqual([[HEAD_A, 1], [HEAD_B, 1]]);
+    expect(h.intake.status().state).toBe("ok");
+  });
+
+  it("starts no second review while a failed receipt waits for recovery, until someone requests again", async () => {
+    const h = recoveryHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7 });
+    h.github.request(pr, "henry-bot");
+    await h.intake.pollOnce();
+    h.runs.set("run-1", { status: "failed" });
+    await h.intake.pollOnce();
+    await h.intake.pollOnce();
+    expect(h.intake.status().state).toBe("needs_recovery");
+    expect(h.queued).toHaveLength(1);
+
+    h.github.request(pr, "henry-bot", "matej");
+    await h.intake.pollOnce();
+    expect(h.events().map((event) => event.request?.event_id)).toEqual([1, 2]);
+    expect(h.intake.status().state).toBe("ok");
+  });
+
+  it("keeps a review handed over before an upgrade: its head-only record covers the request it answered", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "omb-github-intake-"));
+    dirs.push(dir);
+    const h = harness({}, { dir });
+    const pr = h.github.pr({ repo: "acme/app", number: 7 });
+    h.github.request(pr, "henry-bot");
+    // The old version delivered it one poll after the request.
+    for (let i = 0; i < 3; i++) h.github.tick();
+    const legacy = { key: `review:acme/app#7@${HEAD_A}`, at: h.github.now, kind: "review", outcome: "delivered", repository: "acme/app", number: 7, headSha: HEAD_A, requester: "alice", runId: "run-0" };
+    writeFileSync(h.intakeOptions.file, JSON.stringify({ version: 1, records: [legacy], settled: {} }));
+    const upgraded = new GithubIntake(h.intakeOptions);
+    await upgraded.pollOnce();
+    expect(h.queued).toHaveLength(0);
+    expect(upgraded.status().state).toBe("ok");
+
+    // A request made after that delivery is new work.
+    h.github.request(pr, "henry-bot", "matej");
+    await upgraded.pollOnce();
+    expect(h.events().map((event) => event.request?.event_id)).toEqual([2]);
+  });
+
+  it("never lets one identified request cover another, even within the same second", async () => {
+    const h = harness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.github.review(pr, "henry-bot", "CHANGES_REQUESTED");
+    h.github.request(pr, "henry-bot");
+    await h.intake.pollOnce();
+    // GitHub stamps the next request in whole seconds, so it can read as
+    // older than the delivery of the one before.
+    const delivered = h.intake.status().recent[0].at;
+    h.github.change(pr, (p) => { p.events.push({ event: "review_requested", reviewer: "henry-bot", actor: "matej", at: new Date(Math.floor(delivered / 1000) * 1000 - 1000).toISOString() }); });
+    await h.intake.pollOnce();
+    expect(h.events().map((event) => event.request?.event_id)).toEqual([undefined, 1, 2]);
+  });
+
+  it("lets a head-only record from before the upgrade answer a request only well after it, so clock skew delivers instead", async () => {
+    for (const [after, delivered] of [[5_000, 1], [90_000, 0]] as const) {
+      const dir = mkdtempSync(join(tmpdir(), "omb-github-intake-"));
+      dirs.push(dir);
+      const h = harness({}, { dir });
+      const pr = h.github.pr({ repo: "acme/app", number: 7 });
+      h.github.request(pr, "henry-bot");
+      const requestedAt = Date.parse(pr.events[0].at);
+      const legacy = { key: `review:acme/app#7@${HEAD_A}`, at: requestedAt + after, kind: "review", outcome: "delivered", repository: "acme/app", number: 7, headSha: HEAD_A, requester: "alice", runId: "run-0" };
+      writeFileSync(h.intakeOptions.file, JSON.stringify({ version: 1, records: [legacy], settled: {} }));
+      await new GithubIntake(h.intakeOptions).pollOnce();
+      expect(h.queued, `a record ${after} ms after the request`).toHaveLength(delivered);
+    }
+  });
+
+  it("finds work in flight in the native queue when the intake's state is lost, and reviews only after it ends", async () => {
+    const h = recoveryHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7 });
+    h.github.request(pr, "henry-bot");
+    await h.intake.pollOnce();
+    h.runs.set("run-1", { status: "running" });
+    rmSync(h.intakeOptions.file);
+    const restarted = new GithubIntake(h.intakeOptions);
+    h.github.push(pr, HEAD_B);
+    h.github.request(pr, "henry-bot", "matej");
+    await restarted.pollOnce();
+    expect(h.queued).toHaveLength(1);
+
+    h.runs.set("run-1", { status: "completed" });
+    await restarted.pollOnce();
+    await restarted.pollOnce();
+    expect(h.events().map((event) => [event.head_sha, event.request?.event_id])).toEqual([[HEAD_A, 1], [HEAD_B, 2]]);
+  });
+
+  it("counts a native run whose delivery id names no pull request as work on every one", async () => {
+    const h = recoveryHarness();
+    const repo = `acme/${"r".repeat(160)}`;
+    const pr = h.github.pr({ repo, number: 7 });
+    h.github.request(pr, "henry-bot");
+    await h.intake.pollOnce();
+    expect(h.queued[0].deliveryId).toMatch(/^gh:[0-9a-f]{64}$/);
+    rmSync(h.intakeOptions.file);
+    const restarted = new GithubIntake(h.intakeOptions);
+    h.github.pr({ repo: "acme/app", number: 8, requested: ["henry-bot"] });
+    await restarted.pollOnce();
+    expect(h.queued).toHaveLength(1);
+    h.runs.set("run-1", { status: "completed" });
+    await restarted.pollOnce();
+    expect(h.events().map((event) => event.number)).toEqual([7, 8]);
   });
 });

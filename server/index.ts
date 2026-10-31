@@ -9708,7 +9708,7 @@ ROUTES.push(createDataRoutes({
 }));
 // Lazurio GitHub intake (server/routes/github-intake.ts): off unless OMB_GITHUB_INTAKE=1.
 const githubIntake = createLazurioGithubIntake({ dataDir: DATA_DIR, webhooks, bots: () => store.bots, maintenance: workspaceMaintenance,
-  runState: (runId) => routines!.listRuns().find((run) => run.id === runId) ?? null });
+  runState: (runId) => routines!.listRuns().find((run) => run.id === runId) ?? null, runs: () => routines!.listRuns() });
 ROUTES.push(githubIntake.routes);
 ROUTES.push(createLiveRoutes({
   calls: liveCalls,
