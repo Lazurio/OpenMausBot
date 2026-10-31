@@ -102,6 +102,9 @@ release offers it.
      `OMB_GITHUB_INTAKE_BOT` and its scope settings), with `gh` signed in
      as the same user; see
      [`docs/lazurio-github-intake.md`](../lazurio-github-intake.md).
+   - optionally the WhatsApp intake (`OMB_WHATSAPP_INTAKE=1` and its
+     settings), with wacli installed and paired as the same user; see
+     [`docs/lazurio-whatsapp-intake.md`](../lazurio-whatsapp-intake.md).
 
    The server always listens on `127.0.0.1` only. The gateway serves it at
    `https://mausbot.<vm>.<org>.lazurio.io/` and must require the
@@ -149,6 +152,7 @@ release offers it.
 | `lazurio: the distribution seeds no MausBot helper bot` (Organization Admin decision of 2026-10-28) | An Environment's bots are the ones its person or Organization makes; the server adds no undeletable "MausBot" helper with Chief-level tools, on a first start or on update, and a new place's first bot is an ordinary Chief ([`LAZURIO.md`](../../LAZURIO.md#what-the-overlay-removes), `lazurio/removals/i-default-bot.json`). |
 | `lazurio: no background AI test messages unless OMB_AI_CHECKS=1` (Organization Admin decision of 2026-10-28) | An Environment sends its engines no background test messages and moves no default model by them, whatever the Machines release sets; `OMB_AI_CHECKS=1` turns them on ([`LAZURIO.md`](../../LAZURIO.md#what-the-overlay-adds)). |
 | `lazurio: Steward team 1.1.2 blocks only real defects, reviews in one pass and removes its worktrees` and the commits after it (Organization Admin decision of 2026-10-30) | The shipped team's shared instructions: changes are requested only for a real defect, everything else is a non-blocking note in the approval's review body, every finding goes into one review grouped as "Blocking" and "Non-blocking", and a finding outside the pull request's purpose becomes an issue; each worker keeps exactly one clone of a repository that is not in the Lazurio Folder, outside the Folder, and removes the pull request's worktree and local branch when the work ends, unless the worktree holds commits or changes that are not pushed, which the worker keeps and reports ([`docs/lazurio-github-intake.md`](../lazurio-github-intake.md)). The server does not change. Lazurio-only; never proposed upstream. |
+| `lazurio: WhatsApp intake, model-free WhatsApp group triggers for a support bot (DEV-6691)` | A support bot in an ordinary MausBot server answers in the WhatsApp groups its operator maps (Organization Admin decisions of 2026-10-30: the bot lives in the existing server, replies on its own when tagged, and a model-free guard stops a reply that names another client). Off unless `OMB_WHATSAPP_INTAKE=1`. Lazurio-only files (`server/whatsapp-intake*.ts`, a route module and `server/testing/whatsapp-intake-fixture.ts`) wired like the GitHub intake: `server/index.ts` builds it, pushes its routes, subscribes it to the runtime events, starts and stops it, and `scripts/control-omb.ts` starts it in a verification fixture only on a fake wacli its caller hands over, never on the launcher's own `OMB_WHATSAPP_INTAKE*` settings. Checked against wacli v0.25.1. See [`docs/lazurio-whatsapp-intake.md`](../lazurio-whatsapp-intake.md). Lazurio-only. |
 
 Drop a commit as soon as upstream offers an equivalent. Upstream files the
 overlay changes are listed in `allowed_upstream_changes` in
