@@ -76,6 +76,13 @@ jobs:
             # that only the ACP driver's 5 s cancel fallback ends, so it fails
             # about one run in four on the plain tag; the poll waits longer.
             server/live-call.e2e.test.ts
+            # Its free/busy test of Marco's assistant has a busy slot on
+            # 2026-10-29 and reads the real clock, so it fails on every run
+            # since that slot passed. Upstream's own fix after v0.1.130
+            # (milind-soni/OpenMausBot d915c2d8a) gives the assistant a fixed
+            # clock; the next upstream refresh, whose tag contains it, drops
+            # this line with the backport.
+            server/host/team-messages.test.ts
             # No background AI test messages unless OMB_AI_CHECKS=1: the switch
             # and its unit test, and the self-hosting page that describes it.
             server/tested-ai.ts
