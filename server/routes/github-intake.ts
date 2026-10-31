@@ -40,7 +40,7 @@ export function maintenanceGuard(maintenance: { request(): () => void }): <T>(wo
   };
 }
 
-export interface LazurioGithubIntakeDeps extends Pick<GithubIntakeOptions, "webhooks" | "bots" | "runState"> {
+export interface LazurioGithubIntakeDeps extends Pick<GithubIntakeOptions, "webhooks" | "bots" | "runState" | "runs"> {
   dataDir: string;
   /** The server's workspace maintenance gate: a backup or restore defers deliveries to the next poll. */
   maintenance: { request(): () => void };
@@ -62,6 +62,7 @@ export function createLazurioGithubIntake(deps: LazurioGithubIntakeDeps): { rout
         webhooks: deps.webhooks,
         bots: deps.bots,
         runState: deps.runState,
+        runs: deps.runs,
         guard: maintenanceGuard(deps.maintenance),
       })
     : null;

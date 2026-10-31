@@ -12,13 +12,13 @@
 //
 // Contract: server/github-intake.test.ts and docs/lazurio-github-intake.md.
 // Off unless OMB_GITHUB_INTAKE=1; upstream behaviour is otherwise unchanged.
-import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { z } from "zod";
 
 import { writeFileAtomic } from "./atomic.ts";
+import { ACTIVE_RUN, commitSchema, deliveryConcerns, deliveryIdFor, eventsSchema, login, reviewPlan, reviewsSchema } from "./github-intake-review.ts";
 import type { JsonValue } from "./schema.ts";
 import type { WebhookEvent, WebhookManager, WebhookReceiveResult, WebhookTrigger } from "./webhooks.ts";
 
@@ -216,7 +216,6 @@ function classify(result: Extract<GhResult, { ok: false }>): GhFailure {
 
 // ── GitHub response shapes (only the fields the intake reads) ─────────────
 
-const login = z.object({ login: z.string(), id: z.number().int().positive().optional() });
 const userSchema = login;
 const searchSchema = z.object({
   items: z.array(z.object({
@@ -242,26 +241,14 @@ const pullSchema = z.object({
   head: z.object({ sha: z.string() }),
   base: z.object({ ref: z.string() }).optional(),
   assignees: z.array(login).nullable().optional(),
+  requested_reviewers: z.array(login).nullable().optional(),
 });
-const reviewsSchema = z.array(z.object({
-  user: login.nullable().optional(),
-  commit_id: z.string().nullable().optional(),
-  state: z.string(),
-}));
 const commentsSchema = z.array(z.object({
   id: z.number().int(),
   user: login.nullable().optional(),
   body: z.string().nullable().optional(),
   created_at: z.string(),
   html_url: z.string().optional(),
-}));
-const eventsSchema = z.array(z.object({
-  id: z.number().int().positive().optional(),
-  event: z.string(),
-  actor: login.nullable().optional(),
-  assigner: login.nullable().optional(),
-  assignee: login.nullable().optional(),
-  created_at: z.string(),
 }));
 const permissionSchema = z.object({ permission: z.string().optional(), role_name: z.string().optional(), user: login.optional() });
 
@@ -279,6 +266,9 @@ export interface IntakeRecord {
   number: number;
   headSha?: string;
   requester?: string;
+  /** What a review answers: the head, or the GitHub `review_requested` event `requestEventId`. */
+  obligation?: "head" | "request";
+  requestEventId?: number;
   runId?: string;
   reason?: string;
 }
@@ -292,6 +282,8 @@ const recordSchema = z.object({
   number: z.number().int(),
   headSha: z.string().optional(),
   requester: z.string().optional(),
+  obligation: z.enum(["head", "request"]).optional(),
+  requestEventId: z.number().int().positive().optional(),
   runId: z.string().optional(),
   reason: z.string().optional(),
 });
@@ -362,6 +354,8 @@ export interface GithubIntakeOptions {
   concurrency?: number;
   /** Read the existing native execution receipt; absence is never proof of completion. */
   runState?: (runId: string) => { status: string; startedAt?: number } | null;
+  /** The server's native runs, so work in flight is found even when the intake's own records are lost. */
+  runs?: () => ReadonlyArray<{ id: string; status: string; webhookId?: string; deliveryId?: string }>;
 }
 
 type Role = "requested" | "reviewed" | "organization" | "assigned";
@@ -380,11 +374,6 @@ const repoKey = (repo: string, number: number) => `${repo.toLowerCase()}#${numbe
 
 function patternRegex(pattern: string): RegExp {
   return new RegExp(`^${pattern.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`, "i");
-}
-
-function deliveryIdFor(key: string): string {
-  const id = `gh:${key}`;
-  return id.length <= 200 ? id : `gh:${createHash("sha256").update(key).digest("hex")}`;
 }
 
 function errorText(error: unknown): string {
@@ -672,7 +661,6 @@ export class GithubIntake {
     let done = true;
 
     if (candidate.roles.has("requested") || candidate.roles.has("reviewed") || candidate.roles.has("organization")) {
-      const reviewKey = `review:${repo}#${number}@${head}`;
       if (sameLogin(author, account)) {
         const ownKey = `own:${repo}#${number}@${head}`;
         if (!this.hasRecord(ownKey)) {
@@ -680,23 +668,26 @@ export class GithubIntake {
           this.log(`[github-intake] ${repo}#${number} at ${head.slice(0, 12)} is this account's own pull request: it needs human approval`);
         }
       } else if (!pr.draft) {
-        const prior = this.latestRecord(reviewKey);
-        const reviews = await this.pages(`repos/${repo}/pulls/${number}/reviews`, reviewsSchema);
-        const last = reviews.filter((review) => sameLogin(review.user?.login, account) &&
-          (this.accountId === undefined || review.user?.id === this.accountId) && review.commit_id === head &&
-          ["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(review.state)).at(-1);
-        if (last && ["APPROVED", "CHANGES_REQUESTED"].includes(last.state)) {
-          this.recordOnce({ key: reviewKey, kind: "review", outcome: "already_reviewed", repository: repo, number, headSha: head, reason: `${last.state} already on this head` });
-        } else if (prior) {
-          const receipt = prior.runId ? this.options.runState?.(prior.runId) : null;
-          if (this.options.runState && !["queued", "running", "waiting"].includes(receipt?.status ?? "")) {
-            this.recovery(prior, deferred, `Native review run ${receipt?.status ?? "unavailable"}; no current-head GitHub verdict. Inspect worker/delegation receipts before recovering this review.`);
+        const plan = await reviewPlan({
+          reviews: () => this.pages(`repos/${repo}/pulls/${number}/reviews`, reviewsSchema),
+          events: () => this.pages(`repos/${repo}/issues/${number}/events`, eventsSchema),
+          committerDate: async () => (await this.api(`repos/${repo}/commits/${head}`, commitSchema)).commit.committer?.date,
+        }, { repository: repo, number, head, author, roles: candidate.roles, records: this.state.records,
+          account: { login: account, id: this.accountId }, requestedReviewers: pr.requested_reviewers ?? [],
+        });
+        if (plan.action === "answered") {
+          this.recordOnce({ key: `review:${repo}#${number}@${head}`, kind: "review", outcome: "already_reviewed", repository: repo, number, headSha: head, reason: plan.reason });
+        } else if (plan.action === "covered") {
+          const receipt = plan.record.runId ? this.options.runState?.(plan.record.runId) : null;
+          if (this.options.runState && !ACTIVE_RUN.includes(receipt?.status ?? "")) {
+            this.recovery(plan.record, deferred, `Native review run ${receipt?.status ?? "unavailable"}; no current-head GitHub verdict. Inspect worker/delegation receipts before recovering this review.`);
           }
+        } else if (this.hasActiveRun(repo, number)) {
+          done = false; // one review at a time: earlier work on this pull request finishes first
         } else {
-          const reason = candidate.roles.has("requested") ? "review_requested" : candidate.roles.has("reviewed") ? "reviewed_before" : "organization_scope";
           done = this.deliver(bot, deferred, summary, {
-            key: reviewKey, kind: "review", repository: repo, number, headSha: head, requester: author,
-            payload: this.payload("review", reason, account, repo, pr, author),
+            key: plan.key, kind: "review", repository: repo, number, headSha: head, requester: plan.requester, ...plan.record,
+            payload: { ...this.payload("review", plan.reason, account, repo, pr, plan.requester), ...plan.extras },
           }) && done;
         }
       }
@@ -706,6 +697,14 @@ export class GithubIntake {
       done = (await this.publications(repo, number, pr, account, bot, summary, deferred)) && done;
     }
     return done;
+  }
+
+  /** Native work of this pull request in flight: by the intake's records, or by its webhook's runs when the records are lost. */
+  private hasActiveRun(repo: string, number: number): boolean {
+    const hook = this.findWebhook();
+    return this.state.records.some((record) => record.repository.toLowerCase() === repo.toLowerCase() && record.number === number &&
+      Boolean(record.runId && this.options.runState && ACTIVE_RUN.includes(this.options.runState(record.runId)?.status ?? ""))) ||
+      Boolean(hook && this.options.runs?.().some((run) => run.webhookId === hook.id && ACTIVE_RUN.includes(run.status) && deliveryConcerns(run.deliveryId, repo, number)));
   }
 
   /** Assignment itself is the scoped handoff; only new, attributable events qualify. */
@@ -745,11 +744,7 @@ export class GithubIntake {
     }
     // Assignment can arrive after a review was already handed to a worker.
     // Wait for existing native work instead of starting a concurrent publisher.
-    if (this.options.runState && this.state.records.some(record =>
-      record.repository.toLowerCase() === repo.toLowerCase() && record.number === number &&
-      record.runId && ["queued", "running", "waiting"].includes(this.options.runState!(record.runId)?.status ?? ""))) {
-      return false;
-    }
+    if (this.hasActiveRun(repo, number)) return false;
     return this.deliver(bot, deferred, summary, {
       ...base,
       payload: {
@@ -873,7 +868,7 @@ export class GithubIntake {
     bot: { id: string },
     deferred: Deferred[],
     summary: PollSummary,
-    work: { key: string; kind: IntakeKind; repository: string; number: number; headSha: string; requester: string; payload: Record<string, JsonValue> },
+    work: { key: string; kind: IntakeKind; repository: string; number: number; headSha: string; requester: string; obligation?: "head" | "request"; requestEventId?: number; payload: Record<string, JsonValue> },
   ): boolean {
     // After one refusal this poll stops trying: one refused attempt per poll,
     // never one per pull request.
@@ -907,7 +902,7 @@ export class GithubIntake {
     const outcome: IntakeOutcome = result.duplicate ? "duplicate" : "delivered";
     this.record({
       key: work.key, kind: work.kind, outcome, repository: work.repository, number: work.number,
-      headSha: work.headSha, requester: work.requester, ...(result.runId ? { runId: result.runId } : {}),
+      headSha: work.headSha, requester: work.requester, ...(work.obligation ? { obligation: work.obligation } : {}), ...(work.requestEventId ? { requestEventId: work.requestEventId } : {}), ...(result.runId ? { runId: result.runId } : {}),
     });
     if (!result.duplicate) summary.delivered++;
     this.log(`[github-intake] ${work.kind} ${work.repository}#${work.number} at ${work.headSha.slice(0, 12)} ${outcome === "delivered" ? `handed to the bot (run ${result.runId ?? "?"})` : "was already handed over"}`);
@@ -917,10 +912,14 @@ export class GithubIntake {
   /** The managed webhook of the intake: found by its record, or by name and
    * event types when the record was lost; created on first use; moved when
    * the target bot changes. */
-  private webhook(botId: string): WebhookTrigger {
+  private findWebhook(): WebhookTrigger | undefined {
     const hooks = this.options.webhooks.list();
-    let hook = hooks.find((candidate) => candidate.id === this.state.webhookId)
+    return hooks.find((candidate) => candidate.id === this.state.webhookId)
       ?? hooks.find((candidate) => candidate.name === INTAKE_WEBHOOK_NAME && INTAKE_EVENT_TYPES.every((type) => candidate.eventTypes?.includes(type)));
+  }
+
+  private webhook(botId: string): WebhookTrigger {
+    let hook = this.findWebhook();
     if (!hook) {
       hook = this.options.webhooks.create({
         name: INTAKE_WEBHOOK_NAME,

@@ -63,8 +63,8 @@ than Henry imports the same team, renames its leader and sets
 Every trigger needs an open pull request. Drafts are skipped until they are
 marked ready.
 
-**Review** fires once per pull request and head SHA; a new head fires again.
-A pull request is picked when:
+**Review** fires once per pull request and head SHA, and once per explicit
+request (below); a new head fires again. A pull request is picked when:
 
 1. the account is a requested reviewer (directly or through a team); or
 2. the account reviewed it before (it keeps following it, so a push after
@@ -73,8 +73,64 @@ A pull request is picked when:
    account can push to, is not archived and does not match
    `OMB_GITHUB_INTAKE_EXCLUDE`.
 
-A review is also not handed over when the account already submitted
-`APPROVED` or `CHANGES_REQUESTED` on that exact head.
+A review is also not handed over while the account's verdict on the head
+is current and no explicit request came after it.
+
+### Verdicts and explicit requests
+
+- **A verdict is current** when the account's last `APPROVED` or
+  `CHANGES_REQUESTED` (a later `DISMISSED` withdraws it) has `commit_id`
+  equal to the head **and** its `submitted_at` is later than the head's last
+  change. GitHub carries an `APPROVED` onto a new head whose diff did not
+  change, a base merge or a content-identical rebase, and keeps the old
+  `submitted_at`; such a record is no verdict on the new head. The head's last
+  change is the later of its committer date (`GET repos/{repo}/commits/{sha}`)
+  and the latest `head_ref_force_pushed` issue event, which GitHub timestamps
+  itself, so a committer date set back does not hide a rebase. An unknown
+  date counts as a change after every verdict.
+- **An explicit request** is the latest `review_requested` issue event naming
+  the account (`requested_reviewer`), not followed by a
+  `review_request_removed`, while the pull request still lists the account in
+  `requested_reviewers`. Its event id is its identity. When it is newer than
+  the current verdict (one-second resolution: a request in the verdict's
+  second does not count), the intake queues one re-review of the exact current
+  head with `reason: review_rerequested`, also on an unchanged head. A comment,
+  even the author's answer, is not a request. A request through a team names
+  no account; it is handled as before, once per head.
+- **Identity.** A review answering a request is keyed
+  `review:<repo>#<n>@<head>~request:<event id>`; one without a request keeps
+  `review:<repo>#<n>@<head>`. The key is the webhook delivery id, so repeated
+  polls, a restart or a lost state file never queue a request twice (the
+  webhook's receipt answers `duplicate`), and a new request never meets the
+  receipt of an earlier delivery of the same head. A request is answered only
+  by a delivery with its own key: a delivery for another request never covers
+  it, even within the same second. Each review record names its `obligation`
+  (`head` or `request`). A head-only record without one was written before
+  requests had keys; it answers a request only when recorded at least 60
+  seconds after the request's GitHub time, because that time has one-second
+  resolution and the Environment's clock may differ from GitHub's. Closer than
+  that, the request is delivered, at the cost of at most one more review after
+  an upgrade.
+- **Safety.** While a native run of the pull request is queued, running or
+  waiting, nothing new is queued for it; a moved head or a newer request is
+  delivered once that work ends. The intake finds that run through its own
+  records, and also in the server's native queue by the intake webhook's id and
+  the run's delivery id, so a lost state file does not start a concurrent
+  review. A run whose delivery id names no pull request (a key longer than 200
+  characters is hashed) counts as work on every pull request until it ends. A request removed while its run waits leaves
+  the run to finish and queues nothing more; a delivered request whose native
+  run ended without a current verdict reports `needs_recovery` and is not
+  replayed. A later request is the requester's explicit retry and gets its
+  own delivery.
+- **Bounds.** Requests and force pushes come from the first 1 000 issue
+  events; on a longer history a newer request is not seen and the head's own
+  rule applies.
+
+Every outcome of a request is in the status's `recent` list with
+`requestEventId` and the requester. Telling the requester on the pull request
+which state their request is in (queued, in progress, the verdict, or why it
+waits) belongs to the intake's existing reply on the pull request
+(Lazurio/OpenMausBot#82), not to a second channel.
 
 **The account's own pull requests are never reviewed by it.** The intake
 records them as `needs_human_approval` (in the status and the log) and starts
@@ -189,9 +245,13 @@ block:
 }
 ```
 
-`reason` is `review_requested`, `reviewed_before`, `organization_scope` or
-`publish_instruction` or `assignment_handoff`. The latter carries
-`assignment: {event_id, actor, actor_id, assignee, assignee_id, created_at}`. `requester` is the pull request's author for a review
+`reason` is `review_requested`, `review_rerequested`, `reviewed_before`,
+`organization_scope`, `publish_instruction` or `assignment_handoff`. A review
+that answers an explicit request carries
+`request: {event_id, requester, created_at}`, and one on a head where the
+account has a verdict carries
+`last_verdict: {state, submitted_at, after_head_change}`. `assignment_handoff` carries
+`assignment: {event_id, actor, actor_id, assignee, assignee_id, created_at}`. `requester` is the request's actor for an explicit request, otherwise the pull request's author for a review
 and the instruction's author for a publication, which also carries
 `instruction: {comment_id, url, author, created_at, marker}`. The event name
 is `github.review` or `github.publish`.
@@ -217,7 +277,10 @@ a publication as a review or erase deduplication receipts.
 - An idle poll asks GitHub who the account is and runs three searches (plus
   one per owner in the `organization` scope; the list of pushable
   repositories is refreshed every 15 minutes). Details of a pull request are
-  fetched only when its `updated_at` changed since it was last handled.
+  fetched only when its `updated_at` changed since it was last handled. A
+  review decision reads the pull request's reviews; its issue events only
+  while the account is requested or has a verdict on the head, and the head
+  commit only for such a verdict.
 - State lives in `<data>/github-intake.json` (mode 0600): the handled keys
   with their outcome and the webhook id. It is restart-safe. If it is lost,
   the webhook's own delivery receipts still stop a second run for the same
@@ -234,7 +297,8 @@ a publication as a review or erase deduplication receipts.
 `rate_limited`, `needs_recovery`, `error`), the account, the target bot, the webhook id, the
 configuration, `lastPollAt`, `lastSuccessAt`, `nextPollInMs`, `lastError` and
 the 50 most recent outcomes (`delivered`, `duplicate`, `already_reviewed`,
-`needs_human_approval`, `needs_recovery`, `ignored`). Status also exposes
+`needs_human_approval`, `needs_recovery`, `ignored`); a review that answers an
+explicit request names its `requestEventId`. Status also exposes
 `assignmentHandoff` and its persisted `assignmentActivatedAt`. `POST /api/github-intake/poll` polls now
 and returns the poll summary with the status. Both need the admin scope
 (the owner on loopback). The server log carries `[github-intake]` lines for
@@ -276,8 +340,10 @@ would discard the concrete handoff. The activation boundary prevents an
 upgrade from executing old assignments made under the previous contract.
 
 `server/github-intake.test.ts` exercises GitHub-shaped events, identities,
-live roles, review-only requests, migration, reassignment, pause/restart and
-late verdicts through the real WebhookManager. `github-intake.e2e.test.ts`
+live roles, review-only requests, migration, reassignment, pause/restart,
+late verdicts, carried approvals and repeated requests on one head through
+the real WebhookManager; `server/github-intake-review.ts` decides which review
+is owed. `github-intake.e2e.test.ts`
 runs the isolated real server and exercises the native queue and execution
 receipts with fake GitHub and model providers.
 These fixtures do not claim that a real GitHub merge or deployment occurred;

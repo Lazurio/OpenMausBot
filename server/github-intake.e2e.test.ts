@@ -3,13 +3,16 @@
 // hands it to the target bot through its managed webhook, the queued run
 // finishes on the fake engine with the event inside the UNTRUSTED block, and
 // a second poll wakes nobody.
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { type ChildProcess, spawn } from "node:child_process";
+import { chmodSync, closeSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { launchVerificationServer, runControlOmb, type VerificationServer } from "../scripts/control-omb.ts";
+import { launchVerificationServer, runControlOmb, verificationServerArgs, verificationServerEnvironment, type VerificationServer } from "../scripts/control-omb.ts";
 import type { RoutineRun } from "./routines.ts";
+import { waitForExit } from "./testing/cleanup.ts";
+import { hostTimeout } from "./testing/host-timeout.ts";
 
 const HEAD = "c".repeat(40);
 
@@ -28,16 +31,21 @@ if (url.pathname === "/search/issues") {
   const q = url.searchParams.get("q");
   const items = (q.includes("review-requested:henry-bot") || (state.assigned && q.includes("assignee:henry-bot"))) ? [{
     number: pr.number, repository_url: "https://api.github.test/repos/" + pr.repo,
-    updated_at: "2026-09-30T08:00:00Z", draft: false,
+    updated_at: state.updatedAt ?? "2026-09-30T08:00:00Z", draft: false,
   }] : [];
   out({ total_count: items.length, items });
 }
 if (url.pathname === "/repos/acme/app/pulls/42") out({
   number: pr.number, title: pr.title, html_url: "https://github.test/acme/app/pull/42", state: "open", draft: false,
   user: { login: pr.author, id: 11 }, head: { sha: __HEAD__ }, base: { ref: "main" }, assignees: state.assigned ? [{ login: "henry-bot", id: 12 }] : [],
+  requested_reviewers: state.rerequested ? [{ login: "henry-bot", id: 12 }] : [],
 });
-if (url.pathname === "/repos/acme/app/pulls/42/reviews") out(state.approved ? [{user: {login: "henry-bot", id: 12}, state: "APPROVED", commit_id: __HEAD__}] : []);
-if (url.pathname === "/repos/acme/app/issues/42/events") out(state.assigned ? [{id: 90, event: "assigned", actor: {login: "henry-bot", id: 12}, assigner: {login: "alice", id: 11}, assignee: {login: "henry-bot", id: 12}, created_at: state.assignedAt}] : []);
+if (url.pathname === "/repos/acme/app/commits/" + __HEAD__) out({ sha: __HEAD__, commit: { committer: { date: "2026-09-30T07:00:00Z" } } });
+if (url.pathname === "/repos/acme/app/pulls/42/reviews") out(state.approved ? [{id: 7, user: {login: "henry-bot", id: 12}, state: "APPROVED", commit_id: __HEAD__, submitted_at: "2026-09-30T09:00:00Z"}] : []);
+if (url.pathname === "/repos/acme/app/issues/42/events") out([
+  ...(state.assigned ? [{id: 90, event: "assigned", actor: {login: "henry-bot", id: 12}, assigner: {login: "alice", id: 11}, assignee: {login: "henry-bot", id: 12}, created_at: state.assignedAt}] : []),
+  ...(state.rerequested ? [{id: state.requestId ?? 91, event: "review_requested", actor: {login: "alice", id: 11}, review_requester: {login: "alice", id: 11}, requested_reviewer: {login: "henry-bot", id: 12}, created_at: state.requestedAt}] : []),
+]);
 if (url.pathname === "/repos/acme/app/collaborators/alice/permission") out({permission: "write", role_name: "write", user: {login: "alice", id: 11}});
 process.stderr.write("gh: Not Found (HTTP 404)");
 process.exit(1);
@@ -150,4 +158,90 @@ describe.skipIf(process.platform === "win32")("a server started with OMB_GITHUB_
     expect(readFileSync(calls, "utf8")).not.toContain("/comments");
   });
 
+  it("hands a new request on an already reviewed head to the native queue once", async () => {
+    // GitHub's clock and the Environment's agree: the request is newer than every earlier delivery.
+    const requestedAt = new Date(Date.now() + 1_000).toISOString();
+    writeFileSync(githubState, JSON.stringify({ approved: true, rerequested: true, requestedAt, updatedAt: requestedAt }));
+    const polled = await api("POST", "/api/github-intake/poll");
+    expect(polled.body.summary.delivered).toBe(1);
+    const review = polled.body.status.recent.find((record: { key: string }) => record.key.endsWith("~request:91"));
+    expect(review).toMatchObject({ kind: "review", outcome: "delivered", requestEventId: 91, requester: "alice" });
+    let run: RoutineRun | undefined;
+    await expect.poll(async () => {
+      run = (await api("GET", "/api/routines")).body.runs.find((r: RoutineRun) => r.id === review.runId);
+      return run?.status;
+    }, { timeout: 20_000, interval: 200 }).toBe("completed");
+    const transcript = JSON.stringify(await runControlOmb(["messages", "--bot", run!.botId!, "--task", run!.threadId!, "--url", fixture.info.url]));
+    expect(transcript).toContain("review_rerequested");
+    const again = await api("POST", "/api/github-intake/poll");
+    expect(again.body.summary.delivered).toBe(0);
+  });
+
+});
+
+describe.skipIf(process.platform === "win32")("a server whose GitHub intake state is lost while a review runs", () => {
+  const dir = mkdtempSync(join(tmpdir(), "omb-github-intake-lost-"));
+  const githubState = join(dir, "github.json");
+  const gh = join(dir, "gh");
+  const release = join(dir, "release");
+  // The review's turn hangs until `release` exists, so its native run stays in flight across the restart.
+  const env = { ...process.env, OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_GH: gh, FAKE_CLAUDE_MODE: "hang", FAKE_CLAUDE_RELEASE: release };
+  let fixture: VerificationServer;
+  let restarted: ChildProcess | undefined;
+  const api = async (method: string, path: string, body?: unknown) => {
+    const response = await fetch(`${fixture.info.url}${path}`, {
+      method,
+      headers: { "content-type": "application/json", origin: fixture.info.url },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    return { status: response.status, body: await response.json() as any };
+  };
+  const request = (requestId: number) => {
+    const requestedAt = new Date(Date.now() + 1_000).toISOString();
+    writeFileSync(githubState, JSON.stringify({ rerequested: true, requestId, requestedAt, updatedAt: requestedAt }));
+  };
+  const intakeRuns = async () => (await api("GET", "/api/routines")).body.runs.filter((run: RoutineRun) => run.deliveryId?.startsWith("gh:review:")) as RoutineRun[];
+
+  beforeAll(async () => {
+    writeFileSync(join(dir, "calls.log"), "");
+    request(91);
+    writeFileSync(gh, FAKE_GH.replace("__CALLS__", JSON.stringify(join(dir, "calls.log"))).replaceAll("__HEAD__", JSON.stringify(HEAD)).replace("__STATE__", JSON.stringify(githubState)));
+    chmodSync(gh, 0o755);
+    fixture = await launchVerificationServer(env);
+  });
+
+  afterAll(async () => {
+    writeFileSync(release, "");
+    if (restarted) await waitForExit(restarted, { signal: "SIGTERM" });
+    await fixture?.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("finds the review in the native queue and queues no concurrent one for a new request", async () => {
+    expect((await api("POST", "/api/bots", { name: "Henry", section: "Steward" })).status).toBe(201);
+    expect((await api("POST", "/api/github-intake/poll")).body.summary.delivered).toBe(1);
+    await expect.poll(async () => (await intakeRuns()).map((run) => run.status), { timeout: hostTimeout(20_000), interval: 200 }).toEqual(["running"]);
+
+    await waitForExit(fixture.child, { signal: "SIGTERM" });
+    rmSync(join(fixture.info.dataDir, "github-intake.json"));
+    request(92);
+    const log = openSync(fixture.info.logPath, "a", 0o600);
+    const childEnv = verificationServerEnvironment(env, fixture.info.dataDir, Number(new URL(fixture.info.url).port));
+    restarted = spawn(process.execPath, verificationServerArgs(childEnv), { cwd: process.cwd(), env: childEnv, stdio: ["ignore", log, log] });
+    closeSync(log);
+    await expect.poll(async () => { try { return (await fetch(`${fixture.info.url}/api/health`)).ok; } catch { return false; } }, { timeout: hostTimeout(30_000) }).toBe(true);
+
+    // The restart picks the cut-off run up again; the intake, its records gone, finds it in the queue.
+    await expect.poll(async () => (await intakeRuns()).map((run) => run.retried), { timeout: hostTimeout(20_000), interval: 200 }).toEqual(["restarted"]);
+    const waiting = await api("POST", "/api/github-intake/poll");
+    expect(waiting.body.summary).toMatchObject({ delivered: 0 });
+    expect(await intakeRuns()).toHaveLength(1);
+
+    writeFileSync(release, "");
+    await expect.poll(async () => (await intakeRuns()).map((run) => run.status), { timeout: hostTimeout(30_000), interval: 200 }).toEqual(["completed"]);
+    const next = await api("POST", "/api/github-intake/poll");
+    expect(next.body.summary.delivered).toBe(1);
+    expect((await intakeRuns()).map((run) => run.deliveryId).sort()).toEqual([`gh:review:acme/app#42@${HEAD}~request:91`, `gh:review:acme/app#42@${HEAD}~request:92`]);
+  }, hostTimeout(120_000));
 });
