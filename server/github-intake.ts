@@ -12,12 +12,12 @@
 //
 // Contract: server/github-intake.test.ts and docs/lazurio-github-intake.md.
 // Off unless OMB_GITHUB_INTAKE=1; upstream behaviour is otherwise unchanged.
-import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { z } from "zod";
 
 import { writeFileAtomic } from "./atomic.ts";
+import { classify, GhError, type GhRunner } from "./github-intake-gh.ts";
 import { ACTIVE_RUN, commitSchema, deliveryConcerns, deliveryIdFor, eventsSchema, login, reviewPlan, reviewsSchema } from "./github-intake-review.ts";
 import type { JsonValue } from "./schema.ts";
 import type { WebhookEvent, WebhookManager, WebhookReceiveResult, WebhookTrigger } from "./webhooks.ts";
@@ -34,7 +34,6 @@ const MIN_INTERVAL_S = 30;
 const MAX_INTERVAL_S = 3_600;
 const MAX_BACKOFF_MS = 30 * 60_000;
 const GH_CONCURRENCY = 4;
-const GH_TIMEOUT_MS = 60_000;
 const SEARCH_PAGES = 3;
 const LIST_PAGES = 10;
 const REPO_REFRESH_MS = 15 * 60_000;
@@ -158,62 +157,6 @@ export function hasPublishMarker(body: string): boolean {
   return false;
 }
 
-// ── gh ────────────────────────────────────────────────────────────────────
-
-export type GhResult =
-  | { ok: true; stdout: string }
-  | { ok: false; code: number | null; stderr: string; missing?: boolean };
-export type GhRunner = (args: string[]) => Promise<GhResult>;
-
-/** The signed-in GitHub CLI of this server's user. No token of our own. */
-export function spawnGh(bin = "gh"): GhRunner {
-  return (args) => new Promise((resolve) => {
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
-    const finish = (result: GhResult) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve(result);
-    };
-    const child = spawn(bin, args, {
-      stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, GH_PROMPT_DISABLED: "1", GH_NO_UPDATE_NOTIFIER: "1", NO_COLOR: "1", CLICOLOR: "0" },
-      windowsHide: true,
-    });
-    const timer = setTimeout(() => {
-      child.kill();
-      finish({ ok: false, code: null, stderr: `gh ${args[0]} timed out after ${GH_TIMEOUT_MS / 1_000} s` });
-    }, GH_TIMEOUT_MS);
-    child.stdout.setEncoding("utf8").on("data", (chunk: string) => { stdout += chunk; });
-    child.stderr.setEncoding("utf8").on("data", (chunk: string) => { if (stderr.length < 16_384) stderr += chunk; });
-    child.on("error", (error: NodeJS.ErrnoException) => {
-      finish({ ok: false, code: null, stderr: error.message, missing: error.code === "ENOENT" });
-    });
-    child.on("close", (code) => finish(code === 0 ? { ok: true, stdout } : { ok: false, code, stderr: stderr.trim() }));
-  });
-}
-
-type GhFailure = "missing" | "signed_out" | "rate_limited" | "not_found" | "failed";
-
-class GhError extends Error {
-  readonly kind: GhFailure;
-  constructor(kind: GhFailure, message: string) {
-    super(message);
-    this.kind = kind;
-  }
-}
-
-function classify(result: Extract<GhResult, { ok: false }>): GhFailure {
-  if (result.missing) return "missing";
-  const text = result.stderr.toLowerCase();
-  if (text.includes("rate limit") || text.includes("http 429") || text.includes("abuse detection")) return "rate_limited";
-  if (text.includes("gh auth login") || text.includes("http 401") || text.includes("not logged in") || text.includes("bad credentials")) return "signed_out";
-  if (text.includes("http 404")) return "not_found";
-  return "failed";
-}
-
 // ── GitHub response shapes (only the fields the intake reads) ─────────────
 
 const userSchema = login;
@@ -250,12 +193,13 @@ const commentsSchema = z.array(z.object({
   created_at: z.string(),
   html_url: z.string().optional(),
 }));
+const postedSchema = z.object({ html_url: z.string().optional() });
 const permissionSchema = z.object({ permission: z.string().optional(), role_name: z.string().optional(), user: login.optional() });
 
 // ── durable state ─────────────────────────────────────────────────────────
 
 export type IntakeKind = "review" | "publish";
-export type IntakeOutcome = "delivered" | "duplicate" | "already_reviewed" | "needs_human_approval" | "ignored" | "needs_recovery";
+export type IntakeOutcome = "delivered" | "duplicate" | "already_reviewed" | "needs_human_approval" | "ignored" | "needs_recovery" | "notified";
 
 export interface IntakeRecord {
   key: string;
@@ -277,7 +221,7 @@ const recordSchema = z.object({
   key: z.string().min(1),
   at: z.number().finite().nonnegative(),
   kind: z.enum(["review", "publish"]),
-  outcome: z.enum(["delivered", "duplicate", "already_reviewed", "needs_human_approval", "ignored", "needs_recovery"]),
+  outcome: z.enum(["delivered", "duplicate", "already_reviewed", "needs_human_approval", "ignored", "needs_recovery", "notified"]),
   repository: z.string(),
   number: z.number().int(),
   headSha: z.string().optional(),
@@ -328,6 +272,8 @@ export interface GithubIntakeStatus {
   lastSuccessAt?: number;
   nextPollInMs: number;
   lastError?: string;
+  /** Open pull requests in `needs_recovery`, as of the last poll that read them. */
+  needsRecovery: number;
   recent: IntakeRecord[];
 }
 
@@ -367,7 +313,7 @@ interface Candidate {
   roles: Set<Role>;
 }
 
-type Deferred = { state: IntakeHealth; message: string };
+type Deferred = { state: IntakeHealth; message: string; pullRequest?: string };
 
 const sameLogin = (a: string | undefined | null, b: string) => Boolean(a) && a!.toLowerCase() === b.toLowerCase();
 const repoKey = (repo: string, number: number) => `${repo.toLowerCase()}#${number}`;
@@ -378,6 +324,18 @@ function patternRegex(pattern: string): RegExp {
 
 function errorText(error: unknown): string {
   return (error instanceof Error ? error.message : String(error)).slice(0, 500);
+}
+
+const recoveryLead = (head: string) => `The review run for head ${head} ended without a verdict`;
+
+function recoveryNotice(head: string, persona: string): string {
+  return [
+    `${recoveryLead(head)}, so no review of this head is on its way.`,
+    "",
+    `To get a review, push a new head, or ask the person responsible for ${persona} to start the review again.`,
+    "",
+    `— ${persona}`,
+  ].join("\n");
 }
 
 export class GithubIntake {
@@ -404,7 +362,8 @@ export class GithubIntake {
     lastPollAt?: number;
     lastSuccessAt?: number;
     lastError?: string;
-  } = { state: "starting" };
+    needsRecovery: number;
+  } = { state: "starting", needsRecovery: 0 };
 
   constructor(options: GithubIntakeOptions) {
     this.options = options;
@@ -472,6 +431,7 @@ export class GithubIntake {
       ...(this.current.lastSuccessAt ? { lastSuccessAt: this.current.lastSuccessAt } : {}),
       nextPollInMs: this.nextDelayMs(),
       ...(this.current.lastError ? { lastError: this.current.lastError } : {}),
+      needsRecovery: this.current.needsRecovery,
       recent,
     };
   }
@@ -551,6 +511,7 @@ export class GithubIntake {
 
     // Keep only the pull requests this poll still saw: closed ones drop out.
     this.state.settled = Object.fromEntries(settled);
+    this.current.needsRecovery = new Set(deferred.filter((entry) => entry.state === "needs_recovery").map((entry) => entry.pullRequest)).size;
     this.persist();
 
     const rateLimited = errors.find((error) => error instanceof GhError && error.kind === "rate_limited");
@@ -646,7 +607,7 @@ export class GithubIntake {
   // ── one pull request ───────────────────────────────────────────────────
 
   /** True when everything this pull request asked for is handled. */
-  private async handle(candidate: Candidate, account: string, bot: { id: string }, summary: PollSummary, deferred: Deferred[]): Promise<boolean> {
+  private async handle(candidate: Candidate, account: string, bot: { id: string; name: string }, summary: PollSummary, deferred: Deferred[]): Promise<boolean> {
     const { repo, number } = candidate;
     const pr = await this.api(`repos/${repo}/pulls/${number}`, pullSchema);
     if (pr.state !== "open") return true;
@@ -681,6 +642,7 @@ export class GithubIntake {
           const receipt = plan.record.runId ? this.options.runState?.(plan.record.runId) : null;
           if (this.options.runState && !ACTIVE_RUN.includes(receipt?.status ?? "")) {
             this.recovery(plan.record, deferred, `Native review run ${receipt?.status ?? "unavailable"}; no current-head GitHub verdict. Inspect worker/delegation receipts before recovering this review.`);
+            await this.tellRecovery(repo, number, head, account, bot.name.trim());
           }
         } else if (this.hasActiveRun(repo, number)) {
           done = false; // one review at a time: earlier work on this pull request finishes first
@@ -761,7 +723,7 @@ export class GithubIntake {
     if (this.config.assignmentHandoff && candidate.roles.has("assigned")) return true;
     if (!this.options.runState) return false;
     const latest = [...this.state.records].reverse().find((record) =>
-      record.repository.toLowerCase() === candidate.repo.toLowerCase() && record.number === candidate.number && record.kind === "review");
+      record.repository.toLowerCase() === candidate.repo.toLowerCase() && record.number === candidate.number && record.kind === "review" && record.outcome !== "notified");
     if (!latest || !["delivered", "duplicate", "needs_recovery"].includes(latest.outcome)) return false;
     const receipt = latest.runId ? this.options.runState(latest.runId) : null;
     return !["queued", "running", "waiting"].includes(receipt?.status ?? "");
@@ -769,7 +731,28 @@ export class GithubIntake {
 
   private recovery(prior: IntakeRecord, deferred: Deferred[], reason: string): void {
     this.recordOnce({ ...prior, outcome: "needs_recovery", reason });
-    deferred.push({ state: "needs_recovery", message: `${prior.repository}#${prior.number}: ${reason}` });
+    deferred.push({ state: "needs_recovery", message: `${prior.repository}#${prior.number}: ${reason}`, pullRequest: repoKey(prior.repository, prior.number) });
+  }
+
+  /** One conversation comment per head. The record is pruned with age and
+   * lost with the state file, so the account's own earlier comment on the
+   * pull request counts too, and a conversation too long to read completely
+   * gets none. A failed post is tried again on a later poll. */
+  private async tellRecovery(repo: string, number: number, head: string, account: string, persona: string): Promise<void> {
+    const key = `recovery-notice:${repo}#${number}@${head}`;
+    if (this.hasRecord(key)) return;
+    const path = `repos/${repo}/issues/${number}/comments`;
+    let url: string | undefined;
+    try {
+      const earlier = (await this.pages(path, commentsSchema, true)).find((comment) =>
+        sameLogin(comment.user?.login, account) && (comment.body ?? "").startsWith(recoveryLead(head)));
+      url = earlier ? earlier.html_url : (await this.post(path, postedSchema, { body: recoveryNotice(head, persona) })).html_url;
+      if (!earlier) this.log(`[github-intake] ${repo}#${number} at ${head.slice(0, 12)}: told the pull request that its review run ended without a verdict`);
+    } catch (error) {
+      this.log(`[github-intake] ${repo}#${number} at ${head.slice(0, 12)}: could not tell the pull request that its review run ended without a verdict, trying again next poll: ${errorText(error)}`);
+      return;
+    }
+    this.record({ key, kind: "review", outcome: "notified", repository: repo, number, headSha: head, reason: `told the pull request that its review run ended without a verdict${url ? `: ${url}` : ""}` });
   }
 
   private async publications(
@@ -1004,13 +987,17 @@ export class GithubIntake {
       const batch = await this.api(`${path}${joiner}per_page=100&page=${page}`, schema);
       items.push(...batch);
       if (batch.length < 100) break;
-      if (requireComplete && page === LIST_PAGES) throw new GhError("failed", "The GitHub event history exceeds the verification bound; the latest assignment cannot be established");
+      if (requireComplete && page === LIST_PAGES) throw new GhError("failed", `The GitHub history of ${path} exceeds the verification bound of ${LIST_PAGES * 100} entries`);
     }
     return items;
   }
 
-  private async api<T>(path: string, schema: z.ZodType<T>): Promise<T> {
-    const result = await this.limited(() => this.options.gh(["api", path]));
+  private post<T>(path: string, schema: z.ZodType<T>, fields: Record<string, string>): Promise<T> {
+    return this.api(path, schema, ["--method", "POST", ...Object.entries(fields).flatMap(([name, value]) => ["-f", `${name}=${value}`])]);
+  }
+
+  private async api<T>(path: string, schema: z.ZodType<T>, flags: readonly string[] = []): Promise<T> {
+    const result = await this.limited(() => this.options.gh(["api", ...flags, path]));
     if (!result.ok) {
       const kind = classify(result);
       throw new GhError(kind, `gh api ${path.split("?")[0]}: ${result.stderr.split("\n")[0] || `exit ${result.code}`}`);

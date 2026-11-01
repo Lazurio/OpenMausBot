@@ -8,12 +8,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { GhResult } from "./github-intake-gh.ts";
 import {
   GithubIntake,
   githubIntakeConfigFromEnv,
   hasPublishMarker,
   PUBLISH_MARKER,
-  type GhResult,
   type GithubIntakeConfig,
   type GithubIntakeOptions,
 } from "./github-intake.ts";
@@ -57,6 +57,8 @@ class FakeGitHub {
   missing = false;
   rateLimited = false;
   failing: string | null = null;
+  /** The `gh` error a new conversation comment gets instead of being posted. */
+  refuseComments: string | null = null;
   delayMs = 0;
   prs: FakePr[] = [];
   repos: Array<{ full_name: string; push: boolean; archived?: boolean; ownerType?: "Organization" | "User" }> = [];
@@ -148,7 +150,8 @@ class FakeGitHub {
     if (this.missing) return { ok: false, code: null, stderr: "spawn gh ENOENT", missing: true };
     expect(args[0]).toBe("api");
     const path = args[args.length - 1];
-    this.calls.push(path);
+    const method = args.includes("--method") ? args[args.indexOf("--method") + 1] : "GET";
+    this.calls.push(method === "GET" ? path : `${method} ${path}`);
     if (this.login === null) {
       return { ok: false, code: 4, stderr: "To get started with GitHub CLI, please run:  gh auth login" };
     }
@@ -160,6 +163,16 @@ class FakeGitHub {
     const ok = (value: unknown): GhResult => ({ ok: true, stdout: JSON.stringify(value) });
     const notFound: GhResult = { ok: false, code: 1, stderr: "gh: Not Found (HTTP 404)" };
 
+    if (method === "POST") {
+      const target = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)\/comments$/);
+      const pr = target ? this.find(target[1], Number(target[2])) : undefined;
+      if (!pr) return notFound;
+      if (this.refuseComments) return { ok: false, code: 1, stderr: this.refuseComments };
+      const field = args.find((arg, i) => args[i - 1] === "-f" && arg.startsWith("body="));
+      expect(field, "a comment is posted with its body as a string field").toBeDefined();
+      const comment = this.comment(pr, this.login, field!.slice("body=".length));
+      return ok({ id: comment.id, user: identity(this.login), body: comment.body, created_at: comment.at, html_url: `https://github.test/${pr.repo}/pull/${pr.number}#issuecomment-${comment.id}` });
+    }
     if (url.pathname === "/user") return ok(identity(this.login));
     if (url.pathname === "/user/repos") {
       return ok(paged(this.repos.map((repo) => ({
@@ -200,10 +213,10 @@ class FakeGitHub {
       const pr = this.find(m[1], Number(m[2]));
       if (!pr) return notFound;
       if (m[3] === "comments") {
-        return ok(paged(pr.comments.map((c) => ({
+        return ok(pr.comments.slice((page - 1) * 100, page * 100).map((c) => ({
           id: c.id, user: { login: c.user }, body: c.body, created_at: c.at,
           html_url: `https://github.test/${pr.repo}/pull/${pr.number}#issuecomment-${c.id}`,
-        }))));
+        })));
       }
       // Events page like GitHub's, 100 at a time, so a long history spans pages.
       return ok(pr.events.slice((page - 1) * 100, page * 100).map((e, i) => {
@@ -1072,6 +1085,154 @@ describe("GitHub intake: delivery is not completion", () => {
     await intake.pollOnce();
     expect(intake.status().state).toBe("needs_recovery");
     expect(h.events().map(event => event.number)).toEqual([7, 8]);
+  });
+});
+
+describe("GitHub intake: a review run that ends without a verdict is told on the pull request", () => {
+  function noticeHarness(overrides: Partial<GithubIntakeConfig> = {}) {
+    const h = harness({ bot: "Pablo", ...overrides }, { bots: [{ id: "bot-pablo", name: "Pablo" }] });
+    const options = { ...h.intakeOptions, runState: (id: string) => h.runs.get(id) ?? null, runs: h.nativeRuns };
+    return { ...h, intake: new GithubIntake(options), options };
+  }
+  const notices = (pr: FakePr) => pr.comments.filter((comment) => comment.user === "henry-bot");
+
+  it("posts one comment per head as the account, signed with the target bot's name, across polls and restarts", async () => {
+    const h = noticeHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.runs.set("run-1", { status: "completed" });
+    await h.intake.pollOnce();
+
+    expect(notices(pr).map((comment) => comment.body)).toEqual([[
+      `The review run for head ${HEAD_A} ended without a verdict, so no review of this head is on its way.`,
+      "",
+      "To get a review, push a new head, or ask the person responsible for Pablo to start the review again.",
+      "",
+      "— Pablo",
+    ].join("\n")]);
+    expect(h.github.calls.filter((call) => call.startsWith("POST "))).toEqual(["POST repos/acme/app/issues/7/comments"]);
+    expect(h.intake.status()).toMatchObject({ state: "needs_recovery", needsRecovery: 1 });
+    expect(h.intake.status().recent).toContainEqual(expect.objectContaining({
+      key: `recovery-notice:acme/app#7@${HEAD_A}`, outcome: "notified", headSha: HEAD_A,
+      reason: expect.stringContaining(`https://github.test/acme/app/pull/7#issuecomment-${notices(pr)[0].id}`),
+    }));
+
+    await h.intake.pollOnce();
+    await h.intake.pollOnce();
+    const restarted = new GithubIntake(h.options);
+    await restarted.pollOnce();
+    expect(notices(pr)).toHaveLength(1);
+    expect(restarted.status()).toMatchObject({ state: "needs_recovery", needsRecovery: 1 });
+    expect(h.queued).toHaveLength(1);
+
+    h.github.push(pr, HEAD_B);
+    await restarted.pollOnce();
+    h.runs.set("run-2", { status: "failed" });
+    await restarted.pollOnce();
+    await restarted.pollOnce();
+    expect(notices(pr).map((comment) => comment.body.split("\n")[0])).toEqual([
+      `The review run for head ${HEAD_A} ended without a verdict, so no review of this head is on its way.`,
+      `The review run for head ${HEAD_B} ended without a verdict, so no review of this head is on its way.`,
+    ]);
+    expect(h.queued).toHaveLength(2);
+  });
+
+  it("keeps one comment per head when the state no longer holds it: a pruned record before a new request, or a lost file", async () => {
+    const h = noticeHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.runs.set("run-1", { status: "completed" });
+    await h.intake.pollOnce();
+    expect(notices(pr)).toHaveLength(1);
+
+    const state = JSON.parse(readFileSync(h.options.file, "utf8"));
+    state.records = state.records.filter((record: { outcome: string }) => record.outcome !== "notified");
+    writeFileSync(h.options.file, JSON.stringify(state));
+    const pruned = new GithubIntake(h.options);
+    h.github.request(pr, "henry-bot", "matej");
+    await pruned.pollOnce();
+    h.runs.set("run-2", { status: "completed" });
+    await pruned.pollOnce();
+    expect(h.queued).toHaveLength(2);
+    expect(pruned.status().state).toBe("needs_recovery");
+    expect(pruned.status().recent).toContainEqual(expect.objectContaining({
+      key: `recovery-notice:acme/app#7@${HEAD_A}`, outcome: "notified", reason: expect.stringContaining(`#issuecomment-${notices(pr)[0].id}`),
+    }));
+
+    rmSync(h.options.file);
+    const lost = new GithubIntake(h.options);
+    await lost.pollOnce();
+    await lost.pollOnce();
+    expect(lost.status().state).toBe("needs_recovery");
+    expect(h.queued).toHaveLength(2);
+    expect(notices(pr)).toHaveLength(1);
+    expect(h.github.calls.filter((call) => call.startsWith("POST "))).toHaveLength(1);
+  });
+
+  it("posts nothing on a conversation too long to read completely, so a notice past the first 1 000 comments is never repeated", async () => {
+    const h = noticeHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    const at = new Date(h.github.now).toISOString();
+    for (let i = 0; i < 1_000; i++) pr.comments.push({ id: 10_000 + i, user: "alice", body: `Comment ${i}`, at });
+    pr.comments.push({ id: 20_000, user: "henry-bot", body: `The review run for head ${HEAD_A} ended without a verdict, so no review of this head is on its way.`, at });
+    await h.intake.pollOnce();
+    h.runs.set("run-1", { status: "completed" });
+    await h.intake.pollOnce();
+    await h.intake.pollOnce();
+
+    expect(h.github.calls.filter((call) => call.startsWith("POST "))).toEqual([]);
+    expect(notices(pr)).toHaveLength(1);
+    expect(h.intake.status()).toMatchObject({ state: "needs_recovery", needsRecovery: 1 });
+    expect(h.intake.status().recent.some((record) => record.outcome === "notified")).toBe(false);
+    expect(h.logs.filter((line) => line.includes("could not tell the pull request") && line.includes("exceeds the verification bound"))).toHaveLength(2);
+  });
+
+  it("keeps needs_recovery and keeps working when GitHub refuses the comment, then posts it once on a later poll", async () => {
+    const h = noticeHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.runs.set("run-1", { status: "completed" });
+    for (const refusal of ["gh: Resource not accessible by integration (HTTP 403)", "gh: API rate limit exceeded for user ID 1. (HTTP 403)"]) {
+      h.github.refuseComments = refusal;
+      await h.intake.pollOnce();
+      expect(h.intake.status()).toMatchObject({ state: "needs_recovery", needsRecovery: 1, nextPollInMs: 90_000 });
+    }
+    expect(notices(pr)).toHaveLength(0);
+    expect(h.intake.status().recent.some((record) => record.outcome === "notified")).toBe(false);
+    expect(h.logs.filter((line) => line.includes("could not tell the pull request"))).toHaveLength(2);
+
+    h.github.pr({ repo: "acme/app", number: 8, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    expect(h.events().map((event) => event.number)).toEqual([7, 8]);
+
+    h.github.refuseComments = null;
+    await h.intake.pollOnce();
+    await h.intake.pollOnce();
+    expect(notices(pr)).toHaveLength(1);
+    expect(h.intake.status().state).toBe("needs_recovery");
+    expect(h.queued).toHaveLength(2);
+  });
+
+  it("counts every pull request that needs recovery and tells only the ones whose review run ended", async () => {
+    const h = noticeHarness({ assignmentHandoff: true });
+    expect(h.intake.status().needsRecovery).toBe(0);
+    h.github.permissions.set("acme/app:alice", "write");
+    const reviewed = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    const assigned = h.github.pr({ repo: "acme/app", number: 8 });
+    h.github.assign(assigned, "henry-bot", "alice");
+    await h.intake.pollOnce();
+    expect(h.events().map((event) => [event.number, event.kind]).sort()).toEqual([[7, "review"], [8, "publish"]]);
+    for (const id of ["run-1", "run-2"]) h.runs.set(id, { status: "completed" });
+    await h.intake.pollOnce();
+
+    expect(h.intake.status()).toMatchObject({ state: "needs_recovery", needsRecovery: 2 });
+    expect(notices(reviewed)).toHaveLength(1);
+    expect(notices(assigned)).toHaveLength(0);
+
+    h.github.review(reviewed, "henry-bot", "APPROVED");
+    await h.intake.pollOnce();
+    expect(h.intake.status()).toMatchObject({ state: "needs_recovery", needsRecovery: 1 });
+    expect(notices(reviewed)).toHaveLength(1);
   });
 });
 
