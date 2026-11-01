@@ -26,6 +26,7 @@ the server behaves exactly as upstream OpenMausBot.
 | `OMB_GITHUB_INTAKE_EXCLUDE` | Comma-separated `owner/repo` patterns (`*` matches anything) left out of the `organization` scope, e.g. `acme/infra,acme/productionspace-*`. |
 | `OMB_GITHUB_INTAKE_INTERVAL_SECONDS` | Poll interval, default 90, bounded to 30–3600. |
 | `OMB_GITHUB_INTAKE_ASSIGNMENTS` | `1` enables assignment handoff as the scoped completion/merge mandate. Off by default for an explicit migration; only assignments after first activation qualify. |
+| `OMB_GITHUB_INTAKE_DEPLOYMENTS` | Comma-separated exact `owner/repo` list whose workflow runs waiting for a deployment approval the intake reads; see Deployment approvals. Unset: none. |
 | `OMB_GITHUB_INTAKE_GH` | The `gh` executable; default `gh` on `PATH`. |
 
 An unknown value stops the server at start with the reason. Example for a
@@ -217,6 +218,45 @@ recorded as `ignored` with the reason and is never retried; the person asks
 again with a new comment. The bot still checks approvals and required checks
 before it merges (see the Steward team).
 
+### Deployment approvals
+
+Lazurio decision 0218 (addendum of 2026-11-01) has three handoffs between
+agents: a review request, an assignment, and being a required reviewer of the
+GitHub Environment where a production step waits. The third is how Pablo
+approves the releases of Lazurio lines. With `OMB_GITHUB_INTAKE_DEPLOYMENTS`
+set, each poll reads those repositories' runs that wait for a deployment
+(`GET repos/{repo}/actions/runs?status=waiting`, then
+`.../runs/{id}/pending_deployments`).
+
+- **Which.** Each environment of a waiting run that GitHub lets the account
+  approve (`current_user_can_approve`) is handed over once, keyed
+  `deployment:<repo>:<run id>:<environment id>` through the intake key and
+  the webhook's delivery receipt. Repeated polls, a restart or a lost state
+  file never deliver it twice.
+- **Never its own.** A run the account itself started is recorded as `ignored`
+  and never handed over (`prevent_self_review` keeps that approval with
+  another reviewer anyway).
+- **Drops out.** A run that no longer waits (approved, rejected or cancelled
+  by anyone) drops out with no recovery noise.
+- **Recovery.** A handed-over approval whose native run ended while the
+  deployment still waits reports `needs_recovery`; nothing is handed over
+  again on its own.
+- **Every page, every repository.** Waiting runs are read page by page, up
+  to 1 000 per repository. Past that, or when a later page can't be read,
+  the runs already read are still handed over, and the rest is reported as
+  an `error` rather than skipped. A failed pull request search doesn't stop
+  the deployments being read: they are handed over, the poll ends in `error`
+  and backs off as before, and what earlier polls settled stays settled. A
+  repository or run that can't be read (403, 404, a server error) is an
+  `error` too, and every other approval of the poll is still handed over. A
+  failed lookup of the commit's pull request hands the approval over without
+  `pull_request`.
+- **Bounds.** The intake only hands the approval over. The team decides it
+  with `gh`, according to the webhook's instructions and its standing
+  mandate, and says on the pull request what it decided. Without a mandate
+  it approves nothing. A repository outside this list is never read, so
+  approvals there wait for their people.
+
 ## What the bot receives
 
 The intake keeps one webhook named **GitHub intake** for the target bot
@@ -254,7 +294,15 @@ account has a verdict carries
 `assignment: {event_id, actor, actor_id, assignee, assignee_id, created_at}`. `requester` is the request's actor for an explicit request, otherwise the pull request's author for a review
 and the instruction's author for a publication, which also carries
 `instruction: {comment_id, url, author, created_at, marker}`. The event name
-is `github.review` or `github.publish`.
+is `github.review`, `github.publish` or `github.deployment`.
+
+A deployment event has `kind: "deployment"`, `reason: "deployment_review"`,
+`run: {id, url, head_sha, workflow, head_branch, event, started_by,
+started_by_id}`, `environment: {id, name}` and, when the commit belongs to a
+pull request, `pull_request: {number, url}`. Its record's `number` is the
+workflow run id. An intake webhook made before deployments gets the
+`github.deployment` event type and, unless an operator changed them, the
+current instructions on the next delivery.
 
 Pausing the webhook prevents new delivery and **cancels queued runs** in
 upstream's native queue. A full queue defers not-yet-accepted work; the intake
@@ -319,7 +367,8 @@ configuration, `lastPollAt`, `lastSuccessAt`, `nextPollInMs`, `lastError`,
 the last poll that read them) and the 50 most recent outcomes (`delivered`,
 `duplicate`, `already_reviewed`, `needs_human_approval`, `needs_recovery`,
 `notified`, `ignored`); a review that answers an explicit request names its
-`requestEventId`. Status also exposes
+`requestEventId`. `lastError` names every problem of the poll, so a recovery
+doesn't hide a read failure beside it. Status also exposes
 `assignmentHandoff` and its persisted `assignmentActivatedAt`. `POST /api/github-intake/poll` polls now
 and returns the poll summary with the status. Both need the admin scope
 (the owner on loopback). The server log carries `[github-intake]` lines for

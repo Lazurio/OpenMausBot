@@ -17,6 +17,7 @@ import {
   type GithubIntakeConfig,
   type GithubIntakeOptions,
 } from "./github-intake.ts";
+import { INTAKE_WEBHOOK_PROMPT, SHIPPED_INTAKE_WEBHOOK_PROMPTS } from "./github-intake-prompts.ts";
 import { maintenanceGuard } from "./routes/github-intake.ts";
 import { WebhookManager } from "./webhooks.ts";
 import { WorkspaceBackupMaintenance } from "./workspace-backup-maintenance.ts";
@@ -61,6 +62,8 @@ class FakeGitHub {
   refuseComments: string | null = null;
   delayMs = 0;
   prs: FakePr[] = [];
+  /** Workflow runs waiting in an Environment, as GitHub lists them. */
+  deployments: Array<{ repo: string; runId: number; head: string; environment: { id: number; name: string }; canApprove: boolean; startedBy: string; waiting: boolean; pulls: number[] }> = [];
   repos: Array<{ full_name: string; push: boolean; archived?: boolean; ownerType?: "Organization" | "User" }> = [];
   permissions = new Map<string, Permission>();
   calls: string[] = [];
@@ -225,6 +228,29 @@ class FakeGitHub {
         if (!("assignee" in e)) return { id, event: e.event, actor: identity(e.actor), created_at: e.at };
         return { id, event: e.event, assignee: identity(e.assignee), actor: identity(e.assignee), assigner: e.actor ? identity(e.actor) : null, created_at: e.at };
       }));
+    }
+    m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/actions\/runs(?:\/(\d+)\/pending_deployments)?$/);
+    if (m) {
+      const runs = this.deployments.filter((run) => run.repo.toLowerCase() === m![1].toLowerCase());
+      if (m[2]) {
+        return ok(runs.filter((run) => run.runId === Number(m![2]) && run.waiting).map((run) => ({
+          environment: { id: run.environment.id, name: run.environment.name }, wait_timer: 0, current_user_can_approve: run.canApprove,
+          reviewers: [{ type: "User", reviewer: identity("henry-bot") }],
+        })));
+      }
+      expect(url.searchParams.get("status")).toBe("waiting");
+      const waiting = runs.filter((run) => run.waiting);
+      const perPage = Number(url.searchParams.get("per_page") || 30);
+      return ok({ total_count: waiting.length, workflow_runs: waiting.slice((page - 1) * perPage, page * perPage).map((run) => ({
+        id: run.runId, name: "Lazurio OpenMausBot Release", html_url: `https://github.test/${run.repo}/actions/runs/${run.runId}`,
+        head_sha: run.head, head_branch: "main", event: "workflow_dispatch", status: "waiting",
+        triggering_actor: identity(run.startedBy), actor: identity(run.startedBy),
+      })) });
+    }
+    m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/commits\/([0-9a-f]{40})\/pulls$/);
+    if (m) {
+      const run = this.deployments.find((entry) => entry.head === m![2]);
+      return ok((run?.pulls ?? []).map((number) => ({ number, html_url: `https://github.test/${m![1]}/pull/${number}`, merged_at: "2026-09-30T07:00:00Z" })));
     }
     m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/commits\/([0-9a-f]{40})$/);
     if (m) {
@@ -1486,3 +1512,170 @@ describe("GitHub intake: verdicts and explicit review requests", () => {
     expect(h.events().map((event) => event.number)).toEqual([7, 8]);
   });
 });
+
+describe("GitHub intake: a deployment the account must approve", () => {
+  const RELEASE = { repo: "acme/fork", runId: 9001, head: HEAD_B, environment: { id: 77, name: "release" }, canApprove: true, startedBy: "release-app", waiting: true, pulls: [84] };
+
+  it("reads waiting deployments only of the repositories OMB_GITHUB_INTAKE_DEPLOYMENTS names", async () => {
+    expect(githubIntakeConfigFromEnv({ OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_DEPLOYMENTS: " Acme/Fork, acme/fork " })?.deployments).toEqual(["acme/fork"]);
+    expect(() => githubIntakeConfigFromEnv({ OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_DEPLOYMENTS: "acme/*" })).toThrow(/OMB_GITHUB_INTAKE_DEPLOYMENTS/);
+    expect(githubIntakeConfigFromEnv({ OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry" })?.deployments).toBeUndefined();
+    const h = harness();
+    h.github.deployments.push({ ...RELEASE });
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(0);
+    expect(h.github.calls.some((path) => path.includes("/actions/runs"))).toBe(false);
+  });
+
+  it("hands a waiting deployment to the team once, with the run, the environment and the pull request it came from", async () => {
+    const h = harness({ deployments: ["acme/fork"] });
+    h.github.deployments.push({ ...RELEASE });
+    const summary = await h.intake.pollOnce();
+    expect(summary.delivered).toBe(1);
+    expect(h.queued[0].prompt).toContain("Event: github.deployment");
+    expect(h.queued[0].deliveryId).toBe("gh:deployment:acme/fork:9001:77");
+    expect(h.events()[0]).toMatchObject({
+      kind: "deployment", reason: "deployment_review", account: "henry-bot", repository: "acme/fork",
+      run: { id: 9001, url: "https://github.test/acme/fork/actions/runs/9001", head_sha: HEAD_B, started_by: "release-app" },
+      environment: { id: 77, name: "release" }, pull_request: { number: 84 },
+    });
+    await h.intake.pollOnce();
+    await new GithubIntake(h.intakeOptions).pollOnce();
+    rmSync(h.intakeOptions.file);
+    const fresh = new GithubIntake(h.intakeOptions);
+    await fresh.pollOnce();
+    expect(h.queued).toHaveLength(1);
+    expect(fresh.status().recent[0]).toMatchObject({ kind: "deployment", outcome: "duplicate", runId: "run-1" });
+  });
+
+  it("reads every page of waiting runs, so an approval on page two is handed over", async () => {
+    const h = harness({ deployments: ["acme/fork"] });
+    for (let i = 1; i <= 150; i++) h.github.deployments.push({ ...RELEASE, runId: 10_000 + i, canApprove: i === 150 });
+    await h.intake.pollOnce();
+    expect(h.events().map((event) => event.run.id)).toEqual([10_150]);
+    expect(h.github.calls.filter((path) => path.includes("status=waiting")).map((path) => new URL(path, "https://x/").searchParams.get("page"))).toEqual(["1", "2"]);
+    expect(h.intake.status().state).toBe("ok");
+  });
+
+  it("past the page bound, hands over what it read and reports the rest instead of skipping it", async () => {
+    const h = harness({ deployments: ["acme/fork"] });
+    for (let i = 1; i <= 1001; i++) h.github.deployments.push({ ...RELEASE, runId: 20_000 + i, canApprove: i === 1000 || i === 1001 });
+    await h.intake.pollOnce();
+    expect(h.events().map((event) => event.run.id)).toEqual([21_000]);
+    expect(h.intake.status()).toMatchObject({ state: "error", lastError: expect.stringMatching(/more than 1000 runs wait/) });
+  });
+
+  it("still hands over reachable approvals when one repository or one run can't be read, and shows the error", async () => {
+    const broken = harness({ deployments: ["acme/broken", "acme/fork"] });
+    broken.github.deployments.push({ ...RELEASE, repo: "acme/broken", runId: 8001 }, { ...RELEASE });
+    broken.github.failing = "repos/acme/broken/";
+    await broken.intake.pollOnce();
+    expect(broken.events().map((event) => `${event.repository}:${event.run.id}`)).toEqual(["acme/fork:9001"]);
+    expect(broken.intake.status()).toMatchObject({ state: "error", lastError: expect.stringMatching(/acme\/broken/) });
+
+    const run = harness({ deployments: ["acme/fork"] });
+    run.github.deployments.push({ ...RELEASE, runId: 9002 }, { ...RELEASE, runId: 9003 });
+    run.github.failing = "repos/acme/fork/actions/runs/9002/";
+    await run.intake.pollOnce();
+    expect(run.events().map((event) => event.run.id)).toEqual([9003]);
+    expect(run.intake.status().state).toBe("error");
+
+    // A pull request lookup that fails still hands the approval over, without it.
+    const pull = harness({ deployments: ["acme/fork"] });
+    pull.github.deployments.push({ ...RELEASE });
+    pull.github.failing = `repos/acme/fork/commits/${HEAD_B}/pulls`;
+    await pull.intake.pollOnce();
+    expect(pull.events()).toHaveLength(1);
+    expect(pull.events()[0].pull_request).toBeUndefined();
+  });
+
+  it("keeps the pages already read when a later page of waiting runs fails", async () => {
+    const h = harness({ deployments: ["acme/fork"] });
+    for (let i = 1; i <= 150; i++) h.github.deployments.push({ ...RELEASE, runId: 30_000 + i, canApprove: i === 7 || i === 120 });
+    h.github.failing = "repos/acme/fork/actions/runs?status=waiting&per_page=100&page=2";
+    await h.intake.pollOnce();
+    expect(h.events().map((event) => event.run.id)).toEqual([30_007]);
+    expect(h.intake.status()).toMatchObject({ state: "error", lastError: expect.stringMatching(/actions\/runs/) });
+  });
+
+  it("reads the deployments even when the pull request search fails, and keeps that failure visible", async () => {
+    const h = harness({ deployments: ["acme/fork"] });
+    h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.github.deployments.push({ ...RELEASE });
+    h.github.failing = "search/issues";
+    await h.intake.pollOnce();
+    expect(h.events().map((event) => event.kind)).toEqual(["review", "deployment"]);
+    expect(h.intake.status()).toMatchObject({ state: "error", lastError: expect.stringMatching(/search\/issues/) });
+    // The failed search keeps what earlier polls settled: an idle poll after it fetches no pull request.
+    h.github.failing = null;
+    h.github.calls.length = 0;
+    await h.intake.pollOnce();
+    expect(h.github.calls.some((path) => path.startsWith("repos/acme/app/pulls/7"))).toBe(false);
+    expect(h.intake.status().state).toBe("ok");
+  });
+
+  it("shows a recovery and a simultaneous read failure together", async () => {
+    const h = harness({ deployments: ["acme/broken", "acme/fork"] });
+    const intake = new GithubIntake({ ...h.intakeOptions, runState: (id: string) => h.runs.get(id) ?? null });
+    h.github.deployments.push({ ...RELEASE });
+    await intake.pollOnce();
+    h.runs.set("run-1", { status: "completed" });
+    h.github.deployments.push({ ...RELEASE, repo: "acme/broken", runId: 8001 });
+    h.github.failing = "repos/acme/broken/";
+    await intake.pollOnce();
+    expect(intake.status()).toMatchObject({ state: "needs_recovery", lastError: expect.stringMatching(/Native approval run completed.*acme\/broken/s) });
+  });
+
+  it("never hands over a run this account started, nor an environment it may not approve", async () => {
+    const h = harness({ deployments: ["acme/fork"] });
+    h.github.deployments.push({ ...RELEASE, startedBy: "henry-bot" }, { ...RELEASE, runId: 9002, environment: { id: 78, name: "other" }, canApprove: false });
+    await h.intake.pollOnce();
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(0);
+    expect(h.intake.status().recent).toEqual([expect.objectContaining({ kind: "deployment", outcome: "ignored", number: 9001, reason: expect.stringMatching(/started by this account/) })]);
+  });
+
+  it("reports a handed-over approval whose native run ended while the deployment still waits, and drops it once it no longer waits", async () => {
+    const h = harness({ deployments: ["acme/fork"] });
+    const intake = new GithubIntake({ ...h.intakeOptions, runState: (id: string) => h.runs.get(id) ?? null });
+    const release = { ...RELEASE };
+    h.github.deployments.push(release);
+    await intake.pollOnce();
+    h.runs.set("run-1", { status: "running" });
+    await intake.pollOnce();
+    expect(intake.status().state).toBe("ok");
+    h.runs.set("run-1", { status: "completed" });
+    await intake.pollOnce();
+    expect(intake.status().state).toBe("needs_recovery");
+    release.waiting = false;
+    await intake.pollOnce();
+    expect(intake.status().state).toBe("ok");
+    expect(h.queued).toHaveLength(1);
+  });
+
+  it("gives an existing intake webhook the deployment event and the new instructions, without a second webhook", async () => {
+    const h = harness({ deployments: ["acme/fork"] });
+    h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    const hook = h.webhooks.list()[0];
+    h.webhooks.update(hook.id, { eventTypes: ["github.review", "github.publish"], prompt: SHIPPED_INTAKE_WEBHOOK_PROMPTS.at(-1)! });
+    rmSync(h.intakeOptions.file);
+    h.github.deployments.push({ ...RELEASE });
+    const restarted = new GithubIntake(h.intakeOptions);
+    await restarted.pollOnce();
+    expect(h.webhooks.list()).toHaveLength(1);
+    expect(h.webhooks.list()[0].eventTypes).toEqual(["github.review", "github.publish", "github.deployment"]);
+    expect(h.queued.map((entry) => eventOf(entry.prompt).kind)).toEqual(["review", "deployment"]);
+    expect(h.webhooks.list()[0].prompt).toBe(INTAKE_WEBHOOK_PROMPT);
+    expect(h.queued[1].prompt).toContain('kind "deployment"');
+
+    // An operator's own instructions stay; only the event type is added.
+    h.webhooks.update(hook.id, { eventTypes: ["github.review", "github.publish"], prompt: "Our own review rules." });
+    h.github.deployments.push({ ...RELEASE, runId: 9003 });
+    await restarted.pollOnce();
+    expect(h.queued).toHaveLength(3);
+    expect(h.webhooks.list()[0]).toMatchObject({ prompt: "Our own review rules.", eventTypes: ["github.review", "github.publish", "github.deployment"] });
+  });
+});
+
