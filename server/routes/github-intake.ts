@@ -7,7 +7,8 @@
 // starts polling once the server listens.
 import { join } from "node:path";
 
-import { GithubIntake, githubIntakeConfigFromEnv, spawnGh, type GithubIntakeOptions } from "../github-intake.ts";
+import { spawnGh } from "../github-intake-gh.ts";
+import { GithubIntake, githubIntakeConfigFromEnv, type GithubIntakeOptions } from "../github-intake.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
 export interface GithubIntakeRouteDeps {

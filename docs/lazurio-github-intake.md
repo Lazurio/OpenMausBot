@@ -267,6 +267,25 @@ A late worker verdict resolves the status without another review. Publication
 recovery remains distinct: verify the current assignment and PR, never retry
 a publication as a review or erase deduplication receipts.
 
+**The pull request hears it.** When a review run ends without a current-head
+verdict, the intake posts one conversation comment on the pull request as the
+account, signed with the target bot's name like the team's reviews
+(`— Henry`). It names the head the run was for and what the author can do:
+push a new head, or ask the person responsible for the persona to start the
+review again. The intake does not start the review again itself. There is one
+comment per head: a `notified` record keyed
+`recovery-notice:<repo>#<n>@<head>` in the intake state keeps later polls and
+restarts from repeating it. Without that record (pruned after 180 days or
+10 000 records, or the state file lost), the intake reads the pull request's
+conversation first and takes the account's own earlier comment for that head
+as the notice instead of posting another. A conversation of 1 000 comments or
+more cannot be read completely, so there the intake posts nothing (it fails
+closed, as on a long assignment history) and the pull request stays
+`needs_recovery`. A comment GitHub refuses (a rate limit, a missing
+permission) changes nothing else: the pull request stays `needs_recovery`,
+the other pull requests are handled as before, and a later poll posts the
+comment. An assignment handoff that ends without a result gets no comment.
+
 ## Polling, limits and state
 
 - One poll at a time, every interval. On a GitHub rate limit, or when GitHub
@@ -295,14 +314,17 @@ a publication as a review or erase deduplication receipts.
 `GET /api/github-intake` returns `{enabled: false}` or the state (`ok`,
 `gh_missing`, `gh_signed_out`, `no_target`, `paused`, `queue_full`,
 `rate_limited`, `needs_recovery`, `error`), the account, the target bot, the webhook id, the
-configuration, `lastPollAt`, `lastSuccessAt`, `nextPollInMs`, `lastError` and
-the 50 most recent outcomes (`delivered`, `duplicate`, `already_reviewed`,
-`needs_human_approval`, `needs_recovery`, `ignored`); a review that answers an
-explicit request names its `requestEventId`. Status also exposes
+configuration, `lastPollAt`, `lastSuccessAt`, `nextPollInMs`, `lastError`,
+`needsRecovery` (how many open pull requests are in `needs_recovery`, as of
+the last poll that read them) and the 50 most recent outcomes (`delivered`,
+`duplicate`, `already_reviewed`, `needs_human_approval`, `needs_recovery`,
+`notified`, `ignored`); a review that answers an explicit request names its
+`requestEventId`. Status also exposes
 `assignmentHandoff` and its persisted `assignmentActivatedAt`. `POST /api/github-intake/poll` polls now
 and returns the poll summary with the status. Both need the admin scope
 (the owner on loopback). The server log carries `[github-intake]` lines for
-changes of state, deliveries, own pull requests and ignored instructions.
+changes of state, deliveries, own pull requests, ignored instructions and
+recovery comments, posted or refused.
 
 ## Security notes
 
@@ -341,9 +363,10 @@ upgrade from executing old assignments made under the previous contract.
 
 `server/github-intake.test.ts` exercises GitHub-shaped events, identities,
 live roles, review-only requests, migration, reassignment, pause/restart,
-late verdicts, carried approvals and repeated requests on one head through
-the real WebhookManager; `server/github-intake-review.ts` decides which review
-is owed. `github-intake.e2e.test.ts`
+late verdicts, carried approvals, repeated requests on one head and the one
+comment per head after a review run without a verdict through the real
+WebhookManager; `server/github-intake-review.ts` decides which review is owed
+and `server/github-intake-gh.ts` runs the signed-in `gh`. `github-intake.e2e.test.ts`
 runs the isolated real server and exercises the native queue and execution
 receipts with fake GitHub and model providers.
 These fixtures do not claim that a real GitHub merge or deployment occurred;
