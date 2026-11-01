@@ -24,7 +24,10 @@ follows the `Lazurio/t3code` model:
   `ARCHITECTURE.md` §7).
 - **Own releases.** `vX.Y.Z-lazurio.N`, published only by
   `lazurio-release.yml` after approval in the `lazurio-openmausbot-release`
-  environment. Lazurio Machines install the linux-x64 archive of a release.
+  environment, which Pablo gives (Lazurio decision 0218, addendum of
+  2026-11-01). A merged pull request that sets `lazurio/release-intent.json`
+  to a new version starts it. Lazurio Machines install the linux-x64 archive
+  of a release.
 - **Upstream automation stays off.** Upstream workflow files are kept
   unchanged but disabled in this repository's Actions settings; only the
   `lazurio-*` workflows run.

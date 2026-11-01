@@ -1,0 +1,79 @@
+name: Lazurio OpenMausBot release on merge
+
+# Lazurio decision 0218 (addendum of 2026-11-01): the pull request carries the
+# release intent in lazurio/release-intent.json, reviewed with the code. When
+# a push to main changes that file to a version without a tag, this workflow
+# dispatches lazurio-release.yml for exactly that commit. The release still
+# waits for approval in the lazurio-openmausbot-release environment, where
+# Pablo approves it; the dispatch runs as github-actions, so whoever merged
+# can't be the run's starter. Runbook: docs/operations/lazurio-fork-release.md,
+# "Release on merge".
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - lazurio/release-intent.json
+
+permissions:
+  contents: read
+  id-token: none
+
+concurrency:
+  group: lazurio-openmausbot-release-on-merge
+  cancel-in-progress: false
+
+env:
+  UPSTREAM_REPOSITORY: https://github.com/milind-soni/OpenMausBot.git
+
+jobs:
+  dispatch:
+    name: Dispatch the intended release
+    if: github.repository == 'Lazurio/OpenMausBot'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Read the intent at the merged commit
+        id: intent
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git init -q .
+          git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+          git fetch -q --filter=blob:none --no-tags --depth=1 origin "$GITHUB_SHA"
+          git checkout -q --detach "$GITHUB_SHA"
+          node scripts/lazurio-release-intent.mjs lazurio/release-intent.json | tee -a "$GITHUB_OUTPUT"
+
+      - name: Dispatch the release, unless its version is already tagged
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.intent.outputs.version }}
+          UPSTREAM_TAG: ${{ steps.intent.outputs.upstream_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$(git ls-remote origin "refs/tags/v$VERSION")" ]]; then
+            echo "v$VERSION is already tagged; this merge releases nothing."
+            exit 0
+          fi
+          # The release builds only the tip of main. A later merge in the
+          # meantime makes this one stale: dispatch from the new tip by hand.
+          tip="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [[ "$tip" != "$GITHUB_SHA" ]]; then
+            echo "main moved from $GITHUB_SHA to $tip before the dispatch; nothing was dispatched for $VERSION." >&2
+            exit 1
+          fi
+          upstream_sha="$(git ls-remote "$UPSTREAM_REPOSITORY" "refs/tags/$UPSTREAM_TAG" | cut -f1)"
+          [[ "$upstream_sha" =~ ^[0-9a-f]{40}$ ]]
+          gh workflow run lazurio-release.yml --repo "$GITHUB_REPOSITORY" --ref main \
+            -f version="$VERSION" \
+            -f source_sha="$GITHUB_SHA" \
+            -f upstream_tag="$UPSTREAM_TAG" \
+            -f upstream_sha="$upstream_sha"
+          echo "Dispatched lazurio-release.yml for $VERSION on $GITHUB_SHA (upstream $UPSTREAM_TAG $upstream_sha); it waits for approval in lazurio-openmausbot-release."

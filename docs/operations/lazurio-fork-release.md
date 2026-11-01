@@ -156,6 +156,7 @@ release offers it.
 | `lazurio: WhatsApp intake, model-free WhatsApp group triggers for a support bot (DEV-6691)` | A support bot in an ordinary MausBot server answers in the WhatsApp groups its operator maps (Organization Admin decisions of 2026-10-30: the bot lives in the existing server, replies on its own when tagged, and a model-free guard stops a reply that names another client). Off unless `OMB_WHATSAPP_INTAKE=1`. Lazurio-only files (`server/whatsapp-intake*.ts`, a route module and `server/testing/whatsapp-intake-fixture.ts`) wired like the GitHub intake: `server/index.ts` builds it, pushes its routes, subscribes it to the runtime events, starts and stops it, and `scripts/control-omb.ts` starts it in a verification fixture only on a fake wacli its caller hands over, never on the launcher's own `OMB_WHATSAPP_INTAKE*` settings. Checked against wacli v0.25.1. See [`docs/lazurio-whatsapp-intake.md`](../lazurio-whatsapp-intake.md). Lazurio-only. |
 | `server: the GitHub intake tells the pull request, once per head, that its review run ended without a verdict` (issue #85) | A delivered review run that ends without a current-head verdict is `needs_recovery`, and nothing on the pull request told its author why no verdict came (Lazurio decision 0103, addendum of 2026-10-31: an intake that does not take a request says why in the pull request, once). The intake posts one conversation comment as the account, signed with the target bot's name like the team's reviews: the head the run was for, and that the author can push a new head or ask the person responsible for the persona to start the review again. One per head, kept as a `notified` record in the intake state across polls and restarts, and without that record (pruned, or the state file lost) the account's own earlier comment for the head on the pull request counts, and a conversation of 1 000 comments or more, which cannot be read completely, gets none; a comment GitHub refuses changes nothing else and a later poll posts it. The status counts the pull requests in `needs_recovery` (`needsRecovery`). The intake never starts the review again itself. To keep `server/github-intake.ts` within its line in the file-size ratchet, its `gh` runner moves unchanged into `server/github-intake-gh.ts`. Lazurio-only files (`server/github-intake*.ts`, `server/routes/github-intake.ts`, `docs/lazurio-github-intake.md`); see [`docs/lazurio-github-intake.md`](../lazurio-github-intake.md#what-the-bot-receives). Upstream-friendly apart from the Lazurio publish marker, like the intake. |
 | `server: the GitHub intake hands over a deployment the account must approve` (issue #88) | Lazurio decision 0218 (addendum of 2026-11-01) makes being a required reviewer of a GitHub Environment the third handoff between agents, and Pablo approves the releases of Lazurio lines through it. With `OMB_GITHUB_INTAKE_DEPLOYMENTS` naming exact repositories, the intake reads their runs waiting for a deployment and hands each environment the account may approve to the team once, keyed by run and environment id through the intake key and the webhook's delivery receipt. It never hands over a run the account started, drops a run that no longer waits, and reports `needs_recovery` when the native run ended while the deployment still waits. The webhook's instructions move to `server/github-intake-prompts.ts`, and an existing intake webhook gains the event type. Lazurio-only files (`server/github-intake*.ts`, `docs/lazurio-github-intake.md`); see [`docs/lazurio-github-intake.md`](../lazurio-github-intake.md#deployment-approvals). Upstream-friendly apart from the Lazurio publish marker, like the intake. |
+| `lazurio: a merged release intent starts the release, which Pablo approves` (issue #87) | Lazurio decision 0218 (addendum of 2026-11-01): the pull request carries the release intent and the line's automation starts the release, so no agent waits for another to dispatch it. `lazurio/release-intent.json` names the next version; `lazurio-release-on-merge.yml` dispatches `lazurio-release.yml` for the merged commit when that version has no tag, and does nothing for a tagged one or a stale merge. Approval stays in `lazurio-openmausbot-release` (Pablo and Matěj, `prevent_self_review`). See [Release on merge](#release-on-merge). Lazurio-only; never proposed upstream. |
 
 Drop a commit as soon as upstream offers an equivalent. Upstream files the
 overlay changes are listed in `allowed_upstream_changes` in
@@ -385,8 +386,43 @@ row 0204).
 - **Outside Ring 0:** tailnet entry, which that Organization does not have,
   is first proven by the next wave.
 
+## Release on merge
+
+Lazurio decision 0218 (addendum of 2026-11-01): the pull request carries the
+release intent, the line's automation starts the release after the merge,
+and Pablo approves it.
+
+1. **Intent.** A pull request that should be released sets
+   `lazurio/release-intent.json` to the next version:
+
+   ```json
+   {
+     "schema_version": "openmausbot.release-intent.v1",
+     "version": "0.1.130-lazurio.4",
+     "upstream_tag": "v0.1.130"
+   }
+   ```
+
+   A Task Agent writes it only on its user's instruction; the change is
+   reviewed with the code. `scripts/lazurio-release-intent.mjs` checks the
+   shape: the version stands on the upstream tag, and nothing else is in the
+   file.
+2. **Start.** When a push to `main` changes that file,
+   `lazurio-release-on-merge.yml` reads it at the merged commit. A version
+   that already has a tag releases nothing; that is also the state the file
+   is left in after each release. Otherwise it dispatches
+   `lazurio-release.yml` for exactly that commit, with the upstream tag's
+   commit. If `main` has moved on meanwhile, it dispatches nothing and fails
+   visibly; dispatch from the new tip by hand as below. The dispatch runs as
+   `github-actions`, so neither the merger nor the author is the run's
+   starter.
+3. **Approval** as below. The release workflow itself is unchanged: it
+   verifies the source and version again, builds the archive and waits in
+   `lazurio-openmausbot-release`.
+
 ## Dispatching a release
 
+By hand, for a release the intent can't start (a stale merge, a rebuild).
 Only from `main`, and only from the commit at its tip:
 
 ```bash
@@ -426,11 +462,21 @@ gh run list --repo Lazurio/OpenMausBot --workflow lazurio-release.yml --limit 1
 
 ## Approval
 
-When the first two jobs are green, ask Matěj to approve and send him the
-run link. He approves in GitHub (run → Review deployments →
-`lazurio-openmausbot-release` → Approve). The environment has
-`prevent_self_review`, so the Steward dispatches and the Admin approves. If
-the release should not go out, Matěj rejects it and nothing is published.
+When the first two jobs are green, the release waits in
+`lazurio-openmausbot-release`. Its required reviewers are Pablo
+(`agentrozjedemeai`) and Matěj, with `prevent_self_review`.
+
+- **Pablo approves** the releases of this line (decision 0218, addendum of
+  2026-11-01). His GitHub intake hands him the waiting run
+  (`OMB_GITHUB_INTAKE_DEPLOYMENTS`, docs/lazurio-github-intake.md). He checks
+  the exact commit, its green checks, the intent from the merged pull
+  request, Ring 0, and that nothing else is released, and then approves or
+  rejects with a reason on the pull request.
+- **Matěj approves** when Pablo can't. That includes a release from a pull
+  request Pablo wrote, which a person approves (0169 point 5), and a release
+  Pablo's account dispatched by hand.
+
+A rejected release publishes nothing.
 
 ## Verifying a published release
 

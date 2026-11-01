@@ -7,11 +7,12 @@ import * as NodeFSP from "node:fs/promises";
 import * as NodeTest from "node:test";
 
 const read = (path) => NodeFSP.readFile(path, "utf8");
-const [release, archive, ci, script] = await Promise.all([
+const [release, archive, ci, script, onMerge] = await Promise.all([
   read(".github/workflows/lazurio-release.yml"),
   read(".github/workflows/lazurio-archive.yml"),
   read(".github/workflows/lazurio-fork-ci.yml"),
   read("scripts/lazurio-release-archive.sh"),
+  read(".github/workflows/lazurio-release-on-merge.yml"),
 ]);
 
 NodeTest.test("release is manual, gated, and never overwrites", () => {
@@ -48,6 +49,24 @@ NodeTest.test("release is manual, gated, and never overwrites", () => {
   NodeAssert.match(release, /subject-path: release-assets\/openmausbot-\$\{\{ inputs\.version \}\}-linux-x64\.tar\.gz/);
   NodeAssert.match(release, /schema_version: "openmausbot\.fork-release\.v1"/);
   NodeAssert.doesNotMatch(release, /npm publish|docker|ghcr\.io/);
+});
+
+NodeTest.test("a merged release intent dispatches the reviewed release of that commit, and nothing else", () => {
+  const triggers = onMerge.slice(onMerge.indexOf("\non:"), onMerge.indexOf("\npermissions:"));
+  NodeAssert.match(triggers, /^ {2}push:\n {4}branches:\n {6}- main\n {4}paths:\n {6}- lazurio\/release-intent\.json\n/m);
+  NodeAssert.doesNotMatch(triggers, /^ {2}(workflow_dispatch|schedule|release|pull_request\w*):/m);
+  NodeAssert.match(onMerge, /^permissions:\n {2}contents: read\n {2}id-token: none/m);
+  NodeAssert.match(onMerge, /if: github\.repository == 'Lazurio\/OpenMausBot'/);
+  NodeAssert.match(onMerge, /permissions:\n {6}actions: write\n {6}contents: read\n/);
+  NodeAssert.doesNotMatch(onMerge, /contents: write|LAZURIO_RELEASE_APP|environment:|--force/);
+  NodeAssert.match(onMerge, /node scripts\/lazurio-release-intent\.mjs lazurio\/release-intent\.json/);
+  NodeAssert.match(onMerge, /is already tagged; this merge releases nothing/);
+  NodeAssert.match(onMerge, /if \[\[ "\$tip" != "\$GITHUB_SHA" \]\]; then/);
+  NodeAssert.match(onMerge, /gh workflow run lazurio-release\.yml --repo "\$GITHUB_REPOSITORY" --ref main/);
+  NodeAssert.match(onMerge, /-f source_sha="\$GITHUB_SHA"/);
+  NodeAssert.equal(onMerge.match(/gh workflow run/g)?.length, 1);
+  // The approval stays the release workflow's own gate.
+  NodeAssert.match(release, /environment: lazurio-openmausbot-release/);
 });
 
 NodeTest.test("the archive is upstream's npm package, stamped and smoke-tested", () => {
