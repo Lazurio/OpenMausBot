@@ -1,11 +1,11 @@
 # Lazurio OpenMausBot: releases
 
-Runbook for Lazurio OpenMausBot releases. Two accounts release this line:
-Matěj's `immakermatty` (the Organization Admin or a Task Agent in his
-Environment) and Pablo's `agentrozjedemeai` (the Organization Steward). One
-dispatches a release and the other approves it in the GitHub environment;
-agents may do either step (Lazurio decision 0218, second addendum of
-2026-11-01; see [Dispatching a release](#dispatching-a-release)). Plans: DEV-6632 and DEV-6673 in the
+Runbook for Lazurio OpenMausBot releases. The bot that owns a release
+dispatches it under the Organization Admin's account `immakermatty`, and the
+persona `agentrozjedemeai` approves it in the GitHub environment after its
+GitHub intake verified the logged inputs (the Organization Admin's decision
+of 2026-11-03 on Lazurio decision 0218, second addendum of 2026-11-01; see
+[Dispatching a release](#dispatching-a-release) and [Approval](#approval)). Plans: DEV-6632 and DEV-6673 in the
 Human and Machine Mission Control; direction: Lazurio decision 0169.
 
 `Lazurio/OpenMausBot` distributes upstream OpenMausBot's open-source edition
@@ -160,6 +160,7 @@ release offers it.
 | `server: the GitHub intake hands over a deployment the account must approve` (issue #88) | Lazurio decision 0218 (addendum of 2026-11-01) makes being a required reviewer of a GitHub Environment the third handoff between agents, and Pablo approves the releases of Lazurio lines through it. With `OMB_GITHUB_INTAKE_DEPLOYMENTS` naming exact repositories, the intake reads their runs waiting for a deployment and hands each environment the account may approve to the team once, keyed by run and environment id through the intake key and the webhook's delivery receipt. It never hands over a run the account started, drops a run that no longer waits, and reports `needs_recovery` when the native run ended while the deployment still waits. The webhook's instructions move to `server/github-intake-prompts.ts`, and an existing intake webhook gains the event type. Lazurio-only files (`server/github-intake*.ts`, `docs/lazurio-github-intake.md`); see [`docs/lazurio-github-intake.md`](../lazurio-github-intake.md#deployment-approvals). Upstream-friendly apart from the Lazurio publish marker, like the intake. |
 | `server: the GitHub intake hands over each attempt of a waiting release with the facts it is checked against` (issue #92) | Lazurio decision 0218 as the Organization Admin decided it on 2026-11-03: the release owner's bot dispatches a release line's release and the persona account approves it after checking the logged inputs. The intake hands each attempt of a waiting run over once, keyed `deployment:<repo>:<run id>:<attempt>`, with what the team checks: the workflow file, the default branch and its tip, every job of the attempt and the inputs the job `Verify source and version` logged in its first step's `env:` block. It never hands an attempt over without them, records `approved`, `rejected` or `ended` from the review whose comment starts with `Run <id> attempt <n>:`, and counts the attempts in the status. The webhook's instructions say when to approve, reject or leave a run waiting. A native approval run no longer counts as work on every pull request. To stay within the file-size ratchet, the publish-marker parser moves unchanged into `server/github-intake-marker.ts`. Lazurio-only files (`server/github-intake*.ts`, `docs/lazurio-github-intake.md`); see [`docs/lazurio-github-intake.md`](../lazurio-github-intake.md#deployment-approvals). Upstream-friendly apart from the Lazurio publish marker, like the intake. |
 | `release: one account dispatches a release and the other approves it, agents may do both` | Lazurio decision 0218, second addendum of 2026-11-01: no release mechanism of Lazurio's own. `lazurio-release.yml` stays dispatched, by Matěj's `immakermatty` (he or his agents) or Pablo's `agentrozjedemeai`, and the other account approves in `lazurio-openmausbot-release`, where both are required reviewers with `prevent_self_review`. Runbook only; see [Dispatching a release](#dispatching-a-release) and [Approval](#approval). Lazurio-only. |
+| `release: the release owner's bot dispatches a release and the persona approves it after checking the logged inputs` | The Organization Admin's decision of 2026-11-03 on Lazurio decision 0218: the bot that owns a release posts a `Release dispatch request:` comment with the exact `gh workflow run` command, dispatches it under the Organization Admin's account, and the persona approves it in `lazurio-openmausbot-release` after its GitHub intake verified the workflow, the dispatcher, the tip of `main`, green jobs and the logged inputs against the request (#92). `prevent_self_review` stays. Runbook only; see [Dispatching a release](#dispatching-a-release) and [Approval](#approval). Lazurio-only. |
 
 Drop a commit as soon as upstream offers an equivalent. Upstream files the
 overlay changes are listed in `allowed_upstream_changes` in
@@ -391,23 +392,40 @@ row 0204).
 
 ## Dispatching a release
 
-A release is dispatched by one of two accounts and approved by the other
-(Lazurio decision 0218, second addendum of 2026-11-01): Matěj's
-`immakermatty`, used by him or a Task Agent in his Environment, or Pablo's
-`agentrozjedemeai`. An agent may dispatch without waiting for a person once
-the pre-release tests have passed: Lazurio Fork CI green on the exact commit
-(steps 1 and 2 of [Testing before a release](#testing-before-a-release)); the
-release workflow then verifies the source and builds and smoke-tests the
+The bot that owns the release dispatches it under the Organization Admin's
+account `immakermatty`, and the persona `agentrozjedemeai` approves it
+([Approval](#approval)). The bot may dispatch without waiting for a person
+once the pre-release tests have passed: Lazurio Fork CI green on the exact
+commit (steps 1 and 2 of [Testing before a release](#testing-before-a-release));
+the release workflow then verifies the source and builds and smoke-tests the
 archive itself. Ring 0 is the canary after publishing (step 3): it gates the
 next wave of Machines, not the release.
 
-- **Default:** a Task Agent dispatches with Matěj's account and Pablo
-  approves.
-- **A release of a pull request Pablo wrote:** Matěj's account approves it,
-  because a persona doesn't approve its own work (Lazurio decision 0169
-  point 5, 0218 second addendum of 2026-11-01). Pablo's account therefore
-  dispatches it: `prevent_self_review` only keeps the account that started a
-  run from approving it and knows nothing about the pull request's author.
+1. **The persona's own work.** If any pull request authored by
+   `agentrozjedemeai` landed between the previous release tag and
+   `source_sha`, don't dispatch: the persona never approves its own work
+   (Lazurio decision 0169 point 5), and `immakermatty` can't approve a run it
+   dispatched. Stop and ask the Organization Admin, who decides how that
+   release goes out.
+2. **Request.** On an issue of this repository that the release belongs to
+   (the rebuild or release issue), post a comment as `immakermatty` that
+   starts with `Release dispatch request:` and holds the exact
+   `gh workflow run` command with its literal values, for example:
+
+   ```text
+   Release dispatch request:
+   gh workflow run lazurio-release.yml --repo Lazurio/OpenMausBot --ref main -f version=0.1.130-lazurio.4 -f source_sha=<40-character tip of main> -f upstream_tag=v0.1.130 -f upstream_sha=<40-character upstream tag commit>
+   ```
+
+   The persona compares exactly these values with the inputs the run logged,
+   so the comment carries the values, not shell variables. Work them out
+   with the commands below.
+3. **Dispatch** that command unchanged, with the same account, after the
+   comment is posted.
+4. **Wait** for the persona's decision ([Approval](#approval)). A rejected
+   run is never repeated: fix the cause and dispatch a new release with a new
+   request. A run lost to a runner failure may be re-run; the persona judges
+   every attempt again against the same request.
 
 Only from `main`, and only from the commit at its tip:
 
@@ -451,41 +469,51 @@ gh run list --repo Lazurio/OpenMausBot --workflow lazurio-release.yml --limit 1
 When the first two jobs are green, the run waits in
 `lazurio-openmausbot-release`. Its required reviewers are `immakermatty` and
 `agentrozjedemeai`, with `prevent_self_review`, so the account that
-dispatched the run can't approve it, and the other one does:
+dispatched the run can't approve it and the persona does:
 
-- **Pablo** approves a run that Matěj's account dispatched. His GitHub
-  intake hands him the waiting run
-  ([docs/lazurio-github-intake.md](../lazurio-github-intake.md#deployment-approvals))
-  only once his Environment runs a release that carries it (#89; not yet in
-  `0.1.130-lazurio.3`) with `OMB_GITHUB_INTAKE_DEPLOYMENTS=Lazurio/OpenMausBot`.
-  Until then, Pablo dispatches and Matěj's account approves, as for
-  `0.1.130-lazurio.2` and `.3`.
-- A release of a pull request Pablo wrote is approved by Matěj's account
-  (Pablo dispatched it, above).
-- **Matěj's account** approves a run that Pablo dispatched: Matěj, or his
-  agent. That account has no GitHub intake of its own yet, so the approval
-  doesn't arrive by itself (a temporary exception in decision 0218's second
-  addendum of 2026-11-01): the thread that owns the release, the Task Agent
-  whose merged change is being released, watches the dispatched run and
-  approves it; without such a thread, Matěj does. Pablo dispatches only for
-  a release whose owner is named on its pull request. In GitHub (run → Review deployments → `lazurio-openmausbot-release`
-  → Approve) or from the command line:
+- **The persona** gets the waiting run through its GitHub intake
+  ([docs/lazurio-github-intake.md](../lazurio-github-intake.md#deployment-approvals)),
+  with `Lazurio/OpenMausBot` in `OMB_GITHUB_INTAKE_DEPLOYMENTS`. It approves
+  only when the workflow is `lazurio-release.yml`, `immakermatty` dispatched
+  it, `head_sha` is the tip of `main`, every finished job succeeded and the
+  inputs "Verify source and version" logged equal, every one of them, the
+  request: the newest `Release dispatch request:` comment by `immakermatty`
+  on an issue of this repository, written before the run started. Inputs that
+  differ, a commit that isn't the tip or a failed job are rejected with the
+  reason; an unknown workflow, another dispatcher or a missing request leave
+  the run waiting with a comment. Every decision comment starts with
+  `Run <id> attempt <n>:`, which the intake records. The persona never
+  dispatches, reruns or cancels a run.
+- **Transition.** Until the persona's Environment runs a release with
+  #93 and that variable, the persona's account dispatches and
+  `immakermatty` approves: the thread that owns the release, or the
+  Organization Admin.
+- **The persona's own work.** If any pull request authored by the persona
+  landed between the previous release tag and `source_sha`, the persona
+  leaves the run waiting with a comment, and the bot doesn't dispatch such a
+  release in the first place (step 1 above): the Organization Admin decides.
 
-  ```bash
-  RUN=<run id>
-  ENV_ID="$(gh api repos/Lazurio/OpenMausBot/environments/lazurio-openmausbot-release --jq .id)"
-  gh api -X POST "repos/Lazurio/OpenMausBot/actions/runs/$RUN/pending_deployments" \
-    -F "environment_ids[]=$ENV_ID" -f state=approved \
-    -f comment="Approved: <version> on <sha>, checks verified."
-  ```
+By hand (in the transition), in GitHub (run → Review
+deployments → `lazurio-openmausbot-release` → Approve) or from the command
+line:
 
-  To reject, send `-f state=rejected` with the reason in `comment`.
+```bash
+RUN=<run id>
+ENV_ID="$(gh api repos/Lazurio/OpenMausBot/environments/lazurio-openmausbot-release --jq .id)"
+gh api -X POST "repos/Lazurio/OpenMausBot/actions/runs/$RUN/pending_deployments" \
+  -F "environment_ids[]=$ENV_ID" -f state=approved \
+  -f comment="Run $RUN attempt <n>: approved, <version> on <sha>, checks verified."
+```
 
-Before approving, the approver checks the exact commit, its green Lazurio
-Fork CI, the run's green verify and archive jobs, and that the release
-contains only what should go out. It rejects with a reason otherwise, and
-nothing is published. Ring 0 follows after publishing (Testing before a
-release, step 3).
+To reject, send `-f state=rejected` with the reason in `comment`.
+
+By hand, in the transition, the approver checks the exact commit, its green
+Lazurio Fork CI, the run's green verify and archive jobs, and that the
+release contains only what should go out, and rejects with a reason when one
+of them fails; nothing is published then. When something needed to decide is
+missing (the request, the logged inputs, a run it can't attribute), it
+leaves the run waiting and says so on the release's issue, as the persona
+does. Ring 0 follows after publishing (Testing before a release, step 3).
 
 ## Verifying a published release
 
