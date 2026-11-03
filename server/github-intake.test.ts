@@ -8,7 +8,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { GhResult } from "./github-intake-gh.ts";
+import { ghText, type GhResult } from "./github-intake-gh.ts";
+import { loggedEnvironment } from "./github-intake-deployments.ts";
 import {
   GithubIntake,
   githubIntakeConfigFromEnv,
@@ -32,6 +33,33 @@ type FakeEvent =
   | { event: "review_requested" | "review_request_removed"; reviewer: string; at: string; actor: string }
   | { event: "head_ref_force_pushed"; at: string; actor: string };
 interface FakeComment { id: number; user: string; body: string; at: string }
+/** A run attempt waiting in an Environment, with its jobs, the env its verify
+ * job logged and the review history GitHub keeps for the run. */
+interface FakeDeployment {
+  repo: string; runId: number; attempt?: number; path?: string; head: string;
+  environment: { id: number; name: string }; canApprove: boolean; startedBy: string; waiting: boolean; pulls: number[];
+  jobs?: Array<{ name: string; status: string; conclusion: string | null }>;
+  env?: Record<string, string>;
+  reviews?: Array<{ state: "approved" | "rejected"; user: string; comment: string }>;
+}
+
+/** A verify job's log as GitHub Actions prints it: the step's script in
+ * colour, then its plain `env:` block. */
+function verifyLog(env: Record<string, string>): string {
+  const stamp = (n: number) => `2026-11-03T10:00:${String(n).padStart(2, "0")}.0000000Z `;
+  return [
+    "\uFEFF" + stamp(0) + "Complete job name: Verify source and version",
+    stamp(1) + "##[group]Run set -euo pipefail",
+    stamp(1) + "\u001b[36;1mset -euo pipefail\u001b[0m",
+    stamp(1) + "\u001b[36;1menv:\u001b[0m",
+    stamp(1) + "\u001b[36;1m  VERSION: 9.9.9-lazurio.9\u001b[0m",
+    stamp(2) + "shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}",
+    stamp(2) + "env:",
+    ...Object.entries(env).map(([name, value]) => `${stamp(2)}  ${name}: ${value}`),
+    stamp(2) + "##[endgroup]",
+    stamp(3) + "  NOT_AN_INPUT: printed later by the script",
+  ].join("\n");
+}
 interface FakePr {
   repo: string;
   number: number;
@@ -63,7 +91,9 @@ class FakeGitHub {
   delayMs = 0;
   prs: FakePr[] = [];
   /** Workflow runs waiting in an Environment, as GitHub lists them. */
-  deployments: Array<{ repo: string; runId: number; head: string; environment: { id: number; name: string }; canApprove: boolean; startedBy: string; waiting: boolean; pulls: number[] }> = [];
+  deployments: FakeDeployment[] = [];
+  /** The tip of each repository's default branch (`main`); unset is `HEAD_B`. */
+  tips = new Map<string, string>();
   repos: Array<{ full_name: string; push: boolean; archived?: boolean; ownerType?: "Organization" | "User" }> = [];
   permissions = new Map<string, Permission>();
   calls: string[] = [];
@@ -229,9 +259,14 @@ class FakeGitHub {
         return { id, event: e.event, assignee: identity(e.assignee), actor: identity(e.assignee), assigner: e.actor ? identity(e.actor) : null, created_at: e.at };
       }));
     }
-    m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/actions\/runs(?:\/(\d+)\/pending_deployments)?$/);
+    m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/actions\/runs(?:\/(\d+)\/(pending_deployments|approvals))?$/);
     if (m) {
       const runs = this.deployments.filter((run) => run.repo.toLowerCase() === m![1].toLowerCase());
+      if (m[3] === "approvals") {
+        return ok(runs.filter((run) => run.runId === Number(m![2])).flatMap((run) => run.reviews ?? []).map((review) => ({
+          state: review.state, comment: review.comment, user: identity(review.user), environments: [{ id: 77, name: "release" }],
+        })));
+      }
       if (m[2]) {
         return ok(runs.filter((run) => run.runId === Number(m![2]) && run.waiting).map((run) => ({
           environment: { id: run.environment.id, name: run.environment.name }, wait_timer: 0, current_user_can_approve: run.canApprove,
@@ -242,10 +277,29 @@ class FakeGitHub {
       const waiting = runs.filter((run) => run.waiting);
       const perPage = Number(url.searchParams.get("per_page") || 30);
       return ok({ total_count: waiting.length, workflow_runs: waiting.slice((page - 1) * perPage, page * perPage).map((run) => ({
-        id: run.runId, name: "Lazurio OpenMausBot Release", html_url: `https://github.test/${run.repo}/actions/runs/${run.runId}`,
+        id: run.runId, run_attempt: run.attempt ?? 1, name: "Lazurio OpenMausBot Release", path: run.path ?? ".github/workflows/lazurio-release.yml",
+        html_url: `https://github.test/${run.repo}/actions/runs/${run.runId}`, created_at: "2026-09-30T07:30:00Z",
         head_sha: run.head, head_branch: "main", event: "workflow_dispatch", status: "waiting",
         triggering_actor: identity(run.startedBy), actor: identity(run.startedBy),
       })) });
+    }
+    m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/actions\/runs\/(\d+)\/attempts\/(\d+)\/jobs$/);
+    if (m) {
+      const run = this.deployments.find((entry) => entry.repo.toLowerCase() === m![1].toLowerCase() && entry.runId === Number(m![2]) && (entry.attempt ?? 1) === Number(m![3]));
+      if (!run) return notFound;
+      const jobs = run.jobs ?? [{ name: "Verify source and version", status: "completed", conclusion: "success" }, { name: "Archive", status: "completed", conclusion: "success" }, { name: "Publish release", status: "waiting", conclusion: null }];
+      return ok({ total_count: jobs.length, jobs: jobs.map((job, i) => ({ id: run.runId * 10 + i, ...job, html_url: `https://github.test/${run.repo}/actions/runs/${run.runId}/job/${run.runId * 10 + i}` })) });
+    }
+    m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/actions\/jobs\/(\d+)\/logs$/);
+    if (m) {
+      expect(args).toContain("--allow-escape-sequences");
+      const run = this.deployments.find((entry) => entry.repo.toLowerCase() === m![1].toLowerCase() && Math.floor(Number(m![2]) / 10) === entry.runId);
+      return run ? { ok: true, stdout: verifyLog(run.env ?? RELEASE_INPUTS) } : notFound;
+    }
+    m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)(?:\/branches\/([^/]+))?$/);
+    if (m) {
+      if (!m[2]) return ok({ default_branch: "main" });
+      return m[2] === "main" ? ok({ name: "main", commit: { sha: this.tips.get(m[1].toLowerCase()) ?? HEAD_B } }) : notFound;
     }
     m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/commits\/([0-9a-f]{40})\/pulls$/);
     if (m) {
@@ -357,6 +411,8 @@ function eventOf(prompt: string): Record<string, any> {
 
 const HEAD_A = "a".repeat(40);
 const HEAD_B = "b".repeat(40);
+/** What a release dispatch logs in its verify job. */
+const RELEASE_INPUTS: Record<string, string> = { VERSION: "0.1.131-lazurio.1", RELEASE_TAG: "v0.1.131-lazurio.1", SOURCE_SHA: HEAD_B, UPSTREAM_TAG: "v0.1.131", UPSTREAM_SHA: "c".repeat(40) };
 
 // ── configuration ─────────────────────────────────────────────────────────
 
@@ -1514,7 +1570,7 @@ describe("GitHub intake: verdicts and explicit review requests", () => {
 });
 
 describe("GitHub intake: a deployment the account must approve", () => {
-  const RELEASE = { repo: "acme/fork", runId: 9001, head: HEAD_B, environment: { id: 77, name: "release" }, canApprove: true, startedBy: "release-app", waiting: true, pulls: [84] };
+  const RELEASE: FakeDeployment = { repo: "acme/fork", runId: 9001, head: HEAD_B, environment: { id: 77, name: "release" }, canApprove: true, startedBy: "release-app", waiting: true, pulls: [84] };
 
   it("reads waiting deployments only of the repositories OMB_GITHUB_INTAKE_DEPLOYMENTS names", async () => {
     expect(githubIntakeConfigFromEnv({ OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_DEPLOYMENTS: " Acme/Fork, acme/fork " })?.deployments).toEqual(["acme/fork"]);
@@ -1527,17 +1583,17 @@ describe("GitHub intake: a deployment the account must approve", () => {
     expect(h.github.calls.some((path) => path.includes("/actions/runs"))).toBe(false);
   });
 
-  it("hands a waiting deployment to the team once, with the run, the environment and the pull request it came from", async () => {
+  it("hands a waiting run attempt to the team once, with the run, the environments and the pull request it came from", async () => {
     const h = harness({ deployments: ["acme/fork"] });
     h.github.deployments.push({ ...RELEASE });
     const summary = await h.intake.pollOnce();
     expect(summary.delivered).toBe(1);
     expect(h.queued[0].prompt).toContain("Event: github.deployment");
-    expect(h.queued[0].deliveryId).toBe("gh:deployment:acme/fork:9001:77");
+    expect(h.queued[0].deliveryId).toBe("gh:deployment:acme/fork:9001:1");
     expect(h.events()[0]).toMatchObject({
       kind: "deployment", reason: "deployment_review", account: "henry-bot", repository: "acme/fork",
-      run: { id: 9001, url: "https://github.test/acme/fork/actions/runs/9001", head_sha: HEAD_B, started_by: "release-app" },
-      environment: { id: 77, name: "release" }, pull_request: { number: 84 },
+      run: { id: 9001, attempt: 1, url: "https://github.test/acme/fork/actions/runs/9001", head_sha: HEAD_B, started_by: "release-app" },
+      environments: [{ id: 77, name: "release" }], pull_request: { number: 84 },
     });
     await h.intake.pollOnce();
     await new GithubIntake(h.intakeOptions).pollOnce();
@@ -1677,5 +1733,141 @@ describe("GitHub intake: a deployment the account must approve", () => {
     expect(h.queued).toHaveLength(3);
     expect(h.webhooks.list()[0]).toMatchObject({ prompt: "Our own review rules.", eventTypes: ["github.review", "github.publish", "github.deployment"] });
   });
+  it("hands over the facts a release is checked against: workflow, attempt, the default branch tip, the jobs and the logged inputs", async () => {
+    const h = harness({ deployments: ["acme/fork"] });
+    h.github.tips.set("acme/fork", HEAD_A);
+    h.github.deployments.push({ ...RELEASE, jobs: [
+      { name: "Verify source and version", status: "completed", conclusion: "success" },
+      { name: "Archive / Archive linux-x64", status: "completed", conclusion: "success" },
+      { name: "Publish release", status: "waiting", conclusion: null },
+    ] });
+    await h.intake.pollOnce();
+    const event = h.events()[0];
+    expect(event).toMatchObject({
+      run: { id: 9001, attempt: 1, workflow_path: ".github/workflows/lazurio-release.yml", event: "workflow_dispatch", head_branch: "main", created_at: "2026-09-30T07:30:00Z" },
+      default_branch: { name: "main", tip_sha: HEAD_A },
+      jobs: [
+        { name: "Verify source and version", status: "completed", conclusion: "success" },
+        { name: "Archive / Archive linux-x64", status: "completed", conclusion: "success" },
+        { name: "Publish release", status: "waiting", conclusion: null },
+      ],
+      verify_job: { name: "Verify source and version", id: 90010, conclusion: "success" },
+      decision_comment_prefix: "Run 9001 attempt 1:",
+    });
+    // Only the step's plain env block: neither a coloured script line nor a later line counts.
+    expect(event.verify_job.logged_env).toEqual(RELEASE_INPUTS);
+    expect(h.queued[0].prompt).toContain("Release dispatch request:");
+  });
+
+  it("hands a run whose verify job has not finished over without logged inputs", async () => {
+    const h = harness({ deployments: ["acme/fork"] });
+    h.github.deployments.push({ ...RELEASE, jobs: [{ name: "Verify source and version", status: "in_progress", conclusion: null }] });
+    await h.intake.pollOnce();
+    expect(h.events()[0].verify_job).toMatchObject({ conclusion: null, logged_env: null });
+    expect(h.github.calls.some((path) => path.includes("/logs"))).toBe(false);
+  });
+
+  it("hands nothing over while a fact can't be read, and the complete facts on a later poll", async () => {
+    const h = harness({ deployments: ["acme/fork"] });
+    h.github.deployments.push({ ...RELEASE });
+    h.github.failing = "repos/acme/fork/actions/jobs/";
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(0);
+    expect(h.intake.status()).toMatchObject({ state: "error", lastError: expect.stringMatching(/actions\/jobs/) });
+    h.github.failing = null;
+    await h.intake.pollOnce();
+    expect(h.events()[0].verify_job.logged_env).toEqual(RELEASE_INPUTS);
+  });
+
+  it("makes a rerun of the same run a new decision for that attempt", async () => {
+    const h = harness({ deployments: ["acme/fork"] });
+    const release = { ...RELEASE };
+    h.github.deployments.push(release);
+    await h.intake.pollOnce();
+    release.attempt = 2;
+    await h.intake.pollOnce();
+    await h.intake.pollOnce();
+    expect(h.queued.map((entry) => entry.deliveryId)).toEqual(["gh:deployment:acme/fork:9001:1", "gh:deployment:acme/fork:9001:2"]);
+    expect(h.events()[1]).toMatchObject({ run: { attempt: 2 }, decision_comment_prefix: "Run 9001 attempt 2:" });
+    // Attempt 1 no longer waits and nobody decided it.
+    expect(h.intake.status().deployments).toEqual({ ended: 1, delivered: 1 });
+  });
+
+  it("records how each handed-over attempt was decided, from the review that starts with its prefix, and counts them", async () => {
+    const h = harness({ deployments: ["acme/fork"] });
+    const approved = { ...RELEASE };
+    const rejected = { ...RELEASE, runId: 9002 };
+    const unprefixed = { ...RELEASE, runId: 9003 };
+    h.github.deployments.push(approved, rejected, unprefixed);
+    await h.intake.pollOnce();
+    expect(h.intake.status().deployments).toEqual({ delivered: 3 });
+
+    approved.waiting = false;
+    approved.reviews = [
+      { state: "rejected", user: "henry-bot", comment: "Run 9001 attempt 2: a later attempt" },
+      { state: "approved", user: "henry-bot", comment: "Run 9001 attempt 1: inputs match the request, main tip, builds green" },
+    ];
+    rejected.waiting = false;
+    rejected.reviews = [{ state: "rejected", user: "henry-bot", comment: "Run 9002 attempt 1: SOURCE_SHA differs from the request" }];
+    unprefixed.waiting = false;
+    unprefixed.reviews = [{ state: "approved", user: "steward", comment: "ok" }];
+    await h.intake.pollOnce();
+    await h.intake.pollOnce();
+
+    const status = h.intake.status();
+    expect(status.deployments).toEqual({ approved: 1, rejected: 1, ended: 1 });
+    expect(status.recent.filter((record) => ["approved", "rejected", "ended"].includes(record.outcome))).toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: "deployment:acme/fork:9001:1", outcome: "approved", reason: "henry-bot: Run 9001 attempt 1: inputs match the request, main tip, builds green" }),
+      expect.objectContaining({ key: "deployment:acme/fork:9002:1", outcome: "rejected", reason: expect.stringMatching(/SOURCE_SHA differs/) }),
+      expect.objectContaining({ key: "deployment:acme/fork:9003:1", outcome: "ended" }),
+    ]));
+    expect(h.github.calls.filter((path) => path.endsWith("/approvals"))).toHaveLength(3);
+    expect(h.queued).toHaveLength(3);
+  });
+
+  it("decides nothing about an attempt while its repository can't be read completely", async () => {
+    const h = harness({ deployments: ["acme/fork"] });
+    const release = { ...RELEASE };
+    h.github.deployments.push(release);
+    await h.intake.pollOnce();
+    release.waiting = false;
+    h.github.failing = "repos/acme/fork/actions/runs?status=waiting";
+    await h.intake.pollOnce();
+    expect(h.intake.status().deployments).toEqual({ delivered: 1 });
+    h.github.failing = null;
+    await h.intake.pollOnce();
+    expect(h.intake.status().deployments).toEqual({ ended: 1 });
+  });
+
+  it("lets a pull request review go out while an approval run works", async () => {
+    const h = harness({ deployments: ["acme/fork"] });
+    const intake = new GithubIntake({ ...h.intakeOptions, runState: (id: string) => h.runs.get(id) ?? null, runs: h.nativeRuns });
+    h.github.deployments.push({ ...RELEASE });
+    await intake.pollOnce();
+    h.runs.set("run-1", { status: "running" });
+    h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await intake.pollOnce();
+    expect(h.events().map((event) => event.kind)).toEqual(["deployment", "review"]);
+  });
 });
 
+describe("GitHub intake: the inputs a release's verify job logged", () => {
+  it("reads only the first run step's own env block", () => {
+    expect(loggedEnvironment(verifyLog({ VERSION: "1.0.0-lazurio.1" }))).toEqual({ VERSION: "1.0.0-lazurio.1" });
+    // A first step without env does not borrow a later step's.
+    const later = ["2026-11-03T10:00:01Z ##[group]Run actions/checkout@v5", "2026-11-03T10:00:01Z ##[endgroup]", "2026-11-03T10:00:02Z ##[group]Run make", "2026-11-03T10:00:02Z env:", "2026-11-03T10:00:02Z   VERSION: 1.0.0", "2026-11-03T10:00:02Z ##[endgroup]"].join("\n");
+    expect(loggedEnvironment(later)).toBeUndefined();
+    expect(loggedEnvironment("no steps at all")).toBeUndefined();
+  });
+
+  it("reads a log through gh, also a gh that does not know --allow-escape-sequences", async () => {
+    const seen: string[][] = [];
+    const old = async (args: string[]): Promise<GhResult> => {
+      seen.push(args);
+      return args.includes("--allow-escape-sequences") ? { ok: false, code: 1, stderr: "unknown flag: --allow-escape-sequences" } : { ok: true, stdout: "log" };
+    };
+    await expect(ghText(old, "repos/acme/fork/actions/jobs/1/logs")).resolves.toBe("log");
+    expect(seen).toEqual([["api", "--allow-escape-sequences", "repos/acme/fork/actions/jobs/1/logs"], ["api", "repos/acme/fork/actions/jobs/1/logs"]]);
+    await expect(ghText(async () => ({ ok: false, code: 1, stderr: "gh: Not Found (HTTP 404)" }), "repos/x/y/actions/jobs/2/logs")).rejects.toThrow(/actions\/jobs\/2\/logs/);
+  });
+});

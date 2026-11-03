@@ -57,3 +57,14 @@ export function classify(result: Extract<GhResult, { ok: false }>): GhFailure {
   if (text.includes("http 404")) return "not_found";
   return "failed";
 }
+
+/** A plain-text API response (a job log) through the same `gh`. A log carries
+ * terminal colour codes, which `gh api` refuses to print unless
+ * `--allow-escape-sequences` allows it; a `gh` without that flag is asked
+ * again without it. */
+export async function ghText(gh: GhRunner, path: string): Promise<string> {
+  let result = await gh(["api", "--allow-escape-sequences", path]);
+  if (!result.ok && result.stderr.includes("unknown flag: --allow-escape-sequences")) result = await gh(["api", path]);
+  if (!result.ok) throw new GhError(classify(result), `gh api ${path.split("?")[0]}: ${result.stderr.split("\n")[0] || `exit ${result.code}`}`);
+  return result.stdout;
+}

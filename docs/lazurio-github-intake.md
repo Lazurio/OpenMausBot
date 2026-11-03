@@ -228,16 +228,41 @@ set, each poll reads those repositories' runs that wait for a deployment
 (`GET repos/{repo}/actions/runs?status=waiting`, then
 `.../runs/{id}/pending_deployments`).
 
-- **Which.** Each environment of a waiting run that GitHub lets the account
-  approve (`current_user_can_approve`) is handed over once, keyed
-  `deployment:<repo>:<run id>:<environment id>` through the intake key and
-  the webhook's delivery receipt. Repeated polls, a restart or a lost state
-  file never deliver it twice.
-- **Never its own.** A run the account itself started is recorded as `ignored`
-  and never handed over (`prevent_self_review` keeps that approval with
-  another reviewer anyway).
+- **Which.** Each attempt of a waiting run where GitHub lets the account
+  approve at least one environment (`current_user_can_approve`) is handed
+  over once with every such environment, keyed
+  `deployment:<repo>:<run id>:<attempt>` through the intake key and the
+  webhook's delivery receipt. Repeated polls, a restart or a lost state file
+  never deliver it twice; a rerun is a new attempt and a new decision.
+- **With the facts it is checked against.** Before handing an attempt over
+  the intake reads the repository's default branch and its tip, every job of
+  the attempt (`actions/runs/{id}/attempts/{n}/jobs`) and the log of the job
+  named **Verify source and version**, the job of every Lazurio release
+  workflow that checks the dispatch inputs before anything is built. From
+  that log it takes the environment GitHub Actions prints for the job's first
+  `run` step: the workflow's `env`, where a Lazurio release workflow puts its
+  inputs (`VERSION`, `SOURCE_SHA`, `UPSTREAM_TAG`, `UPSTREAM_SHA`). Script
+  lines are printed in colour, so only the plain `env:` block counts. When
+  one of these reads fails, nothing is handed over in that poll and the next
+  poll tries again, so the team never gets an attempt without its facts. A
+  verify job that is missing or not finished is handed over as such
+  (`verify_job: null`, or `logged_env: null`). Logs are read with
+  `gh api --allow-escape-sequences`, or without that flag on a `gh` that
+  doesn't know it.
+- **Decision.** The intake decides nothing and never dispatches, reruns,
+  approves or cancels a run. The team approves or rejects with `gh`, with a
+  comment that starts with the attempt's `decision_comment_prefix`
+  (`Run <id> attempt <n>:`). GitHub's review history of a run
+  (`actions/runs/{id}/approvals`) names neither the attempt nor a time, and
+  this prefix is how the intake tells the attempts' decisions apart.
+- **Outcome.** Once a handed-over attempt no longer waits, in a poll that
+  read its repository completely, the intake records how it ended:
+  `approved` or `rejected` with the reviewer and the comment of the review
+  that starts with its prefix, otherwise `ended` (cancelled, failed, or
+  decided without the prefix). The status counts the attempts by their
+  latest outcome (`deployments`).
 - **Drops out.** A run that no longer waits (approved, rejected or cancelled
-  by anyone) drops out with no recovery noise.
+  by anyone) drops out with no recovery noise, after its outcome is recorded.
 - **Recovery.** A handed-over approval whose native run ended while the
   deployment still waits reports `needs_recovery`; nothing is handed over
   again on its own.
@@ -253,9 +278,28 @@ set, each poll reads those repositories' runs that wait for a deployment
   `pull_request`.
 - **Bounds.** The intake only hands the approval over. The team decides it
   with `gh`, according to the webhook's instructions and its standing
-  mandate, and says on the pull request what it decided. Without a mandate
-  it approves nothing. A repository outside this list is never read, so
-  approvals there wait for their people.
+  mandate, which names the release workflows it may approve and the account
+  expected to dispatch them. The instructions approve only when all of these
+  hold: the workflow is an allowed release workflow dispatched by
+  `workflow_dispatch`; the expected account dispatched it; the ref is the
+  default branch and `head_sha` its tip; every finished job succeeded and
+  none still runs; and the logged inputs equal the newest
+  `Release dispatch request:` comment of that account on an issue of the same
+  repository, written before the run, with the exact `gh workflow run`
+  command. Inputs that differ, a commit that is not the tip, or a failed job
+  are rejected with the reason. An unknown workflow, another dispatcher, a
+  missing request or missing facts leave the run waiting, and the team says
+  why on the request issue, or on the head commit when there is none.
+  Without a mandate it approves nothing. A repository outside this list is
+  never read, so approvals there wait for their people.
+
+  | Case | Expected |
+  | --- | --- |
+  | Waiting run, inputs match the request | Approved once; the publish job runs. |
+  | Inputs differ from the request | Rejected with the difference; nothing published. |
+  | `head_sha` not the tip of the default branch | Rejected. |
+  | Unknown workflow, or a dispatcher other than the expected one | Left waiting, with a comment. |
+  | Rerun of the same run (attempt 2) | A new decision for that attempt. |
 
 ## What the bot receives
 
@@ -297,10 +341,13 @@ and the instruction's author for a publication, which also carries
 is `github.review`, `github.publish` or `github.deployment`.
 
 A deployment event has `kind: "deployment"`, `reason: "deployment_review"`,
-`run: {id, url, head_sha, workflow, head_branch, event, started_by,
-started_by_id}`, `environment: {id, name}` and, when the commit belongs to a
-pull request, `pull_request: {number, url}`. Its record's `number` is the
-workflow run id. An intake webhook made before deployments gets the
+`run: {id, attempt, url, head_sha, workflow, workflow_path, head_branch,
+event, created_at, started_by, started_by_id}`, `environments: [{id, name}]`,
+`decision_comment_prefix`, `default_branch: {name, tip_sha}`,
+`jobs: [{name, status, conclusion}]`, `verify_job: {name, id, url,
+conclusion, logged_env}` (or `null`) and, when the commit belongs to a pull
+request, `pull_request: {number, url}`. Its record's `number` is the workflow
+run id. An intake webhook made before deployments gets the
 `github.deployment` event type and, unless an operator changed them, the
 current instructions on the next delivery.
 
@@ -364,9 +411,11 @@ comment. An assignment handoff that ends without a result gets no comment.
 `rate_limited`, `needs_recovery`, `error`), the account, the target bot, the webhook id, the
 configuration, `lastPollAt`, `lastSuccessAt`, `nextPollInMs`, `lastError`,
 `needsRecovery` (how many open pull requests are in `needs_recovery`, as of
-the last poll that read them) and the 50 most recent outcomes (`delivered`,
-`duplicate`, `already_reviewed`, `needs_human_approval`, `needs_recovery`,
-`notified`, `ignored`); a review that answers an explicit request names its
+the last poll that read them), `deployments` (the run attempts handed over
+for a deployment approval, counted by their latest outcome) and the 50 most
+recent outcomes (`delivered`, `duplicate`, `already_reviewed`,
+`needs_human_approval`, `needs_recovery`, `notified`, `ignored`, and for a
+deployment `approved`, `rejected` or `ended`); a review that answers an explicit request names its
 `requestEventId`. `lastError` names every problem of the poll, so a recovery
 doesn't hide a read failure beside it. Status also exposes
 `assignmentHandoff` and its persisted `assignmentActivatedAt`. `POST /api/github-intake/poll` polls now

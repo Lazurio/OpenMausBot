@@ -17,15 +17,16 @@ import { dirname } from "node:path";
 import { z } from "zod";
 
 import { writeFileAtomic } from "./atomic.ts";
-import { classify, GhError, type GhRunner } from "./github-intake-gh.ts";
-import { approvalPayload, approvalRecord, deploymentReads, deploymentReposFromEnv, pendingApprovals, runPull } from "./github-intake-deployments.ts";
+import { classify, GhError, ghText, type GhRunner } from "./github-intake-gh.ts";
+import { approvalPayload, approvalRecord, deploymentDecision, deploymentFacts, deploymentReads, deploymentReposFromEnv, pendingApprovals, runPull } from "./github-intake-deployments.ts";
+import { hasPublishMarker, PUBLISH_MARKER } from "./github-intake-marker.ts";
 import { INTAKE_WEBHOOK_PROMPT, SHIPPED_INTAKE_WEBHOOK_PROMPTS } from "./github-intake-prompts.ts";
 import { ACTIVE_RUN, commitSchema, deliveryConcerns, deliveryIdFor, eventsSchema, login, reviewPlan, reviewsSchema } from "./github-intake-review.ts";
 import type { JsonValue } from "./schema.ts";
 import type { WebhookEvent, WebhookManager, WebhookReceiveResult, WebhookTrigger } from "./webhooks.ts";
 
-/** Backward-compatible publication instruction for installations without assignment handoff. */
-export const PUBLISH_MARKER = "/lazurio publish";
+export { hasPublishMarker, PUBLISH_MARKER };
+
 export const INTAKE_WEBHOOK_NAME = "GitHub intake";
 export const INTAKE_EVENT_TYPES = ["github.review", "github.publish", "github.deployment"] as const;
 /** Unfinished runs the intake webhook may hold; the leader distributes them. */
@@ -104,45 +105,6 @@ export function githubIntakeConfigFromEnv(env: NodeJS.ProcessEnv = process.env):
   return { bot, scope, owners, exclude, intervalMs: seconds * 1_000, ...(ghPath ? { ghPath } : {}), ...(assignmentHandoff ? { assignmentHandoff } : {}), ...(deployments.length ? { deployments } : {}) };
 }
 
-/** True when one line of the comment, outside quotes and code, is exactly the
- * publish marker. Code follows CommonMark: a fenced block opens with three or
- * more backticks or tildes indented at most three spaces and closes only with
- * the same character, at least as long, and nothing else on the line; a line
- * indented four or more spaces (or by a tab) is an indented code block. An
- * unclosed fence runs to the end of the comment. */
-/** Columns of a line's leading whitespace with CommonMark tab stops of 4, so a
- * tab after one to three spaces still reaches the indented-code column. */
-function leadingColumns(line: string): number {
-  let column = 0;
-  for (const char of line) {
-    if (char === " ") column += 1;
-    else if (char === "\t") column += 4 - (column % 4);
-    else break;
-  }
-  return column;
-}
-
-export function hasPublishMarker(body: string): boolean {
-  let fence: { char: string; length: number } | null = null;
-  for (const raw of body.split(/\r?\n/)) {
-    const shallow = leadingColumns(raw) <= 3;
-    const line = raw.trim();
-    const run = shallow ? /^(`{3,}|~{3,})(.*)$/.exec(line) : null;
-    if (fence) {
-      if (run && run[1][0] === fence.char && run[1].length >= fence.length && run[2].trim() === "") fence = null;
-      continue;
-    }
-    if (run) {
-      // A backtick fence's info string may not contain a backtick.
-      if (run[1][0] === "`" && run[2].includes("`")) continue;
-      fence = { char: run[1][0], length: run[1].length };
-      continue;
-    }
-    if (shallow && line === PUBLISH_MARKER) return true;
-  }
-  return false;
-}
-
 // ── GitHub response shapes (only the fields the intake reads) ─────────────
 
 const userSchema = login;
@@ -185,7 +147,9 @@ const permissionSchema = z.object({ permission: z.string().optional(), role_name
 // ── durable state ─────────────────────────────────────────────────────────
 
 export type IntakeKind = "review" | "publish" | "deployment";
-export type IntakeOutcome = "delivered" | "duplicate" | "already_reviewed" | "needs_human_approval" | "ignored" | "needs_recovery" | "notified";
+export const INTAKE_OUTCOMES = ["delivered", "duplicate", "already_reviewed", "needs_human_approval", "ignored", "needs_recovery", "notified", "approved", "rejected", "ended"] as const;
+export type IntakeOutcome = (typeof INTAKE_OUTCOMES)[number];
+const HANDED_OVER: readonly IntakeOutcome[] = ["delivered", "duplicate", "needs_recovery"];
 
 export interface IntakeRecord {
   key: string;
@@ -208,7 +172,7 @@ const recordSchema = z.object({
   key: z.string().min(1),
   at: z.number().finite().nonnegative(),
   kind: z.enum(["review", "publish", "deployment"]),
-  outcome: z.enum(["delivered", "duplicate", "already_reviewed", "needs_human_approval", "ignored", "needs_recovery", "notified"]),
+  outcome: z.enum(INTAKE_OUTCOMES),
   repository: z.string(),
   number: z.number().int(),
   headSha: z.string().optional(),
@@ -261,6 +225,8 @@ export interface GithubIntakeStatus {
   lastError?: string;
   /** Open pull requests in `needs_recovery`, as of the last poll that read them. */
   needsRecovery: number;
+  /** Run attempts that waited for this account's deployment approval, by their latest outcome. */
+  deployments: Partial<Record<IntakeOutcome, number>>;
   recent: IntakeRecord[];
 }
 
@@ -419,6 +385,7 @@ export class GithubIntake {
       nextPollInMs: this.nextDelayMs(),
       ...(this.current.lastError ? { lastError: this.current.lastError } : {}),
       needsRecovery: this.current.needsRecovery,
+      deployments: this.deploymentCounts(),
       recent,
     };
   }
@@ -656,23 +623,42 @@ export class GithubIntake {
       Boolean(hook && this.options.runs?.().some((run) => run.webhookId === hook.id && ACTIVE_RUN.includes(run.status) && deliveryConcerns(run.deliveryId, repo, number)));
   }
 
-  /** Waiting deployments this account may approve, each handed over once (server/github-intake-deployments.ts). */
+  /** Waiting deployments this account may approve, each attempt handed over
+   * once with its facts, and how each handed-over attempt ended (server/github-intake-deployments.ts). */
   private async approvals(account: string, bot: { id: string }, summary: PollSummary, deferred: Deferred[], errors: unknown[]): Promise<void> {
     const api = <T>(path: string, schema: z.ZodType<T>) => this.api(path, schema);
-    for (const approval of await pendingApprovals(deploymentReads(api), this.config.deployments ?? [], this.accountId, errors)) {
+    const reads = deploymentReads(api, (path) => this.limited(() => ghText(this.options.gh, path)));
+    const scan = await pendingApprovals(reads, this.config.deployments ?? [], this.accountId, errors);
+    for (const approval of scan.approvals) {
       const base = approvalRecord(approval);
       const prior = this.latestRecord(approval.key);
       if (approval.own) {
         this.recordOnce({ ...base, outcome: "ignored", reason: "started by this account, which never approves its own run" });
-      } else if (prior && ["delivered", "duplicate", "needs_recovery"].includes(prior.outcome)) {
+      } else if (prior && HANDED_OVER.includes(prior.outcome)) {
         const receipt = prior.runId ? this.options.runState?.(prior.runId) : null;
         if (this.options.runState && !ACTIVE_RUN.includes(receipt?.status ?? "")) {
           this.recovery(prior, deferred, `Native approval run ${receipt?.status ?? "unavailable"}; the deployment still waits for this account. Check the GitHub run and native receipts before handing it over again.`);
         }
       } else {
-        this.deliver(bot, deferred, summary, { ...base, payload: approvalPayload(approval, account, await runPull(api, approval, errors)) });
+        const facts = await deploymentFacts(reads, approval).catch((error: unknown) => { errors.push(error); });
+        if (facts) this.deliver(bot, deferred, summary, { ...base, payload: approvalPayload(approval, account, facts, await runPull(api, approval, errors)) });
       }
     }
+    for (const record of this.latestDeployments()) {
+      if (!HANDED_OVER.includes(record.outcome) || !scan.read.has(record.repository) || scan.waiting.has(record.key)) continue;
+      const decision = await deploymentDecision(reads, record).catch((error: unknown) => { errors.push(error); });
+      if (decision) this.record({ ...record, ...decision });
+    }
+  }
+
+  private latestDeployments(): IntakeRecord[] {
+    return [...new Map(this.state.records.filter((record) => record.kind === "deployment").map((record) => [record.key, record])).values()];
+  }
+
+  private deploymentCounts(): Partial<Record<IntakeOutcome, number>> {
+    const counts: Partial<Record<IntakeOutcome, number>> = {};
+    for (const record of this.latestDeployments()) counts[record.outcome] = (counts[record.outcome] ?? 0) + 1;
+    return counts;
   }
 
   /** Assignment itself is the scoped handoff; only new, attributable events qualify. */
@@ -703,7 +689,7 @@ export class GithubIntake {
       return null;
     }
     const prior = this.latestRecord(key);
-    if (prior && ["delivered", "duplicate", "needs_recovery"].includes(prior.outcome)) {
+    if (prior && HANDED_OVER.includes(prior.outcome)) {
       const receipt = prior.runId ? this.options.runState?.(prior.runId) : null;
       if (this.options.runState && !["queued", "running", "waiting"].includes(receipt?.status ?? "")) {
         this.recovery(prior, deferred, `Native handoff run ${receipt?.status ?? "unavailable"}; PR is still open and assigned. Verify native workers and the current mandate; do not replay publication as a review.`);
@@ -730,7 +716,7 @@ export class GithubIntake {
     if (!this.options.runState) return false;
     const latest = [...this.state.records].reverse().find((record) =>
       record.repository.toLowerCase() === candidate.repo.toLowerCase() && record.number === candidate.number && record.kind === "review" && record.outcome !== "notified");
-    if (!latest || !["delivered", "duplicate", "needs_recovery"].includes(latest.outcome)) return false;
+    if (!latest || !HANDED_OVER.includes(latest.outcome)) return false;
     const receipt = latest.runId ? this.options.runState(latest.runId) : null;
     return !["queued", "running", "waiting"].includes(receipt?.status ?? "");
   }
