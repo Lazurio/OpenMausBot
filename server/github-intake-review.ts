@@ -108,9 +108,11 @@ export function deliveryIdFor(key: string): string {
   return id.length <= 200 ? id : `gh:${createHash("sha256").update(key).digest("hex")}`;
 }
 
-/** Whether a native run's delivery id may be work on this pull request. An id
- * that names no pull request (a hashed key, or none) may be any of them. */
+/** Whether a native run's delivery id may be work on this pull request. A
+ * deployment approval is work on none; any other id that names no pull
+ * request (a hashed key, or none) may be any of them. */
 export function deliveryConcerns(deliveryId: string | undefined, repository: string, number: number): boolean {
+  if (deliveryId?.startsWith("gh:deployment:")) return false;
   const match = /^gh:(?:review|own|assignment|publish):(.+)#(\d+)[@:]/.exec(deliveryId ?? "");
   if (!match) return true;
   return match[1].toLowerCase() === repository.toLowerCase() && Number(match[2]) === number;
