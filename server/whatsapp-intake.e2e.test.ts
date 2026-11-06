@@ -121,9 +121,12 @@ describe.skipIf(process.platform === "win32")("a server started with OMB_WHATSAP
     writeFileSync(replyFile, JSON.stringify({ action: "reply", reply, reply_to: "", commitment: false, confidence: "high", sources: ["guide.md"], digest_line: "" }));
     writeFileSync(toolsFile, JSON.stringify(tools));
   };
+  // The daily digest goes to the operator by the wall clock (weekdays from 17:00 Prague time), so it may land
+  // between any two sends of this test; the sends under test are the others.
+  const sends = () => outbox().filter((entry) => !String(entry.message).startsWith("Přehled podpory od"));
   const nextSend = async (sentBefore: number) => {
-    await expect.poll(() => outbox().length, { timeout: 60_000, interval: 200 }).toBeGreaterThan(sentBefore);
-    return outbox()[sentBefore]!;
+    await expect.poll(() => sends().length, { timeout: 60_000, interval: 200 }).toBeGreaterThan(sentBefore);
+    return sends()[sentBefore]!;
   };
   const READ = [{ name: "Read", input: { file_path: join(bundle, "guide.md") } }];
   const CLEAN = "Dobrý den, otevřete Nastavení → Integrace a klikněte na Připojit.";
