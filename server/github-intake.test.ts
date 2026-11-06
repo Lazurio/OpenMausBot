@@ -1451,6 +1451,23 @@ describe("GitHub intake: a review run without a verdict is tried again, then esc
     expect(h.events()[1].previous_attempt).toMatchObject({ run_id: "run-1", status: "cancelled", category: "no-progress" });
   });
 
+  it("counts idleness only from its own start, since progress before a restart is not known", async () => {
+    const h = retryHarness();
+    h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.runs.set("run-1", { status: "running", startedAt: h.github.now, threadId: "lead-1" });
+    h.github.advance(2 * 60 * 60_000);
+    const restarted = new GithubIntake(h.options);
+    await restarted.pollOnce();
+    h.github.advance(40 * 60_000);
+    await restarted.pollOnce();
+    expect(h.cancelled).toEqual([]);
+
+    h.github.advance(5 * 60_000);
+    await restarted.pollOnce();
+    expect(h.cancelled).toEqual([["run-1", "The GitHub intake stopped this run: no sign of progress for 45 minutes"]]);
+  });
+
   it("stops a run past the hard cap even while it progresses, and without a progress signal only there", async () => {
     for (const progressAt of [(): number => Date.now() * 2, undefined]) {
       const h = retryHarness({}, { progressAt });
@@ -1579,6 +1596,30 @@ describe("GitHub intake: a review run without a verdict is tried again, then esc
     await h.intake.pollOnce();
     expect(h.queued).toHaveLength(2);
     expect(h.intake.status().state).toBe("ok");
+  });
+
+  it("names the blocked comment when the last attempt, or the only one, ends blocked", async () => {
+    for (const reviewAttempts of [1, 2]) {
+      const h = retryHarness({ reviewAttempts, escalate: "matej" });
+      const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+      await h.intake.pollOnce();
+      if (reviewAttempts === 2) {
+        h.end("run-1");
+        await h.intake.pollOnce();
+        h.github.advance(10 * 60_000);
+        await h.intake.pollOnce();
+        expect(h.queued).toHaveLength(2);
+      }
+      const blocked = h.github.comment(pr, "henry-bot", `${blockedMarker(HEAD_A)}\nAn Admin has to act.`);
+      h.end(`run-${reviewAttempts}`);
+      await h.intake.pollOnce();
+      await h.intake.pollOnce();
+
+      expect(h.queued).toHaveLength(reviewAttempts);
+      expect(notices(pr)).toHaveLength(1);
+      expect(notices(pr)[0].body).toContain(`- Attempt ${reviewAttempts}: blocked\n`);
+      expect(notices(pr)[0].body).toContain(`What blocks it: https://github.test/acme/app/pull/7#issuecomment-${blocked.id}`);
+    }
   });
 
   it("tries again after a comment without the marker, or with the marker of another head, and hands it over as progress", async () => {
