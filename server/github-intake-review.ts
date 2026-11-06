@@ -13,6 +13,8 @@ export const reviewsSchema = z.array(z.object({
   commit_id: z.string().nullable().optional(),
   state: z.string(),
   submitted_at: z.string().nullable().optional(),
+  body: z.string().nullable().optional(),
+  html_url: z.string().optional(),
 }));
 export const eventsSchema = z.array(z.object({
   id: z.number().int().positive().optional(),
@@ -102,6 +104,13 @@ function judgeVerdict(review: GithubReview, changedAt: number): HeadVerdict {
 /** A native run's status while it still holds the pull request. */
 export const ACTIVE_RUN: readonly string[] = ["queued", "running", "waiting"];
 
+const ATTEMPT = /~attempt:(\d+)$/;
+/** 1 for the first delivery of an obligation, n for its key `<key>~attempt:<n>`. */
+export const attemptOf = (key: string): number => Number(ATTEMPT.exec(key)?.[1] ?? 1);
+export const obligationOf = (key: string): string => key.replace(ATTEMPT, "");
+export const attemptKey = (obligation: string, attempt: number): string =>
+  attempt > 1 ? `${obligationOf(obligation)}~attempt:${attempt}` : obligationOf(obligation);
+
 /** The webhook delivery id of an intake key: the key itself, hashed when long. */
 export function deliveryIdFor(key: string): string {
   const id = `gh:${key}`;
@@ -128,21 +137,25 @@ interface DeliveryRecord {
   key: string; at: number; kind: string; outcome: string; repository: string; number: number; headSha?: string; obligation?: "head" | "request";
 }
 
+/** The review a delivery hands over; its key is the obligation's, before any `~attempt:<n>`. */
+export interface ReviewDelivery {
+  key: string; reason: string; requester: string;
+  record: { obligation: "head" | "request"; requestEventId?: number }; extras: Record<string, JsonValue>;
+}
+
 export type ReviewPlan<T> =
   | { action: "answered"; reason: string }
-  | { action: "covered"; record: T }
-  | {
-    action: "deliver"; key: string; reason: string; requester: string;
-    record: { obligation: "head" | "request"; requestEventId?: number }; extras: Record<string, JsonValue>;
-  };
+  | { action: "covered"; record: T; delivery: ReviewDelivery }
+  | ({ action: "deliver" } & ReviewDelivery);
 
 /** Nothing while a current verdict is newer than any pending request (GitHub
  * timestamps have one-second resolution, so a request in the verdict's second
  * does not reopen it). Otherwise one review, keyed by the request that asks
  * for it or, without one, by the head, unless a delivery already covers it:
- * one with that key; without a request, any delivery of the head; for a
- * request, also a head-only delivery recorded before obligations were
- * (`LEGACY_COVER_MARGIN_MS`). A delivery for another request never covers it. */
+ * one with that key or one of its later attempts; without a request, any
+ * delivery of the head; for a request, also a head-only delivery recorded
+ * before obligations were (`LEGACY_COVER_MARGIN_MS`). A delivery for another
+ * request never covers it. */
 export async function reviewPlan<T extends DeliveryRecord>(read: ReviewReads, input: {
   repository: string; number: number; head: string; author: string; roles: ReadonlySet<string>;
   account: { login: string; id?: number }; requestedReviewers: readonly GithubUser[]; records: readonly T[];
@@ -158,17 +171,17 @@ export async function reviewPlan<T extends DeliveryRecord>(read: ReviewReads, in
   const record = [...input.records].reverse().find((entry) => entry.kind === "review" &&
     ["delivered", "duplicate", "needs_recovery"].includes(entry.outcome) &&
     entry.repository.toLowerCase() === repository.toLowerCase() && entry.number === number && entry.headSha === head &&
-    (entry.key === key || !request ||
+    (obligationOf(entry.key) === key || !request ||
       (entry.key === headKey && entry.obligation === undefined && entry.at >= request.at + LEGACY_COVER_MARGIN_MS)));
-  if (record) return { action: "covered", record };
   const reason = verdict?.current ? "review_rerequested"
     : input.roles.has("requested") ? "review_requested" : input.roles.has("reviewed") ? "reviewed_before" : "organization_scope";
-  return {
-    action: "deliver", key, reason, requester: request?.requester || input.author,
+  const delivery: ReviewDelivery = {
+    key, reason, requester: request?.requester || input.author,
     record: request ? { obligation: "request", requestEventId: request.eventId } : { obligation: "head" },
     extras: {
       ...(request ? { request: { event_id: request.eventId, requester: request.requester, created_at: request.createdAt } } : {}),
       ...(verdict ? { last_verdict: { state: verdict.state, submitted_at: verdict.submittedAt, after_head_change: verdict.current } } : {}),
     },
   };
+  return record ? { action: "covered", record, delivery } : { action: "deliver", ...delivery };
 }

@@ -41,11 +41,38 @@ export function maintenanceGuard(maintenance: { request(): () => void }): <T>(wo
   };
 }
 
-export interface LazurioGithubIntakeDeps extends Pick<GithubIntakeOptions, "webhooks" | "bots" | "runState" | "runs"> {
+/** The latest sign of progress of a run: a runtime event in its conversation's
+ * thread, or progress of the work that conversation handed out and still waits
+ * on, at any depth. */
+export function runProgress(delegations: (threadId: string) => ReadonlyArray<{ threadId: string; createdAt: number; startedAt?: number; lastProgressAt?: number }>, now: () => number = Date.now) {
+  const events = new Map<string, number>();
+  return {
+    observe(event: { threadId: string }): void {
+      if (events.size >= 10_000) events.clear();
+      events.set(event.threadId, now());
+    },
+    progressAt(threadId: string): number | undefined {
+      let latest = events.get(threadId);
+      const seen = new Set([threadId]);
+      const pending = [threadId];
+      while (pending.length && seen.size < 1_000) {
+        for (const work of delegations(pending.pop()!)) {
+          latest = Math.max(latest ?? 0, work.lastProgressAt ?? work.startedAt ?? work.createdAt, events.get(work.threadId) ?? 0);
+          if (!seen.has(work.threadId)) { seen.add(work.threadId); pending.push(work.threadId); }
+        }
+      }
+      return latest;
+    },
+  };
+}
+
+export interface LazurioGithubIntakeDeps extends Pick<GithubIntakeOptions, "webhooks" | "bots" | "runState" | "runs" | "cancelRun"> {
   dataDir: string;
   /** The server's workspace maintenance gate: a backup or restore defers deliveries to the next poll. */
   maintenance: { request(): () => void };
   env?: NodeJS.ProcessEnv;
+  /** The work a conversation handed out and still waits on (the coordinator's `outstandingFor`). */
+  delegations: Parameters<typeof runProgress>[0];
 }
 
 /** Model-free GitHub polling under this user's signed-in `gh`: real work is
@@ -53,8 +80,9 @@ export interface LazurioGithubIntakeDeps extends Pick<GithubIntakeOptions, "webh
  * receipts and untrusted-data wrapping as any webhook delivery. Off unless
  * OMB_GITHUB_INTAKE=1; an unusable setting throws, so the server stops at
  * start with the reason. */
-export function createLazurioGithubIntake(deps: LazurioGithubIntakeDeps): { routes: RouteHandler; start(): void; stop(): void } {
+export function createLazurioGithubIntake(deps: LazurioGithubIntakeDeps): { routes: RouteHandler; start(): void; stop(): void; observe(event: { threadId: string }): void } {
   const config = githubIntakeConfigFromEnv(deps.env);
+  const progress = runProgress(deps.delegations);
   const intake = config
     ? new GithubIntake({
         config,
@@ -64,6 +92,8 @@ export function createLazurioGithubIntake(deps: LazurioGithubIntakeDeps): { rout
         bots: deps.bots,
         runState: deps.runState,
         runs: deps.runs,
+        cancelRun: deps.cancelRun,
+        progressAt: progress.progressAt,
         guard: maintenanceGuard(deps.maintenance),
       })
     : null;
@@ -71,5 +101,6 @@ export function createLazurioGithubIntake(deps: LazurioGithubIntakeDeps): { rout
     routes: createGithubIntakeRoutes({ intake }),
     start: () => intake?.start(),
     stop: () => intake?.stop(),
+    observe: (event) => { if (intake) progress.observe(event); },
   };
 }

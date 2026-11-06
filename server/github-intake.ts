@@ -18,13 +18,16 @@ import { z } from "zod";
 
 import { writeFileAtomic } from "./atomic.ts";
 import { classify, GhError, ghText, type GhRunner } from "./github-intake-gh.ts";
-import { approvalPayload, approvalRecord, deploymentDecision, deploymentFacts, deploymentReads, deploymentReposFromEnv, pendingApprovals, runPull } from "./github-intake-deployments.ts";
+import { INTAKE_DEFAULTS, type GithubIntakeConfig } from "./github-intake-config.ts";
+import { approvalPayload, approvalRecord, deploymentDecision, deploymentFacts, deploymentReads, pendingApprovals, runPull } from "./github-intake-deployments.ts";
 import { hasPublishMarker, PUBLISH_MARKER } from "./github-intake-marker.ts";
 import { INTAKE_WEBHOOK_PROMPT, SHIPPED_INTAKE_WEBHOOK_PROMPTS } from "./github-intake-prompts.ts";
-import { ACTIVE_RUN, commitSchema, deliveryConcerns, deliveryIdFor, eventsSchema, login, reviewPlan, reviewsSchema } from "./github-intake-review.ts";
+import { attemptCategory, oldestOwed, overdue, previousAttempt, recoveryLead, recoveryNotice, retryAt, teamNotes, type RunReceipt, type TeamNote } from "./github-intake-recovery.ts";
+import { ACTIVE_RUN, attemptKey, attemptOf, commitSchema, deliveryConcerns, deliveryIdFor, eventsSchema, login, reviewPlan, reviewsSchema, type ReviewDelivery } from "./github-intake-review.ts";
 import type { JsonValue } from "./schema.ts";
 import type { WebhookEvent, WebhookManager, WebhookReceiveResult, WebhookTrigger } from "./webhooks.ts";
 
+export { githubIntakeConfigFromEnv, type GithubIntakeConfig } from "./github-intake-config.ts";
 export { hasPublishMarker, PUBLISH_MARKER };
 
 export const INTAKE_WEBHOOK_NAME = "GitHub intake";
@@ -32,9 +35,6 @@ export const INTAKE_EVENT_TYPES = ["github.review", "github.publish", "github.de
 /** Unfinished runs the intake webhook may hold; the leader distributes them. */
 export const INTAKE_MAX_PENDING_RUNS = 6;
 
-const DEFAULT_INTERVAL_S = 90;
-const MIN_INTERVAL_S = 30;
-const MAX_INTERVAL_S = 3_600;
 const MAX_BACKOFF_MS = 30 * 60_000;
 const GH_CONCURRENCY = 4;
 const SEARCH_PAGES = 3;
@@ -44,66 +44,8 @@ const MAX_RECORDS = 10_000;
 const RECORD_TTL_MS = 180 * 24 * 60 * 60_000;
 const RECENT = 50;
 const USER_AGENT = "Lazurio MausBot GitHub intake";
-
-// ── configuration ─────────────────────────────────────────────────────────
-
-export interface GithubIntakeConfig {
-  /** Id or exact name (case-insensitive) of the bot that receives the work. */
-  bot: string;
-  /** requested: review requests and pull requests reviewed before.
-   * organization: additionally every ready pull request in pushable repos. */
-  scope: "requested" | "organization";
-  /** Lowercase owner logins; empty means any. Applies to every trigger. */
-  owners: string[];
-  /** Lowercase `owner/repo` patterns with `*`, excluded from organization scope. */
-  exclude: string[];
-  intervalMs: number;
-  /** The gh executable (OMB_GITHUB_INTAKE_GH); absent means `gh` on PATH. */
-  ghPath?: string;
-  /** Explicit activation of assignment-as-completion; existing assignments are not retroactive. */
-  assignmentHandoff?: boolean;
-  /** Exact lowercase `owner/repo` list whose waiting deployments this account may approve (OMB_GITHUB_INTAKE_DEPLOYMENTS). */
-  deployments?: string[];
-}
-
-const OWNER = /^[a-z0-9](?:[a-z0-9-]{0,38})$/;
-const REPO_PATTERN = /^[a-z0-9*][a-z0-9*-]{0,38}\/[a-z0-9._*-]{1,100}$/;
-
-function list(value: string | undefined): string[] {
-  return (value ?? "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
-}
-
-/** OMB_GITHUB_INTAKE and friends. Unset (or 0/false) keeps the intake off;
- * a value the server does not understand stops it at start with the reason. */
-export function githubIntakeConfigFromEnv(env: NodeJS.ProcessEnv = process.env): GithubIntakeConfig | null {
-  const flag = (env.OMB_GITHUB_INTAKE ?? "").trim().toLowerCase();
-  if (!flag || flag === "0" || flag === "false") return null;
-  if (flag !== "1" && flag !== "true") throw new Error(`OMB_GITHUB_INTAKE must be 1 to enable the GitHub intake, got "${env.OMB_GITHUB_INTAKE}"`);
-  const bot = (env.OMB_GITHUB_INTAKE_BOT ?? "").trim();
-  if (!bot) throw new Error("OMB_GITHUB_INTAKE=1 needs OMB_GITHUB_INTAKE_BOT: the id or exact name of the bot that receives GitHub work");
-  const scope = (env.OMB_GITHUB_INTAKE_SCOPE ?? "").trim().toLowerCase() || "requested";
-  if (scope !== "requested" && scope !== "organization") {
-    throw new Error(`OMB_GITHUB_INTAKE_SCOPE must be requested or organization, got "${env.OMB_GITHUB_INTAKE_SCOPE}"`);
-  }
-  const owners = list(env.OMB_GITHUB_INTAKE_OWNERS);
-  const badOwner = owners.find((owner) => !OWNER.test(owner));
-  if (badOwner) throw new Error(`OMB_GITHUB_INTAKE_OWNERS: "${badOwner}" is not a GitHub account or organization login`);
-  const exclude = list(env.OMB_GITHUB_INTAKE_EXCLUDE);
-  const badPattern = exclude.find((pattern) => !REPO_PATTERN.test(pattern));
-  if (badPattern) throw new Error(`OMB_GITHUB_INTAKE_EXCLUDE: "${badPattern}" is not an owner/repo pattern`);
-  const rawInterval = (env.OMB_GITHUB_INTAKE_INTERVAL_SECONDS ?? "").trim();
-  let seconds = DEFAULT_INTERVAL_S;
-  if (rawInterval) {
-    if (!/^\d+$/.test(rawInterval)) throw new Error(`OMB_GITHUB_INTAKE_INTERVAL_SECONDS must be a whole number of seconds, got "${rawInterval}"`);
-    seconds = Math.min(MAX_INTERVAL_S, Math.max(MIN_INTERVAL_S, Number(rawInterval)));
-  }
-  const assignmentFlag = (env.OMB_GITHUB_INTAKE_ASSIGNMENTS ?? "").trim().toLowerCase();
-  if (!["", "0", "false", "1", "true"].includes(assignmentFlag)) throw new Error("OMB_GITHUB_INTAKE_ASSIGNMENTS must be 0 or 1");
-  const assignmentHandoff = assignmentFlag === "1" || assignmentFlag === "true";
-  const ghPath = (env.OMB_GITHUB_INTAKE_GH ?? "").trim();
-  const deployments = deploymentReposFromEnv(env.OMB_GITHUB_INTAKE_DEPLOYMENTS);
-  return { bot, scope, owners, exclude, intervalMs: seconds * 1_000, ...(ghPath ? { ghPath } : {}), ...(assignmentHandoff ? { assignmentHandoff } : {}), ...(deployments.length ? { deployments } : {}) };
-}
+/** Part of every settled signature, so a version whose judgement differs judges every pull request once again. */
+const DECISIONS = 2;
 
 // ── GitHub response shapes (only the fields the intake reads) ─────────────
 
@@ -225,6 +167,10 @@ export interface GithubIntakeStatus {
   lastError?: string;
   /** Open pull requests in `needs_recovery`, as of the last poll that read them. */
   needsRecovery: number;
+  /** Review attempts that ran for each `owner/repo#n` in `needs_recovery`. */
+  attempts: Record<string, number>;
+  /** Minutes since the oldest open review obligation was first handed over, as of the last poll; null when none is open. */
+  oldestOwed: number | null;
   /** Run attempts that waited for this account's deployment approval, by their latest outcome. */
   deployments: Partial<Record<IntakeOutcome, number>>;
   recent: IntakeRecord[];
@@ -252,9 +198,13 @@ export interface GithubIntakeOptions {
   guard?: <T>(work: () => T) => T;
   concurrency?: number;
   /** Read the existing native execution receipt; absence is never proof of completion. */
-  runState?: (runId: string) => { status: string; startedAt?: number } | null;
+  runState?: (runId: string) => RunReceipt | null;
   /** The server's native runs, so work in flight is found even when the intake's own records are lost. */
-  runs?: () => ReadonlyArray<{ id: string; status: string; webhookId?: string; deliveryId?: string }>;
+  runs?: () => ReadonlyArray<RunReceipt & { id: string; webhookId?: string; deliveryId?: string }>;
+  /** Stops a native run that is past its limit; without it an active run is never cut short. */
+  cancelRun?: (runId: string, reason: string) => void;
+  /** The latest sign of progress of a run's conversation and the work it handed out; without it only the hard cap stops a run. */
+  progressAt?: (threadId: string) => number | undefined;
 }
 
 type Role = "requested" | "reviewed" | "organization" | "assigned";
@@ -266,7 +216,7 @@ interface Candidate {
   roles: Set<Role>;
 }
 
-type Deferred = { state: IntakeHealth; message: string; pullRequest?: string };
+type Deferred = { state: IntakeHealth; message: string; pullRequest?: string; attempts?: number };
 
 const sameLogin = (a: string | undefined | null, b: string) => Boolean(a) && a!.toLowerCase() === b.toLowerCase();
 const repoKey = (repo: string, number: number) => `${repo.toLowerCase()}#${number}`;
@@ -277,18 +227,6 @@ function patternRegex(pattern: string): RegExp {
 
 function errorText(error: unknown): string {
   return (error instanceof Error ? error.message : String(error)).slice(0, 500);
-}
-
-const recoveryLead = (head: string) => `The review run for head ${head} ended without a verdict`;
-
-function recoveryNotice(head: string, persona: string): string {
-  return [
-    `${recoveryLead(head)}, so no review of this head is on its way.`,
-    "",
-    `To get a review, push a new head, or ask the person responsible for ${persona} to start the review again.`,
-    "",
-    `— ${persona}`,
-  ].join("\n");
 }
 
 export class GithubIntake {
@@ -316,7 +254,11 @@ export class GithubIntake {
     lastSuccessAt?: number;
     lastError?: string;
     needsRecovery: number;
-  } = { state: "starting", needsRecovery: 0 };
+    attempts: Record<string, number>;
+    oldestOwed: number | null;
+  } = { state: "starting", needsRecovery: 0, attempts: {}, oldestOwed: null };
+  /** The account's notes read once per ended review run. */
+  private readonly notes = new Map<string, { blocked?: TeamNote; progress?: TeamNote }>();
 
   constructor(options: GithubIntakeOptions) {
     this.options = options;
@@ -385,6 +327,8 @@ export class GithubIntake {
       nextPollInMs: this.nextDelayMs(),
       ...(this.current.lastError ? { lastError: this.current.lastError } : {}),
       needsRecovery: this.current.needsRecovery,
+      attempts: { ...this.current.attempts },
+      oldestOwed: this.current.oldestOwed,
       deployments: this.deploymentCounts(),
       recent,
     };
@@ -445,15 +389,17 @@ export class GithubIntake {
     const deferred: Deferred[] = [];
     const settled = new Map<string, string>();
     await Promise.all((candidates ?? []).map(async (candidate) => {
-      const signature = `${candidate.updatedAt}|${[...candidate.roles].sort().join(",")}`;
+      const signature = `${DECISIONS}|${candidate.updatedAt}|${[...candidate.roles].sort().join(",")}|`;
       const key = repoKey(candidate.repo, candidate.number);
-      if (this.state.settled[key] === signature && !this.needsReconciliation(candidate)) {
-        settled.set(key, signature);
+      const prior = this.state.settled[key];
+      const resettleMs = (this.config.resettleMinutes ?? INTAKE_DEFAULTS.resettleMinutes) * 60_000;
+      if (prior?.startsWith(signature) && this.now() - Number(prior.slice(signature.length)) < resettleMs && !this.needsReconciliation(candidate)) {
+        settled.set(key, prior);
         return;
       }
       try {
         const done = await this.handle(candidate, account, bot, summary, deferred);
-        if (done) settled.set(key, signature);
+        if (done) settled.set(key, `${signature}${this.now()}`);
       } catch (error) {
         errors.push(error);
       }
@@ -462,7 +408,10 @@ export class GithubIntake {
 
     // Keep only the pull requests this poll still saw: closed ones drop out.
     if (candidates) this.state.settled = Object.fromEntries(settled);
-    this.current.needsRecovery = new Set(deferred.filter((entry) => entry.state === "needs_recovery").map((entry) => entry.pullRequest)).size;
+    const recovering = deferred.filter((entry) => entry.state === "needs_recovery");
+    this.current.needsRecovery = new Set(recovering.map((entry) => entry.pullRequest)).size;
+    this.current.attempts = Object.fromEntries(recovering.map((entry) => [entry.pullRequest!, entry.attempts ?? 1]));
+    if (candidates) this.current.oldestOwed = oldestOwed(this.state.records, candidates, this.now());
     this.persist();
 
     // Every problem of the poll is in its message, so none masks another.
@@ -583,8 +532,10 @@ export class GithubIntake {
           this.log(`[github-intake] ${repo}#${number} at ${head.slice(0, 12)} is this account's own pull request: it needs human approval`);
         }
       } else if (!pr.draft) {
+        let read: Promise<z.output<typeof reviewsSchema>> | undefined;
+        const reviews = () => (read ??= this.pages(`repos/${repo}/pulls/${number}/reviews`, reviewsSchema));
         const plan = await reviewPlan({
-          reviews: () => this.pages(`repos/${repo}/pulls/${number}/reviews`, reviewsSchema),
+          reviews,
           events: () => this.pages(`repos/${repo}/issues/${number}/events`, eventsSchema),
           committerDate: async () => (await this.api(`repos/${repo}/commits/${head}`, commitSchema)).commit.committer?.date,
         }, { repository: repo, number, head, author, roles: candidate.roles, records: this.state.records,
@@ -593,10 +544,9 @@ export class GithubIntake {
         if (plan.action === "answered") {
           this.recordOnce({ key: `review:${repo}#${number}@${head}`, kind: "review", outcome: "already_reviewed", repository: repo, number, headSha: head, reason: plan.reason });
         } else if (plan.action === "covered") {
-          const receipt = plan.record.runId ? this.options.runState?.(plan.record.runId) : null;
+          const receipt = this.receipt(plan.record.runId);
           if (this.options.runState && !ACTIVE_RUN.includes(receipt?.status ?? "")) {
-            this.recovery(plan.record, deferred, `Native review run ${receipt?.status ?? "unavailable"}; no current-head GitHub verdict. Inspect worker/delegation receipts before recovering this review.`);
-            await this.tellRecovery(repo, number, head, account, bot.name.trim());
+            done = await this.afterAttempt({ ...plan, receipt, pr, account, bot, summary, deferred, reviews });
           }
         } else if (this.hasActiveRun(repo, number)) {
           done = false; // one review at a time: earlier work on this pull request finishes first
@@ -619,8 +569,71 @@ export class GithubIntake {
   private hasActiveRun(repo: string, number: number): boolean {
     const hook = this.findWebhook();
     return this.state.records.some((record) => record.repository.toLowerCase() === repo.toLowerCase() && record.number === number &&
-      Boolean(record.runId && this.options.runState && ACTIVE_RUN.includes(this.options.runState(record.runId)?.status ?? ""))) ||
-      Boolean(hook && this.options.runs?.().some((run) => run.webhookId === hook.id && ACTIVE_RUN.includes(run.status) && deliveryConcerns(run.deliveryId, repo, number)));
+      ACTIVE_RUN.includes(this.receipt(record.runId)?.status ?? "")) ||
+      Boolean(hook && this.options.runs?.().some((run) => run.webhookId === hook.id && deliveryConcerns(run.deliveryId, repo, number) && ACTIVE_RUN.includes(this.receipt(run.id, run)?.status ?? "")));
+  }
+
+  /** A native run's receipt; one still active past its limit is stopped first and returned ended. */
+  private receipt(runId: string | undefined, known?: RunReceipt): RunReceipt | null {
+    const run = known ?? (runId ? this.options.runState?.(runId) ?? null : null);
+    const reason = run && this.options.cancelRun && overdue(run, this.now(), {
+      idleMs: (this.config.runIdleMinutes ?? INTAKE_DEFAULTS.runIdleMinutes) * 60_000,
+      maxMs: (this.config.runMaxMinutes ?? INTAKE_DEFAULTS.runMaxMinutes) * 60_000,
+    }, this.options.progressAt);
+    if (!runId || !run || !reason) return run;
+    this.options.cancelRun!(runId, reason);
+    this.log(`[github-intake] stopped run ${runId}: ${reason}`);
+    return { ...run, status: "cancelled", error: reason, finishedAt: this.now() };
+  }
+
+  /** A review attempt ended without a verdict on the head. The run's own
+   * blocked comment escalates at once; otherwise the next attempt goes out
+   * after its backoff, with what the last one left, and only the last attempt
+   * escalates. */
+  private async afterAttempt(work: {
+    record: IntakeRecord; delivery: ReviewDelivery; receipt: RunReceipt | null; pr: z.output<typeof pullSchema>; account: string;
+    bot: { id: string; name: string }; summary: PollSummary; deferred: Deferred[]; reviews: () => Promise<z.output<typeof reviewsSchema>>;
+  }): Promise<boolean> {
+    const { record, delivery, receipt, pr, account, bot } = work;
+    const { repository: repo, number } = record;
+    const head = pr.head.sha;
+    const attempt = attemptOf(record.key);
+    const attempts = Math.max(attempt, this.config.reviewAttempts ?? INTAKE_DEFAULTS.reviewAttempts);
+    const deliveredAt = this.state.records.find((entry) => entry.key === record.key)?.at ?? record.at;
+    const notes = this.notes.get(`${record.key}|${record.runId}`) ?? await this.readNotes(work, attempts > attempt);
+    const blocked = notes.blocked && notes.blocked.at >= deliveredAt - 60_000 ? notes.blocked : undefined;
+    if (!blocked && attempt < attempts) {
+      if (this.now() < retryAt(attempt + 1, receipt, deliveredAt) || this.hasActiveRun(repo, number)) return false;
+      return this.deliver(bot, work.deferred, work.summary, {
+        ...delivery.record, key: attemptKey(delivery.key, attempt + 1), kind: "review", repository: repo, number, headSha: head, requester: delivery.requester,
+        payload: { ...this.payload("review", delivery.reason, account, repo, pr, delivery.requester), ...delivery.extras,
+          attempt: { number: attempt + 1, of: attempts }, previous_attempt: previousAttempt(attempt, record.runId, receipt, notes.progress) },
+      });
+    }
+    const categories = Array.from({ length: attempt }, (_, index) => {
+      const ran = this.latestRecord(attemptKey(delivery.key, index + 1));
+      return ran ? attemptCategory(ran.runId ? this.options.runState?.(ran.runId) ?? null : null) : "unknown";
+    });
+    if (blocked) categories[attempt - 1] = "blocked";
+    this.recovery(record, work.deferred, `Native review run ${receipt?.status ?? "unavailable"} (${categories.at(-1)}) after ${attempt} of ${attempts} attempts; no current-head GitHub verdict. Inspect worker/delegation receipts before recovering this review.`, attempt);
+    await this.tellRecovery(repo, number, head, account, recoveryNotice(head, bot.name.trim(), categories, { escalate: this.config.escalate, blocked }));
+    return true;
+  }
+
+  /** The account's comments and review bodies since the head was first handed over; one read per ended run. */
+  private async readNotes(work: { record: IntakeRecord; pr: z.output<typeof pullSchema>; account: string; reviews: () => Promise<z.output<typeof reviewsSchema>> }, wanted: boolean): Promise<{ blocked?: TeamNote; progress?: TeamNote }> {
+    if (!wanted) return {};
+    const { record, pr, account } = work;
+    const since = Math.min(record.at, ...this.state.records.filter((entry) => entry.kind === "review" && HANDED_OVER.includes(entry.outcome) &&
+      entry.repository.toLowerCase() === record.repository.toLowerCase() && entry.number === record.number && entry.headSha === pr.head.sha).map((entry) => entry.at)) - 60_000;
+    const comments = await this.pages(`repos/${record.repository}/issues/${record.number}/comments?since=${new Date(since).toISOString()}`, commentsSchema);
+    const notes = teamNotes([
+      ...comments.map((comment) => ({ ...comment, at: comment.created_at })),
+      ...(await work.reviews()).map((review) => ({ ...review, at: review.submitted_at })),
+    ], account, pr.head.sha, since, recoveryLead(pr.head.sha));
+    if (this.notes.size >= 1_000) this.notes.clear();
+    this.notes.set(`${record.key}|${record.runId}`, notes);
+    return notes;
   }
 
   /** Waiting deployments this account may approve, each attempt handed over
@@ -635,7 +648,7 @@ export class GithubIntake {
       if (approval.own) {
         this.recordOnce({ ...base, outcome: "ignored", reason: "started by this account, which never approves its own run" });
       } else if (prior && HANDED_OVER.includes(prior.outcome)) {
-        const receipt = prior.runId ? this.options.runState?.(prior.runId) : null;
+        const receipt = this.receipt(prior.runId);
         if (this.options.runState && !ACTIVE_RUN.includes(receipt?.status ?? "")) {
           this.recovery(prior, deferred, `Native approval run ${receipt?.status ?? "unavailable"}; the deployment still waits for this account. Check the GitHub run and native receipts before handing it over again.`);
         }
@@ -690,7 +703,7 @@ export class GithubIntake {
     }
     const prior = this.latestRecord(key);
     if (prior && HANDED_OVER.includes(prior.outcome)) {
-      const receipt = prior.runId ? this.options.runState?.(prior.runId) : null;
+      const receipt = this.receipt(prior.runId);
       if (this.options.runState && !["queued", "running", "waiting"].includes(receipt?.status ?? "")) {
         this.recovery(prior, deferred, `Native handoff run ${receipt?.status ?? "unavailable"}; PR is still open and assigned. Verify native workers and the current mandate; do not replay publication as a review.`);
       }
@@ -718,19 +731,19 @@ export class GithubIntake {
       record.repository.toLowerCase() === candidate.repo.toLowerCase() && record.number === candidate.number && record.kind === "review" && record.outcome !== "notified");
     if (!latest || !HANDED_OVER.includes(latest.outcome)) return false;
     const receipt = latest.runId ? this.options.runState(latest.runId) : null;
-    return !["queued", "running", "waiting"].includes(receipt?.status ?? "");
+    return !ACTIVE_RUN.includes(receipt?.status ?? "") || this.receipt(latest.runId, receipt ?? undefined) !== receipt;
   }
 
-  private recovery(prior: IntakeRecord, deferred: Deferred[], reason: string): void {
+  private recovery(prior: IntakeRecord, deferred: Deferred[], reason: string, attempts?: number): void {
     this.recordOnce({ ...prior, outcome: "needs_recovery", reason });
-    deferred.push({ state: "needs_recovery", message: `${prior.repository}#${prior.number}: ${reason}`, pullRequest: repoKey(prior.repository, prior.number) });
+    deferred.push({ state: "needs_recovery", message: `${prior.repository}#${prior.number}: ${reason}`, pullRequest: repoKey(prior.repository, prior.number), attempts });
   }
 
   /** One conversation comment per head. The record is pruned with age and
    * lost with the state file, so the account's own earlier comment on the
    * pull request counts too, and a conversation too long to read completely
    * gets none. A failed post is tried again on a later poll. */
-  private async tellRecovery(repo: string, number: number, head: string, account: string, persona: string): Promise<void> {
+  private async tellRecovery(repo: string, number: number, head: string, account: string, notice: string): Promise<void> {
     const key = `recovery-notice:${repo}#${number}@${head}`;
     if (this.hasRecord(key)) return;
     const path = `repos/${repo}/issues/${number}/comments`;
@@ -738,7 +751,7 @@ export class GithubIntake {
     try {
       const earlier = (await this.pages(path, commentsSchema, true)).find((comment) =>
         sameLogin(comment.user?.login, account) && (comment.body ?? "").startsWith(recoveryLead(head)));
-      url = earlier ? earlier.html_url : (await this.post(path, postedSchema, { body: recoveryNotice(head, persona) })).html_url;
+      url = earlier ? earlier.html_url : (await this.post(path, postedSchema, { body: notice })).html_url;
       if (!earlier) this.log(`[github-intake] ${repo}#${number} at ${head.slice(0, 12)}: told the pull request that its review run ended without a verdict`);
     } catch (error) {
       this.log(`[github-intake] ${repo}#${number} at ${head.slice(0, 12)}: could not tell the pull request that its review run ended without a verdict, trying again next poll: ${errorText(error)}`);
