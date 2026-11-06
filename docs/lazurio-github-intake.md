@@ -28,6 +28,11 @@ the server behaves exactly as upstream OpenMausBot.
 | `OMB_GITHUB_INTAKE_ASSIGNMENTS` | `1` enables assignment handoff as the scoped completion/merge mandate. Off by default for an explicit migration; only assignments after first activation qualify. |
 | `OMB_GITHUB_INTAKE_DEPLOYMENTS` | Comma-separated exact `owner/repo` list whose workflow runs waiting for a deployment approval the intake reads; see Deployment approvals. Unset: none. |
 | `OMB_GITHUB_INTAKE_GH` | The `gh` executable; default `gh` on `PATH`. |
+| `OMB_GITHUB_INTAKE_REVIEW_ATTEMPTS` | Attempts per review before it is escalated, default 3, bounded to 1–5; see A review run without a verdict. |
+| `OMB_GITHUB_INTAKE_RUN_IDLE_MINUTES` | An active run with no sign of progress for this long is stopped, default 45, bounded to 15–240. |
+| `OMB_GITHUB_INTAKE_RUN_MAX_MINUTES` | An active run is stopped this long after it started, progress or not, default 480, bounded to 60–1440. |
+| `OMB_GITHUB_INTAKE_RESETTLE_MINUTES` | A pull request is judged again from GitHub at least this often, default 30, bounded to 5–1440; see Polling. |
+| `OMB_GITHUB_INTAKE_ESCALATE` | Optional GitHub login (a leading `@` is dropped) that the escalation comment mentions as the person responsible. |
 
 An unknown value stops the server at start with the reason. Example for a
 new Lazurio Environment whose persona reviews one Organization:
@@ -118,11 +123,13 @@ is current and no explicit request came after it.
   records, and also in the server's native queue by the intake webhook's id and
   the run's delivery id, so a lost state file does not start a concurrent
   review. A run whose delivery id names no pull request (a key longer than 200
-  characters is hashed) counts as work on every pull request until it ends. A request removed while its run waits leaves
-  the run to finish and queues nothing more; a delivered request whose native
-  run ended without a current verdict reports `needs_recovery` and is not
-  replayed. A later request is the requester's explicit retry and gets its
-  own delivery.
+  characters is hashed) counts as work on every pull request until it ends. A
+  run past its limits stops holding the pull request (see A review run without
+  a verdict). A request removed while its run waits leaves
+  the run to finish and queues nothing more; a delivered review whose native
+  run ended without a current verdict is tried again, and only its last
+  attempt reports `needs_recovery`. A later request is the requester's
+  explicit retry and gets its own delivery and its own attempts.
 - **Bounds.** Requests and force pushes come from the first 1 000 issue
   events; on a longer history a newer request is not seen and the head's own
   rule applies.
@@ -334,7 +341,10 @@ block:
 that answers an explicit request carries
 `request: {event_id, requester, created_at}`, and one on a head where the
 account has a verdict carries
-`last_verdict: {state, submitted_at, after_head_change}`. `assignment_handoff` carries
+`last_verdict: {state, submitted_at, after_head_change}`. A later attempt of a
+review carries `attempt: {number, of}` and `previous_attempt: {attempt,
+run_id, status, category, finished_at, error, report, progress_comment}`
+(see A review run without a verdict). `assignment_handoff` carries
 `assignment: {event_id, actor, actor_id, assignee, assignee_id, created_at}`. `requester` is the request's actor for an explicit request, otherwise the pull request's author for a review
 and the instruction's author for a publication, which also carries
 `instruction: {comment_id, url, author, created_at, marker}`. The event name
@@ -356,18 +366,76 @@ upstream's native queue. A full queue defers not-yet-accepted work; the intake
 tries once per poll, not once per pull request. Accepted delivery is not
 completion. The intake reads native run receipts even when GitHub's
 `updated_at` did not change. If a coordinator ended or disappeared without a
-current-head GitHub verdict, it reports `needs_recovery` with the PR, run and
-next action. It does not replay work that may still have delegated workers.
-A late worker verdict resolves the status without another review. Publication
-recovery remains distinct: verify the current assignment and PR, never retry
-a publication as a review or erase deduplication receipts.
+current-head GitHub verdict, a review is tried again (below); an assignment
+handoff or a deployment approval reports `needs_recovery` with the PR, run and
+next action. Nothing is handed over again while work may still have delegated
+workers. A late worker verdict resolves the status without another review.
+Publication recovery remains distinct: verify the current assignment and PR,
+never retry a publication as a review or erase deduplication receipts.
 
-**The pull request hears it.** When a review run ends without a current-head
-verdict, the intake posts one conversation comment on the pull request as the
-account, signed with the target bot's name like the team's reviews
-(`— Henry`). It names the head the run was for and what the author can do:
-push a new head, or ask the person responsible for the persona to start the
-review again. The intake does not start the review again itself. There is one
+### A review run without a verdict
+
+A review request must not stall. Every review run ends in one of two ways,
+and the webhook's instructions say so: a GitHub verdict (`APPROVED` or
+`CHANGES_REQUESTED`) on the head, or exactly one pull request comment by the
+account whose first line is `<!-- lazurio-review: blocked head=<head sha> -->`,
+followed by a sentence: why it is blocked and what is needed from whom. Any
+other ending, a comment like "review not finished" included, is a run without
+a verdict.
+
+- **Tried again.** When a run ends without a current-head verdict and the
+  pull request still owes that review (the same head and request), the intake
+  hands it over again under the key `<key>~attempt:<n>`, so the webhook's
+  delivery receipt is fresh, up to `OMB_GITHUB_INTAKE_REVIEW_ATTEMPTS`
+  attempts in all. Attempt n goes out no earlier than (n−1) × 10 minutes after
+  the previous attempt ended (its run's `finishedAt`, else `createdAt`, else
+  the delivery); until then the poll only waits. Every attempt is an intake
+  record and a webhook delivery like the first, so a restart or a lost state
+  file never starts one twice. A verdict between attempts ends them, and a new
+  head or a new request starts again at the first attempt.
+- **Continued, not restarted.** A later attempt's event carries
+  `previous_attempt`: the run's id, `status`, a fixed `category`, when it
+  ended, its `error`, the first 1 500 characters of its last reply (`report`)
+  and `progress_comment`, the account's latest comment or review body on the
+  pull request since the head was first handed over (its `url`, `created_at`
+  and first 1 500 characters). The instructions tell the team to read both
+  first, fix the cause in its Environment (for example a fast-forward-only
+  update of a clean checkout that is only behind), not to review again what
+  the progress note says is done, and to end with a verdict or the blocked
+  comment. They also tell it to take the scope the pull request states and to
+  split a large diff by groups of files across the team. The intake reads the
+  conversation (`issues/{n}/comments?since=…`) once per ended run, and only
+  while another attempt may follow.
+- **Blocked ends it.** A blocked comment for this head, posted during the
+  attempt, means the cause is one a retry does not fix: the intake escalates
+  at once, with no backoff and no further attempt. A blocked comment for
+  another head, or one from before the attempt, does not count.
+- **Hung runs end.** A review, handoff or approval run the intake handed over
+  is stopped through the routines manager (`cancelRun`) when it has shown no
+  sign of progress for `OMB_GITHUB_INTAKE_RUN_IDLE_MINUTES`, or has been
+  active for `OMB_GITHUB_INTAKE_RUN_MAX_MINUTES` since it started; then it
+  counts as ended. Progress is the latest runtime event in the run's
+  conversation or in the conversation of any work it handed out and still
+  waits on, at any depth, and that work's own progress in the coordinator. A
+  long review that keeps working is never stopped before the hard cap; a run
+  that waits for a person's answer is not idle, so only the cap stops it.
+  Without a progress signal (an intake built without one) only the cap
+  applies. A stopped run no longer holds the pull request, also when only the
+  native queue still knows it. A stopped handoff or approval reports
+  `needs_recovery` as before; only reviews are tried again.
+- **Escalated once.** After the last attempt, or a blocked comment, the pull
+  request reports `needs_recovery` and hears it once (below).
+
+**The pull request hears it.** When a review ends without a current-head
+verdict after its last attempt, the intake posts one conversation comment on
+the pull request as the account, signed with the target bot's name like the
+team's reviews (`— Henry`). It names the head, how many attempts ran and how
+each ended, in fixed words only (`no-verdict`, `failed`, `cancelled`,
+`no-progress`, `time-limit`, `receipt-missing`, `blocked`, `ended`; never a
+run's own text, paths or values, since the repository may be public), links
+the blocked comment when there is one, and says what the author can do: push a
+new head, or ask the person responsible for the persona to start the review
+again, mentioning `OMB_GITHUB_INTAKE_ESCALATE` when it is set. There is one
 comment per head: a `notified` record keyed
 `recovery-notice:<repo>#<n>@<head>` in the intake state keeps later polls and
 restarts from repeating it. Without that record (pruned after 180 days or
@@ -383,6 +451,11 @@ comment. An assignment handoff that ends without a result gets no comment.
 
 ## Polling, limits and state
 
+- A pull request is judged from GitHub again when its `updated_at` or its
+  roles changed, when this version of the intake judges differently from the
+  one that settled it (the version is part of what is stored), and at least
+  every `OMB_GITHUB_INTAKE_RESETTLE_MINUTES` regardless. The records stay the
+  ledger, so judging again never hands anything over twice.
 - One poll at a time, every interval. On a GitHub rate limit, or when GitHub
   cannot be asked at all, the interval doubles up to 30 minutes and returns
   to normal after a good poll. A single pull request that fails is retried
@@ -391,7 +464,7 @@ comment. An assignment handoff that ends without a result gets no comment.
 - An idle poll asks GitHub who the account is and runs three searches (plus
   one per owner in the `organization` scope; the list of pushable
   repositories is refreshed every 15 minutes). Details of a pull request are
-  fetched only when its `updated_at` changed since it was last handled. A
+  fetched only when it is judged again (above). A
   review decision reads the pull request's reviews; its issue events only
   while the account is requested or has a verdict on the head, and the head
   commit only for such a verdict.
@@ -411,7 +484,10 @@ comment. An assignment handoff that ends without a result gets no comment.
 `rate_limited`, `needs_recovery`, `error`), the account, the target bot, the webhook id, the
 configuration, `lastPollAt`, `lastSuccessAt`, `nextPollInMs`, `lastError`,
 `needsRecovery` (how many open pull requests are in `needs_recovery`, as of
-the last poll that read them), `deployments` (the run attempts handed over
+the last poll that read them), `attempts` (the review attempts that ran for
+each `owner/repo#n` among them), `oldestOwed` (minutes since the oldest
+review still owed among the open pull requests was first handed over, as of
+the last poll, or `null`; a diagnostic, counts only), `deployments` (the run attempts handed over
 for a deployment approval, counted by their latest outcome) and the 50 most
 recent outcomes (`delivered`, `duplicate`, `already_reviewed`,
 `needs_human_approval`, `needs_recovery`, `notified`, `ignored`, and for a
@@ -461,9 +537,10 @@ upgrade from executing old assignments made under the previous contract.
 
 `server/github-intake.test.ts` exercises GitHub-shaped events, identities,
 live roles, review-only requests, migration, reassignment, pause/restart,
-late verdicts, carried approvals, repeated requests on one head and the one
-comment per head after a review run without a verdict through the real
-WebhookManager; `server/github-intake-review.ts` decides which review is owed
+late verdicts, carried approvals, repeated requests on one head, the attempts
+of a review run without a verdict (backoff, `previous_attempt`, the blocked
+comment, hung runs, the escalation once per head, restarts) and judging a
+settled pull request again, through the real WebhookManager; `server/github-intake-review.ts` decides which review is owed
 and `server/github-intake-gh.ts` runs the signed-in `gh`. `github-intake.e2e.test.ts`
 runs the isolated real server and exercises the native queue and execution
 receipts with fake GitHub and model providers.
