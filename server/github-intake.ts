@@ -259,6 +259,8 @@ export class GithubIntake {
   } = { state: "starting", needsRecovery: 0, attempts: {}, oldestOwed: null };
   /** The account's notes read once per ended review run. */
   private readonly notes = new Map<string, { blocked?: TeamNote; progress?: TeamNote }>();
+  /** Progress signals live in memory, so none before this start counts as idleness. */
+  private readonly startedAt: number;
 
   constructor(options: GithubIntakeOptions) {
     this.options = options;
@@ -268,6 +270,7 @@ export class GithubIntake {
     this.guard = options.guard ?? ((work) => work());
     this.excluded = this.config.exclude.map(patternRegex);
     this.concurrency = Math.max(1, options.concurrency ?? GH_CONCURRENCY);
+    this.startedAt = this.now();
     this.state = this.load();
     if (this.config.assignmentHandoff && this.state.assignmentActivatedAt === undefined) {
       this.state.assignmentActivatedAt = this.now();
@@ -579,7 +582,7 @@ export class GithubIntake {
     const reason = run && this.options.cancelRun && overdue(run, this.now(), {
       idleMs: (this.config.runIdleMinutes ?? INTAKE_DEFAULTS.runIdleMinutes) * 60_000,
       maxMs: (this.config.runMaxMinutes ?? INTAKE_DEFAULTS.runMaxMinutes) * 60_000,
-    }, this.options.progressAt);
+    }, this.options.progressAt && ((threadId) => Math.max(this.startedAt, this.options.progressAt!(threadId) ?? 0)));
     if (!runId || !run || !reason) return run;
     this.options.cancelRun!(runId, reason);
     this.log(`[github-intake] stopped run ${runId}: ${reason}`);
@@ -600,7 +603,7 @@ export class GithubIntake {
     const attempt = attemptOf(record.key);
     const attempts = Math.max(attempt, this.config.reviewAttempts ?? INTAKE_DEFAULTS.reviewAttempts);
     const deliveredAt = this.state.records.find((entry) => entry.key === record.key)?.at ?? record.at;
-    const notes = this.notes.get(`${record.key}|${record.runId}`) ?? await this.readNotes(work, attempts > attempt);
+    const notes = this.notes.get(`${record.key}|${record.runId}`) ?? await this.readNotes(work);
     const blocked = notes.blocked && notes.blocked.at >= deliveredAt - 60_000 ? notes.blocked : undefined;
     if (!blocked && attempt < attempts) {
       if (this.now() < retryAt(attempt + 1, receipt, deliveredAt) || this.hasActiveRun(repo, number)) return false;
@@ -621,8 +624,7 @@ export class GithubIntake {
   }
 
   /** The account's comments and review bodies since the head was first handed over; one read per ended run. */
-  private async readNotes(work: { record: IntakeRecord; pr: z.output<typeof pullSchema>; account: string; reviews: () => Promise<z.output<typeof reviewsSchema>> }, wanted: boolean): Promise<{ blocked?: TeamNote; progress?: TeamNote }> {
-    if (!wanted) return {};
+  private async readNotes(work: { record: IntakeRecord; pr: z.output<typeof pullSchema>; account: string; reviews: () => Promise<z.output<typeof reviewsSchema>> }): Promise<{ blocked?: TeamNote; progress?: TeamNote }> {
     const { record, pr, account } = work;
     const since = Math.min(record.at, ...this.state.records.filter((entry) => entry.kind === "review" && HANDED_OVER.includes(entry.outcome) &&
       entry.repository.toLowerCase() === record.repository.toLowerCase() && entry.number === record.number && entry.headSha === pr.head.sha).map((entry) => entry.at)) - 60_000;
