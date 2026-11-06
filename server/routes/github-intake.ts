@@ -80,7 +80,11 @@ export function runTree(coordinator: RunTreeCoordinator, now: () => number = Dat
       const known = times.filter((at): at is number => at !== undefined);
       return known.length ? Math.max(...known) : undefined;
     },
-    live: (threadId: string, since: number): boolean => live(threadId, since).length > 0,
+    /** Whether the tree still has live work, and `asked` when a piece of it waits on a person's answer (`needs_input`). */
+    live(threadId: string, since: number): false | "live" | "asked" {
+      const rows = live(threadId, since);
+      return rows.length === 0 ? false : rows.some((row) => row.status === "needs_input") ? "asked" : "live";
+    },
     /** Cancels the topmost live nodes; each cancel cascades to everything under them. */
     stop(threadId: string, since: number, reason: string): void {
       const rows = live(threadId, since);

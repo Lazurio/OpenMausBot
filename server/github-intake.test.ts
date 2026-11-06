@@ -1544,7 +1544,7 @@ describe("GitHub intake: a review run without a verdict is tried again, then esc
 
   it("keeps a pull request covered while the work an ended run handed out is still live, then tries again", async () => {
     const live = new Set<string>();
-    const h = retryHarness({ reviewAttempts: 1 }, { workLive: (threadId) => live.has(threadId) });
+    const h = retryHarness({ reviewAttempts: 1 }, { workLive: (threadId) => (live.has(threadId) ? "live" : false) });
     const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
     await h.intake.pollOnce();
     // The lead ended its turn, or a person stopped it, while a teammate still reviews.
@@ -1566,7 +1566,7 @@ describe("GitHub intake: a review run without a verdict is tried again, then esc
 
   it("does not judge a run whose teammates still work as without a verdict, and retries only once they end", async () => {
     const live = new Set(["lead-1"]);
-    const h = retryHarness({}, { workLive: (threadId) => live.has(threadId) });
+    const h = retryHarness({}, { workLive: (threadId) => (live.has(threadId) ? "live" : false) });
     h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
     await h.intake.pollOnce();
     h.end("run-1", { threadId: "lead-1" });
@@ -1581,9 +1581,37 @@ describe("GitHub intake: a review run without a verdict is tried again, then esc
     expect(keys(h)).toEqual([HEAD_A, `${HEAD_A}~attempt:2`]);
   });
 
+  it("holds a run whose delegated work waits on a person's answer until it is answered or the hard cap, never at the idle limit", async () => {
+    for (const status of ["completed", "running"] as const) {
+      let tree: false | "live" | "asked" = "asked";
+      const h = retryHarness({}, { workLive: () => tree, progressAt: () => 0 });
+      const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+      await h.intake.pollOnce();
+      h.runs.set("run-1", { status, startedAt: h.github.now, threadId: "lead-1", ...(status === "completed" ? { finishedAt: h.github.now } : {}) });
+      for (let i = 0; i < 4; i++) {
+        h.github.advance(60 * 60_000);
+        await h.intake.pollOnce();
+      }
+      expect(h.cancelled).toEqual([]);
+      expect(h.queued).toHaveLength(1);
+      expect(notices(pr)).toHaveLength(0);
+
+      if (status === "completed") {
+        tree = false;
+        h.github.advance(10 * 60_000);
+        await h.intake.pollOnce();
+        expect(h.queued).toHaveLength(2);
+      } else {
+        h.github.advance(240 * 60_000);
+        await h.intake.pollOnce();
+        expect(h.cancelled.map(([id, reason]) => [id, reason])).toEqual([["run-1", "The GitHub intake stopped this run: still active 480 minutes after it started"]]);
+      }
+    }
+  });
+
   it("stops a still-live delegated tree again past the hard cap, logging it once, and holds the pull request until it ends", async () => {
     const live = new Set(["lead-1"]);
-    const h = retryHarness({}, { workLive: (threadId) => live.has(threadId), progressAt: () => undefined });
+    const h = retryHarness({}, { workLive: (threadId) => (live.has(threadId) ? "live" : false), progressAt: () => undefined });
     h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
     await h.intake.pollOnce();
     h.runs.set("run-1", { status: "running", startedAt: h.github.now, threadId: "lead-1" });
@@ -1605,7 +1633,7 @@ describe("GitHub intake: a review run without a verdict is tried again, then esc
 
   it("does not escalate in the poll that stops a run while the work it handed out is still live", async () => {
     const live = new Set(["lead-1"]);
-    const h = retryHarness({ reviewAttempts: 1 }, { workLive: (threadId) => live.has(threadId), progressAt: () => undefined });
+    const h = retryHarness({ reviewAttempts: 1 }, { workLive: (threadId) => (live.has(threadId) ? "live" : false), progressAt: () => undefined });
     const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
     await h.intake.pollOnce();
     h.runs.set("run-1", { status: "running", startedAt: h.github.now, threadId: "lead-1" });
@@ -1809,14 +1837,14 @@ describe("GitHub intake: the work of a run's conversation, on the real coordinat
   it("counts a teammate the routine's stop left running as live work, which outstandingFor no longer shows", async () => {
     const { coordinator, turns, worker, tree } = await delegatedReview();
     expect(coordinator.node(worker.id)?.status).toBe("running");
-    expect(tree.live("review-1", 0)).toBe(true);
+    expect(tree.live("review-1", 0)).toBe("live");
 
     // What the routine's interrupt does to a stopped run's conversation today.
     const left = coordinator.stopAwaitingDirect("review-1");
     expect(left.map((node) => node.id)).toEqual([worker.id]);
     expect(coordinator.outstandingFor("review-1")).toEqual([]);
     expect(turns.get(worker.id)?.signal.aborted).toBe(false);
-    expect(tree.live("review-1", 0)).toBe(true);
+    expect(tree.live("review-1", 0)).toBe("live");
   });
 
   it("stops the whole tree before the routine's stop, so no teammate is left running", async () => {
@@ -1840,6 +1868,14 @@ describe("GitHub intake: the work of a run's conversation, on the real coordinat
     tree.stop("review-1", 0, "The GitHub intake stopped this run: still active 480 minutes after it started");
     expect(tree.live("review-1", 0)).toBe(false);
     expect([worker.id, helper.id].map((id) => turns.get(id)?.signal.aborted)).toEqual([true, true]);
+  });
+
+  it("reports a tree whose teammate asked a person as asked, on the real coordinator", async () => {
+    const { coordinator, turns, helper, tree } = await delegatedReview();
+    turns.get(helper.id)!.release({ ok: true, text: "", cards: { question: "Which branch should I review?", ids: ["card-1"] } });
+    await flush();
+    expect(coordinator.node(helper.id)?.status).toBe("waiting");
+    expect(tree.live("review-1", 0)).toBe("asked");
   });
 
   it("reads progress from the conversation's runtime events and its whole tree, and forgets the thread silent longest first", async () => {
