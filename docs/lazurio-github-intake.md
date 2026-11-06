@@ -437,7 +437,10 @@ a verdict.
   events are forgotten and the tree has no activity of its own), only the
   hard cap stops a run. A long review that keeps working is never stopped
   before the hard cap; a run that waits for a person's answer is not idle, so
-  only the cap stops it. A stopped handoff or approval reports
+  only the cap stops it. The same holds when any work in its tree waits on a
+  person (a teammate in `needs_input`, a question card), also after the lead
+  itself ended or was stopped: the pull request stays held until the answer
+  comes or the cap. A stopped handoff or approval reports
   `needs_recovery` as before; only reviews are tried again.
 - **Escalated once.** After the last attempt, or a blocked comment, the pull
   request reports `needs_recovery` and hears it once (below).

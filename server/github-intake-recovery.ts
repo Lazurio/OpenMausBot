@@ -30,10 +30,10 @@ const STOPPED_IDLE = `${STOPPED}: no sign of progress for`;
 /** Why an active run must be stopped. Past the hard cap since its start always;
  * idle only with a known progress signal, since start time alone cannot tell a
  * long review from a stuck one, and never while it waits for a person's answer. */
-export function overdue(run: RunReceipt, now: number, limits: RunLimits, progressAt?: ProgressAt): string | null {
+export function overdue(run: RunReceipt, now: number, limits: RunLimits, progressAt?: ProgressAt, personWait = false): string | null {
   if (!["running", "waiting"].includes(run.status) || run.startedAt === undefined) return null;
   if (now - run.startedAt >= limits.maxMs) return `${STOPPED}: still active ${Math.round(limits.maxMs / 60_000)} minutes after it started`;
-  if (run.status === "waiting" && run.asked) return null;
+  if (personWait || (run.status === "waiting" && run.asked)) return null;
   const signal = run.threadId ? progressAt?.(run.threadId, run.startedAt) : undefined;
   if (signal === undefined) return null;
   return now - Math.max(run.startedAt, signal) >= limits.idleMs ? `${STOPPED_IDLE} ${Math.round(limits.idleMs / 60_000)} minutes` : null;
@@ -42,8 +42,8 @@ export function overdue(run: RunReceipt, now: number, limits: RunLimits, progres
 export interface RunLimits { idleMs: number; maxMs: number }
 /** The latest sign of progress of a run's conversation and of the work it handed out since `since`; undefined when none is known. */
 export type ProgressAt = (threadId: string, since: number) => number | undefined;
-/** Whether work the run's conversation handed out since `since` is still live, at any depth. */
-export type WorkLive = (threadId: string, since: number) => boolean;
+/** Whether work the run's conversation handed out since `since` is still live, at any depth: `asked` when some of it waits on a person's answer. */
+export type WorkLive = (threadId: string, since: number) => false | "live" | "asked";
 
 /** How a native run stands for the intake. A run that ended while the work it
  * handed out still runs keeps holding the pull request as waiting, so nothing
@@ -52,14 +52,14 @@ export type WorkLive = (threadId: string, since: number) => boolean;
  * intake's own start. */
 export function runStanding(run: RunReceipt, now: number, limits: RunLimits, signals: { progressAt?: ProgressAt; workLive?: WorkLive; since: number }): { run: RunReceipt; stop?: string } {
   const since = run.startedAt ?? run.createdAt;
-  const delegated = !ACTIVE_RUN.includes(run.status) && run.threadId !== undefined && since !== undefined && signals.workLive?.(run.threadId, since) === true;
-  const standing = delegated ? { ...run, status: "waiting", asked: undefined, startedAt: since } : run;
+  const tree = run.threadId !== undefined && since !== undefined ? signals.workLive?.(run.threadId, since) ?? false : false;
+  const standing = tree && !ACTIVE_RUN.includes(run.status) ? { ...run, status: "waiting", asked: undefined, startedAt: since } : run;
   const { progressAt } = signals;
   const known: ProgressAt | undefined = progressAt && ((threadId, from) => {
     const at = progressAt(threadId, from);
     return at === undefined ? undefined : Math.max(signals.since, at);
   });
-  const stop = overdue(standing, now, limits, known);
+  const stop = overdue(standing, now, limits, known, tree === "asked");
   return stop ? { run: standing, stop } : { run: standing };
 }
 
