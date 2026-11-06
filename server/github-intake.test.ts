@@ -249,6 +249,13 @@ class FakeGitHub {
         requested_reviewers: pr.requested.map(identity),
       });
     }
+    m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/issues\/comments$/);
+    if (m) {
+      // A repository's issue comments, newest first, as `sort=created&direction=desc` lists them.
+      expect([url.searchParams.get("sort"), url.searchParams.get("direction")]).toEqual(["created", "desc"]);
+      const all = this.prs.filter((pr) => pr.repo.toLowerCase() === m![1].toLowerCase()).flatMap((pr) => pr.comments).sort((a, b) => b.id - a.id);
+      return ok(all.slice(0, Number(url.searchParams.get("per_page") || 30)).map((c) => ({ id: c.id, user: { login: c.user }, body: c.body, created_at: c.at })));
+    }
     m = url.pathname.match(/^\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)\/(comments|events)$/);
     if (m) {
       const pr = this.find(m[1], Number(m[2]));
@@ -1708,6 +1715,60 @@ describe("GitHub intake: a review run without a verdict is tried again, then esc
     await lost.pollOnce();
     await lost.pollOnce();
     expect(keys(h)).toEqual([HEAD_A, `${HEAD_A}~attempt:2`, `${HEAD_A}~attempt:3`]);
+  });
+
+  it("does not take a blocked comment posted before the attempt was handed over as the attempt's own, however close in time", async () => {
+    const h = retryHarness({ escalate: "matej" });
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    // An earlier run or request said it was blocked 30 seconds before this delivery.
+    pr.comments.push({ id: 500, user: "henry-bot", body: `${blockedMarker(HEAD_A)}\nAn earlier run was blocked.`, at: new Date(h.github.now - 30_000).toISOString() });
+    await h.intake.pollOnce();
+    expect(JSON.parse(readFileSync(h.options.file, "utf8")).records[0]).toMatchObject({ outcome: "delivered", notesFloor: 500 });
+    h.end("run-1");
+    await h.intake.pollOnce();
+    expect(h.intake.status()).toMatchObject({ state: "ok", needsRecovery: 0 });
+    expect(notices(pr)).toHaveLength(0);
+    h.github.advance(10 * 60_000);
+    await h.intake.pollOnce();
+    expect(keys(h)).toEqual([HEAD_A, `${HEAD_A}~attempt:2`]);
+    expect(JSON.parse(readFileSync(h.options.file, "utf8")).records.find((record: { key: string }) => record.key.endsWith("~attempt:2"))).toMatchObject({ notesFloor: 500 });
+  });
+
+  it("keeps the minute window for an attempt handed over before floors were recorded", async () => {
+    for (const [before, escalated] of [[30_000, true], [90_000, false]] as const) {
+      const h = retryHarness();
+      const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+      const at = h.github.now;
+      const legacy = { key: `review:acme/app#7@${HEAD_A}`, at, kind: "review", outcome: "delivered", repository: "acme/app", number: 7, headSha: HEAD_A, requester: "alice", obligation: "head", runId: "run-0" };
+      writeFileSync(h.options.file, JSON.stringify({ version: 1, records: [legacy], settled: {} }));
+      pr.comments.push({ id: 500, user: "henry-bot", body: `${blockedMarker(HEAD_A)}\nBlocked.`, at: new Date(at - before).toISOString() });
+      h.runs.set("run-0", { status: "completed", startedAt: at, finishedAt: at + 60_000 });
+      const upgraded = new GithubIntake(h.options);
+      await upgraded.pollOnce();
+      expect(upgraded.status().state, `a marker ${before} ms before the delivery`).toBe(escalated ? "needs_recovery" : "ok");
+    }
+  });
+
+  it("hands no attempt over while the comment floor cannot be read, and hands it over on a later poll", async () => {
+    const h = retryHarness();
+    h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    h.github.failing = "repos/acme/app/issues/comments";
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(0);
+    expect(h.intake.status().state).toBe("error");
+    h.github.failing = null;
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(1);
+
+    h.end("run-1");
+    await h.intake.pollOnce();
+    h.github.advance(10 * 60_000);
+    h.github.failing = "repos/acme/app/issues/comments?sort";
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(1);
+    h.github.failing = null;
+    await h.intake.pollOnce();
+    expect(keys(h)).toEqual([HEAD_A, `${HEAD_A}~attempt:2`]);
   });
 
   it("escalates at once, without waiting or retrying, when the run said on this head that it is blocked", async () => {

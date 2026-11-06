@@ -22,7 +22,7 @@ import { INTAKE_DEFAULTS, type GithubIntakeConfig } from "./github-intake-config
 import { approvalPayload, approvalRecord, deploymentDecision, deploymentFacts, deploymentReads, pendingApprovals, runPull } from "./github-intake-deployments.ts";
 import { hasPublishMarker, PUBLISH_MARKER } from "./github-intake-marker.ts";
 import { INTAKE_WEBHOOK_PROMPT, SHIPPED_INTAKE_WEBHOOK_PROMPTS } from "./github-intake-prompts.ts";
-import { afterStop, attemptCategory, oldestOwed, previousAttempt, recoveryLead, recoveryNotice, retryAt, runStanding, teamNotes, type ProgressAt, type RunReceipt, type TeamNote, type WorkLive } from "./github-intake-recovery.ts";
+import { afterStop, attemptCategories, headSince, notesFloorOf, oldestOwed, previousAttempt, recoveryLead, recoveryNotice, retryAt, runStanding, teamNotes, type AttemptFloor, type ProgressAt, type RunReceipt, type TeamNote, type WorkLive } from "./github-intake-recovery.ts";
 import { ACTIVE_RUN, attemptKey, attemptOf, commitSchema, deliveryConcerns, deliveryIdFor, eventsSchema, login, reviewPlan, reviewsSchema, type ReviewDelivery } from "./github-intake-review.ts";
 import type { JsonValue } from "./schema.ts";
 import type { WebhookEvent, WebhookManager, WebhookReceiveResult, WebhookTrigger } from "./webhooks.ts";
@@ -108,6 +108,8 @@ export interface IntakeRecord {
   requestEventId?: number;
   runId?: string;
   reason?: string;
+  /** For a review attempt: the highest issue comment id when it was handed over (`AttemptFloor`). */
+  notesFloor?: number;
 }
 
 const recordSchema = z.object({
@@ -123,6 +125,7 @@ const recordSchema = z.object({
   requestEventId: z.number().int().positive().optional(),
   runId: z.string().optional(),
   reason: z.string().optional(),
+  notesFloor: z.number().int().nonnegative().optional(),
 });
 const stateSchema = z.object({
   version: z.literal(1),
@@ -558,7 +561,7 @@ export class GithubIntake {
           done = false; // one review at a time: earlier work on this pull request finishes first
         } else {
           done = this.deliver(bot, deferred, summary, {
-            key: plan.key, kind: "review", repository: repo, number, headSha: head, requester: plan.requester, ...plan.record,
+            key: plan.key, kind: "review", repository: repo, number, headSha: head, requester: plan.requester, ...plan.record, notesFloor: await this.notesFloor(repo),
             payload: { ...this.payload("review", plan.reason, account, repo, pr, plan.requester), ...plan.extras },
           }) && done;
         }
@@ -606,41 +609,38 @@ export class GithubIntake {
     const head = pr.head.sha;
     const attempt = attemptOf(record.key);
     const attempts = Math.max(attempt, this.config.reviewAttempts ?? INTAKE_DEFAULTS.reviewAttempts);
-    const deliveredAt = this.state.records.find((entry) => entry.key === record.key)?.at ?? record.at;
-    const notes = this.notes.get(`${record.key}|${record.runId}`) ?? await this.readNotes(work);
-    const blocked = notes.blocked && notes.blocked.at >= deliveredAt - 60_000 ? notes.blocked : undefined;
+    const delivered = this.state.records.find((entry) => entry.key === record.key) ?? record;
+    const notes = this.notes.get(`${record.key}|${record.runId}`) ?? await this.readNotes(work, { notesFloor: delivered.notesFloor, deliveredAt: delivered.at });
+    const { blocked } = notes;
     if (!blocked && attempt < attempts) {
-      if (this.now() < retryAt(attempt + 1, receipt, deliveredAt) || this.hasActiveRun(repo, number)) return false;
+      if (this.now() < retryAt(attempt + 1, receipt, delivered.at) || this.hasActiveRun(repo, number)) return false;
       return this.deliver(bot, work.deferred, work.summary, {
-        ...delivery.record, key: attemptKey(delivery.key, attempt + 1), kind: "review", repository: repo, number, headSha: head, requester: delivery.requester,
+        ...delivery.record, key: attemptKey(delivery.key, attempt + 1), kind: "review", repository: repo, number, headSha: head, requester: delivery.requester, notesFloor: await this.notesFloor(repo),
         payload: { ...this.payload("review", delivery.reason, account, repo, pr, delivery.requester), ...delivery.extras,
           attempt: { number: attempt + 1, of: attempts }, previous_attempt: previousAttempt(attempt, record.runId, receipt, notes.progress) },
       });
     }
-    const categories = Array.from({ length: attempt }, (_, index) => {
-      const ran = this.latestRecord(attemptKey(delivery.key, index + 1));
-      return ran ? attemptCategory(ran.runId ? this.options.runState?.(ran.runId) ?? null : null) : "unknown";
-    });
-    if (blocked) categories[attempt - 1] = "blocked";
+    const categories = attemptCategories(attempt, Boolean(blocked), (n) => this.latestRecord(attemptKey(delivery.key, n)), this.options.runState);
     this.recovery(record, work.deferred, `Native review run ${receipt?.status ?? "unavailable"} (${categories.at(-1)}) after ${attempt} of ${attempts} attempts; no current-head GitHub verdict. Inspect worker/delegation receipts before recovering this review.`, attempt);
     await this.tellRecovery(repo, number, head, account, recoveryNotice(head, bot.name.trim(), categories, { escalate: this.config.escalate, blocked }));
     return true;
   }
 
   /** The account's comments and review bodies since the head was first handed over; one read per ended run. */
-  private async readNotes(work: { record: IntakeRecord; pr: z.output<typeof pullSchema>; account: string; reviews: () => Promise<z.output<typeof reviewsSchema>> }): Promise<{ blocked?: TeamNote; progress?: TeamNote }> {
+  private async readNotes(work: { record: IntakeRecord; pr: z.output<typeof pullSchema>; account: string; reviews: () => Promise<z.output<typeof reviewsSchema>> }, attempt: AttemptFloor): Promise<{ blocked?: TeamNote; progress?: TeamNote }> {
     const { record, pr, account } = work;
-    const since = Math.min(record.at, ...this.state.records.filter((entry) => entry.kind === "review" && HANDED_OVER.includes(entry.outcome) &&
-      entry.repository.toLowerCase() === record.repository.toLowerCase() && entry.number === record.number && entry.headSha === pr.head.sha).map((entry) => entry.at)) - 60_000;
+    const since = headSince(this.state.records, record, pr.head.sha);
     const comments = await this.pages(`repos/${record.repository}/issues/${record.number}/comments?since=${new Date(since).toISOString()}`, commentsSchema);
-    const notes = teamNotes([
-      ...comments.map((comment) => ({ ...comment, at: comment.created_at })),
-      ...(await work.reviews()).map((review) => ({ ...review, at: review.submitted_at })),
-    ], account, pr.head.sha, since, recoveryLead(pr.head.sha));
+    const notes = teamNotes({
+      comments: comments.map((comment) => ({ ...comment, at: comment.created_at })), reviews: (await work.reviews()).map((review) => ({ ...review, at: review.submitted_at })),
+    }, account, pr.head.sha, since, recoveryLead(pr.head.sha), attempt);
     if (this.notes.size >= 1_000) this.notes.clear();
     this.notes.set(`${record.key}|${record.runId}`, notes);
     return notes;
   }
+
+  /** Read before every review attempt is handed over; a failed read hands nothing over in this poll. */
+  private readonly notesFloor = async (repo: string) => notesFloorOf(await this.api(`repos/${repo}/issues/comments?sort=created&direction=desc&per_page=10`, commentsSchema));
 
   /** Waiting deployments this account may approve, each attempt handed over
    * once with its facts, and how each handed-over attempt ended (server/github-intake-deployments.ts). */
@@ -861,7 +861,7 @@ export class GithubIntake {
     bot: { id: string },
     deferred: Deferred[],
     summary: PollSummary,
-    work: { key: string; kind: IntakeKind; repository: string; number: number; headSha: string; requester: string; obligation?: "head" | "request"; requestEventId?: number; payload: Record<string, JsonValue> },
+    work: { key: string; kind: IntakeKind; repository: string; number: number; headSha: string; requester: string; obligation?: "head" | "request"; requestEventId?: number; notesFloor?: number; payload: Record<string, JsonValue> },
   ): boolean {
     // After one refusal this poll stops trying: one refused attempt per poll,
     // never one per pull request.
@@ -895,7 +895,7 @@ export class GithubIntake {
     const outcome: IntakeOutcome = result.duplicate ? "duplicate" : "delivered";
     this.record({
       key: work.key, kind: work.kind, outcome, repository: work.repository, number: work.number,
-      headSha: work.headSha, requester: work.requester, ...(work.obligation ? { obligation: work.obligation } : {}), ...(work.requestEventId ? { requestEventId: work.requestEventId } : {}), ...(result.runId ? { runId: result.runId } : {}),
+      headSha: work.headSha, requester: work.requester, ...(work.obligation ? { obligation: work.obligation } : {}), ...(work.requestEventId ? { requestEventId: work.requestEventId } : {}), ...(result.runId ? { runId: result.runId } : {}), ...(work.notesFloor !== undefined ? { notesFloor: work.notesFloor } : {}),
     });
     if (!result.duplicate) summary.delivered++;
     this.log(`[github-intake] ${work.kind} ${work.repository}#${work.number} at ${work.headSha.slice(0, 12)} ${outcome === "delivered" ? `handed to the bot (run ${result.runId ?? "?"})` : "was already handed over"}`);

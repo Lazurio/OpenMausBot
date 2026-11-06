@@ -34,6 +34,8 @@ if (args.includes("POST")) {
   out({ id: 501, user: { login: "henry-bot", id: 12 }, body, created_at: "2026-09-30T10:00:00Z", html_url: "https://github.test/acme/app/pull/42#issuecomment-501" });
 }
 fs.appendFileSync(__CALLS__, path + "\n");
+if (url.pathname === "/repos/acme/app/issues/comments") out((fs.existsSync(__POSTED__) ? fs.readFileSync(__POSTED__, "utf8") : "").split("\n").filter(Boolean)
+  .map((line, i) => ({ id: 501 + i, user: { login: "henry-bot", id: 12 }, body: JSON.parse(line), created_at: "2026-09-30T10:00:00Z" })).reverse().slice(0, Number(url.searchParams.get("per_page") || 30)));
 if (url.pathname === "/repos/acme/app/issues/42/comments") out((fs.existsSync(__POSTED__) ? fs.readFileSync(__POSTED__, "utf8") : "").split("\n").filter(Boolean)
   .map((line, i) => ({ id: 501 + i, user: { login: "henry-bot", id: 12 }, body: JSON.parse(line), created_at: "2026-09-30T10:00:00Z" })));
 const state = JSON.parse(fs.readFileSync(__STATE__, "utf8"));
@@ -63,6 +65,9 @@ process.stderr.write("gh: Not Found (HTTP 404)");
 process.exit(1);
 `;
 
+/** This host's environment without its own intake settings (an owner filter would hide the fixture's pull request). */
+const isolated = (): NodeJS.ProcessEnv => Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("OMB_GITHUB_INTAKE")));
+
 describe.skipIf(process.platform === "win32")("a server started with OMB_GITHUB_INTAKE", () => {
   const dir = mkdtempSync(join(tmpdir(), "omb-github-intake-e2e-"));
   const calls = join(dir, "calls.log");
@@ -88,7 +93,7 @@ describe.skipIf(process.platform === "win32")("a server started with OMB_GITHUB_
     writeFileSync(gh, FAKE_GH.replace("__CALLS__", JSON.stringify(calls)).replaceAll("__POSTED__", JSON.stringify(posted)).replaceAll("__HEAD__", JSON.stringify(HEAD)).replace("__STATE__", JSON.stringify(githubState)));
     chmodSync(gh, 0o755);
     fixture = await launchVerificationServer({
-      ...process.env,
+      ...isolated(),
       OMB_GITHUB_INTAKE: "1",
       OMB_GITHUB_INTAKE_BOT: "Henry",
       OMB_GITHUB_INTAKE_ASSIGNMENTS: "1",
@@ -211,7 +216,7 @@ describe.skipIf(process.platform === "win32")("a server whose GitHub intake stat
   const gh = join(dir, "gh");
   const release = join(dir, "release");
   // The review's turn hangs until `release` exists, so its native run stays in flight across the restart.
-  const env = { ...process.env, OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_GH: gh, FAKE_CLAUDE_MODE: "hang", FAKE_CLAUDE_RELEASE: release };
+  const env = { ...isolated(), OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_GH: gh, FAKE_CLAUDE_MODE: "hang", FAKE_CLAUDE_RELEASE: release };
   let fixture: VerificationServer;
   let restarted: ChildProcess | undefined;
   const api = async (method: string, path: string, body?: unknown) => {
@@ -303,7 +308,7 @@ describe.skipIf(process.platform === "win32")("a server whose intake review run 
     writeFileSync(githubState, JSON.stringify({ rerequested: true, requestedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }));
     writeFileSync(gh, FAKE_GH.replace("__CALLS__", JSON.stringify(join(dir, "calls.log"))).replaceAll("__POSTED__", JSON.stringify(join(dir, "posted.log"))).replaceAll("__HEAD__", JSON.stringify(HEAD)).replace("__STATE__", JSON.stringify(githubState)));
     chmodSync(gh, 0o755);
-    fixture = await launchVerificationServer({ ...process.env, OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_GH: gh });
+    fixture = await launchVerificationServer({ ...isolated(), OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_GH: gh });
     // Every turn waits for its own thread's gate file, so the test decides when each teammate ends.
     const wrapper = join(fixture.info.dataDir, "gated.mjs");
     writeFileSync(wrapper, [
