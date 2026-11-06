@@ -19,7 +19,8 @@ import {
   type GithubIntakeOptions,
 } from "./github-intake.ts";
 import { INTAKE_WEBHOOK_PROMPT, SHIPPED_INTAKE_WEBHOOK_PROMPTS } from "./github-intake-prompts.ts";
-import { maintenanceGuard } from "./routes/github-intake.ts";
+import { blockedMarker, type RunReceipt } from "./github-intake-recovery.ts";
+import { maintenanceGuard, runProgress } from "./routes/github-intake.ts";
 import { WebhookManager } from "./webhooks.ts";
 import { WorkspaceBackupMaintenance } from "./workspace-backup-maintenance.ts";
 
@@ -109,6 +110,11 @@ class FakeGitHub {
   tick(): string {
     this.clock += 60_000;
     return new Date(this.clock).toISOString();
+  }
+
+  /** Time passes without any change on GitHub. */
+  advance(ms: number): void {
+    this.clock += ms;
   }
 
   pr(init: Partial<FakePr> & Pick<FakePr, "repo" | "number">): FakePr {
@@ -246,7 +252,9 @@ class FakeGitHub {
       const pr = this.find(m[1], Number(m[2]));
       if (!pr) return notFound;
       if (m[3] === "comments") {
-        return ok(pr.comments.slice((page - 1) * 100, page * 100).map((c) => ({
+        const since = Date.parse(url.searchParams.get("since") ?? "");
+        const listed = Number.isFinite(since) ? pr.comments.filter((c) => Date.parse(c.at) >= since) : pr.comments;
+        return ok(listed.slice((page - 1) * 100, page * 100).map((c) => ({
           id: c.id, user: { login: c.user }, body: c.body, created_at: c.at,
           html_url: `https://github.test/${pr.repo}/pull/${pr.number}#issuecomment-${c.id}`,
         })));
@@ -360,11 +368,11 @@ function harness(overrides: Partial<GithubIntakeConfig> & { assignmentHandoff?: 
   let pending = 0;
   let run = 0;
   const receipts = new Map<string, string>();
-  const runs = new Map<string, { status: string; startedAt?: number }>();
+  const runs = new Map<string, RunReceipt>();
   /** The native queue as the server lists it: every run with its webhook and delivery id. */
-  const nativeRuns = () => [...receipts].map(([receipt, id]) => {
+  const nativeRuns = () => [...receipts].filter(([, id]) => runs.has(id)).map(([receipt, id]) => {
     const [webhookId, ...rest] = receipt.split(":");
-    return { id, status: runs.get(id)?.status ?? "queued", webhookId, deliveryId: rest.join(":") };
+    return { ...runs.get(id), id, status: runs.get(id)?.status ?? "queued", webhookId, deliveryId: rest.join(":") };
   });
   const webhooks = new WebhookManager({
     file: join(dir, "webhooks.json"),
@@ -447,6 +455,18 @@ describe("githubIntakeConfigFromEnv", () => {
       exclude: ["acme/infra", "acme/productionspace-*"], intervalMs: 30_000,
     });
     expect(githubIntakeConfigFromEnv({ OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "b", OMB_GITHUB_INTAKE_INTERVAL_SECONDS: "99999" })?.intervalMs).toBe(3_600_000);
+  });
+
+  it("reads the attempts, the run limits, the resettle window and whom an escalation mentions, each bounded", () => {
+    const on = { OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Pablo" };
+    expect(githubIntakeConfigFromEnv({
+      ...on, OMB_GITHUB_INTAKE_REVIEW_ATTEMPTS: "9", OMB_GITHUB_INTAKE_RUN_IDLE_MINUTES: "5", OMB_GITHUB_INTAKE_RUN_MAX_MINUTES: "600",
+      OMB_GITHUB_INTAKE_RESETTLE_MINUTES: "1", OMB_GITHUB_INTAKE_ESCALATE: "@Matej-S",
+    })).toMatchObject({ reviewAttempts: 5, runIdleMinutes: 15, runMaxMinutes: 600, resettleMinutes: 5, escalate: "Matej-S" });
+    expect(githubIntakeConfigFromEnv({ ...on, OMB_GITHUB_INTAKE_REVIEW_ATTEMPTS: "0", OMB_GITHUB_INTAKE_RUN_IDLE_MINUTES: "999", OMB_GITHUB_INTAKE_RUN_MAX_MINUTES: "1", OMB_GITHUB_INTAKE_RESETTLE_MINUTES: "99999" }))
+      .toMatchObject({ reviewAttempts: 1, runIdleMinutes: 240, runMaxMinutes: 60, resettleMinutes: 1_440 });
+    expect(() => githubIntakeConfigFromEnv({ ...on, OMB_GITHUB_INTAKE_REVIEW_ATTEMPTS: "three" })).toThrow(/OMB_GITHUB_INTAKE_REVIEW_ATTEMPTS/);
+    expect(() => githubIntakeConfigFromEnv({ ...on, OMB_GITHUB_INTAKE_ESCALATE: "the owner" })).toThrow(/OMB_GITHUB_INTAKE_ESCALATE/);
   });
 });
 
@@ -1111,7 +1131,7 @@ describe("GitHub intake: assignment handoff", () => {
 
 describe("GitHub intake: delivery is not completion", () => {
   function recoveryHarness() {
-    const h = harness();
+    const h = harness({ reviewAttempts: 1 });
     const options = { ...h.intakeOptions, runState: (id: string) => h.runs.get(id) ?? null };
     return { ...h, intake: new GithubIntake(options), options };
   }
@@ -1172,7 +1192,7 @@ describe("GitHub intake: delivery is not completion", () => {
 
 describe("GitHub intake: a review run that ends without a verdict is told on the pull request", () => {
   function noticeHarness(overrides: Partial<GithubIntakeConfig> = {}) {
-    const h = harness({ bot: "Pablo", ...overrides }, { bots: [{ id: "bot-pablo", name: "Pablo" }] });
+    const h = harness({ bot: "Pablo", reviewAttempts: 1, ...overrides }, { bots: [{ id: "bot-pablo", name: "Pablo" }] });
     const options = { ...h.intakeOptions, runState: (id: string) => h.runs.get(id) ?? null, runs: h.nativeRuns };
     return { ...h, intake: new GithubIntake(options), options };
   }
@@ -1186,7 +1206,9 @@ describe("GitHub intake: a review run that ends without a verdict is told on the
     await h.intake.pollOnce();
 
     expect(notices(pr).map((comment) => comment.body)).toEqual([[
-      `The review run for head ${HEAD_A} ended without a verdict, so no review of this head is on its way.`,
+      `The review run for head ${HEAD_A} ended without a verdict after 1 attempt, so no review of this head is on its way.`,
+      "",
+      "- Attempt 1: no-verdict",
       "",
       "To get a review, push a new head, or ask the person responsible for Pablo to start the review again.",
       "",
@@ -1213,8 +1235,8 @@ describe("GitHub intake: a review run that ends without a verdict is told on the
     await restarted.pollOnce();
     await restarted.pollOnce();
     expect(notices(pr).map((comment) => comment.body.split("\n")[0])).toEqual([
-      `The review run for head ${HEAD_A} ended without a verdict, so no review of this head is on its way.`,
-      `The review run for head ${HEAD_B} ended without a verdict, so no review of this head is on its way.`,
+      `The review run for head ${HEAD_A} ended without a verdict after 1 attempt, so no review of this head is on its way.`,
+      `The review run for head ${HEAD_B} ended without a verdict after 1 attempt, so no review of this head is on its way.`,
     ]);
     expect(h.queued).toHaveLength(2);
   });
@@ -1318,9 +1340,335 @@ describe("GitHub intake: a review run that ends without a verdict is told on the
   });
 });
 
+describe("GitHub intake: a review run without a verdict is tried again, then escalated once", () => {
+  function retryHarness(config: Partial<GithubIntakeConfig> = {}, extra: Partial<GithubIntakeOptions> = {}) {
+    const h = harness({ bot: "Pablo", ...config }, { bots: [{ id: "bot-pablo", name: "Pablo" }] });
+    const cancelled: Array<[string, string]> = [];
+    const progress = new Map<string, number>();
+    const options: GithubIntakeOptions = {
+      ...h.intakeOptions, runState: (id) => h.runs.get(id) ?? null, runs: h.nativeRuns,
+      cancelRun: (id, reason) => {
+        cancelled.push([id, reason]);
+        Object.assign(h.runs.get(id) ?? {}, { status: "cancelled", error: reason, finishedAt: h.github.now });
+      },
+      progressAt: (threadId) => progress.get(threadId),
+      ...extra,
+    };
+    /** The run ends; by default completed by a coordinator that posted no verdict. */
+    const end = (id: string, run: Partial<RunReceipt> = {}) =>
+      h.runs.set(id, { status: "completed", createdAt: h.github.now - 120_000, startedAt: h.github.now - 60_000, finishedAt: h.github.now, ...run });
+    return { ...h, options, intake: new GithubIntake(options), cancelled, progress, end };
+  }
+  const notices = (pr: FakePr) => pr.comments.filter((comment) => comment.user === "henry-bot" && comment.body.startsWith("The review run"));
+  const keys = (h: { queued: Array<{ deliveryId: string }> }) => h.queued.map((entry) => entry.deliveryId.replace(`gh:review:acme/app#7@`, ""));
+
+  it("hands the review over again after the backoff, under a fresh key, with what the previous attempt left", async () => {
+    const h = retryHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    const note = h.github.comment(pr, "henry-bot", "Reviewed server/; tests and docs remain.");
+    h.end("run-1", { status: "failed", error: "The task doctor failed", output: `${"x".repeat(1_400)}${"y".repeat(600)}` });
+    const finishedAt = new Date(h.github.now).toISOString();
+    await h.intake.pollOnce();
+    h.github.advance(9 * 60_000);
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(1);
+    expect(h.intake.status()).toMatchObject({ state: "ok", needsRecovery: 0 });
+
+    h.github.advance(60_000);
+    await h.intake.pollOnce();
+    expect(keys(h)).toEqual([HEAD_A, `${HEAD_A}~attempt:2`]);
+    const retry = h.events()[1];
+    expect(retry).toMatchObject({
+      kind: "review", reason: "review_requested", head_sha: HEAD_A, attempt: { number: 2, of: 3 },
+      previous_attempt: {
+        attempt: 1, run_id: "run-1", status: "failed", category: "failed", finished_at: finishedAt, error: "The task doctor failed",
+        progress_comment: { url: `https://github.test/acme/app/pull/7#issuecomment-${note.id}`, body: "Reviewed server/; tests and docs remain." },
+      },
+    });
+    expect(retry.previous_attempt.report).toBe(`${"x".repeat(1_400)}${"y".repeat(100)}`);
+    expect(h.queued[1].prompt).toContain("previous_attempt in the event data");
+    expect(h.github.calls.filter((call) => call.startsWith("repos/acme/app/issues/7/comments"))).toHaveLength(1);
+  });
+
+  it("runs at most the configured attempts, then escalates once with each attempt's outcome and the responsible person", async () => {
+    const h = retryHarness({ escalate: "matej" });
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.end("run-1", { status: "failed", error: "/home/runner/secret path and a token" });
+    await h.intake.pollOnce();
+    h.github.advance(10 * 60_000);
+    await h.intake.pollOnce();
+    h.end("run-2");
+    await h.intake.pollOnce();
+    h.github.advance(20 * 60_000);
+    await h.intake.pollOnce();
+    expect(keys(h)).toEqual([HEAD_A, `${HEAD_A}~attempt:2`, `${HEAD_A}~attempt:3`]);
+    // The run's receipt is gone (pruned, or never written): that ends the attempt too.
+    h.runs.delete("run-3");
+    for (let i = 0; i < 4; i++) {
+      await h.intake.pollOnce();
+      h.github.advance(60 * 60_000);
+    }
+    await new GithubIntake(h.options).pollOnce();
+
+    expect(h.queued).toHaveLength(3);
+    expect(notices(pr).map((comment) => comment.body)).toEqual([[
+      `The review run for head ${HEAD_A} ended without a verdict after 3 attempts, so no review of this head is on its way.`,
+      "",
+      "- Attempt 1: failed",
+      "- Attempt 2: no-verdict",
+      "- Attempt 3: receipt-missing",
+      "",
+      "To get a review, push a new head, or ask @matej, the person responsible for Pablo, to start the review again.",
+      "",
+      "— Pablo",
+    ].join("\n")]);
+    expect(h.intake.status()).toMatchObject({ state: "needs_recovery", needsRecovery: 1, attempts: { "acme/app#7": 3 } });
+    expect(h.intake.status().recent).toContainEqual(expect.objectContaining({ outcome: "needs_recovery", key: `review:acme/app#7@${HEAD_A}~attempt:3` }));
+  });
+
+  it("stops a run that shows no progress, never a long one that does, and tries again", async () => {
+    const h = retryHarness();
+    h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.runs.set("run-1", { status: "running", startedAt: h.github.now, threadId: "lead-1" });
+    for (let i = 0; i < 5; i++) {
+      h.progress.set("lead-1", h.github.now);
+      h.github.advance(40 * 60_000);
+      await h.intake.pollOnce();
+    }
+    expect(h.cancelled).toEqual([]);
+    expect(h.queued).toHaveLength(1);
+
+    h.github.advance(5 * 60_000);
+    await h.intake.pollOnce();
+    expect(h.cancelled).toEqual([["run-1", "The GitHub intake stopped this run: no sign of progress for 45 minutes"]]);
+    expect(h.runs.get("run-1")?.status).toBe("cancelled");
+    h.github.advance(10 * 60_000);
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(2);
+    expect(h.events()[1].previous_attempt).toMatchObject({ run_id: "run-1", status: "cancelled", category: "no-progress" });
+  });
+
+  it("stops a run past the hard cap even while it progresses, and without a progress signal only there", async () => {
+    for (const progressAt of [(): number => Date.now() * 2, undefined]) {
+      const h = retryHarness({}, { progressAt });
+      h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+      await h.intake.pollOnce();
+      h.runs.set("run-1", { status: "running", startedAt: h.github.now, threadId: "lead-1" });
+      h.github.advance(479 * 60_000);
+      await h.intake.pollOnce();
+      expect(h.cancelled).toEqual([]);
+      h.github.advance(60_000);
+      await h.intake.pollOnce();
+      expect(h.cancelled).toEqual([["run-1", "The GitHub intake stopped this run: still active 480 minutes after it started"]]);
+    }
+  });
+
+  it("does not stop a run that waits for a person's answer before the hard cap", async () => {
+    const h = retryHarness();
+    h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.runs.set("run-1", { status: "waiting", startedAt: h.github.now, threadId: "lead-1", asked: { question: "Which branch?" } });
+    h.github.advance(3 * 60 * 60_000);
+    await h.intake.pollOnce();
+    expect(h.cancelled).toEqual([]);
+    expect(h.queued).toHaveLength(1);
+  });
+
+  it("lets a stopped run hold the pull request no longer, also when only the native queue knows it", async () => {
+    const h = retryHarness({}, { progressAt: () => 0 });
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.runs.set("run-1", { status: "running", startedAt: h.github.now, threadId: "lead-1" });
+    rmSync(h.options.file);
+    const lost = new GithubIntake(h.options);
+    h.github.push(pr, HEAD_B);
+    await lost.pollOnce();
+    expect(h.queued).toHaveLength(1);
+    h.github.advance(45 * 60_000);
+    await lost.pollOnce();
+    expect(h.cancelled.map(([id]) => id)).toEqual(["run-1"]);
+    expect(h.events().map((event) => event.head_sha)).toEqual([HEAD_A, HEAD_B]);
+  });
+
+  it("stops everything when a verdict arrives between attempts", async () => {
+    const h = retryHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.end("run-1");
+    await h.intake.pollOnce();
+    h.github.review(pr, "henry-bot", "APPROVED");
+    h.github.advance(60 * 60_000);
+    await h.intake.pollOnce();
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(1);
+    expect(h.intake.status()).toMatchObject({ state: "ok", needsRecovery: 0, oldestOwed: null });
+    expect(notices(pr)).toHaveLength(0);
+  });
+
+  it("counts attempts per head: a new head starts again at the first", async () => {
+    const h = retryHarness({ reviewAttempts: 2 });
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.end("run-1");
+    await h.intake.pollOnce();
+    h.github.advance(10 * 60_000);
+    await h.intake.pollOnce();
+    h.end("run-2");
+    await h.intake.pollOnce();
+    expect(h.intake.status()).toMatchObject({ state: "needs_recovery", attempts: { "acme/app#7": 2 } });
+
+    h.github.push(pr, HEAD_B);
+    await h.intake.pollOnce();
+    h.end("run-3");
+    await h.intake.pollOnce();
+    h.github.advance(10 * 60_000);
+    await h.intake.pollOnce();
+    expect(keys(h)).toEqual([HEAD_A, `${HEAD_A}~attempt:2`, HEAD_B, `${HEAD_B}~attempt:2`]);
+    expect(h.events()[2]).not.toHaveProperty("previous_attempt");
+    expect(h.intake.status()).toMatchObject({ state: "ok", needsRecovery: 0 });
+  });
+
+  it("starts no attempt twice across a restart or a lost state file", async () => {
+    const h = retryHarness();
+    h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.end("run-1");
+    await h.intake.pollOnce();
+    h.github.advance(10 * 60_000);
+    await h.intake.pollOnce();
+    await new GithubIntake(h.options).pollOnce();
+    expect(keys(h)).toEqual([HEAD_A, `${HEAD_A}~attempt:2`]);
+
+    rmSync(h.options.file);
+    const lost = new GithubIntake(h.options);
+    await lost.pollOnce();
+    h.end("run-2");
+    for (let i = 0; i < 3; i++) await lost.pollOnce();
+    expect(keys(h)).toEqual([HEAD_A, `${HEAD_A}~attempt:2`]);
+    h.github.advance(20 * 60_000);
+    await lost.pollOnce();
+    await lost.pollOnce();
+    expect(keys(h)).toEqual([HEAD_A, `${HEAD_A}~attempt:2`, `${HEAD_A}~attempt:3`]);
+  });
+
+  it("escalates at once, without waiting or retrying, when the run said on this head that it is blocked", async () => {
+    const h = retryHarness({ escalate: "matej" });
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    const blocked = h.github.comment(pr, "henry-bot", `${blockedMarker(HEAD_A)}\nThe Organization checkout is missing; an Admin has to materialize it.`);
+    h.end("run-1");
+    await h.intake.pollOnce();
+    h.github.advance(2 * 60 * 60_000);
+    await h.intake.pollOnce();
+
+    expect(h.queued).toHaveLength(1);
+    expect(notices(pr)).toHaveLength(1);
+    expect(notices(pr)[0].body).toContain("- Attempt 1: blocked\n");
+    expect(notices(pr)[0].body).toContain(`What blocks it: https://github.test/acme/app/pull/7#issuecomment-${blocked.id}`);
+    expect(notices(pr)[0].body).toContain("ask @matej, the person responsible for Pablo,");
+    expect(notices(pr)[0].body).not.toContain("Organization checkout");
+    expect(h.intake.status()).toMatchObject({ state: "needs_recovery", attempts: { "acme/app#7": 1 } });
+
+    // A later request is new work: the blocked comment from before it does not end its run.
+    h.github.request(pr, "henry-bot", "matej");
+    await h.intake.pollOnce();
+    h.end("run-2");
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(2);
+    expect(h.intake.status().state).toBe("ok");
+  });
+
+  it("tries again after a comment without the marker, or with the marker of another head, and hands it over as progress", async () => {
+    const h = retryHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.github.comment(pr, "henry-bot", `${blockedMarker(HEAD_B)}\nBlocked elsewhere.`);
+    h.github.comment(pr, "henry-bot", "Review not finished.");
+    h.end("run-1");
+    await h.intake.pollOnce();
+    h.github.advance(10 * 60_000);
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(2);
+    expect(h.events()[1].previous_attempt.progress_comment).toMatchObject({ body: "Review not finished." });
+    expect(notices(pr)).toHaveLength(0);
+  });
+
+  it("tells the instructions how a run ends and how a later attempt continues", () => {
+    expect(INTAKE_WEBHOOK_PROMPT).toContain(blockedMarker("HEAD_SHA"));
+    expect(INTAKE_WEBHOOK_PROMPT).toContain("Read previous_attempt and its progress_comment first");
+    expect(INTAKE_WEBHOOK_PROMPT).toContain("split the work by groups of files");
+    expect(SHIPPED_INTAKE_WEBHOOK_PROMPTS).not.toContain(INTAKE_WEBHOOK_PROMPT);
+  });
+
+  it("reports how long the oldest open review obligation has waited", async () => {
+    const h = retryHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    expect(h.intake.status().oldestOwed).toBeNull();
+    await h.intake.pollOnce();
+    h.github.advance(25 * 60_000);
+    await h.intake.pollOnce();
+    expect(h.intake.status().oldestOwed).toBe(25);
+    h.github.review(pr, "henry-bot", "APPROVED");
+    await h.intake.pollOnce();
+    expect(h.intake.status().oldestOwed).toBeNull();
+  });
+});
+
+describe("GitHub intake: the progress of a run", () => {
+  it("is the latest runtime event of its conversation or of the work it handed out and waits on, at any depth", () => {
+    let now = 1_000;
+    const handedOut: Record<string, Array<{ threadId: string; createdAt: number; startedAt?: number; lastProgressAt?: number }>> = {
+      lead: [{ threadId: "worker", createdAt: 1_500, startedAt: 2_000 }],
+      worker: [{ threadId: "helper", createdAt: 2_500, lastProgressAt: 4_000 }, { threadId: "lead", createdAt: 2_600 }],
+    };
+    const progress = runProgress((threadId) => handedOut[threadId] ?? [], () => now);
+    expect(runProgress(() => []).progressAt("lead")).toBeUndefined();
+    progress.observe({ threadId: "lead" });
+    expect(progress.progressAt("lead")).toBe(4_000);
+    now = 9_000;
+    progress.observe({ threadId: "helper" });
+    expect(progress.progressAt("lead")).toBe(9_000);
+    expect(progress.progressAt("unrelated")).toBeUndefined();
+  });
+});
+
+describe("GitHub intake: a settled pull request is judged again", () => {
+  const details = (h: { github: FakeGitHub }) => h.github.calls.filter((call) => call === "repos/acme/app/pulls/7").length;
+
+  it("after an upgrade: a judgement written by an earlier version is not trusted", async () => {
+    for (const earlier of [(updatedAt: string) => `${updatedAt}|requested`, (updatedAt: string, now: number) => `1|${updatedAt}|requested|${now}`]) {
+      const h = harness();
+      const pr = h.github.pr({ repo: "acme/app", number: 7 });
+      h.github.request(pr, "henry-bot");
+      const settled = { "acme/app#7": earlier(new Date(pr.updated).toISOString(), h.github.now) };
+      writeFileSync(h.intakeOptions.file, JSON.stringify({ version: 1, records: [], settled }));
+      await new GithubIntake(h.intakeOptions).pollOnce();
+      expect(h.events().map((event) => event.request?.event_id), settled["acme/app#7"]).toEqual([1]);
+    }
+  });
+
+  it("at least every resettle window, even when GitHub's updated_at did not change, without delivering twice", async () => {
+    const h = harness({ resettleMinutes: 30 });
+    h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    expect(details(h)).toBe(1);
+    h.github.advance(29 * 60_000);
+    await h.intake.pollOnce();
+    expect(details(h)).toBe(1);
+    h.github.advance(60_000);
+    await h.intake.pollOnce();
+    await h.intake.pollOnce();
+    expect(details(h)).toBe(2);
+    expect(h.queued).toHaveLength(1);
+  });
+});
+
 describe("GitHub intake: verdicts and explicit review requests", () => {
-  function recoveryHarness(options: { dir?: string } = {}) {
-    const h = harness({}, options);
+  function recoveryHarness(options: { dir?: string } = {}, config: Partial<GithubIntakeConfig> = {}) {
+    const h = harness(config, options);
     const intakeOptions = { ...h.intakeOptions, runState: (id: string) => h.runs.get(id) ?? null, runs: h.nativeRuns };
     return { ...h, intake: new GithubIntake(intakeOptions), intakeOptions };
   }
@@ -1464,8 +1812,8 @@ describe("GitHub intake: verdicts and explicit review requests", () => {
     expect(h.intake.status().state).toBe("ok");
   });
 
-  it("starts no second review while a failed receipt waits for recovery, until someone requests again", async () => {
-    const h = recoveryHarness();
+  it("with one attempt, starts no second review while a failed receipt waits for recovery, until someone requests again", async () => {
+    const h = recoveryHarness({}, { reviewAttempts: 1 });
     const pr = h.github.pr({ repo: "acme/app", number: 7 });
     h.github.request(pr, "henry-bot");
     await h.intake.pollOnce();

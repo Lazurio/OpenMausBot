@@ -89,6 +89,8 @@ describe.skipIf(process.platform === "win32")("a server started with OMB_GITHUB_
       OMB_GITHUB_INTAKE: "1",
       OMB_GITHUB_INTAKE_BOT: "Henry",
       OMB_GITHUB_INTAKE_ASSIGNMENTS: "1",
+      // One attempt: the escalation the run gets after its last attempt, without waiting out a retry's backoff.
+      OMB_GITHUB_INTAKE_REVIEW_ATTEMPTS: "1",
       OMB_GITHUB_INTAKE_GH: gh,
     });
   });
@@ -133,11 +135,12 @@ describe.skipIf(process.platform === "win32")("a server started with OMB_GITHUB_
     expect(transcript).toContain(HEAD);
 
     // A completed fake coordinator did not post a GitHub review. Native
-    // execution receipts must make that missing result visible, never retry
-    // it, and the pull request hears it once.
+    // execution receipts must make that missing result visible, past the last
+    // attempt never retry it, and the pull request hears it once.
     const unfinished = await api("POST", "/api/github-intake/poll");
     expect(unfinished.body.summary).toMatchObject({ state: "needs_recovery", delivered: 0 });
-    expect(unfinished.body.status).toMatchObject({ needsRecovery: 1 });
+    expect(unfinished.body.status).toMatchObject({ needsRecovery: 1, attempts: { "acme/app#42": 1 } });
+    expect(unfinished.body.status.oldestOwed).toBeGreaterThanOrEqual(0);
     expect(comments()).toEqual([expect.stringMatching(new RegExp(`^The review run for head ${HEAD} ended without a verdict[\\s\\S]*\\n— Henry$`))]);
     expect((await api("POST", "/api/github-intake/poll")).body.summary).toMatchObject({ state: "needs_recovery", delivered: 0 });
     expect(comments()).toHaveLength(1);
