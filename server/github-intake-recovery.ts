@@ -28,14 +28,47 @@ const STOPPED = "The GitHub intake stopped this run";
 const STOPPED_IDLE = `${STOPPED}: no sign of progress for`;
 
 /** Why an active run must be stopped. Past the hard cap since its start always;
- * idle only with a progress signal, since start time alone cannot tell a long
- * review from a stuck one, and never while it waits for a person's answer. */
-export function overdue(run: RunReceipt, now: number, limits: { idleMs: number; maxMs: number }, progressAt?: (threadId: string) => number | undefined): string | null {
+ * idle only with a known progress signal, since start time alone cannot tell a
+ * long review from a stuck one, and never while it waits for a person's answer. */
+export function overdue(run: RunReceipt, now: number, limits: RunLimits, progressAt?: ProgressAt): string | null {
   if (!["running", "waiting"].includes(run.status) || run.startedAt === undefined) return null;
   if (now - run.startedAt >= limits.maxMs) return `${STOPPED}: still active ${Math.round(limits.maxMs / 60_000)} minutes after it started`;
-  if (!progressAt || (run.status === "waiting" && run.asked)) return null;
-  const last = Math.max(run.startedAt, (run.threadId && progressAt(run.threadId)) || 0);
-  return now - last >= limits.idleMs ? `${STOPPED_IDLE} ${Math.round(limits.idleMs / 60_000)} minutes` : null;
+  if (run.status === "waiting" && run.asked) return null;
+  const signal = run.threadId ? progressAt?.(run.threadId, run.startedAt) : undefined;
+  if (signal === undefined) return null;
+  return now - Math.max(run.startedAt, signal) >= limits.idleMs ? `${STOPPED_IDLE} ${Math.round(limits.idleMs / 60_000)} minutes` : null;
+}
+
+export interface RunLimits { idleMs: number; maxMs: number }
+/** The latest sign of progress of a run's conversation and of the work it handed out since `since`; undefined when none is known. */
+export type ProgressAt = (threadId: string, since: number) => number | undefined;
+/** Whether work the run's conversation handed out since `since` is still live, at any depth. */
+export type WorkLive = (threadId: string, since: number) => boolean;
+
+/** How a native run stands for the intake. A run that ended while the work it
+ * handed out still runs keeps holding the pull request as waiting, so nothing
+ * starts beside its teammates; `stop` says why it is past its limits. Progress
+ * signals live in memory, so a known one counts no earlier than `since`, the
+ * intake's own start. */
+export function runStanding(run: RunReceipt, now: number, limits: RunLimits, signals: { progressAt?: ProgressAt; workLive?: WorkLive; since: number }): { run: RunReceipt; stop?: string } {
+  const since = run.startedAt ?? run.createdAt;
+  const delegated = !ACTIVE_RUN.includes(run.status) && run.threadId !== undefined && since !== undefined && signals.workLive?.(run.threadId, since) === true;
+  const standing = delegated ? { ...run, status: "waiting", asked: undefined, startedAt: since } : run;
+  const { progressAt } = signals;
+  const known: ProgressAt | undefined = progressAt && ((threadId, from) => {
+    const at = progressAt(threadId, from);
+    return at === undefined ? undefined : Math.max(signals.since, at);
+  });
+  const stop = overdue(standing, now, limits, known);
+  return stop ? { run: standing, stop } : { run: standing };
+}
+
+/** The run once the intake has stopped it and its delegated work: still
+ * waiting while any of that work is live, otherwise ended. */
+export function afterStop(run: RunReceipt, stop: string, now: number, workLive?: WorkLive): RunReceipt {
+  const since = run.startedAt ?? run.createdAt;
+  if (run.threadId !== undefined && since !== undefined && workLive?.(run.threadId, since)) return { ...run, status: "waiting", startedAt: since };
+  return ACTIVE_RUN.includes(run.status) ? { ...run, status: "cancelled", error: stop, finishedAt: now } : run;
 }
 
 /** A fixed word for how an attempt ended; never the run's own text, since the

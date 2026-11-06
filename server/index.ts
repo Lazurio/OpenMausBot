@@ -9708,9 +9708,8 @@ ROUTES.push(createDataRoutes({
   exportRoots: dataExportRoots,
 }));
 // Lazurio GitHub intake (server/routes/github-intake.ts): off unless OMB_GITHUB_INTAKE=1.
-const githubIntake = createLazurioGithubIntake({ dataDir: DATA_DIR, webhooks, bots: () => store.bots, maintenance: workspaceMaintenance,
-  runState: (runId) => routines!.listRuns().find((run) => run.id === runId) ?? null, runs: () => routines!.listRuns(),
-  cancelRun: (runId, reason) => { routines!.cancelRun(runId, reason).catch((error) => console.error(`github-intake: could not stop run ${runId}`, error)); }, delegations: (threadId) => coordinator.outstandingFor(threadId) });
+const githubIntake = createLazurioGithubIntake({ dataDir: DATA_DIR, webhooks, bots: () => store.bots, maintenance: workspaceMaintenance, coordinator,
+  routines: { list: () => routines!.listRuns(), cancel: (runId, reason) => routines!.cancelRun(runId, reason) } });
 ROUTES.push(githubIntake.routes);
 bus.subscribe((event: RuntimeEvent) => githubIntake.observe(event));
 // Lazurio WhatsApp intake: off unless OMB_WHATSAPP_INTAKE=1.
