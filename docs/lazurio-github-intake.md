@@ -124,8 +124,9 @@ is current and no explicit request came after it.
   the run's delivery id, so a lost state file does not start a concurrent
   review. A run whose delivery id names no pull request (a key longer than 200
   characters is hashed) counts as work on every pull request until it ends. A
-  run past its limits stops holding the pull request (see A review run without
-  a verdict). A request removed while its run waits leaves
+  run holds its pull request until the work it handed out has ended too, and
+  one past its limits is stopped with that work (see A review run without a
+  verdict). A request removed while its run waits leaves
   the run to finish and queues nothing more; a delivered review whose native
   run ended without a current verdict is tried again, and only its last
   attempt reports `needs_recovery`. A later request is the requester's
@@ -404,24 +405,39 @@ a verdict.
   the progress note says is done, and to end with a verdict or the blocked
   comment. They also tell it to take the scope the pull request states and to
   split a large diff by groups of files across the team. The intake reads the
-  conversation (`issues/{n}/comments?since=…`) once per ended run, and only
-  while another attempt may follow.
+  conversation (`issues/{n}/comments?since=…`) once per ended run, the last
+  attempt included, so its blocked comment is named too.
 - **Blocked ends it.** A blocked comment for this head, posted during the
   attempt, means the cause is one a retry does not fix: the intake escalates
   at once, with no backoff and no further attempt. A blocked comment for
   another head, or one from before the attempt, does not count.
-- **Hung runs end.** A review, handoff or approval run the intake handed over
-  is stopped through the routines manager (`cancelRun`) when it has shown no
-  sign of progress for `OMB_GITHUB_INTAKE_RUN_IDLE_MINUTES`, or has been
-  active for `OMB_GITHUB_INTAKE_RUN_MAX_MINUTES` since it started; then it
-  counts as ended. Progress is the latest runtime event in the run's
-  conversation or in the conversation of any work it handed out and still
-  waits on, at any depth, and that work's own progress in the coordinator. A
-  long review that keeps working is never stopped before the hard cap; a run
-  that waits for a person's answer is not idle, so only the cap stops it.
-  Without a progress signal (an intake built without one) only the cap
-  applies. A stopped run no longer holds the pull request, also when only the
-  native queue still knows it. A stopped handoff or approval reports
+- **A run holds its pull request until all its work has ended.** A run is
+  ended for the intake only when the run itself has ended and no work its
+  conversation handed out since it started is live, at any depth: the
+  coordinator's `job` lists that whole tree, also a teammate left running
+  after the conversation's own node was settled (a routine's stop settles it
+  and leaves a teammate mid-turn running, so `outstandingFor` no longer shows
+  that teammate). Until then the run counts as waiting: no retry, no review of
+  a new head and no `needs_recovery`, so nothing starts beside a teammate that
+  may still post to the pull request. A lead that ended its turn while its
+  teammates still review is not judged as without a verdict yet.
+- **Hung runs end, with all their work.** A review, handoff or approval run
+  the intake handed over is stopped when it has shown no sign of progress for
+  `OMB_GITHUB_INTAKE_RUN_IDLE_MINUTES`, or has been active (or held by live
+  work) for `OMB_GITHUB_INTAKE_RUN_MAX_MINUTES` since it started. The stop
+  cancels the topmost live nodes of the run's tree first (each cancel settles
+  everything under it and aborts its running turns), then the routine run
+  through the routines manager. While any of that work is still live the run
+  keeps holding the pull request, and a later poll stops it again; the log
+  says so once per run. Progress is the latest runtime event in the run's
+  conversation or in any thread of its tree, and the tree's own activity in
+  the coordinator. Runtime events live in memory (the 10 000 threads heard
+  from most recently), so a known signal counts no earlier than the intake's
+  own start. When no signal is known (after a restart, or once a thread's
+  events are forgotten and the tree has no activity of its own), only the
+  hard cap stops a run. A long review that keeps working is never stopped
+  before the hard cap; a run that waits for a person's answer is not idle, so
+  only the cap stops it. A stopped handoff or approval reports
   `needs_recovery` as before; only reviews are tried again.
 - **Escalated once.** After the last attempt, or a blocked comment, the pull
   request reports `needs_recovery` and hears it once (below).
@@ -539,10 +555,14 @@ upgrade from executing old assignments made under the previous contract.
 live roles, review-only requests, migration, reassignment, pause/restart,
 late verdicts, carried approvals, repeated requests on one head, the attempts
 of a review run without a verdict (backoff, `previous_attempt`, the blocked
-comment, hung runs, the escalation once per head, restarts) and judging a
-settled pull request again, through the real WebhookManager; `server/github-intake-review.ts` decides which review is owed
+comment, hung runs, the escalation once per head, restarts), a run held by
+the live work it handed out, and judging a settled pull request again, through
+the real WebhookManager; its run-tree cases stop a delegated tree on the real
+RuntimeCoordinator, including a teammate the routine's stop left running; `server/github-intake-review.ts` decides which review is owed
 and `server/github-intake-gh.ts` runs the signed-in `gh`. `github-intake.e2e.test.ts`
 runs the isolated real server and exercises the native queue and execution
-receipts with fake GitHub and model providers.
+receipts with fake GitHub and model providers, including a review run a person
+stops while a teammate still reviews: no new head is handed over until that
+teammate has ended.
 These fixtures do not claim that a real GitHub merge or deployment occurred;
 that evidence belongs to each commissioned Environment.
