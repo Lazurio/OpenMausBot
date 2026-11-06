@@ -407,10 +407,25 @@ a verdict.
   split a large diff by groups of files across the team. The intake reads the
   conversation (`issues/{n}/comments?since=…`) once per ended run, the last
   attempt included, so its blocked comment is named too.
-- **Blocked ends it.** A blocked comment for this head, posted during the
-  attempt, means the cause is one a retry does not fix: the intake escalates
-  at once, with no backoff and no further attempt. A blocked comment for
-  another head, or one from before the attempt, does not count.
+- **Blocked ends it.** A blocked comment for this head, posted by the
+  attempt itself, means the cause is one a retry does not fix: the intake
+  escalates at once, with no backoff and no further attempt. Which comment
+  the attempt posted is decided by comment id, not by time: right before it
+  hands an attempt over (the first and every later one), the intake reads the
+  repository's newest issue comments
+  (`issues/comments?sort=created&direction=desc&per_page=10`) and records the
+  highest id as the attempt's `notesFloor`. GitHub's comment ids only grow and
+  no earlier run of the pull request is active at that moment, so only an
+  issue comment above the floor is the attempt's own, however close in time
+  an earlier run's or request's blocked comment was. Review bodies never count
+  as blocked (they still count as progress). When the floor cannot be read,
+  nothing is handed over in that poll and a later poll tries again. An attempt
+  recorded before floors keeps the earlier rule: a blocked comment counts
+  when posted at most a minute before its delivery. A blocked comment for
+  another head never counts. After a lost state file, an attempt the webhook
+  receipt answers as a duplicate gets the floor of that poll, so a blocked
+  comment its run posted earlier is not seen and the review is tried again
+  instead of escalating.
 - **A run holds its pull request until all its work has ended.** A run is
   ended for the intake only when the run itself has ended and no work its
   conversation handed out since it started is live, at any depth: the
@@ -486,7 +501,8 @@ comment. An assignment handoff that ends without a result gets no comment.
   fetched only when it is judged again (above). A
   review decision reads the pull request's reviews; its issue events only
   while the account is requested or has a verdict on the head, and the head
-  commit only for such a verdict.
+  commit only for such a verdict. Handing a review attempt over adds one read
+  of the repository's newest issue comments (the floor above).
 - State lives in `<data>/github-intake.json` (mode 0600): the handled keys
   with their outcome and the webhook id. It is restart-safe. If it is lost,
   the webhook's own delivery receipts still stop a second run for the same
