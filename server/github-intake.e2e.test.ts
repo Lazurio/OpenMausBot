@@ -9,9 +9,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { pathToFileURL } from "node:url";
+
 import { launchVerificationServer, runControlOmb, verificationServerArgs, verificationServerEnvironment, type VerificationServer } from "../scripts/control-omb.ts";
 import type { RoutineRun } from "./routines.ts";
 import { waitForExit } from "./testing/cleanup.ts";
+import { readHandoffs } from "./testing/handoff-rows.ts";
 import { hostTimeout } from "./testing/host-timeout.ts";
 
 const HEAD = "c".repeat(40);
@@ -46,10 +49,10 @@ if (url.pathname === "/search/issues") {
 }
 if (url.pathname === "/repos/acme/app/pulls/42") out({
   number: pr.number, title: pr.title, html_url: "https://github.test/acme/app/pull/42", state: "open", draft: false,
-  user: { login: pr.author, id: 11 }, head: { sha: __HEAD__ }, base: { ref: "main" }, assignees: state.assigned ? [{ login: "henry-bot", id: 12 }] : [],
+  user: { login: pr.author, id: 11 }, head: { sha: state.head ?? __HEAD__ }, base: { ref: "main" }, assignees: state.assigned ? [{ login: "henry-bot", id: 12 }] : [],
   requested_reviewers: state.rerequested ? [{ login: "henry-bot", id: 12 }] : [],
 });
-if (url.pathname === "/repos/acme/app/commits/" + __HEAD__) out({ sha: __HEAD__, commit: { committer: { date: "2026-09-30T07:00:00Z" } } });
+if (url.pathname === "/repos/acme/app/commits/" + (state.head ?? __HEAD__)) out({ sha: state.head ?? __HEAD__, commit: { committer: { date: "2026-09-30T07:00:00Z" } } });
 if (url.pathname === "/repos/acme/app/pulls/42/reviews") out(state.approved ? [{id: 7, user: {login: "henry-bot", id: 12}, state: "APPROVED", commit_id: __HEAD__, submitted_at: "2026-09-30T09:00:00Z"}] : []);
 if (url.pathname === "/repos/acme/app/issues/42/events") out([
   ...(state.assigned ? [{id: 90, event: "assigned", actor: {login: "henry-bot", id: 12}, assigner: {login: "alice", id: 11}, assignee: {login: "henry-bot", id: 12}, created_at: state.assignedAt}] : []),
@@ -266,5 +269,93 @@ describe.skipIf(process.platform === "win32")("a server whose GitHub intake stat
     const next = await api("POST", "/api/github-intake/poll");
     expect(next.body.summary.delivered).toBe(1);
     expect((await intakeRuns()).map((run) => run.deliveryId).sort()).toEqual([`gh:review:acme/app#42@${HEAD}~request:91`, `gh:review:acme/app#42@${HEAD}~request:92`]);
+  }, hostTimeout(120_000));
+});
+
+describe.skipIf(process.platform === "win32")("a server whose intake review run is stopped while a teammate still reviews", () => {
+  const dir = mkdtempSync(join(tmpdir(), "omb-github-intake-tree-"));
+  const githubState = join(dir, "github.json");
+  const gh = join(dir, "gh");
+  const NEXT = "d".repeat(40);
+  let fixture: VerificationServer;
+  const api = async (method: string, path: string, body?: unknown, token?: string) => {
+    const response = await fetch(`${fixture.info.url}${path}`, {
+      method,
+      headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : { origin: fixture.info.url }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    return { status: response.status, body: await response.json() as any };
+  };
+  const file = (threadId: string, extension: string) => join(fixture.info.dataDir, `${threadId}.${extension}`);
+  const finish = (threadId: string) => writeFileSync(file(threadId, "gate"), "finish isolated turn");
+  const dump = async (threadId: string) => {
+    let parsed: any;
+    await expect.poll(() => {
+      try { parsed = JSON.parse(readFileSync(file(threadId, "json"), "utf8")); return true; } catch { return false; }
+    }, { timeout: hostTimeout(15_000) }).toBe(true);
+    return parsed;
+  };
+  const intakeRun = async () => (await api("GET", "/api/routines")).body.runs.find((run: RoutineRun) => run.deliveryId?.startsWith("gh:review:")) as RoutineRun | undefined;
+
+  beforeAll(async () => {
+    writeFileSync(join(dir, "calls.log"), "");
+    writeFileSync(githubState, JSON.stringify({ rerequested: true, requestedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }));
+    writeFileSync(gh, FAKE_GH.replace("__CALLS__", JSON.stringify(join(dir, "calls.log"))).replaceAll("__POSTED__", JSON.stringify(join(dir, "posted.log"))).replaceAll("__HEAD__", JSON.stringify(HEAD)).replace("__STATE__", JSON.stringify(githubState)));
+    chmodSync(gh, 0o755);
+    fixture = await launchVerificationServer({ ...process.env, OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Henry", OMB_GITHUB_INTAKE_GH: gh });
+    // Every turn waits for its own thread's gate file, so the test decides when each teammate ends.
+    const wrapper = join(fixture.info.dataDir, "gated.mjs");
+    writeFileSync(wrapper, [
+      "#!/usr/bin/env node",
+      'import { readFileSync } from "node:fs";',
+      'import { join } from "node:path";',
+      'const at = process.argv.indexOf("--mcp-config");',
+      'const thread = at < 0 ? "probe" : JSON.parse(readFileSync(process.argv[at + 1], "utf8")).mcpServers?.agents?.env?.OMB_THREAD_ID ?? "probe";',
+      'process.env.FAKE_CLAUDE_MODE = thread === "probe" ? "happy" : "slow";',
+      `process.env.FAKE_CLAUDE_SLOW_FINISH_GATE = join(${JSON.stringify(fixture.info.dataDir)}, thread + ".gate");`,
+      `process.env.FAKE_CLAUDE_DUMP = join(${JSON.stringify(fixture.info.dataDir)}, thread + ".json");`,
+      `await import(${JSON.stringify(pathToFileURL(join(process.cwd(), "server/testing/fake-claude-cli.ts")).href)});`,
+    ].join("\n"), { mode: 0o700 });
+    expect((await api("PATCH", "/api/instances/claude", { cli: wrapper })).status).toBeLessThan(300);
+  }, hostTimeout(60_000));
+
+  afterAll(async () => {
+    await fixture?.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("hands nothing more over for the pull request until the teammate the stop left running has ended", async () => {
+    expect((await api("POST", "/api/bots", { name: "Henry", section: "Steward" })).status).toBe(201);
+    const worker = (await api("POST", "/api/bots", { name: "Worker", section: "Steward" })).body.bot;
+    expect((await api("POST", "/api/github-intake/poll")).body.summary).toMatchObject({ delivered: 1 });
+    await expect.poll(async () => (await intakeRun())?.status, { timeout: hostTimeout(20_000), interval: 200 }).toBe("running");
+    const run = (await intakeRun())!;
+    const token = (await dump(run.threadId!)).mcpConfig.mcpServers.agents.env.OMB_COMMS_TOKEN as string;
+    const handed = await api("POST", "/api/internal/coordinate-bots", { botIds: [worker.id], message: "Review server/ of the pull request." }, token);
+    expect(handed.body.receipts).toEqual([expect.objectContaining({ botId: worker.id, outcome: "queued" })]);
+    const work = () => readHandoffs(fixture.info.dataDir).find((node) => node.id === handed.body.receipts[0].requestId);
+    await dump(work()!.threadId);
+    expect(work()?.status).toBe("running");
+
+    // A person stops the review run: the routine's stop leaves the teammate mid-turn running.
+    expect((await api("POST", `/api/routine-runs/${run.id}/cancel`)).status).toBe(200);
+    await expect.poll(async () => (await intakeRun())?.status, { timeout: hostTimeout(10_000) }).toBe("cancelled");
+    expect(work()?.status).toBe("running");
+    expect(readHandoffs(fixture.info.dataDir).find((node) => node.threadId === run.threadId && !node.parentId)?.status).toBe("cancelled");
+
+    const pushedAt = new Date(Date.now() + 1_000).toISOString();
+    writeFileSync(githubState, JSON.stringify({ rerequested: true, requestedAt: pushedAt, updatedAt: pushedAt, head: NEXT }));
+    for (let i = 0; i < 2; i++) {
+      const polled = await api("POST", "/api/github-intake/poll");
+      expect(polled.body.summary).toMatchObject({ delivered: 0 });
+      expect(polled.body.status).toMatchObject({ needsRecovery: 0 });
+    }
+
+    finish(work()!.threadId);
+    await expect.poll(() => work()?.status, { timeout: hostTimeout(20_000), interval: 200 }).toBe("completed");
+    const next = await api("POST", "/api/github-intake/poll");
+    expect(next.body.summary).toMatchObject({ delivered: 1 });
+    expect(next.body.status.recent[0]).toMatchObject({ kind: "review", outcome: "delivered", headSha: NEXT });
   }, hostTimeout(120_000));
 });

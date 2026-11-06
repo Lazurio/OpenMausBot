@@ -22,7 +22,7 @@ import { INTAKE_DEFAULTS, type GithubIntakeConfig } from "./github-intake-config
 import { approvalPayload, approvalRecord, deploymentDecision, deploymentFacts, deploymentReads, pendingApprovals, runPull } from "./github-intake-deployments.ts";
 import { hasPublishMarker, PUBLISH_MARKER } from "./github-intake-marker.ts";
 import { INTAKE_WEBHOOK_PROMPT, SHIPPED_INTAKE_WEBHOOK_PROMPTS } from "./github-intake-prompts.ts";
-import { attemptCategory, oldestOwed, overdue, previousAttempt, recoveryLead, recoveryNotice, retryAt, teamNotes, type RunReceipt, type TeamNote } from "./github-intake-recovery.ts";
+import { afterStop, attemptCategory, oldestOwed, previousAttempt, recoveryLead, recoveryNotice, retryAt, runStanding, teamNotes, type ProgressAt, type RunReceipt, type TeamNote, type WorkLive } from "./github-intake-recovery.ts";
 import { ACTIVE_RUN, attemptKey, attemptOf, commitSchema, deliveryConcerns, deliveryIdFor, eventsSchema, login, reviewPlan, reviewsSchema, type ReviewDelivery } from "./github-intake-review.ts";
 import type { JsonValue } from "./schema.ts";
 import type { WebhookEvent, WebhookManager, WebhookReceiveResult, WebhookTrigger } from "./webhooks.ts";
@@ -201,10 +201,12 @@ export interface GithubIntakeOptions {
   runState?: (runId: string) => RunReceipt | null;
   /** The server's native runs, so work in flight is found even when the intake's own records are lost. */
   runs?: () => ReadonlyArray<RunReceipt & { id: string; webhookId?: string; deliveryId?: string }>;
-  /** Stops a native run that is past its limit; without it an active run is never cut short. */
+  /** Stops a native run past its limit and every piece of work its conversation handed out; without it a run is never cut short. */
   cancelRun?: (runId: string, reason: string) => void;
-  /** The latest sign of progress of a run's conversation and the work it handed out; without it only the hard cap stops a run. */
-  progressAt?: (threadId: string) => number | undefined;
+  /** The latest sign of progress of a run's conversation and the work it handed out; unknown means only the hard cap stops a run. */
+  progressAt?: ProgressAt;
+  /** Whether work a run's conversation handed out is still live: until it ends, the run holds its pull request. */
+  workLive?: WorkLive;
 }
 
 type Role = "requested" | "reviewed" | "organization" | "assigned";
@@ -261,6 +263,7 @@ export class GithubIntake {
   private readonly notes = new Map<string, { blocked?: TeamNote; progress?: TeamNote }>();
   /** Progress signals live in memory, so none before this start counts as idleness. */
   private readonly startedAt: number;
+  private readonly stoppedRuns = new Set<string>();
 
   constructor(options: GithubIntakeOptions) {
     this.options = options;
@@ -576,17 +579,18 @@ export class GithubIntake {
       Boolean(hook && this.options.runs?.().some((run) => run.webhookId === hook.id && deliveryConcerns(run.deliveryId, repo, number) && ACTIVE_RUN.includes(this.receipt(run.id, run)?.status ?? "")));
   }
 
-  /** A native run's receipt; one still active past its limit is stopped first and returned ended. */
+  /** A native run's receipt as it holds the pull request (`runStanding`); one past its limits is stopped with its delegated work first. */
   private receipt(runId: string | undefined, known?: RunReceipt): RunReceipt | null {
     const run = known ?? (runId ? this.options.runState?.(runId) ?? null : null);
-    const reason = run && this.options.cancelRun && overdue(run, this.now(), {
-      idleMs: (this.config.runIdleMinutes ?? INTAKE_DEFAULTS.runIdleMinutes) * 60_000,
-      maxMs: (this.config.runMaxMinutes ?? INTAKE_DEFAULTS.runMaxMinutes) * 60_000,
-    }, this.options.progressAt && ((threadId) => Math.max(this.startedAt, this.options.progressAt!(threadId) ?? 0)));
-    if (!runId || !run || !reason) return run;
-    this.options.cancelRun!(runId, reason);
-    this.log(`[github-intake] stopped run ${runId}: ${reason}`);
-    return { ...run, status: "cancelled", error: reason, finishedAt: this.now() };
+    if (!runId || !run) return run;
+    const { run: standing, stop } = runStanding(run, this.now(), {
+      idleMs: (this.config.runIdleMinutes ?? INTAKE_DEFAULTS.runIdleMinutes) * 60_000, maxMs: (this.config.runMaxMinutes ?? INTAKE_DEFAULTS.runMaxMinutes) * 60_000,
+    }, { workLive: this.options.workLive, progressAt: this.options.progressAt, since: this.startedAt });
+    if (!stop || !this.options.cancelRun) return standing;
+    this.options.cancelRun(runId, stop);
+    if (!this.stoppedRuns.has(runId)) this.log(`[github-intake] stopped run ${runId} and the work it handed out: ${stop}`);
+    this.stoppedRuns.add(runId);
+    return afterStop(run, stop, this.now(), this.options.workLive);
   }
 
   /** A review attempt ended without a verdict on the head. The run's own
@@ -732,8 +736,7 @@ export class GithubIntake {
     const latest = [...this.state.records].reverse().find((record) =>
       record.repository.toLowerCase() === candidate.repo.toLowerCase() && record.number === candidate.number && record.kind === "review" && record.outcome !== "notified");
     if (!latest || !HANDED_OVER.includes(latest.outcome)) return false;
-    const receipt = latest.runId ? this.options.runState(latest.runId) : null;
-    return !ACTIVE_RUN.includes(receipt?.status ?? "") || this.receipt(latest.runId, receipt ?? undefined) !== receipt;
+    return !ACTIVE_RUN.includes(this.receipt(latest.runId)?.status ?? "");
   }
 
   private recovery(prior: IntakeRecord, deferred: Deferred[], reason: string, attempts?: number): void {

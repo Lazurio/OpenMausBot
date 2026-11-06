@@ -20,7 +20,9 @@ import {
 } from "./github-intake.ts";
 import { INTAKE_WEBHOOK_PROMPT, SHIPPED_INTAKE_WEBHOOK_PROMPTS } from "./github-intake-prompts.ts";
 import { blockedMarker, type RunReceipt } from "./github-intake-recovery.ts";
-import { maintenanceGuard, runProgress } from "./routes/github-intake.ts";
+import { maintenanceGuard, runTree, stopIntakeRun } from "./routes/github-intake.ts";
+import type { CoordinatorHost, HandoffView, HostTurnResult } from "./coordinator.ts";
+import { RuntimeCoordinator } from "./runtime-coordinator.ts";
 import { WebhookManager } from "./webhooks.ts";
 import { WorkspaceBackupMaintenance } from "./workspace-backup-maintenance.ts";
 
@@ -1451,21 +1453,51 @@ describe("GitHub intake: a review run without a verdict is tried again, then esc
     expect(h.events()[1].previous_attempt).toMatchObject({ run_id: "run-1", status: "cancelled", category: "no-progress" });
   });
 
-  it("counts idleness only from its own start, since progress before a restart is not known", async () => {
+  it("counts a known signal from before a restart only from its own start, and an unknown one not at all", async () => {
+    for (const known of [true, false]) {
+      const h = retryHarness();
+      h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+      await h.intake.pollOnce();
+      h.runs.set("run-1", { status: "running", startedAt: h.github.now, threadId: "lead-1" });
+      if (known) h.progress.set("lead-1", h.github.now);
+      h.github.advance(2 * 60 * 60_000);
+      const restarted = new GithubIntake(h.options);
+      await restarted.pollOnce();
+      h.github.advance(44 * 60_000);
+      await restarted.pollOnce();
+      expect(h.cancelled).toEqual([]);
+
+      h.github.advance(60_000);
+      await restarted.pollOnce();
+      if (known) {
+        expect(h.cancelled).toEqual([["run-1", "The GitHub intake stopped this run: no sign of progress for 45 minutes"]]);
+        continue;
+      }
+      expect(h.cancelled).toEqual([]);
+      h.github.advance((480 - 165) * 60_000 - 1);
+      await restarted.pollOnce();
+      expect(h.cancelled).toEqual([]);
+      h.github.advance(1);
+      await restarted.pollOnce();
+      expect(h.cancelled).toEqual([["run-1", "The GitHub intake stopped this run: still active 480 minutes after it started"]]);
+    }
+  });
+
+  it("does not stop a run whose progress signal disappears, until the hard cap", async () => {
     const h = retryHarness();
     h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
     await h.intake.pollOnce();
     h.runs.set("run-1", { status: "running", startedAt: h.github.now, threadId: "lead-1" });
-    h.github.advance(2 * 60 * 60_000);
-    const restarted = new GithubIntake(h.options);
-    await restarted.pollOnce();
-    h.github.advance(40 * 60_000);
-    await restarted.pollOnce();
+    h.progress.set("lead-1", h.github.now);
+    h.github.advance(30 * 60_000);
+    await h.intake.pollOnce();
+    h.progress.delete("lead-1");
+    h.github.advance(4 * 60 * 60_000);
+    await h.intake.pollOnce();
     expect(h.cancelled).toEqual([]);
-
-    h.github.advance(5 * 60_000);
-    await restarted.pollOnce();
-    expect(h.cancelled).toEqual([["run-1", "The GitHub intake stopped this run: no sign of progress for 45 minutes"]]);
+    h.github.advance(4 * 60 * 60_000);
+    await h.intake.pollOnce();
+    expect(h.cancelled.map(([, reason]) => reason)).toEqual(["The GitHub intake stopped this run: still active 480 minutes after it started"]);
   });
 
   it("stops a run past the hard cap even while it progresses, and without a progress signal only there", async () => {
@@ -1508,6 +1540,85 @@ describe("GitHub intake: a review run without a verdict is tried again, then esc
     await lost.pollOnce();
     expect(h.cancelled.map(([id]) => id)).toEqual(["run-1"]);
     expect(h.events().map((event) => event.head_sha)).toEqual([HEAD_A, HEAD_B]);
+  });
+
+  it("keeps a pull request covered while the work an ended run handed out is still live, then tries again", async () => {
+    const live = new Set<string>();
+    const h = retryHarness({ reviewAttempts: 1 }, { workLive: (threadId) => live.has(threadId) });
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    // The lead ended its turn, or a person stopped it, while a teammate still reviews.
+    live.add("lead-1");
+    h.end("run-1", { threadId: "lead-1" });
+    await h.intake.pollOnce();
+    h.github.push(pr, HEAD_B);
+    h.github.advance(60 * 60_000);
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(1);
+    expect(h.intake.status()).toMatchObject({ state: "ok", needsRecovery: 0 });
+    expect(notices(pr)).toHaveLength(0);
+    expect(h.github.calls.some((call) => call.startsWith("repos/acme/app/issues/7/comments"))).toBe(false);
+
+    live.delete("lead-1");
+    await h.intake.pollOnce();
+    expect(h.events().map((event) => event.head_sha)).toEqual([HEAD_A, HEAD_B]);
+  });
+
+  it("does not judge a run whose teammates still work as without a verdict, and retries only once they end", async () => {
+    const live = new Set(["lead-1"]);
+    const h = retryHarness({}, { workLive: (threadId) => live.has(threadId) });
+    h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.end("run-1", { threadId: "lead-1" });
+    for (let i = 0; i < 3; i++) {
+      h.github.advance(30 * 60_000);
+      await h.intake.pollOnce();
+    }
+    expect(h.queued).toHaveLength(1);
+    live.clear();
+    h.github.advance(10 * 60_000);
+    await h.intake.pollOnce();
+    expect(keys(h)).toEqual([HEAD_A, `${HEAD_A}~attempt:2`]);
+  });
+
+  it("stops a still-live delegated tree again past the hard cap, logging it once, and holds the pull request until it ends", async () => {
+    const live = new Set(["lead-1"]);
+    const h = retryHarness({}, { workLive: (threadId) => live.has(threadId), progressAt: () => undefined });
+    h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.runs.set("run-1", { status: "running", startedAt: h.github.now, threadId: "lead-1" });
+    h.github.advance(480 * 60_000);
+    await h.intake.pollOnce();
+    h.github.advance(60 * 60_000);
+    await h.intake.pollOnce();
+    await h.intake.pollOnce();
+    expect(h.cancelled.map(([id]) => id)).toEqual(["run-1", "run-1", "run-1"]);
+    expect(h.logs.filter((line) => line.includes("stopped run run-1"))).toHaveLength(1);
+    expect(h.queued).toHaveLength(1);
+
+    live.clear();
+    h.github.advance(10 * 60_000);
+    await h.intake.pollOnce();
+    expect(h.queued).toHaveLength(2);
+    expect(h.events()[1].previous_attempt).toMatchObject({ status: "cancelled", category: "time-limit" });
+  });
+
+  it("does not escalate in the poll that stops a run while the work it handed out is still live", async () => {
+    const live = new Set(["lead-1"]);
+    const h = retryHarness({ reviewAttempts: 1 }, { workLive: (threadId) => live.has(threadId), progressAt: () => undefined });
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.runs.set("run-1", { status: "running", startedAt: h.github.now, threadId: "lead-1" });
+    h.github.advance(480 * 60_000);
+    await h.intake.pollOnce();
+    expect(h.cancelled.map(([id]) => id)).toEqual(["run-1"]);
+    expect(h.intake.status()).toMatchObject({ state: "ok", needsRecovery: 0 });
+    expect(notices(pr)).toHaveLength(0);
+
+    live.clear();
+    await h.intake.pollOnce();
+    expect(h.intake.status()).toMatchObject({ state: "needs_recovery", attempts: { "acme/app#7": 1 } });
+    expect(notices(pr)[0].body).toContain("- Attempt 1: time-limit");
   });
 
   it("stops everything when a verdict arrives between attempts", async () => {
@@ -1658,21 +1769,95 @@ describe("GitHub intake: a review run without a verdict is tried again, then esc
   });
 });
 
-describe("GitHub intake: the progress of a run", () => {
-  it("is the latest runtime event of its conversation or of the work it handed out and waits on, at any depth", () => {
-    let now = 1_000;
-    const handedOut: Record<string, Array<{ threadId: string; createdAt: number; startedAt?: number; lastProgressAt?: number }>> = {
-      lead: [{ threadId: "worker", createdAt: 1_500, startedAt: 2_000 }],
-      worker: [{ threadId: "helper", createdAt: 2_500, lastProgressAt: 4_000 }, { threadId: "lead", createdAt: 2_600 }],
+describe("GitHub intake: the work of a run's conversation, on the real coordinator", () => {
+  /** A coordinator host whose every turn runs until it is released or stopped, as the real host's turns do. */
+  function heldHost() {
+    const turns = new Map<string, { signal: AbortSignal; release: (result: HostTurnResult) => void }>();
+    const host: CoordinatorHost = {
+      validate: () => undefined,
+      busy: () => false,
+      run: (node: HandoffView, _resumed: boolean, signal: AbortSignal) => new Promise<HostTurnResult>((resolve) => {
+        signal.addEventListener("abort", () => resolve({ ok: false, text: "Coordinated work was stopped" }), { once: true });
+        turns.set(node.id, { signal, release: resolve });
+      }),
+      report: () => {},
+      changed: () => {},
+      names: (node, parent) => ({ requester: parent?.botId ?? "Matej", assignee: node.botId, person: "Matej" }),
+      park: () => {},
+      levelOf: () => ({ level: "full" }),
+      chiefOf: () => false,
     };
-    const progress = runProgress((threadId) => handedOut[threadId] ?? [], () => now);
-    expect(runProgress(() => []).progressAt("lead")).toBeUndefined();
-    progress.observe({ threadId: "lead" });
-    expect(progress.progressAt("lead")).toBe(4_000);
-    now = 9_000;
-    progress.observe({ threadId: "helper" });
-    expect(progress.progressAt("lead")).toBe(9_000);
-    expect(progress.progressAt("unrelated")).toBeUndefined();
+    return { host, turns };
+  }
+  const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
+  const lead = { botId: "pablo", threadId: "review-1" };
+
+  /** The intake's review run on the lead thread hands a review to a worker, who hands part of it to a helper; both are mid-turn. */
+  async function delegatedReview() {
+    const { host, turns } = heldHost();
+    let clock = 1_000;
+    const coordinator = new RuntimeCoordinator({ dataDir: ":memory:", host, log: () => {} });
+    coordinator.beginTurn({ id: "turn-1", address: lead, brief: "Review the pull request", level: "full", origin: { kind: "user", request: "Review it" } });
+    const { node: worker } = coordinator.enqueue(lead, "turn-1", undefined, { botId: "worker", threadId: "worker-1" }, "Review server/");
+    coordinator.tick(); await flush();
+    const { node: helper } = coordinator.enqueue({ botId: "worker", threadId: "worker-1" }, "turn-1", worker.id, { botId: "helper", threadId: "helper-1" }, "Check the tests");
+    coordinator.tick(); await flush();
+    const tree = runTree(coordinator, () => clock);
+    return { coordinator, turns, worker, helper, tree, advance: (ms: number) => { clock += ms; } };
+  }
+
+  it("counts a teammate the routine's stop left running as live work, which outstandingFor no longer shows", async () => {
+    const { coordinator, turns, worker, tree } = await delegatedReview();
+    expect(coordinator.node(worker.id)?.status).toBe("running");
+    expect(tree.live("review-1", 0)).toBe(true);
+
+    // What the routine's interrupt does to a stopped run's conversation today.
+    const left = coordinator.stopAwaitingDirect("review-1");
+    expect(left.map((node) => node.id)).toEqual([worker.id]);
+    expect(coordinator.outstandingFor("review-1")).toEqual([]);
+    expect(turns.get(worker.id)?.signal.aborted).toBe(false);
+    expect(tree.live("review-1", 0)).toBe(true);
+  });
+
+  it("stops the whole tree before the routine's stop, so no teammate is left running", async () => {
+    const { coordinator, turns, worker, helper, tree } = await delegatedReview();
+    const cancelled: string[] = [];
+    const routines = {
+      list: () => [{ id: "run-1", status: "running", threadId: "review-1", startedAt: 0 }],
+      cancel: async (runId: string) => { cancelled.push(runId); coordinator.stopAwaitingDirect("review-1"); },
+    };
+    stopIntakeRun(tree, routines, "run-1", "The GitHub intake stopped this run: no sign of progress for 45 minutes");
+    await flush();
+    expect(cancelled).toEqual(["run-1"]);
+    expect(tree.live("review-1", 0)).toBe(false);
+    expect([worker.id, helper.id].map((id) => coordinator.node(id)?.status)).toEqual(["cancelled", "cancelled"]);
+    expect([worker.id, helper.id].map((id) => turns.get(id)?.signal.aborted)).toEqual([true, true]);
+  });
+
+  it("stops what a routine's stop already left running", async () => {
+    const { coordinator, turns, worker, helper, tree } = await delegatedReview();
+    coordinator.stopAwaitingDirect("review-1");
+    tree.stop("review-1", 0, "The GitHub intake stopped this run: still active 480 minutes after it started");
+    expect(tree.live("review-1", 0)).toBe(false);
+    expect([worker.id, helper.id].map((id) => turns.get(id)?.signal.aborted)).toEqual([true, true]);
+  });
+
+  it("reads progress from the conversation's runtime events and its whole tree, and forgets the thread silent longest first", async () => {
+    const { tree, advance } = await delegatedReview();
+    const fromTree = tree.progressAt("review-1", 0)!;
+    expect(fromTree).toBeGreaterThan(0);
+    expect(runTree({ job: () => ({ rows: [] }), cancelDirect: () => {}, cancelRoom: () => {} }).progressAt("review-1", 0)).toBeUndefined();
+    const later = Date.now() + 3_600_000;
+    advance(later - 1_000);
+    tree.observe({ threadId: "helper-1" });
+    expect(tree.progressAt("review-1", 0)).toBe(later);
+    // Ten thousand other threads speak after it: its event is forgotten, the tree's own activity stays.
+    for (let i = 0; i < 10_000; i++) tree.observe({ threadId: `other-${i}` });
+    expect(tree.progressAt("review-1", 0)).toBe(fromTree);
+    advance(1_000);
+    tree.observe({ threadId: "helper-1" });
+    for (let i = 0; i < 9_999; i++) tree.observe({ threadId: `more-${i}` });
+    expect(tree.progressAt("review-1", 0)).toBe(later + 1_000);
   });
 });
 
