@@ -1853,6 +1853,34 @@ describe("GitHub intake: a review run without a verdict is tried again, then esc
     }
   });
 
+  it("links an earlier run's blocked comment on this head when the last attempt ended without a verdict, as information only", async () => {
+    for (const last of [{ status: "completed" }, { status: "failed", error: "The model provider failed" }] as const) {
+      const h = retryHarness({ reviewAttempts: 1, escalate: "matej" });
+      const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+      await h.intake.pollOnce();
+      // The head's run says it is blocked; a request comes before that run ends, and its attempt ends without a comment of its own.
+      const blocked = h.github.comment(pr, "henry-bot", `${blockedMarker(HEAD_A)}\nThe Organization checkout is missing.`);
+      h.github.request(pr, "henry-bot", "matej");
+      h.end("run-1");
+      await h.intake.pollOnce();
+      expect(h.queued.map((entry) => entry.deliveryId)).toEqual([`gh:review:acme/app#7@${HEAD_A}`, expect.stringContaining(`@${HEAD_A}~request:`)]);
+      h.end("run-2", last);
+      await h.intake.pollOnce();
+      await h.intake.pollOnce();
+
+      const category = last.status === "completed" ? "no-verdict" : "failed";
+      expect(h.queued).toHaveLength(2);
+      expect(notices(pr)).toHaveLength(1);
+      expect(notices(pr)[0].body).toContain(`- Attempt 1: ${category}\n`);
+      expect(notices(pr)[0].body).not.toContain("What blocks it");
+      expect(notices(pr)[0].body).not.toContain("Organization checkout");
+      const earlier = `Earlier blocked comment on this head: https://github.test/acme/app/pull/7#issuecomment-${blocked.id}`;
+      if (category === "no-verdict") expect(notices(pr)[0].body).toContain(`\n\n${earlier}\n\n`);
+      else expect(notices(pr)[0].body).not.toContain("Earlier blocked comment");
+      expect(h.intake.status()).toMatchObject({ state: "needs_recovery", attempts: { "acme/app#7": 1 } });
+    }
+  });
+
   it("tries again after a comment without the marker, or with the marker of another head, and hands it over as progress", async () => {
     const h = retryHarness();
     const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
@@ -1873,6 +1901,12 @@ describe("GitHub intake: a review run without a verdict is tried again, then esc
     expect(INTAKE_WEBHOOK_PROMPT).toContain("Read previous_attempt and its progress_comment first");
     expect(INTAKE_WEBHOOK_PROMPT).toContain("split the work by groups of files");
     expect(SHIPPED_INTAKE_WEBHOOK_PROMPTS).not.toContain(INTAKE_WEBHOOK_PROMPT);
+  });
+
+  it("tells every run that ends blocked to post its own blocked comment, and upgrades a webhook holding the instructions shipped before", () => {
+    expect(INTAKE_WEBHOOK_PROMPT).toContain("Every run that ends blocked posts this comment itself, even when an earlier run already posted one for the same head: only the current run's comment counts.");
+    expect(INTAKE_WEBHOOK_PROMPT).not.toContain("exactly one pull request comment");
+    expect(SHIPPED_INTAKE_WEBHOOK_PROMPTS.at(-1)).toContain(`or exactly one pull request comment whose first line is ${blockedMarker("HEAD_SHA")}`);
   });
 
   it("reports how long the oldest open review obligation has waited", async () => {
