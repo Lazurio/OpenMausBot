@@ -477,6 +477,16 @@ describe("githubIntakeConfigFromEnv", () => {
     expect(() => githubIntakeConfigFromEnv({ ...on, OMB_GITHUB_INTAKE_REVIEW_ATTEMPTS: "three" })).toThrow(/OMB_GITHUB_INTAKE_REVIEW_ATTEMPTS/);
     expect(() => githubIntakeConfigFromEnv({ ...on, OMB_GITHUB_INTAKE_ESCALATE: "the owner" })).toThrow(/OMB_GITHUB_INTAKE_ESCALATE/);
   });
+
+  it("reads the persona the intake's own comments name, trimmed, on one line and at most 60 characters", () => {
+    const on = { OMB_GITHUB_INTAKE: "1", OMB_GITHUB_INTAKE_BOT: "Dispatcher" };
+    expect(githubIntakeConfigFromEnv(on)).not.toHaveProperty("persona");
+    expect(githubIntakeConfigFromEnv({ ...on, OMB_GITHUB_INTAKE_PERSONA: "  " })).not.toHaveProperty("persona");
+    expect(githubIntakeConfigFromEnv({ ...on, OMB_GITHUB_INTAKE_PERSONA: " Pablo " })).toMatchObject({ bot: "Dispatcher", persona: "Pablo" });
+    expect(githubIntakeConfigFromEnv({ ...on, OMB_GITHUB_INTAKE_PERSONA: "P".repeat(60) })).toMatchObject({ persona: "P".repeat(60) });
+    expect(() => githubIntakeConfigFromEnv({ ...on, OMB_GITHUB_INTAKE_PERSONA: "P".repeat(61) })).toThrow(/OMB_GITHUB_INTAKE_PERSONA/);
+    expect(() => githubIntakeConfigFromEnv({ ...on, OMB_GITHUB_INTAKE_PERSONA: "Pablo\n\n— Henry" })).toThrow(/OMB_GITHUB_INTAKE_PERSONA/);
+  });
 });
 
 describe("the publish marker", () => {
@@ -1248,6 +1258,27 @@ describe("GitHub intake: a review run that ends without a verdict is told on the
       `The review run for head ${HEAD_B} ended without a verdict after 1 attempt, so no review of this head is on its way.`,
     ]);
     expect(h.queued).toHaveLength(2);
+  });
+
+  it("names and signs as OMB_GITHUB_INTAKE_PERSONA, the target bot's name when unset, and shows it in the status", async () => {
+    for (const persona of [undefined, "Pablo"]) {
+      const h = harness({ bot: "Dispatcher", reviewAttempts: 1, escalate: "matej", ...(persona ? { persona } : {}) }, { bots: [{ id: "bot-dispatcher", name: "Dispatcher" }] });
+      const intake = new GithubIntake({ ...h.intakeOptions, runState: (id) => h.runs.get(id) ?? null, runs: h.nativeRuns });
+      const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+      expect(intake.status().persona).toBe(persona);
+      await intake.pollOnce();
+      h.runs.set("run-1", { status: "completed" });
+      await intake.pollOnce();
+
+      const name = persona ?? "Dispatcher";
+      expect(intake.status()).toMatchObject({ persona: name, bot: { id: "bot-dispatcher", name: "Dispatcher" } });
+      expect(notices(pr).map((comment) => comment.body.split("\n").slice(-3))).toEqual([[
+        `To get a review, push a new head, or ask @matej, the person responsible for ${name}, to start the review again.`,
+        "",
+        `— ${name}`,
+      ]]);
+      expect(notices(pr)[0].body.startsWith(`The review run for head ${HEAD_A} ended without a verdict`)).toBe(true);
+    }
   });
 
   it("keeps one comment per head when the state no longer holds it: a pruned record before a new request, or a lost file", async () => {

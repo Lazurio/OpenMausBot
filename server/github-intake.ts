@@ -18,7 +18,7 @@ import { z } from "zod";
 
 import { writeFileAtomic } from "./atomic.ts";
 import { classify, GhError, ghText, type GhRunner } from "./github-intake-gh.ts";
-import { INTAKE_DEFAULTS, type GithubIntakeConfig } from "./github-intake-config.ts";
+import { INTAKE_DEFAULTS, repoPatternRegex, type GithubIntakeConfig } from "./github-intake-config.ts";
 import { approvalPayload, approvalRecord, deploymentDecision, deploymentFacts, deploymentReads, pendingApprovals, runPull } from "./github-intake-deployments.ts";
 import { hasPublishMarker, PUBLISH_MARKER } from "./github-intake-marker.ts";
 import { INTAKE_WEBHOOK_PROMPT, SHIPPED_INTAKE_WEBHOOK_PROMPTS } from "./github-intake-prompts.ts";
@@ -156,6 +156,8 @@ export interface GithubIntakeStatus {
   state: IntakeHealth;
   login?: string;
   bot?: { id: string; name: string };
+  /** The name the intake's own comments name and sign with: `OMB_GITHUB_INTAKE_PERSONA`, else the target bot's name once it is found. */
+  persona?: string;
   webhookId?: string;
   scope: GithubIntakeConfig["scope"];
   owners: string[];
@@ -226,10 +228,6 @@ type Deferred = { state: IntakeHealth; message: string; pullRequest?: string; at
 const sameLogin = (a: string | undefined | null, b: string) => Boolean(a) && a!.toLowerCase() === b.toLowerCase();
 const repoKey = (repo: string, number: number) => `${repo.toLowerCase()}#${number}`;
 
-function patternRegex(pattern: string): RegExp {
-  return new RegExp(`^${pattern.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`, "i");
-}
-
 function errorText(error: unknown): string {
   return (error instanceof Error ? error.message : String(error)).slice(0, 500);
 }
@@ -274,7 +272,7 @@ export class GithubIntake {
     this.now = options.now ?? Date.now;
     this.log = options.log ?? ((line) => console.log(line));
     this.guard = options.guard ?? ((work) => work());
-    this.excluded = this.config.exclude.map(patternRegex);
+    this.excluded = this.config.exclude.map(repoPatternRegex);
     this.concurrency = Math.max(1, options.concurrency ?? GH_CONCURRENCY);
     this.startedAt = this.now();
     this.state = this.load();
@@ -318,11 +316,13 @@ export class GithubIntake {
 
   status(): GithubIntakeStatus {
     const recent = [...this.state.records].sort((a, b) => b.at - a.at).slice(0, RECENT);
+    const persona = this.config.persona ?? this.current.bot?.name.trim();
     return {
       enabled: true,
       state: this.current.state,
       ...(this.current.login ? { login: this.current.login } : {}),
       ...(this.current.bot ? { bot: { ...this.current.bot } } : {}),
+      ...(persona ? { persona } : {}),
       ...(this.state.webhookId ? { webhookId: this.state.webhookId } : {}),
       scope: this.config.scope,
       owners: [...this.config.owners],
@@ -622,7 +622,7 @@ export class GithubIntake {
     }
     const categories = attemptCategories(attempt, Boolean(blocked), (n) => this.latestRecord(attemptKey(delivery.key, n)), this.options.runState);
     this.recovery(record, work.deferred, `Native review run ${receipt?.status ?? "unavailable"} (${categories.at(-1)}) after ${attempt} of ${attempts} attempts; no current-head GitHub verdict. Inspect worker/delegation receipts before recovering this review.`, attempt);
-    await this.tellRecovery(repo, number, head, account, recoveryNotice(head, bot.name.trim(), categories, { escalate: this.config.escalate, blocked }));
+    await this.tellRecovery(repo, number, head, account, recoveryNotice(head, this.config.persona ?? bot.name.trim(), categories, { escalate: this.config.escalate, blocked }));
     return true;
   }
 
