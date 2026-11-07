@@ -45,7 +45,7 @@ const BOUNDED: Record<Bounded, { variable: string; min: number; max: number }> =
 
 const OWNER = /^[a-z0-9](?:[a-z0-9-]{0,38})$/;
 const REPO_PATTERN = /^[a-z0-9*][a-z0-9*-]{0,38}\/[a-z0-9._*-]{1,100}$/;
-const PERSONA = /^[^\p{Cc}]{1,60}$/u;
+const PERSONA = /^[^\p{Cc}\p{Zl}\p{Zp}]{1,60}$/u;
 
 export function repoPatternRegex(pattern: string): RegExp {
   return new RegExp(`^${pattern.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`, "i");
