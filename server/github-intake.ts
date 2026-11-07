@@ -22,7 +22,7 @@ import { INTAKE_DEFAULTS, repoPatternRegex, type GithubIntakeConfig } from "./gi
 import { approvalPayload, approvalRecord, deploymentDecision, deploymentFacts, deploymentReads, pendingApprovals, runPull } from "./github-intake-deployments.ts";
 import { hasPublishMarker, PUBLISH_MARKER } from "./github-intake-marker.ts";
 import { INTAKE_WEBHOOK_PROMPT, SHIPPED_INTAKE_WEBHOOK_PROMPTS } from "./github-intake-prompts.ts";
-import { afterStop, attemptCategories, headSince, notesFloorOf, oldestOwed, previousAttempt, recoveryLead, recoveryNotice, retryAt, runStanding, teamNotes, type AttemptFloor, type ProgressAt, type RunReceipt, type TeamNote, type WorkLive } from "./github-intake-recovery.ts";
+import { afterStop, attemptCategories, headSince, notesFloorOf, oldestOwed, previousAttempt, recoveryLead, recoveryNotice, retryAt, runStanding, teamNotes, type AttemptFloor, type ProgressAt, type RunReceipt, type TeamNotes, type WorkLive } from "./github-intake-recovery.ts";
 import { ACTIVE_RUN, attemptKey, attemptOf, commitSchema, deliveryConcerns, deliveryIdFor, eventsSchema, login, reviewPlan, reviewsSchema, type ReviewDelivery } from "./github-intake-review.ts";
 import type { JsonValue } from "./schema.ts";
 import type { WebhookEvent, WebhookManager, WebhookReceiveResult, WebhookTrigger } from "./webhooks.ts";
@@ -261,7 +261,7 @@ export class GithubIntake {
     oldestOwed: number | null;
   } = { state: "starting", needsRecovery: 0, attempts: {}, oldestOwed: null };
   /** The account's notes read once per ended review run. */
-  private readonly notes = new Map<string, { blocked?: TeamNote; progress?: TeamNote }>();
+  private readonly notes = new Map<string, TeamNotes>();
   /** Progress signals live in memory, so none before this start counts as idleness. */
   private readonly startedAt: number;
   private readonly stoppedRuns = new Set<string>();
@@ -622,12 +622,12 @@ export class GithubIntake {
     }
     const categories = attemptCategories(attempt, Boolean(blocked), (n) => this.latestRecord(attemptKey(delivery.key, n)), this.options.runState);
     this.recovery(record, work.deferred, `Native review run ${receipt?.status ?? "unavailable"} (${categories.at(-1)}) after ${attempt} of ${attempts} attempts; no current-head GitHub verdict. Inspect worker/delegation receipts before recovering this review.`, attempt);
-    await this.tellRecovery(repo, number, head, account, recoveryNotice(head, this.config.persona ?? bot.name.trim(), categories, { escalate: this.config.escalate, blocked }));
+    await this.tellRecovery(repo, number, head, account, recoveryNotice(head, this.config.persona ?? bot.name.trim(), categories, { escalate: this.config.escalate, blocked, earlierBlocked: notes.earlierBlocked }));
     return true;
   }
 
   /** The account's comments and review bodies since the head was first handed over; one read per ended run. */
-  private async readNotes(work: { record: IntakeRecord; pr: z.output<typeof pullSchema>; account: string; reviews: () => Promise<z.output<typeof reviewsSchema>> }, attempt: AttemptFloor): Promise<{ blocked?: TeamNote; progress?: TeamNote }> {
+  private async readNotes(work: { record: IntakeRecord; pr: z.output<typeof pullSchema>; account: string; reviews: () => Promise<z.output<typeof reviewsSchema>> }, attempt: AttemptFloor): Promise<TeamNotes> {
     const { record, pr, account } = work;
     const since = headSince(this.state.records, record, pr.head.sha);
     const comments = await this.pages(`repos/${record.repository}/issues/${record.number}/comments?since=${new Date(since).toISOString()}`, commentsSchema);
