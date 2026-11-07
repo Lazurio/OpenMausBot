@@ -104,11 +104,14 @@ type Note = { id?: number; user?: { login: string } | null; body?: string | null
  * keeps the time window: posted at most a minute before its delivery. */
 export interface AttemptFloor { notesFloor?: number; deliveredAt: number }
 
+export interface TeamNotes { blocked?: TeamNote; earlierBlocked?: TeamNote; progress?: TeamNote }
+
 /** The account's own notes on the pull request since `since`: the issue
- * comment in which this attempt said it is blocked on this head, and the
- * latest other comment or review body, the progress a later attempt continues
- * from. The intake's own escalation comments are neither. */
-export function teamNotes(notes: { comments: readonly Note[]; reviews: readonly Note[] }, account: string, head: string, since: number, ownNotice: string, attempt: AttemptFloor): { blocked?: TeamNote; progress?: TeamNote } {
+ * comment in which this attempt said it is blocked on this head, the latest
+ * such comment of an earlier run, and the latest other comment or review
+ * body, the progress a later attempt continues from. The intake's own
+ * escalation comments are none of them. */
+export function teamNotes(notes: { comments: readonly Note[]; reviews: readonly Note[] }, account: string, head: string, since: number, ownNotice: string, attempt: AttemptFloor): TeamNotes {
   const own = (list: readonly Note[]) => list.flatMap((note) => {
     const at = Date.parse(note.at ?? "");
     const body = (note.body ?? "").trim();
@@ -119,10 +122,12 @@ export function teamNotes(notes: { comments: readonly Note[]; reviews: readonly 
   const isMarker = (note: TeamNote) => note.body.split("\n", 1)[0].trim() === marker;
   const ours = (note: { id: number; at: number }) => attempt.notesFloor !== undefined ? note.id > attempt.notesFloor : note.at >= attempt.deliveredAt - 60_000;
   const comments = own(notes.comments);
-  const blocked = comments.filter((note) => isMarker(note) && ours(note)).sort((a, b) => a.id - b.id).at(-1);
+  const markers = comments.filter(isMarker).sort((a, b) => a.id - b.id);
+  const blocked = markers.filter(ours).at(-1);
+  const earlierBlocked = markers.filter((note) => !ours(note)).at(-1);
   const progress = [...comments, ...own(notes.reviews)].filter((note) => !isMarker(note)).sort((a, b) => a.at - b.at).at(-1);
   const plain = (note: TeamNote & { id: number }): TeamNote => ({ ...(note.url ? { url: note.url } : {}), body: note.body.slice(0, REVIEW_NOTE_CHARS), at: note.at });
-  return { ...(blocked ? { blocked: plain(blocked) } : {}), ...(progress ? { progress: plain(progress) } : {}) };
+  return { ...(blocked ? { blocked: plain(blocked) } : {}), ...(earlierBlocked ? { earlierBlocked: plain(earlierBlocked) } : {}), ...(progress ? { progress: plain(progress) } : {}) };
 }
 
 /** The highest issue comment id among a repository's newest comments: the floor an attempt's blocked comment must exceed. */
@@ -151,15 +156,18 @@ export function previousAttempt(attempt: number, runId: string | undefined, run:
 export const recoveryLead = (head: string): string => `The review run for head ${head} ended without a verdict`;
 
 /** The one escalation comment per head: how many attempts ran and how each
- * ended, in fixed words only, and whom to ask. Its first words stay
- * `recoveryLead`, so a comment posted by an earlier version is found too. */
-export function recoveryNotice(head: string, persona: string, attempts: readonly string[], options: { escalate?: string; blocked?: TeamNote } = {}): string {
+ * ended, in fixed words only, the blocked comment that explains it, and whom
+ * to ask. Its first words stay `recoveryLead`, so a comment posted by an
+ * earlier version is found too. */
+export function recoveryNotice(head: string, persona: string, attempts: readonly string[], options: { escalate?: string } & Pick<TeamNotes, "blocked" | "earlierBlocked"> = {}): string {
   const responsible = options.escalate ? `@${options.escalate}, the person responsible for ${persona},` : `the person responsible for ${persona}`;
+  const earlier = attempts.at(-1) === "no-verdict" ? options.earlierBlocked?.url : undefined;
   return [
     `${recoveryLead(head)} after ${attempts.length} ${attempts.length === 1 ? "attempt" : "attempts"}, so no review of this head is on its way.`,
     "",
     ...attempts.map((category, index) => `- Attempt ${index + 1}: ${category}`),
     ...(options.blocked?.url ? ["", `What blocks it: ${options.blocked.url}`] : []),
+    ...(earlier ? ["", `Earlier blocked comment on this head: ${earlier}`] : []),
     "",
     `To get a review, push a new head, or ask ${responsible} to start the review again.`,
     "",

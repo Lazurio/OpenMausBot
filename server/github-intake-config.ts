@@ -29,6 +29,8 @@ export interface GithubIntakeConfig {
   resettleMinutes?: number;
   /** The GitHub login an escalation comment mentions (OMB_GITHUB_INTAKE_ESCALATE). */
   escalate?: string;
+  /** The persona's name the intake's own comments name and sign with (OMB_GITHUB_INTAKE_PERSONA); absent means the target bot's name. */
+  persona?: string;
 }
 
 type Bounded = "intervalSeconds" | "reviewAttempts" | "runIdleMinutes" | "runMaxMinutes" | "resettleMinutes";
@@ -43,6 +45,11 @@ const BOUNDED: Record<Bounded, { variable: string; min: number; max: number }> =
 
 const OWNER = /^[a-z0-9](?:[a-z0-9-]{0,38})$/;
 const REPO_PATTERN = /^[a-z0-9*][a-z0-9*-]{0,38}\/[a-z0-9._*-]{1,100}$/;
+const PERSONA = /^[^\p{Cc}\p{Zl}\p{Zp}]{1,60}$/u;
+
+export function repoPatternRegex(pattern: string): RegExp {
+  return new RegExp(`^${pattern.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`, "i");
+}
 
 function list(value: string | undefined): string[] {
   return (value ?? "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
@@ -83,10 +90,12 @@ export function githubIntakeConfigFromEnv(env: NodeJS.ProcessEnv = process.env):
   const deployments = deploymentReposFromEnv(env.OMB_GITHUB_INTAKE_DEPLOYMENTS);
   const escalate = (env.OMB_GITHUB_INTAKE_ESCALATE ?? "").trim().replace(/^@/, "");
   if (escalate && !OWNER.test(escalate.toLowerCase())) throw new Error(`OMB_GITHUB_INTAKE_ESCALATE: "${escalate}" is not a GitHub login`);
+  const persona = (env.OMB_GITHUB_INTAKE_PERSONA ?? "").trim();
+  if (persona && !PERSONA.test(persona)) throw new Error(`OMB_GITHUB_INTAKE_PERSONA must be a name of at most 60 characters on one line, got "${persona}"`);
   const limits = Object.fromEntries((["reviewAttempts", "runIdleMinutes", "runMaxMinutes", "resettleMinutes"] as const)
     .flatMap((field) => { const value = bounded(env, field); return value === undefined ? [] : [[field, value]]; }));
   return {
-    bot, scope, owners, exclude, intervalMs: seconds * 1_000, ...limits, ...(escalate ? { escalate } : {}),
+    bot, scope, owners, exclude, intervalMs: seconds * 1_000, ...limits, ...(escalate ? { escalate } : {}), ...(persona ? { persona } : {}),
     ...(ghPath ? { ghPath } : {}), ...(assignmentHandoff ? { assignmentHandoff } : {}), ...(deployments.length ? { deployments } : {}),
   };
 }

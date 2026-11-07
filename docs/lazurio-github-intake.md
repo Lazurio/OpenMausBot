@@ -33,6 +33,7 @@ the server behaves exactly as upstream OpenMausBot.
 | `OMB_GITHUB_INTAKE_RUN_MAX_MINUTES` | An active run is stopped this long after it started, progress or not, default 480, bounded to 60–1440. |
 | `OMB_GITHUB_INTAKE_RESETTLE_MINUTES` | A pull request is judged again from GitHub at least this often, default 30, bounded to 5–1440; see Polling. |
 | `OMB_GITHUB_INTAKE_ESCALATE` | Optional GitHub login (a leading `@` is dropped) that the escalation comment mentions as the person responsible. |
+| `OMB_GITHUB_INTAKE_PERSONA` | Optional name of the persona the intake's own comments name and sign with, for example `Pablo`; at most 60 characters on one line. Unset or empty: the target bot's name. |
 
 An unknown value stops the server at start with the reason. Example for a
 new Lazurio Environment whose persona reviews one Organization:
@@ -62,7 +63,10 @@ importing the Steward team): until a bot with that id or name exists, the
 intake reports `no_target` and does not query GitHub beyond the account.
 Two bots with the same name are refused; use the id then. A persona other
 than Henry imports the same team, renames its leader and sets
-`OMB_GITHUB_INTAKE_BOT` to the new name.
+`OMB_GITHUB_INTAKE_BOT` to the new name. When the leader's name is not the
+persona's (a leader named for its role, for example), set
+`OMB_GITHUB_INTAKE_PERSONA` to the persona's name, so the intake's own
+comments name the persona the team's reviews are signed with.
 
 ## Triggers
 
@@ -378,11 +382,13 @@ never retry a publication as a review or erase deduplication receipts.
 
 A review request must not stall. Every review run ends in one of two ways,
 and the webhook's instructions say so: a GitHub verdict (`APPROVED` or
-`CHANGES_REQUESTED`) on the head, or exactly one pull request comment by the
+`CHANGES_REQUESTED`) on the head, or a pull request comment of its own by the
 account whose first line is `<!-- lazurio-review: blocked head=<head sha> -->`,
-followed by a sentence: why it is blocked and what is needed from whom. Any
-other ending, a comment like "review not finished" included, is a run without
-a verdict.
+followed by a sentence: why it is blocked and what is needed from whom. Every
+run that ends blocked posts that comment itself, even when an earlier run
+already posted one on the same head, because only the current attempt's
+comment counts (Blocked ends it, below). Any other ending, a comment like
+"review not finished" included, is a run without a verdict.
 
 - **Tried again.** When a run ends without a current-head verdict and the
   pull request still owes that review (the same head and request), the intake
@@ -462,14 +468,21 @@ a verdict.
 
 **The pull request hears it.** When a review ends without a current-head
 verdict after its last attempt, the intake posts one conversation comment on
-the pull request as the account, signed with the target bot's name like the
-team's reviews (`— Henry`). It names the head, how many attempts ran and how
-each ended, in fixed words only (`no-verdict`, `failed`, `cancelled`,
-`no-progress`, `time-limit`, `receipt-missing`, `blocked`, `ended`; never a
-run's own text, paths or values, since the repository may be public), links
-the blocked comment when there is one, and says what the author can do: push a
-new head, or ask the person responsible for the persona to start the review
-again, mentioning `OMB_GITHUB_INTAKE_ESCALATE` when it is set. There is one
+the pull request as the account, signed with the persona's name like the
+team's reviews (`— Henry`): `OMB_GITHUB_INTAKE_PERSONA`, else the target
+bot's name. It names the head, how many attempts ran and how each ended, in
+fixed words only (`no-verdict`, `failed`, `cancelled`, `no-progress`,
+`time-limit`, `receipt-missing`, `blocked`, `ended`; never a run's own text,
+paths or values, since the repository may be public), links the attempt's
+blocked comment when there is one (`What blocks it:`), and says what the
+author can do: push a new head, or ask the person responsible for the persona
+to start the review again, mentioning `OMB_GITHUB_INTAKE_ESCALATE` when it is
+set. When the last attempt ended `no-verdict` and an earlier run's blocked
+comment by the account is on this head (any comment id, from the notes the
+intake already read), the comment also links the latest one
+(`Earlier blocked comment on this head:`), so a person sees it. That line is
+information only: the categories, the attempts and the escalation stay as
+they are. There is one
 comment per head: a `notified` record keyed
 `recovery-notice:<repo>#<n>@<head>` in the intake state keeps later polls and
 restarts from repeating it. Without that record (pruned after 180 days or
@@ -516,7 +529,8 @@ comment. An assignment handoff that ends without a result gets no comment.
 
 `GET /api/github-intake` returns `{enabled: false}` or the state (`ok`,
 `gh_missing`, `gh_signed_out`, `no_target`, `paused`, `queue_full`,
-`rate_limited`, `needs_recovery`, `error`), the account, the target bot, the webhook id, the
+`rate_limited`, `needs_recovery`, `error`), the account, the target bot,
+`persona` (the name the intake's own comments name and sign with), the webhook id, the
 configuration, `lastPollAt`, `lastSuccessAt`, `nextPollInMs`, `lastError`,
 `needsRecovery` (how many open pull requests are in `needs_recovery`, as of
 the last poll that read them), `attempts` (the review attempts that ran for
@@ -574,7 +588,8 @@ upgrade from executing old assignments made under the previous contract.
 live roles, review-only requests, migration, reassignment, pause/restart,
 late verdicts, carried approvals, repeated requests on one head, the attempts
 of a review run without a verdict (backoff, `previous_attempt`, the blocked
-comment, hung runs, the escalation once per head, restarts), a run held by
+comment, hung runs, the escalation once per head in the persona's name and
+with an earlier run's blocked comment, restarts), a run held by
 the live work it handed out, and judging a settled pull request again, through
 the real WebhookManager; its run-tree cases stop a delegated tree on the real
 RuntimeCoordinator, including a teammate the routine's stop left running; `server/github-intake-review.ts` decides which review is owed
