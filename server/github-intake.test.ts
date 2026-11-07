@@ -486,6 +486,9 @@ describe("githubIntakeConfigFromEnv", () => {
     expect(githubIntakeConfigFromEnv({ ...on, OMB_GITHUB_INTAKE_PERSONA: "P".repeat(60) })).toMatchObject({ persona: "P".repeat(60) });
     expect(() => githubIntakeConfigFromEnv({ ...on, OMB_GITHUB_INTAKE_PERSONA: "P".repeat(61) })).toThrow(/OMB_GITHUB_INTAKE_PERSONA/);
     expect(() => githubIntakeConfigFromEnv({ ...on, OMB_GITHUB_INTAKE_PERSONA: "Pablo\n\n— Henry" })).toThrow(/OMB_GITHUB_INTAKE_PERSONA/);
+    for (const separator of ["\u2028", "\u2029"]) {
+      expect(() => githubIntakeConfigFromEnv({ ...on, OMB_GITHUB_INTAKE_PERSONA: `Pablo${separator}Henry` })).toThrow(/OMB_GITHUB_INTAKE_PERSONA/);
+    }
   });
 });
 
