@@ -19,7 +19,7 @@ import {
   type GithubIntakeOptions,
 } from "./github-intake.ts";
 import { INTAKE_WEBHOOK_PROMPT, SHIPPED_INTAKE_WEBHOOK_PROMPTS } from "./github-intake-prompts.ts";
-import { blockedMarker, type RunReceipt } from "./github-intake-recovery.ts";
+import { answeredKey, blockedMarker, type RunReceipt } from "./github-intake-recovery.ts";
 import { maintenanceGuard, runTree, stopIntakeRun } from "./routes/github-intake.ts";
 import type { CoordinatorHost, HandoffView, HostTurnResult } from "./coordinator.ts";
 import { RuntimeCoordinator } from "./runtime-coordinator.ts";
@@ -1923,6 +1923,44 @@ describe("GitHub intake: a review run without a verdict is tried again, then esc
     h.github.review(pr, "henry-bot", "APPROVED");
     await h.intake.pollOnce();
     expect(h.intake.status().oldestOwed).toBeNull();
+  });
+
+  it("records the answer to a re-requested review under its request, so it no longer counts as owed and the pull request settles", async () => {
+    const h = retryHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.github.review(pr, "henry-bot", "CHANGES_REQUESTED");
+    h.end("run-1");
+    await h.intake.pollOnce();
+    h.github.request(pr, "henry-bot", "matej");
+    await h.intake.pollOnce();
+    expect(keys(h)).toEqual([HEAD_A, expect.stringMatching(new RegExp(`^${HEAD_A}~request:\\d+$`))]);
+    h.github.advance(5 * 60_000);
+    h.github.review(pr, "henry-bot", "CHANGES_REQUESTED");
+    h.end("run-2");
+    await h.intake.pollOnce();
+
+    expect(h.intake.status()).toMatchObject({ state: "ok", needsRecovery: 0, oldestOwed: null });
+    expect(h.intake.status().recent[0]).toMatchObject({ key: `review:acme/app#7@${keys(h)[1]}`, outcome: "already_reviewed", reason: "CHANGES_REQUESTED already on this head" });
+    const calls = h.github.calls.length;
+    await h.intake.pollOnce();
+    expect(h.github.calls.slice(calls).filter((call) => call.startsWith("repos/acme/app/pulls/7"))).toEqual([]);
+    expect(h.queued).toHaveLength(2);
+
+    h.github.pr({ repo: "acme/app", number: 8, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    h.github.advance(25 * 60_000);
+    await h.intake.pollOnce();
+    expect(h.intake.status().oldestOwed).toBe(25);
+  });
+
+  it("records an answer under the obligation of the latest review record only when that record is on the answered head", () => {
+    const record = (key: string, outcome: string, headSha = HEAD_A) => ({ key, at: 1, kind: "review", outcome, repository: "acme/app", number: 7, headSha });
+    const request = `review:acme/app#7@${HEAD_A}~request:9`;
+    expect(answeredKey([], "acme/app", 7, HEAD_A)).toBe(`review:acme/app#7@${HEAD_A}`);
+    expect(answeredKey([record(`${request}~attempt:2`, "needs_recovery"), record(`recovery-notice:acme/app#7@${HEAD_A}`, "notified")], "acme/app", 7, HEAD_A)).toBe(request);
+    expect(answeredKey([record(request, "delivered")], "acme/app", 7, HEAD_B)).toBe(`review:acme/app#7@${HEAD_B}`);
+    expect(answeredKey([record(request, "delivered"), { ...record(`review:acme/app#8@${HEAD_A}`, "delivered"), number: 8 }], "acme/app", 7, HEAD_A)).toBe(request);
   });
 });
 

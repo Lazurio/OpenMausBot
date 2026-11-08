@@ -22,7 +22,7 @@ import { INTAKE_DEFAULTS, repoPatternRegex, type GithubIntakeConfig } from "./gi
 import { approvalPayload, approvalRecord, deploymentDecision, deploymentFacts, deploymentReads, pendingApprovals, runPull } from "./github-intake-deployments.ts";
 import { hasPublishMarker, PUBLISH_MARKER } from "./github-intake-marker.ts";
 import { INTAKE_WEBHOOK_PROMPT, SHIPPED_INTAKE_WEBHOOK_PROMPTS } from "./github-intake-prompts.ts";
-import { afterStop, attemptCategories, headSince, notesFloorOf, oldestOwed, previousAttempt, recoveryLead, recoveryNotice, retryAt, runStanding, teamNotes, type AttemptFloor, type ProgressAt, type RunReceipt, type TeamNotes, type WorkLive } from "./github-intake-recovery.ts";
+import { afterStop, answeredKey, attemptCategories, headSince, notesFloorOf, oldestOwed, previousAttempt, recoveryLead, recoveryNotice, retryAt, runStanding, teamNotes, type AttemptFloor, type ProgressAt, type RunReceipt, type TeamNotes, type WorkLive } from "./github-intake-recovery.ts";
 import { ACTIVE_RUN, attemptKey, attemptOf, commitSchema, deliveryConcerns, deliveryIdFor, eventsSchema, login, reviewPlan, reviewsSchema, type ReviewDelivery } from "./github-intake-review.ts";
 import type { JsonValue } from "./schema.ts";
 import type { WebhookEvent, WebhookManager, WebhookReceiveResult, WebhookTrigger } from "./webhooks.ts";
@@ -551,7 +551,7 @@ export class GithubIntake {
           account: { login: account, id: this.accountId }, requestedReviewers: pr.requested_reviewers ?? [],
         });
         if (plan.action === "answered") {
-          this.recordOnce({ key: `review:${repo}#${number}@${head}`, kind: "review", outcome: "already_reviewed", repository: repo, number, headSha: head, reason: plan.reason });
+          this.recordOnce({ key: answeredKey(this.state.records, repo, number, head), kind: "review", outcome: "already_reviewed", repository: repo, number, headSha: head, reason: plan.reason });
         } else if (plan.action === "covered") {
           const receipt = this.receipt(plan.record.runId);
           if (this.options.runState && !ACTIVE_RUN.includes(receipt?.status ?? "")) {
