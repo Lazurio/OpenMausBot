@@ -120,7 +120,11 @@ is current and no explicit request came after it.
   seconds after the request's GitHub time, because that time has one-second
   resolution and the Environment's clock may differ from GitHub's. Closer than
   that, the request is delivered, at the cost of at most one more review after
-  an upgrade.
+  an upgrade. A current verdict is recorded once as `already_reviewed` under
+  the obligation of the pull request's latest review record on that head (a
+  re-requested review's `~request:` key, for example), else under the head's
+  key, so the delivery it answers no longer counts as owed (`oldestOwed`) and
+  the pull request settles.
 - **Safety.** While a native run of the pull request is queued, running or
   waiting, nothing new is queued for it; a moved head or a newer request is
   delivered once that work ends. The intake finds that run through its own

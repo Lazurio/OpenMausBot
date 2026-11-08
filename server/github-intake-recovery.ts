@@ -175,13 +175,29 @@ export function recoveryNotice(head: string, persona: string, attempts: readonly
   ].join("\n");
 }
 
+type ReviewRecord = { key: string; at: number; kind: string; outcome: string; repository: string; number: number; headSha?: string };
+
+/** A pull request's review records in ledger order, without the intake's escalation notices and the records of the account's own pull requests. */
+function reviewRecords<T extends ReviewRecord>(records: readonly T[], repository: string, number: number): T[] {
+  return records.filter((record) => record.kind === "review" && record.repository.toLowerCase() === repository.toLowerCase() && record.number === number &&
+    !["notified", "needs_human_approval"].includes(record.outcome));
+}
+
+/** The key under which a verdict already on this head is recorded: the
+ * obligation of the pull request's latest review record when that record is
+ * on this head, so the delivery the verdict answers no longer reads as owed;
+ * otherwise the head's own key. */
+export function answeredKey(records: readonly ReviewRecord[], repository: string, number: number, head: string): string {
+  const latest = reviewRecords(records, repository, number).at(-1);
+  return latest?.headSha === head ? obligationOf(latest.key) : `review:${repository}#${number}@${head}`;
+}
+
 /** Minutes since the oldest review obligation still open among these pull
  * requests was first handed over; null when none is open. */
-export function oldestOwed(records: ReadonlyArray<{ key: string; at: number; kind: string; outcome: string; repository: string; number: number }>, pullRequests: ReadonlyArray<{ repo: string; number: number }>, now: number): number | null {
+export function oldestOwed(records: readonly ReviewRecord[], pullRequests: ReadonlyArray<{ repo: string; number: number }>, now: number): number | null {
   let oldest = Number.POSITIVE_INFINITY;
   for (const { repo, number } of pullRequests) {
-    const reviews = records.filter((record) => record.kind === "review" && record.repository.toLowerCase() === repo.toLowerCase() && record.number === number &&
-      !["notified", "needs_human_approval"].includes(record.outcome));
+    const reviews = reviewRecords(records, repo, number);
     const latest = reviews.at(-1);
     if (!latest || !["delivered", "duplicate", "needs_recovery"].includes(latest.outcome)) continue;
     const obligation = obligationOf(latest.key);
