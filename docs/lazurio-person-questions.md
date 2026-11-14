@@ -55,6 +55,8 @@ failure: avoiding duplicate questions takes precedence over automatic retry.
 
 - Missing CLI/capability or offline T3: `ask-person-unavailable`, with the
   original question retained in MausBot and a visible failure on the run.
+- A missing CLI before any launch is recorded on the source run without
+  starting another bot turn just to report that initial failure.
 - Ambiguous launch: reconcile by question marker, otherwise keep the failed
   receipt for operator recovery. No second chat from an ordinary retry.
 - Free text is returned verbatim, including newlines and shell characters.
@@ -65,6 +67,8 @@ failure: avoiding duplicate questions takes precedence over automatic retry.
 - An archived, failed or completed chat without a saved answer leaves the question
   open and reports it to the bot; it is never interpreted as refusal.
 - A late answer after the source request is actually unavailable becomes a new bot message.
+  Existing reply delivery keeps the source card link and room addressing;
+  the HTTP response retains its `late` and `queued` fields.
   A native `rejected` outcome remains an explicit rejected-delivery record and
   never becomes a successful late message or an automatic retry. A
   stopped/deleted bot or a delivery failure is reported, never called resumed.

@@ -148,6 +148,7 @@ describe("native bot questions delivered to a T3 chat", () => {
     const f = fixture({ nativeAnswer: vi.fn(async () => "unavailable" as const) }); const receipt = await f.questions.open(input);
     await f.replyT3(receipt.id, "Later\nanswer");
     expect(f.deps.lateAnswer).toHaveBeenCalledExactlyOnceWith(expect.anything(), `Answer to question ${receipt.id} (t3):\nLater\nanswer`, `person-question-${receipt.id}`);
+    expect(new PersonQuestions(f.deps).get(receipt.id)).toMatchObject({ delivered: true, late: true, queued: false });
   });
 
   it("persists a delivery failure and retries the same first answer after restart", async () => {

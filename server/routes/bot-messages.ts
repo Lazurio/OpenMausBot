@@ -106,6 +106,7 @@ export interface BotMessageRouteDeps {
     threadId: string, instanceId: string, requestId: string, behavior: Behavior, message?: string,
     decidedFor?: { id: string; name: string }, always?: boolean, rememberCommand?: boolean,
   ): Promise<RequestOutcome>;
+  questionDelivery?(threadId: string, requestId: string): { late?: true; queued?: true };
   deliverLateQuestionAnswer(auth: RequestAuth, threadId: string, requestId: string, answer: string, cardMessage: Message, owner: BotRecord): Promise<{ queued: boolean }>;
   stopThreadForPerson(botId: string, threadId: string): Promise<void>;
   cancelDirectTurnDispatch(botId: string, expectedThreadId?: string): unknown;
@@ -155,7 +156,7 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
     botAtThreadCapacity, parksBehindCoordination, activeGroupTurnForBot, runningTurnInstance, engineSteersImages, resolveReplyTarget,
     turnSelection, policyModelRefusal, clearUnattended, drainQueuedSends, answeringCardAs, resolveAndSendTrust, resolveAndSendTeamSetup,
     resolveAndSendRoutine, resolveAndSendProfile, resolveAndSendModel, resolveSkillRequest, sendSkillResolution, answerRequest,
-    deliverLateQuestionAnswer, stopThreadForPerson, cancelDirectTurnDispatch, revokeInternalCapabilitiesForThread,
+    questionDelivery, deliverLateQuestionAnswer, stopThreadForPerson, cancelDirectTurnDispatch, revokeInternalCapabilitiesForThread,
     cancelGroupTurnOperations, closeOpenApprovals, harnessCardOutcome, pressRecords, serverPress, relayedReaction, answeredIn, goals,
   } = deps;
   const pinnedClientThread = pinnedClientThreadGuard(store);
@@ -554,7 +555,7 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
             return json(res, 409, { error: error instanceof Error ? error.message : "the late answer could not be queued" });
           }
         }
-        return json(res, 200, { ok: true, outcome });
+        return json(res, 200, { ok: true, outcome, ...(outcome === "answered" ? questionDelivery?.(bot.threadId, requestId) : {}) });
       });
     }
     m = path.match(/^\/api\/threads\/([\w-]+)\/respond$/);
@@ -674,7 +675,7 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
             return json(res, 409, { error: error instanceof Error ? error.message : "the late answer could not be queued" });
           }
         }
-        return json(res, 200, { ok: true, outcome });
+        return json(res, 200, { ok: true, outcome, ...(outcome === "answered" ? questionDelivery?.(threadId, requestId) : {}) });
       });
     }
     m = path.match(/^\/api\/bots\/([\w-]+)\/interrupt$/);

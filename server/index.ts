@@ -2361,15 +2361,17 @@ const personQuestions = new PersonQuestions({
   lateAnswer: async (receipt, text, sendId) => {
     const bot = store.bot(receipt.botId);
     if (!bot || bot.hidden) throw new Error("bot-not-found");
-    const threadId = store.taskByThread(bot.id, receipt.threadId) ? receipt.threadId : bot.threadId;
-    await acceptDirectSend({ botId: bot.id, threadId, text, sendId, trigger: { kind: "owner" }, personPresent: false });
     const message = store.messagesFor(receipt.threadId).find((message) => message.card?.requestId === receipt.requestId);
-    if (message?.card) store.patchMessage(receipt.threadId, message.id, { card: { ...message.card, answered: "answer", answeredText: receipt.answer } });
+    if (!message?.card) throw new Error("question-not-found");
+    const reply = await personReplies.deliver({ auth: { kind: "loopback", trust: "service", scopes: [] }, threadId: receipt.threadId,
+      owner: bot, target: message, answer: receipt.source === "mausbot" ? receipt.answer! : text, sendId, about: "question" });
+    store.patchMessage(receipt.threadId, message.id, { card: { ...message.card, answered: "answer", answeredText: receipt.answer, dismissed: false } });
+    return reply;
   },
   notice: async (receipt, code) => {
     personQuestionNotice(receipt.threadId, code);
     const bot = store.bot(receipt.botId);
-    if (!bot || bot.hidden || runningTurnEngines.has(receipt.threadId) || threadBusy(bot.id, receipt.threadId)) return;
+    if (!bot || bot.hidden || (!receipt.attempted && code === "ask-person-unavailable") || runningTurnEngines.has(receipt.threadId) || threadBusy(bot.id, receipt.threadId)) return;
     const threadId = store.taskByThread(bot.id, receipt.threadId) ? receipt.threadId : bot.threadId;
     const state = receipt.answer === undefined ? "The question stays open; no person answered." : "The person's answer is recorded; delivery or notification still needs recovery.";
     await acceptDirectSend({ botId: bot.id, threadId, text: `Question ${receipt.id}: ${code}. ${state} Continue independent work; do not open a duplicate question.`, sendId: `person-question-notice-${receipt.id}-${code}`, trigger: { kind: "owner" }, personPresent: false });
@@ -9426,6 +9428,10 @@ ROUTES.push(createBotMessageRoutes({
   botAtThreadCapacity, parksBehindCoordination, activeGroupTurnForBot, runningTurnInstance, engineSteersImages, resolveReplyTarget,
   turnSelection, policyModelRefusal, clearUnattended, drainQueuedSends, answeringCardAs, resolveAndSendTrust, resolveAndSendTeamSetup,
   resolveAndSendRoutine, resolveAndSendProfile, resolveAndSendModel, resolveSkillRequest, sendSkillResolution, answerRequest,
+  questionDelivery: (threadId, requestId) => {
+    const receipt = personQuestions.get(personQuestionId(threadId, requestId));
+    return receipt?.delivered && receipt.late ? { late: true, ...(receipt.queued ? { queued: true } : {}) } : {};
+  },
   deliverLateQuestionAnswer, stopThreadForPerson, cancelDirectTurnDispatch, revokeInternalCapabilitiesForThread,
   cancelGroupTurnOperations, closeOpenApprovals, harnessCardOutcome, answeredIn: (threadId, requestId) => automationReports.answeredIn(teamMessages.inbox.answeredIn(threadId, requestId), requestId), pressRecords: proactive.brief.pressRecords, serverPress: proactive.brief.serverPress,
   goals: oneOnOneGoals, inboxReply: teamMessages.replyIn,
