@@ -4,7 +4,7 @@ import { writeFileAtomic } from "./atomic.ts";
 
 const historySchema = z.object({ requests: z.array(z.object({
   requestId: z.string().min(1), threadId: z.string().min(1), status: z.enum(["pending", "resolved", "cancelled", "expired"]),
-  createdAt: z.string(), questions: z.array(z.object({ id: z.string(), question: z.string() }).passthrough()),
+  createdAt: z.string(), questions: z.array(z.object({ id: z.string(), question: z.string(), options: z.array(z.object({ label: z.string() })).optional(), multiSelect: z.boolean().optional() }).passthrough()),
   answers: z.record(z.string(), z.unknown()).optional(),
 })) });
 export type T3Question = z.infer<typeof historySchema>["requests"][number];

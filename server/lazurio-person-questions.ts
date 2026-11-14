@@ -109,8 +109,13 @@ export class PersonQuestions {
 
   private bind(record: PersonQuestionReceipt, history: T3Question[]): T3Question | undefined {
     if (!record.t3RequestId) {
-      const expected = record.questions?.map((question) => question.question) ?? [record.question];
-      const first = history.find((request) => request.questions.length === expected.length && request.questions.every((question, index) => question.question === expected[index]));
+      const expected = record.questions ?? [{ question: record.question }];
+      const first = history.find((request) => request.questions.length === expected.length && request.questions.every((question, index) => {
+        const source = expected[index]!;
+        return question.question === source.question &&
+          (!("options" in source) || JSON.stringify(question.options?.map((option) => option.label)) === JSON.stringify(source.options.map((option) => option.label))) &&
+          Boolean(question.multiSelect) === Boolean("multiSelect" in source && source.multiSelect);
+      }));
       if (first) { record.t3RequestId = first.requestId; delete record.error; this.save(record); }
     }
     return history.find((request) => request.requestId === record.t3RequestId);
