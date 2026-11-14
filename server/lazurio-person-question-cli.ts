@@ -82,6 +82,6 @@ export class PersonQuestionCli {
 
   async notify(threadId: string, id: string, text: string, requestId?: string): Promise<void> {
     if (requestId) await this.respond(threadId, requestId, text);
-    await this.call(["thread", "send", threadId, `Question ${id} was answered in MausBot. The first answer won. Verbatim answer:\n${text}`, "--json", "--mode", "queue", "--idempotency-key", `mausbot-question-${id}`]);
+    await this.call(["thread", "send", threadId, `Question ${id} was answered in MausBot. Recorded answer:\n${text}`, "--json", "--mode", "queue", "--idempotency-key", `mausbot-question-${id}`]);
   }
 }

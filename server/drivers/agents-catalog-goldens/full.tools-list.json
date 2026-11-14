@@ -853,7 +853,7 @@
     },
     {
       "name": "ask_person",
-      "description": "Ask a person in a T3 Code chat here; their answer returns automatically. Stable question_id on retries; 2–4 options, recommended first except publication; meanwhile says what continues or waits. Continue independent work, end when blocked. Missing T3: ask-person-unavailable.",
+      "description": "Ask a person in a Chat conversation here; their answer returns automatically. Stable question_id on retries; 2–4 options, recommended first except publication; meanwhile says what continues or waits. Continue independent work, end when blocked. Missing Chat CLI: ask-person-unavailable.",
       "inputSchema": {
         "type": "object",
         "additionalProperties": false,

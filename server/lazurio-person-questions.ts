@@ -13,7 +13,7 @@ const receiptSchema = z.object({
   question: z.string(), questions: z.array(z.custom<AskQuestion>()).optional(),
   attempted: z.boolean(), t3RequestId: z.string().optional(), t3ThreadId: z.string().optional(), link: z.string().optional(),
   error: z.string().optional(), reported: z.string().optional(),
-  nativeRejected: z.boolean().optional(), answer: z.string().optional(), source: z.enum(["mausbot", "t3"]).optional(), delivered: z.boolean().optional(), late: z.boolean().optional(), queued: z.boolean().optional(), notified: z.boolean().optional(),
+  nativeRejected: z.boolean().optional(), rejectedAnswers: z.array(z.object({ answer: z.string(), source: z.enum(["mausbot", "t3"]) })).optional(), answer: z.string().optional(), source: z.enum(["mausbot", "t3"]).optional(), delivered: z.boolean().optional(), late: z.boolean().optional(), queued: z.boolean().optional(), notified: z.boolean().optional(),
 });
 export type PersonQuestionReceipt = z.infer<typeof receiptSchema>;
 export type PersonQuestionInput = Pick<PersonQuestionReceipt, "botId" | "botName" | "threadId" | "requestId" | "instanceId" | "question" | "questions">;
@@ -160,19 +160,24 @@ export class PersonQuestions {
     return { status: record.nativeRejected ? "rejected" : record.delivered ? "delivered" : record.error ? "pending" : "waiting", receipt: this.get(record.id)! };
   }
 
-  private async accept(record: PersonQuestionReceipt, answer: string, source: "mausbot" | "t3"): Promise<{ status: string; receipt: PersonQuestionReceipt }> {
+  private async accept(record: PersonQuestionReceipt, answer: string, source: "mausbot" | "t3", lateAnswer?: PersonQuestionDeps["lateAnswer"]): Promise<{ status: string; receipt: PersonQuestionReceipt }> {
     if (record.answer !== undefined && (record.answer !== answer || record.source !== source)) return { status: "already-answered", receipt: record };
     if (record.answer === undefined) { record.answer = answer; record.source = source; this.save(record); }
-    await this.deliver(record);
+    await this.deliver(record, lateAnswer);
     return this.result(record);
   }
 
-  async answer(id: string, answer: string): Promise<{ status: string; receipt: PersonQuestionReceipt }> {
+  async answer(id: string, answer: string, lateAnswer?: PersonQuestionDeps["lateAnswer"]): Promise<{ status: string; receipt: PersonQuestionReceipt }> {
     if (!answer.length || answer.length > 100_000) throw new Error("invalid-answer");
     return this.serial(id, async () => {
       const record = this.get(id);
       if (!record) throw new Error("question-not-found");
-      if (record.answer === undefined && record.t3ThreadId) {
+      const recovering = record.nativeRejected === true;
+      if (recovering) {
+        record.rejectedAnswers = [...(record.rejectedAnswers ?? []), { answer: record.answer!, source: record.source! }];
+        delete record.answer; delete record.source; delete record.nativeRejected; delete record.error;
+      }
+      if (!recovering && record.answer === undefined && record.t3ThreadId) {
         try {
           let request = this.bind(record, await this.cli.history(record.t3ThreadId));
           const saved = request && this.storedAnswer(record, request);
@@ -194,7 +199,7 @@ export class PersonQuestions {
               await this.report(record, "ask-person-unavailable");
               return this.result(record);
             }
-            if (submitted) return this.accept(record, answer, "mausbot");
+            if (submitted) return this.accept(record, answer, "mausbot", lateAnswer);
             await this.accept(record, winner, "t3");
             return { status: "already-answered", receipt: this.get(id)! };
           }
@@ -202,15 +207,15 @@ export class PersonQuestions {
           await this.report(record, "ask-person-unavailable");
           return this.result(record);
         }
-      } else if (record.answer === undefined && record.attempted) {
+      } else if (!recovering && record.answer === undefined && record.attempted) {
         await this.report(record, "ask-person-launch-ambiguous");
         return this.result(record);
       }
-      return this.accept(record, answer, "mausbot");
+      return this.accept(record, answer, "mausbot", lateAnswer);
     });
   }
 
-  private async deliver(record: PersonQuestionReceipt): Promise<void> {
+  private async deliver(record: PersonQuestionReceipt, lateAnswer = this.deps.lateAnswer): Promise<void> {
     if (record.answer === undefined || record.nativeRejected) return;
     try {
       if (!record.delivered) {
@@ -223,7 +228,7 @@ export class PersonQuestions {
         if (outcome === "unavailable") {
           record.late = true;
           this.save(record);
-          const reply = await this.deps.lateAnswer(record, `Answer to question ${record.id} (${record.source}):\n${record.answer}`, `person-question-${record.id}`);
+          const reply = await lateAnswer(record, `Answer to question ${record.id} (${record.source}):\n${record.answer}`, `person-question-${record.id}`);
           record.queued = Boolean(reply?.queued);
         }
         record.delivered = true;
