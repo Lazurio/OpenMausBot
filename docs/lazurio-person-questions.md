@@ -1,6 +1,6 @@
 # A bot's question reaches the person in T3 Code
 
-Status: shaping and implementation in progress. Contract: [#101](https://github.com/Lazurio/OpenMausBot/issues/101).
+Status: implemented; review, release and live proof pending. Contract: [#101](https://github.com/Lazurio/OpenMausBot/issues/101).
 
 ## Intent and choice
 
@@ -22,11 +22,19 @@ or issue link. A publication choice has no recommended answer.
 The relay is a durable delivery receipt, not another authority for bot work.
 It records the source bot, thread, request, T3 thread and verbatim answer.
 MausBot reads the saved answer from the authenticated T3 CLI, bound to the
-first T3 request matching the supplied question texts in this fresh relay thread. No HTTP caller supplies
-an answer or declares it human-authored. Once
+first T3 request matching the supplied question texts and choices in this fresh
+relay thread. No HTTP caller supplies a T3 answer or declares it human-authored. Once
 the provider request ends, a late answer is delivered as a new message with
 the question id. First answer wins across both channels; retries return the
-receipt. Deleted bots and failed delivery remain visibly unresolved.
+receipt. Before accepting a MausBot reply, read the bound T3 request. If it
+is pending, submit the MausBot reply through `t3 request respond` and read
+back the resolved state. T3 rejects a second response to a resolved request,
+so it arbitrates concurrent submissions in both channels. A response lost
+in transit is recovered from history. If T3 cannot be reconciled, retain the
+question and report failure instead of accepting a competing reply. Before
+the T3 question exists, a MausBot reply waits for binding; if T3 was never
+launched, the existing MausBot channel remains usable. Deleted bots and
+failed delivery remain visibly unresolved.
 
 ## Existing T3 capabilities and idempotency
 
@@ -50,6 +58,8 @@ failure: avoiding duplicate questions takes precedence over automatic retry.
 - Ambiguous launch: reconcile by question marker, otherwise keep the failed
   receipt for operator recovery. No second chat from an ordinary retry.
 - Free text is returned verbatim, including newlines and shell characters.
+  Provider option values are translated to the labels the person saw; each
+  answer in a multi-question request is mapped to its own question id.
 - An answer in MausBot wins if first; T3 is informed. A later answer cannot
   overwrite the first. A provider timeout is not a person's answer.
 - An archived, failed or completed chat without a saved answer leaves the question
@@ -84,3 +94,10 @@ CLIs without this capability report `ask-person-unavailable`. A qualified
 CLI is a rollout dependency; it does not authorize restarting a live T3
 service. Like other Environment tools, it acts within the shared account's
 rights; this is no isolation boundary between Full-access agents.
+
+The stored T3 answer proves acceptance by that T3 request, not a human-only
+credential. `t3 request respond` already acts with the shared Environment
+account, and a Full-access bot can use it. This relay adds no authority to
+publish and must not be used as independent proof of human provenance.
+Separating a hostile local bot from the user's account would change the
+Environment trust model, not just this delivery mechanism.
