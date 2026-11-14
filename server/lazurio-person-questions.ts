@@ -21,7 +21,7 @@ export interface PersonQuestionDeps {
   cli?: PersonQuestionCli;
   nativeAnswer(receipt: PersonQuestionReceipt, answer: string): Promise<boolean>;
   lateAnswer(receipt: PersonQuestionReceipt, text: string, sendId: string): Promise<void>;
-  notice(receipt: PersonQuestionReceipt, code: string): void;
+  notice(receipt: PersonQuestionReceipt, code: string): void | Promise<void>;
 }
 export const personQuestionId = (threadId: string, requestId: string) => createHash("sha256").update(JSON.stringify([threadId, requestId])).digest("hex");
 
@@ -72,10 +72,11 @@ export class PersonQuestions {
     });
   }
 
-  private report(record: PersonQuestionReceipt, code: string): void {
+  private async report(record: PersonQuestionReceipt, code: string): Promise<void> {
     record.error = code;
+    this.save(record);
     if (record.reported !== code) {
-      this.deps.notice(record, code);
+      await this.deps.notice(record, code);
       record.reported = code;
     }
     this.save(record);
@@ -97,7 +98,7 @@ export class PersonQuestions {
       }
       delete record.error;
       this.save(record);
-    } catch { this.report(record, "ask-person-unavailable"); }
+    } catch { await this.report(record, "ask-person-unavailable"); }
   }
 
   private prompt(record: PersonQuestionReceipt): string {
@@ -132,7 +133,7 @@ export class PersonQuestions {
         record.notified = true;
         this.save(record);
       }
-    } catch { this.report(record, "ask-person-delivery-failed"); }
+    } catch { await this.report(record, "ask-person-delivery-failed"); }
   }
 
   async reconcile(): Promise<void> {
@@ -142,8 +143,8 @@ export class PersonQuestions {
       if (!record.t3ThreadId) return this.launch(record);
       try {
         const state = await this.cli.state(record.t3ThreadId);
-        if (state.archived || ["completed", "failed", "interrupted", "cancelled"].includes(state.status ?? "")) this.report(record, "ask-person-still-open");
-      } catch { this.report(record, "ask-person-unavailable"); }
+        if (state.archived || ["completed", "failed", "interrupted", "cancelled"].includes(state.status ?? "")) await this.report(record, "ask-person-still-open");
+      } catch { await this.report(record, "ask-person-unavailable"); }
     });
   }
 }

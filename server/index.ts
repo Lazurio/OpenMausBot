@@ -2366,7 +2366,13 @@ const personQuestions = new PersonQuestions({
     const message = store.messagesFor(receipt.threadId).find((message) => message.card?.requestId === receipt.requestId);
     if (message?.card) store.patchMessage(receipt.threadId, message.id, { card: { ...message.card, answered: "answer", answeredText: receipt.answer } });
   },
-  notice: (receipt, code) => personQuestionNotice(receipt.threadId, code),
+  notice: async (receipt, code) => {
+    personQuestionNotice(receipt.threadId, code);
+    const bot = store.bot(receipt.botId);
+    if (!bot || bot.hidden) return;
+    const threadId = store.taskByThread(bot.id, receipt.threadId) ? receipt.threadId : bot.threadId;
+    await acceptDirectSend({ botId: bot.id, threadId, text: `Question ${receipt.id}: ${code}. The question stays open; no person answered. Continue independent work; do not open a duplicate question.`, sendId: `person-question-notice-${receipt.id}-${code}`, trigger: { kind: "owner" }, personPresent: false });
+  },
 });
 const environmentBrowser = startEnvironmentBrowser({ env: process.env, bots: () => store.bots, onChange: (listener) => store.onChange(listener),
   onNewTab: (botId, tabId) => broadcast({ kind: BOT_BROWSER_TAB_EVENT, botId, tabId }) });
@@ -4968,7 +4974,7 @@ bus.subscribe((event: RuntimeEvent) => {
           if (bot) store.setTaskActivity(bot.id, event.threadId, "waiting-on-you");
           else if (asker.busy) store.setActivity(asker.id, "waiting-on-you");
           if (event.requestId) showWaitingOnPersonChip(event.threadId, event.requestId, asker, permission ? "approval" : "answer");
-          if (!permission && event.requestId) void personQuestions.open({ botId: asker.id, botName: asker.name, threadId: event.threadId, requestId: event.requestId, instanceId: event.providerInstanceId ?? asker.modelSelection.instanceId, question: event.summary, questions: event.questions }).catch(() => personQuestionNotice(event.threadId, "ask-person-storage-failed"));
+          if (!permission && event.requestId) void personQuestions.open({ botId: asker.id, botName: asker.name, threadId: event.threadId, requestId: event.requestId, instanceId: event.providerInstanceId ?? asker.modelSelection.instanceId, question: event.summary, questions: event.questions ?? (event.choices?.length ? [{ question: event.summary, options: event.choices.map((label) => ({ label })) }] : undefined) }).catch(() => personQuestionNotice(event.threadId, "ask-person-storage-failed"));
           const notificationBot = (routineRun && routineSourceOwner(routineRun)?.bot) || asker;
           notify(buildNotification(
             permission ? "approval" : "question",
