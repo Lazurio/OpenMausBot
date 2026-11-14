@@ -252,3 +252,16 @@ it("retains opaque option values when parsing the T3 history wire response", asy
   const cli = new PersonQuestionCli(async () => ({ requests: [{ requestId: "q", threadId: "thread", status: "resolved", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "one", question: "First?", options: [{ label: "Wait", value: "0" }] }], answers: { one: "0" } }] }));
   expect((await cli.history("thread"))[0]?.questions[0]?.options?.[0]).toEqual({ label: "Wait", value: "0" });
 });
+
+
+it("allows an explicit corrected answer after rejection while retaining the rejected answer", async () => {
+  const nativeAnswer = vi.fn<PersonQuestionDeps["nativeAnswer"]>().mockResolvedValueOnce("rejected").mockResolvedValue("unavailable");
+  const f = fixture({ nativeAnswer }); const receipt = await f.questions.open(input);
+  await f.replyT3(receipt.id, "Purple");
+  const correctedDelivery = vi.fn(async () => ({ queued: false }));
+  await f.questions.answer(receipt.id, "Blue", correctedDelivery);
+  expect(correctedDelivery).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ source: "mausbot", answer: "Blue" }), expect.any(String), `person-question-${receipt.id}`);
+  expect(f.deps.lateAnswer).not.toHaveBeenCalled();
+  expect(new PersonQuestions(f.deps).get(receipt.id)).toMatchObject({ answer: "Blue", delivered: true, rejectedAnswers: [{ answer: "Purple", source: "t3" }] });
+  expect(nativeAnswer).toHaveBeenCalledTimes(2);
+});

@@ -105,6 +105,7 @@ export interface BotMessageRouteDeps {
   answerRequest(
     threadId: string, instanceId: string, requestId: string, behavior: Behavior, message?: string,
     decidedFor?: { id: string; name: string }, always?: boolean, rememberCommand?: boolean,
+    reply?: { auth: RequestAuth; via?: "call"; callId?: string },
   ): Promise<RequestOutcome>;
   questionDelivery?(threadId: string, requestId: string): { late?: true; queued?: true };
   deliverLateQuestionAnswer(auth: RequestAuth, threadId: string, requestId: string, answer: string, cardMessage: Message, owner: BotRecord): Promise<{ queued: boolean }>;
@@ -543,7 +544,7 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
         const pending = store.messagesFor(bot.threadId).find((message) => message.card?.requestId === requestId);
         const dismissed = dismissQuestionCard(store, bot.threadId, pending, body);
         if (dismissed) return json(res, dismissed.status, dismissed.body);
-        const outcome = await answerRequest(bot.threadId, bot.modelSelection.instanceId, requestId, behavior, body.message, { id: bot.id, name: bot.name }, body.always === true, body.rememberCommand === true);
+        const outcome = await answerRequest(bot.threadId, bot.modelSelection.instanceId, requestId, behavior, body.message, { id: bot.id, name: bot.name }, body.always === true, body.rememberCommand === true, { auth });
         if (outcome === "unavailable" && isPersistentQuestionCard(pending?.card) && behavior === "answer") {
           if (!pending) return json(res, 404, { error: "this question is no longer available" });
           const answer = typeof body.message === "string" ? body.message.trim() : "";
@@ -662,7 +663,7 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
         }
         if (!owner && !pending) return json(res, 404, { error: "nothing is waiting on an answer in this conversation" });
         const requestOwner = owner ? botForThread(owner.id, threadId) : null;
-        const outcome = await answerRequest(threadId, requestOwner?.modelSelection.instanceId ?? "", requestId, behavior, body.message, owner ? { id: owner.id, name: owner.name } : undefined, body.always === true, body.rememberCommand === true);
+        const outcome = await answerRequest(threadId, requestOwner?.modelSelection.instanceId ?? "", requestId, behavior, body.message, owner ? { id: owner.id, name: owner.name } : undefined, body.always === true, body.rememberCommand === true, { auth });
         if (outcome === "unavailable" && isPersistentQuestionCard(pending?.card) && behavior === "answer") {
           if (!pending?.card) return json(res, 404, { error: "this question is no longer available" });
           const answer = typeof body.message === "string" ? body.message.trim() : "";

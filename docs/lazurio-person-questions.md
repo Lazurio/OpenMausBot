@@ -70,7 +70,10 @@ failure: avoiding duplicate questions takes precedence over automatic retry.
   Existing reply delivery keeps the source card link and room addressing;
   the HTTP response retains its `late` and `queued` fields.
   A native `rejected` outcome remains an explicit rejected-delivery record and
-  never becomes a successful late message or an automatic retry. A
+  never becomes a successful late message or an automatic retry. An explicit
+  corrected answer in MausBot can recover it; the rejected answer and its
+  source remain in the receipt history. Replies from a call keep their call
+  metadata, and a session reply keeps its authenticated sender. A
   stopped/deleted bot or a delivery failure is reported, never called resumed.
 - Persist receipts before externally visible delivery and retain recoverable
   delivery errors across restart. Tests cover crash boundaries and races.

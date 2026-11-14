@@ -1,4 +1,4 @@
-import { PersonQuestions, personQuestionId } from "./lazurio-person-questions.ts";
+import { PersonQuestions, personQuestionId, type PersonQuestionReceipt } from "./lazurio-person-questions.ts";
 import { createPersonQuestionInternalRoute, createPersonQuestionRoutes } from "./routes/lazurio-person-questions.ts";
 // Import first: it reads a Cloud home's secrets off the launcher's pipe before any module can start a process.
 import { BOOT_CLOUD_SECRETS } from "./cloud-secrets-boot.ts";
@@ -2350,6 +2350,17 @@ const { stopThreadForPerson, stopOnTypedCommand, noteTeammatesLeftRunning } = cr
 function personQuestionNotice(threadId: string, code: string) {
   store.appendMessage(threadId, { role: "bot", kind: "activity", tool: { name: `${code}: person-question delivery needs attention; continue independent work and report this problem`, ok: false } });
 }
+async function deliverPersonQuestionLate(receipt: PersonQuestionReceipt, text: string, sendId: string,
+  auth: RequestAuth = { kind: "loopback", trust: "service", scopes: [] }, via?: "call", callId?: string) {
+  const bot = store.bot(receipt.botId);
+  if (!bot || bot.hidden) throw new Error("bot-not-found");
+  const message = store.messagesFor(receipt.threadId).find((message) => message.card?.requestId === receipt.requestId);
+  if (!message?.card) throw new Error("question-not-found");
+  const reply = await personReplies.deliver({ auth, threadId: receipt.threadId,
+    owner: bot, target: message, answer: receipt.source === "mausbot" ? receipt.answer! : text, sendId, via, callId, about: "question" });
+  store.patchMessage(receipt.threadId, message.id, { card: { ...message.card, answered: "answer", answeredText: receipt.answer, dismissed: false } });
+  return reply;
+}
 const personQuestions = new PersonQuestions({
   dataDir: DATA_DIR,
   nativeAnswer: async (receipt, answer) => {
@@ -2358,16 +2369,7 @@ const personQuestions = new PersonQuestions({
     if (card?.answered) return "unavailable";
     return await deliverNativeQuestionAnswer(receipt.threadId, receipt.instanceId, receipt.requestId, "answer", answer);
   },
-  lateAnswer: async (receipt, text, sendId) => {
-    const bot = store.bot(receipt.botId);
-    if (!bot || bot.hidden) throw new Error("bot-not-found");
-    const message = store.messagesFor(receipt.threadId).find((message) => message.card?.requestId === receipt.requestId);
-    if (!message?.card) throw new Error("question-not-found");
-    const reply = await personReplies.deliver({ auth: { kind: "loopback", trust: "service", scopes: [] }, threadId: receipt.threadId,
-      owner: bot, target: message, answer: receipt.source === "mausbot" ? receipt.answer! : text, sendId, about: "question" });
-    store.patchMessage(receipt.threadId, message.id, { card: { ...message.card, answered: "answer", answeredText: receipt.answer, dismissed: false } });
-    return reply;
-  },
+  lateAnswer: deliverPersonQuestionLate,
   notice: async (receipt, code) => {
     personQuestionNotice(receipt.threadId, code);
     const bot = store.bot(receipt.botId);
@@ -3869,13 +3871,16 @@ function commandRememberRefusal(auth: RequestAuth, threadId: string, requestId: 
   return null;
 }
 
-async function answerRequest(...args: Parameters<typeof deliverNativeQuestionAnswer>): Promise<RequestOutcome> {
-  const [threadId, , requestId, behavior, message] = args;
+async function answerRequest(
+  threadId: string, instanceId: string, requestId: string, behavior: "allow" | "deny" | "answer", message?: string,
+  decidedFor?: { id: string; name: string }, always?: boolean, rememberCommand?: boolean,
+  reply?: { auth: RequestAuth; via?: "call"; callId?: string },
+): Promise<RequestOutcome> {
   if (behavior === "answer" && message && personQuestions.has(threadId, requestId)) {
-    const result = await personQuestions.answer(personQuestionId(threadId, requestId), message);
+    const result = await personQuestions.answer(personQuestionId(threadId, requestId), message, reply ? (receipt, text, sendId) => deliverPersonQuestionLate(receipt, text, sendId, reply.auth, reply.via, reply.callId) : undefined);
     return result.status === "delivered" ? "answered" : "rejected";
   }
-  return deliverNativeQuestionAnswer(...args);
+  return deliverNativeQuestionAnswer(threadId, instanceId, requestId, behavior, message, decidedFor, always, rememberCommand);
 }
 
 /** `unavailable` is fail-closed: the action never ran. */
@@ -3985,7 +3990,7 @@ async function respondToCard(input: {
   await answeringCardAs(auth, threadId, requestId, async () => {
     const outcome = await answerRequest(
       threadId, botForThread(bot.id, threadId)?.modelSelection.instanceId ?? "", requestId, behavior, message,
-      { id: bot.id, name: bot.name },
+      { id: bot.id, name: bot.name }, undefined, undefined, { auth, ...(via === "call" ? { via, callId } : {}) },
     );
     if (outcome === "unavailable" && isPersistentQuestionCard(card) && behavior === "answer" && cardMessage) {
       const answer = message?.trim() ?? "";
