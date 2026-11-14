@@ -30,6 +30,7 @@ describe("a bot's person question through the real HTTP routes", () => {
   let bot: { id: string; threadId: string };
   let token: string;
   let questionId: string;
+  let otherQuestionId: string;
   const headers = { "content-type": "application/json", "x-openmausbot-cli": "1" };
   const call = async (path: string, body?: unknown, auth = false) => {
     const response = await fetch(`${fixture.info.url}${path}`, { method: body === undefined ? "GET" : "POST", headers: { ...headers, ...(auth ? { authorization: `Bearer ${token}` } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
@@ -62,6 +63,10 @@ describe("a bot's person question through the real HTTP routes", () => {
     const cards = messages.filter((message: any) => message.card?.requestId === "person-release-choice");
     expect(cards).toHaveLength(1);
     expect(cards[0].card.tool).toBeUndefined();
+    const other = await call("/api/internal/person-questions", { ...question, question_id: "other-channel" }, true);
+    expect(other.status).toBe(200);
+    otherQuestionId = other.body.questionId;
+    expect((await call("/api/internal/person-questions", { ...question, question: "A different question" }, true)).status).toBe(409);
   });
 
   it("returns a free text answer to the bot and settles the source card, refusing a later answer", async () => {
@@ -76,4 +81,15 @@ describe("a bot's person question through the real HTTP routes", () => {
     const receipt = JSON.parse(readFileSync(join(fixture.info.dataDir, "person-questions", `${questionId}.json`), "utf8"));
     expect(receipt).toMatchObject({ answer, delivered: true, t3ThreadId: "fixture-t3-1" });
   });
+  it("an answer in the MausBot card wins and the T3 callback cannot deliver a competing answer", async () => {
+    const answered = await call(`/api/threads/${bot.threadId}/respond`, { requestId: "person-other-channel", behavior: "answer", message: "Wait from MausBot" });
+    expect(answered.status).toBe(200);
+    const losing = await call(`/api/person-questions/${otherQuestionId}/answer`, { answer: "Continue from T3" });
+    expect(losing.body).toMatchObject({ status: "already-answered", source: "mausbot" });
+    const receipt = JSON.parse(readFileSync(join(fixture.info.dataDir, "person-questions", `${otherQuestionId}.json`), "utf8"));
+    expect(receipt).toMatchObject({ answer: "Wait from MausBot", source: "mausbot", delivered: true, notified: true });
+    const messages = (await call(`/api/threads/${bot.threadId}/messages`)).body.messages;
+    expect(messages.some((message: any) => message.text?.includes("Continue from T3"))).toBe(false);
+  });
+
 });
