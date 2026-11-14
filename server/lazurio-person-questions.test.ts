@@ -11,13 +11,18 @@ const input = { botId: "bot", botName: "Release", threadId: "source", requestId:
 function fixture(overrides: Partial<PersonQuestionDeps> = {}) {
   const dataDir = mkdtempSync(join(tmpdir(), "person-question-")); dirs.push(dataDir);
   const cli = { available: vi.fn(async () => {}), find: vi.fn(async () => undefined as { threadId: string; link: string } | undefined), launch: vi.fn(async () => ({ threadId: "t3", link: "<t3-thread://test/t3>" })), state: vi.fn(async () => ({ status: "waiting", archived: false })), history: vi.fn<() => Promise<T3Question[]>>(async () => [{ requestId: "t3-question", threadId: "t3", status: "pending", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "q", question: input.question }] }]), notify: vi.fn(async () => {}) };
+  const respond = vi.fn(async (_thread: string, _request: string, answer: string) => {
+    cli.history.mockResolvedValue([{ requestId: "t3-question", threadId: "t3", status: "resolved", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "q", question: input.question }], answers: { q: answer } }]);
+    return true;
+  });
+  Object.assign(cli, { respond });
   const deps = { dataDir, cli: cli as unknown as PersonQuestionCli, nativeAnswer: vi.fn(async () => "answered" as const), lateAnswer: vi.fn(async () => {}), notice: vi.fn(), ...overrides };
   const questions = new PersonQuestions(deps);
   const replyT3 = async (id: string, answer: string) => {
     cli.history.mockResolvedValue([{ requestId: "t3-question", threadId: "t3", status: "resolved", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "q", question: input.question }], answers: { q: answer } }]);
     return questions.refresh(id);
   };
-  return { deps, cli, questions, replyT3 };
+  return { deps, cli, questions, replyT3, respond };
 }
 
 describe("native bot questions delivered to a T3 chat", () => {
@@ -180,7 +185,7 @@ describe("native bot questions delivered to a T3 chat", () => {
 it("uses the existing T3 capability and question CLI without a shell or permission approval", async () => {
   const call = vi.fn(async (args: string[]) => {
     if (args[0] === "lazurio") return { agentCli: true, requestHistory: true };
-    if (args[0] === "request" && args[1] === "list") return { requests: [{ type: "approval", requestId: "permission" }, { type: "question", requestId: "question", questions: [{ id: "q" }] }, { type: "question", requestId: "unrelated", questions: [{ id: "later" }] }] };
+    if (args[0] === "request" && args[1] === "list") return { requests: [{ type: "approval", requestId: "permission" }, { type: "question", requestId: "question", questions: [{ id: "q", question: "Continue?", options: [] }] }, { type: "question", requestId: "unrelated", questions: [{ id: "later" }] }] };
     return { threads: [] };
   });
   const cli = new PersonQuestionCli(call);
@@ -194,4 +199,55 @@ it("uses the existing T3 capability and question CLI without a shell or permissi
 it("an older agent CLI without persisted question history is unavailable to the relay", async () => {
   const cli = new PersonQuestionCli(async () => ({ agentCli: true }));
   await expect(cli.available()).rejects.toThrow("ask-person-unavailable");
+});
+
+
+it("maps persisted T3 option values to labels and preserves free text", async () => {
+  const f = fixture();
+  const receipt = await f.questions.open({ ...input, questions: [{ question: input.question, options: [{ label: "Wait" }, { label: "Cancel" }], multiSelect: true }] });
+  f.cli.history.mockResolvedValue([{ requestId: "t3-question", threadId: "t3", status: "resolved", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "q", question: input.question, options: [{ label: "Wait", value: "" }, { label: "Cancel", value: "1" }], multiSelect: true }], answers: { q: ["", "own words\nverbatim"] } }]);
+  await f.questions.refresh(receipt.id);
+  expect(f.questions.get(receipt.id)?.answer).toBe("Wait, own words\nverbatim");
+});
+
+it("maps each MausBot answer to its T3 question and provider option value", async () => {
+  const call = vi.fn(async (_args: string[]) => ({ requests: [{ type: "question", requestId: "bound", questions: [{ id: "one", question: "First?", options: [{ label: "Wait", value: "0" }] }, { id: "two", question: "Second?", options: [] }] }] }));
+  const cli = new PersonQuestionCli(call);
+  await cli.notify("thread", "id", "The user answered your questions.\n\nQ: First?\nA: Wait\n\nQ: Second?\nA: own words", "bound");
+  expect(call).toHaveBeenCalledWith(["request", "respond", "bound", "--thread", "thread", "--answers", JSON.stringify({ one: "0", two: "own words" }), "--json"]);
+  call.mockClear();
+  await cli.notify("thread", "id", "ambiguous answer", "bound");
+  expect(call.mock.calls.some((args) => args[0]?.[1] === "respond")).toBe(false);
+});
+
+
+it("honors a T3 answer persisted before a MausBot reply even before reconciliation", async () => {
+  const f = fixture(); const receipt = await f.questions.open(input);
+  f.cli.history.mockResolvedValue([{ requestId: "t3-question", threadId: "t3", status: "resolved", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "q", question: input.question }], answers: { q: "T3 first" } }]);
+  expect((await f.questions.answer(receipt.id, "MausBot later")).status).toBe("already-answered");
+  expect(f.deps.nativeAnswer).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ source: "t3" }), "T3 first");
+});
+
+it("does not commit a competing MausBot reply when T3 history cannot be reconciled", async () => {
+  const f = fixture(); const receipt = await f.questions.open(input);
+  f.cli.history.mockRejectedValue(new Error("offline"));
+  await f.questions.answer(receipt.id, "MausBot later");
+  expect(f.questions.get(receipt.id)?.answer).toBeUndefined();
+  expect(f.deps.nativeAnswer).not.toHaveBeenCalled();
+});
+
+
+it("uses T3's single request resolution when a T3 answer races the MausBot submission", async () => {
+  const f = fixture(); const receipt = await f.questions.open(input);
+  f.respond.mockImplementation(async () => {
+    f.cli.history.mockResolvedValue([{ requestId: "t3-question", threadId: "t3", status: "resolved", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "q", question: input.question }], answers: { q: "T3 won the race" } }]);
+    throw new Error("Runtime request is resolved");
+  });
+  await Promise.all([f.questions.answer(receipt.id, "MausBot competing"), f.questions.refresh(receipt.id)]);
+  expect(f.deps.nativeAnswer).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ source: "t3" }), "T3 won the race");
+});
+
+it("retains opaque option values when parsing the T3 history wire response", async () => {
+  const cli = new PersonQuestionCli(async () => ({ requests: [{ requestId: "q", threadId: "thread", status: "resolved", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "one", question: "First?", options: [{ label: "Wait", value: "0" }] }], answers: { one: "0" } }] }));
+  expect((await cli.history("thread"))[0]?.questions[0]?.options?.[0]).toEqual({ label: "Wait", value: "0" });
 });

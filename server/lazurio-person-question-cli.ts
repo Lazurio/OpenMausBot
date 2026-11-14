@@ -1,10 +1,11 @@
 import { execFile } from "node:child_process";
 import { z } from "zod";
+import { parseProtocolAskQuestions, pickedOptionLabels, questionAnswersById } from "../shared/ask-question.ts";
 import { writeFileAtomic } from "./atomic.ts";
 
 const historySchema = z.object({ requests: z.array(z.object({
   requestId: z.string().min(1), threadId: z.string().min(1), status: z.enum(["pending", "resolved", "cancelled", "expired"]),
-  createdAt: z.string(), questions: z.array(z.object({ id: z.string(), question: z.string(), options: z.array(z.object({ label: z.string() })).optional(), multiSelect: z.boolean().optional() }).passthrough()),
+  createdAt: z.string(), questions: z.array(z.object({ id: z.string(), question: z.string(), options: z.array(z.object({ label: z.string(), value: z.string().optional() })).optional(), multiSelect: z.boolean().optional() }).passthrough()),
   answers: z.record(z.string(), z.unknown()).optional(),
 })) });
 export type T3Question = z.infer<typeof historySchema>["requests"][number];
@@ -57,15 +58,30 @@ export class PersonQuestionCli {
     return result.requests.toSorted((a, b) => a.createdAt.localeCompare(b.createdAt) || a.requestId.localeCompare(b.requestId));
   }
 
-  async notify(threadId: string, id: string, text: string, requestId?: string): Promise<void> {
-    if (requestId) {
-      const result = await this.call(["request", "list", "--json", "--thread", threadId]);
-      const request = (result.requests ?? []).find((candidate: any) => candidate.type === "question" && candidate.requestId === requestId);
-      if (request) {
-        const answers = Object.fromEntries((request.questions ?? []).map((question: any) => [question.id, text]));
-        await this.call(["request", "respond", requestId, "--thread", threadId, "--answers", JSON.stringify(answers), "--json"]);
-      }
+  async respond(threadId: string, requestId: string, text: string): Promise<boolean> {
+    const result = await this.call(["request", "list", "--json", "--thread", threadId]);
+    const request = (result.requests ?? []).find((candidate: any) => candidate.type === "question" && candidate.requestId === requestId);
+    if (!request) return false;
+    const questions = parseProtocolAskQuestions(request.questions);
+    if (!questions) return false;
+    const byId = questionAnswersById(text, questions);
+    const answers: Record<string, string | string[]> = {};
+    for (const { id: questionId, question } of questions) {
+      const answer = byId[questionId];
+      if (answer === undefined) continue;
+      const picked = pickedOptionLabels(answer, question);
+      const options = request.questions.find((entry: any) => entry.id === questionId)?.options ?? [];
+      const values = picked.labels.map((label) => options.find((option: any) => option.label === label)?.value ?? label);
+      if (picked.other !== undefined) values.push(picked.other);
+      answers[questionId] = question.multiSelect ? values : values[0]!;
     }
+    if (!questions.every(({ id: questionId }) => answers[questionId] !== undefined)) return false;
+    await this.call(["request", "respond", requestId, "--thread", threadId, "--answers", JSON.stringify(answers), "--json"]);
+    return true;
+  }
+
+  async notify(threadId: string, id: string, text: string, requestId?: string): Promise<void> {
+    if (requestId) await this.respond(threadId, requestId, text);
     await this.call(["thread", "send", threadId, `Question ${id} was answered in MausBot. The first answer won. Verbatim answer:\n${text}`, "--json", "--mode", "queue", "--idempotency-key", `mausbot-question-${id}`]);
   }
 }

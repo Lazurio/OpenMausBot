@@ -127,8 +127,10 @@ export class PersonQuestions {
     for (const question of request.questions) {
       const raw = request.answers[question.id];
       const value = typeof raw === "string" ? [raw] : Array.isArray(raw) && raw.every((item) => typeof item === "string") ? raw : undefined;
-      if (!value?.length || value.every((item) => item.length === 0)) return undefined;
-      answers.push(value);
+      if (!value?.length) return undefined;
+      const labels = value.map((item) => question.options?.find((option) => (option.value ?? option.label) === item)?.label ?? item);
+      if (labels.every((item) => item.length === 0)) return undefined;
+      answers.push(labels);
     }
     if (answers.length === 1) return answers[0]!.join(", ");
     return record.questions?.length === answers.length ? formatQuestionAnswers(record.questions, answers) : undefined;
@@ -170,6 +172,40 @@ export class PersonQuestions {
     return this.serial(id, async () => {
       const record = this.get(id);
       if (!record) throw new Error("question-not-found");
+      if (record.answer === undefined && record.t3ThreadId) {
+        try {
+          let request = this.bind(record, await this.cli.history(record.t3ThreadId));
+          const saved = request && this.storedAnswer(record, request);
+          if (saved !== undefined) {
+            await this.accept(record, saved, "t3");
+            return { status: "already-answered", receipt: this.get(id)! };
+          }
+          if (!request || request.status === "resolved") {
+            await this.report(record, "ask-person-still-open");
+            return this.result(record);
+          }
+          if (request.status === "pending") {
+            // T3 rejects a second response to a resolved request: both channels arbitrate there.
+            let submitted = false;
+            try { submitted = await this.cli.respond(record.t3ThreadId, request.requestId, answer); } catch { /* Re-read after an ambiguous response. */ }
+            request = this.bind(record, await this.cli.history(record.t3ThreadId));
+            const winner = request && this.storedAnswer(record, request);
+            if (winner === undefined) {
+              await this.report(record, "ask-person-unavailable");
+              return this.result(record);
+            }
+            if (submitted) return this.accept(record, answer, "mausbot");
+            await this.accept(record, winner, "t3");
+            return { status: "already-answered", receipt: this.get(id)! };
+          }
+        } catch {
+          await this.report(record, "ask-person-unavailable");
+          return this.result(record);
+        }
+      } else if (record.answer === undefined && record.attempted) {
+        await this.report(record, "ask-person-launch-ambiguous");
+        return this.result(record);
+      }
       return this.accept(record, answer, "mausbot");
     });
   }
