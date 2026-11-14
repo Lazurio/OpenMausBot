@@ -131,6 +131,7 @@ export class PersonQuestions {
       if (record.t3ThreadId && record.source === "mausbot" && !record.notified) {
         await this.cli.notify(record.t3ThreadId, record.id, record.answer);
         record.notified = true;
+        delete record.error;
         this.save(record);
       }
     } catch { await this.report(record, "ask-person-delivery-failed"); }
@@ -143,7 +144,7 @@ export class PersonQuestions {
       if (!record.t3ThreadId) return this.launch(record);
       try {
         const state = await this.cli.state(record.t3ThreadId);
-        if (state.archived || ["completed", "failed", "interrupted", "cancelled"].includes(state.status ?? "")) await this.report(record, "ask-person-still-open");
+        if (state.archived || ["idle", "completed", "failed", "interrupted", "cancelled", "rolled_back"].includes(state.status ?? "")) await this.report(record, "ask-person-still-open");
       } catch { await this.report(record, "ask-person-unavailable"); }
     });
   }

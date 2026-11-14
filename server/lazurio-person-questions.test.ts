@@ -70,6 +70,20 @@ describe("native bot questions delivered to a T3 chat", () => {
     expect((await f.questions.answer(receipt.id, "Continue", "t3")).status).toBe("already-answered");
   });
 
+  it("retries a failed notification after restart without delivering the bot’s answer twice", async () => {
+    const f = fixture(); const receipt = await f.questions.open(input);
+    f.cli.notify.mockRejectedValueOnce(new Error("offline T3"));
+    const result = await f.questions.answer(receipt.id, "Wait", "mausbot");
+    expect(result.status).toBe("delivered");
+    expect(result.receipt.error).toBe("ask-person-delivery-failed");
+    const restarted = new PersonQuestions(f.deps);
+    await restarted.reconcile();
+    expect(f.deps.nativeAnswer).toHaveBeenCalledTimes(1);
+    expect(f.cli.notify).toHaveBeenCalledTimes(2);
+    expect(restarted.get(receipt.id)).toMatchObject({ delivered: true, notified: true });
+    expect(restarted.get(receipt.id)?.error).toBeUndefined();
+  });
+
   it("delivers a late answer as a new message carrying the question id", async () => {
     const f = fixture({ nativeAnswer: vi.fn(async () => false) }); const receipt = await f.questions.open(input);
     await f.questions.answer(receipt.id, "Later\nanswer", "t3");
