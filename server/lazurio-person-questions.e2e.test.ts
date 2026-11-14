@@ -17,7 +17,7 @@ if (args[0] === 'lazurio') result = {agentCli: true, requestHistory: true};
 if (args[0] === 'thread' && args[1] === 'list') result = {threads: state.threads.filter(t => t.title.includes(args[args.indexOf('--title')+1]))};
 if (args[0] === 'thread' && args[1] === 'launch') {
   const thread = {threadId: 'fixture-t3-' + (++state.launches), title: args[args.indexOf('--title')+1], link: '<t3-thread://fixture/thread>'};
-  state.threads.push(thread); state.requests ??= {}; state.requests[thread.threadId] = [{requestId: 'request-' + thread.threadId, threadId: thread.threadId, status: 'pending', createdAt: '2026-01-01T00:00:00Z', questions: [{id: 'q1', question: 'Which fixture version?'}]}]; state.prompt = fs.readFileSync(args[args.indexOf('--message-file')+1], 'utf8'); result = {thread};
+  state.threads.push(thread); state.requests ??= {}; state.requests[thread.threadId] = [{requestId: 'request-' + thread.threadId, threadId: thread.threadId, status: 'pending', createdAt: '2026-01-01T00:00:00Z', questions: [{id: 'q1', question: 'Which fixture version?', options: [{label: 'Wait (Recommended)'}, {label: 'Continue'}]}]}]; state.prompt = fs.readFileSync(args[args.indexOf('--message-file')+1], 'utf8'); result = {thread};
 }
 if (args[0] === 'thread' && args[1] === 'read') result = {thread: {status: 'waiting', archived: false}};
 if (args[0] === 'request') {

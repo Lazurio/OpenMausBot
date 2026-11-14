@@ -3,14 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PersonQuestions, personQuestionId, type PersonQuestionDeps } from "./lazurio-person-questions.ts";
-import { PersonQuestionCli } from "./lazurio-person-question-cli.ts";
+import { PersonQuestionCli, type T3Question } from "./lazurio-person-question-cli.ts";
 
 const dirs: string[] = [];
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 const input = { botId: "bot", botName: "Release", threadId: "source", requestId: "request", instanceId: "codex", question: "Choose a version. Options: wait, continue. Default: wait on publishing; continue tests. https://github.com/example/repo/issues/1" };
 function fixture(overrides: Partial<PersonQuestionDeps> = {}) {
   const dataDir = mkdtempSync(join(tmpdir(), "person-question-")); dirs.push(dataDir);
-  const cli = { available: vi.fn(async () => {}), find: vi.fn(async () => undefined as { threadId: string; link: string } | undefined), launch: vi.fn(async () => ({ threadId: "t3", link: "<t3-thread://test/t3>" })), state: vi.fn(async () => ({ status: "waiting", archived: false })), history: vi.fn(async () => [{ requestId: "t3-question", threadId: "t3", status: "pending", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "q", question: input.question }] }]), notify: vi.fn(async () => {}) };
+  const cli = { available: vi.fn(async () => {}), find: vi.fn(async () => undefined as { threadId: string; link: string } | undefined), launch: vi.fn(async () => ({ threadId: "t3", link: "<t3-thread://test/t3>" })), state: vi.fn(async () => ({ status: "waiting", archived: false })), history: vi.fn<() => Promise<T3Question[]>>(async () => [{ requestId: "t3-question", threadId: "t3", status: "pending", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "q", question: input.question }] }]), notify: vi.fn(async () => {}) };
   const deps = { dataDir, cli: cli as unknown as PersonQuestionCli, nativeAnswer: vi.fn(async () => "answered" as const), lateAnswer: vi.fn(async () => {}), notice: vi.fn(), ...overrides };
   const questions = new PersonQuestions(deps);
   const replyT3 = async (id: string, answer: string) => {
@@ -103,8 +103,8 @@ describe("native bot questions delivered to a T3 chat", () => {
   it("reads the first bound T3 request's persisted answer and ignores a later question", async () => {
     const f = fixture(); const receipt = await f.questions.open(input);
     await f.questions.refresh(receipt.id);
-    const original = { requestId: "t3-question", threadId: "t3", status: "pending", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "q", question: input.question }] };
-    const later = { ...original, requestId: "unrelated", status: "resolved", questions: [{ id: "q", question: "Another decision?" }], answers: { q: "Publish something else" } };
+    const original: T3Question = { requestId: "t3-question", threadId: "t3", status: "pending", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "q", question: input.question }] };
+    const later: T3Question = { ...original, requestId: "unrelated", status: "resolved", questions: [{ id: "q", question: "Another decision?" }], answers: { q: "Publish something else" } };
     f.cli.history.mockResolvedValue([original, later]);
     await f.questions.refresh(receipt.id);
     expect(f.deps.nativeAnswer).not.toHaveBeenCalled();
@@ -118,6 +118,14 @@ describe("native bot questions delivered to a T3 chat", () => {
     f.cli.history.mockResolvedValue([{ requestId: "unrelated", threadId: "t3", status: "resolved", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "q", question: "Deploy another project?" }], answers: { q: "Yes" } }]);
     await f.questions.refresh(receipt.id);
     expect(f.questions.get(receipt.id)).toMatchObject({ error: "ask-person-question-mismatch" });
+    expect(f.questions.get(receipt.id)?.t3RequestId).toBeUndefined();
+    expect(f.deps.nativeAnswer).not.toHaveBeenCalled();
+  });
+
+  it("does not bind identical question text with different choices", async () => {
+    const f = fixture(); const receipt = await f.questions.open({ ...input, questions: [{ question: input.question, options: [{ label: "Wait" }, { label: "Cancel" }] }] });
+    f.cli.history.mockResolvedValue([{ requestId: "unrelated", threadId: "t3", status: "resolved", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "q", question: input.question, options: [{ label: "Publish" }, { label: "Cancel" }] }], answers: { q: "Publish" } }]);
+    await f.questions.refresh(receipt.id);
     expect(f.questions.get(receipt.id)?.t3RequestId).toBeUndefined();
     expect(f.deps.nativeAnswer).not.toHaveBeenCalled();
   });
