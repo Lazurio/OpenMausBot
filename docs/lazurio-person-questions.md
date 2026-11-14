@@ -9,14 +9,15 @@ T3 Code on the same Environment. That chat uses its question tool; the
 answer returns to the bot without a supervising thread. A pending question
 never grants consent to an action or treats silence as an answer.
 
-Use the existing `request.opened` → `waiting-on-you` path, rather than add a
-second ask tool. It already owns the question, its provider request id, card,
-answer delivery and activity. A new tool would make bots choose between two
-ways of asking and leave native engine questions unseen. Only questions are
-relayed; permission requests keep their existing gates. The bot includes its
-context, 2–4 options (recommended first where appropriate), the issue/PR link,
-and what it continues with meanwhile in the question. A publication choice
-has no recommended answer.
+Use one `ask_person` tool for all engines. It supplies the question, 2–4
+options, the related issue/PR link and what the bot does meanwhile. Native
+engine questions already use `request.opened` → `waiting-on-you`; relay them
+through the same receipt path as well, so an engine's own question cannot
+remain unseen. The existing card and answer delivery remain the source-side
+interaction. An explicit tool is necessary because engines without a native
+question tool otherwise only produce ordinary text. Automatic detection of
+questions in prose would guess intent and cannot reliably carry the default
+or issue link. A publication choice has no recommended answer.
 
 The relay is a durable delivery receipt, not another authority for bot work.
 It records the source bot, thread, request, T3 thread and verbatim answer.
@@ -55,7 +56,8 @@ failure: avoiding duplicate questions takes precedence over automatic retry.
 - Persist receipts before externally visible delivery and retain recoverable
   delivery errors across restart. Tests cover crash boundaries and races.
 
-Waiting for an event uses an interval with no `endsAt` by default. An
+Waiting for an event uses an interval with no `endsAt` by default. The bot uses `manage_trigger` at escalation to change the interval, preserving
+the existing routine rather than scheduling a replacement. An
 escalation changes the cadence to a lower frequency, not to a hard end. The
 routine continues until the event arrives or someone pauses it. The explicit
 end of a genuinely finite routine remains available.

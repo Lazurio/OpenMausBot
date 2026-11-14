@@ -89,8 +89,15 @@ builds them.
    the second wave of the Environment browser plan (DEV-6646).
 6. **Everything starts in the Lazurio Folder.** Bots start in the Folder,
    read its `AGENTS.md` and guides, and create worktrees as those guides say.
-7. **Results reach people through Chat.** A bot hands a result worth
+7. **Results and questions reach people through Chat.** A bot hands a result worth
    reporting to a T3 Code thread, which tells the person (Lazurio/LazurioPlatform#182).
+   When it needs a person's decision, it calls `ask_person`: a normal T3 chat on
+   this Environment asks with its question tool and returns the verbatim answer.
+   Give a stable question id, context, 2–4 options, what continues or waits
+   meanwhile, and the related issue/PR link. Do independent work while waiting;
+   a default or silence never grants publication consent. Native engine questions
+   use the same relay. Missing T3 reports `ask-person-unavailable`; the question
+   stays open in MausBot. See [the contract](docs/lazurio-person-questions.md).
    T3 Code agents, and later Buddy, create and manage bots through MausBot's
    CLI and MCP.
 8. **Remove, don't hide.** What contradicts these principles leaves the
@@ -120,7 +127,7 @@ builds them.
   browser and Computer panel are removed (4,
   [The Environment browser](#the-environment-browser)); the Folder as every
   bot's start (6).
-- **Not yet:** no report to Chat (7). Bots get the Environment's Computer Use
+- **Not yet:** no general result report to Chat (7); person questions have their own relay. Bots get the Environment's Computer Use
   (5) as soon as the Platform registers it; MausBot needs nothing more.
 
 Until a gap is closed the sections below describe the code as it is; plan

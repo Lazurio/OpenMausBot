@@ -1,3 +1,4 @@
+import { callAskPerson } from "./lazurio-person-question-tool.ts";
 // Runs one agents tool: check arguments, call the harness, render the model's text. Stateless;
 // per-turn limits are the harness's, since one proxy can serve many turns of a warm engine.
 import { CREDENTIAL_TARGETS, isCredentialTargetId } from "../../shared/credential-request.ts";
@@ -175,6 +176,7 @@ export async function callTool(name: string, args: Json, context: ToolCallContex
   if (CARD_TOOL_NAMES.has(name)) return callCardTool(name, args, context);
   if (HELPER_TOOL_NAMES.has(name)) return callHelperTool(name, args, context);
   if (MAUSBOT_TOOL_NAMES.has(name)) return callMausBotTool(name, args, context);
+  if (name === "ask_person") return callAskPerson(args, context);
   if (PERSON_TOOL_NAMES.has(name)) return callPersonTool(name, args, context);
   if (TRIGGER_TOOL_NAMES.has(name)) return callTriggerTool(name, args, context);
   if (name === "tool_result_read") {

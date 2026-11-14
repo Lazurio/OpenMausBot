@@ -1,3 +1,5 @@
+import { PersonQuestions, personQuestionId } from "./lazurio-person-questions.ts";
+import { createPersonQuestionInternalRoute, createPersonQuestionRoutes } from "./routes/lazurio-person-questions.ts";
 // Import first: it reads a Cloud home's secrets off the launcher's pipe before any module can start a process.
 import { BOOT_CLOUD_SECRETS } from "./cloud-secrets-boot.ts";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -2345,6 +2347,27 @@ const { stopThreadForPerson, stopOnTypedCommand, noteTeammatesLeftRunning } = cr
 }); const teamMessages = createTeamMessages({ team: CLOUD_TEAM, dataDir: DATA_DIR, store, people: teamOwners.people, personName: teamHost.personName, audienceOf: teamHost.audienceOf, starters: threadStarters, notify, sees: (person) => visibleTo(person.role === "member" ? { kind: "member", email: person.email } : { kind: "all", email: person.email }), inbox: { askedPerson: teamOwners.routing.askedPerson, ensureOwnBot: (email) => { ensureDefaultBot(store, { dataDir: DATA_DIR, person: email, team: CLOUD_TEAM?.name ?? null }); }, handedFrom: (threadId) => { const from = delegatorOf(threadId); return from && from.threadId !== threadId ? from.threadId : null; }, continueTurn: relayedTurn({ store, startTurn, state: (botId, threadId) => ({ atCapacity: botAtThreadCapacity(botId, threadId), threadBusy: threadBusy(botId, threadId), groupTurn: roomTurnHolds(activeGroupTurnForBot(botId), threadId, false), parksBehindCoordination: parksBehindCoordination(botId, threadId) }) }), representative: { busy: async () => null, generate: async (botId, prompt) => (await sideJobs.text("representative", botId)?.generateText(prompt, { timeoutMs: 60_000 })) ?? null } } });
 // Lazurio overlay (DEV-6673 M4a): bots work in the Environment browser through their own agent-browser session; the
 // server only keeps each bot's strip of tabs (server/lazurio-environment-browser.ts) and starts no browser of its own.
+function personQuestionNotice(threadId: string, code: string) {
+  store.appendMessage(threadId, { role: "bot", kind: "activity", tool: { name: `${code}: the question stays open; continue independent work and report this delivery problem`, ok: false } });
+}
+const personQuestions = new PersonQuestions({
+  dataDir: DATA_DIR, port: PORT,
+  nativeAnswer: async (receipt, answer) => {
+    const card = store.messagesFor(receipt.threadId).find((message) => message.card?.requestId === receipt.requestId)?.card;
+    if (card?.answered === "answer" && card.answeredText === answer) return true;
+    if (card?.answered) return false;
+    return await deliverNativeQuestionAnswer(receipt.threadId, receipt.instanceId, receipt.requestId, "answer", answer) === "answered";
+  },
+  lateAnswer: async (receipt, text, sendId) => {
+    const bot = store.bot(receipt.botId);
+    if (!bot || bot.hidden) throw new Error("bot-not-found");
+    const threadId = store.taskByThread(bot.id, receipt.threadId) ? receipt.threadId : bot.threadId;
+    await acceptDirectSend({ botId: bot.id, threadId, text, sendId, trigger: { kind: "owner" }, personPresent: false });
+    const message = store.messagesFor(receipt.threadId).find((message) => message.card?.requestId === receipt.requestId);
+    if (message?.card) store.patchMessage(receipt.threadId, message.id, { card: { ...message.card, answered: "answer", answeredText: receipt.answer } });
+  },
+  notice: (receipt, code) => personQuestionNotice(receipt.threadId, code),
+});
 const environmentBrowser = startEnvironmentBrowser({ env: process.env, bots: () => store.bots, onChange: (listener) => store.onChange(listener),
   onNewTab: (botId, tabId) => broadcast({ kind: BOT_BROWSER_TAB_EVENT, botId, tabId }) });
 const skillsHost = createSkillsLibraryHost({ store, cfg, appendSkillRequestCard, engineConfig: (instanceId) => providerConfigs()[instanceId], instanceOf: (instanceId) => { const instance = registry.get(instanceId); return instance ? { instanceId, driverKind: instance.driverKind } : undefined; } });
@@ -3837,8 +3860,17 @@ function commandRememberRefusal(auth: RequestAuth, threadId: string, requestId: 
   return null;
 }
 
+async function answerRequest(...args: Parameters<typeof deliverNativeQuestionAnswer>): Promise<RequestOutcome> {
+  const [threadId, , requestId, behavior, message] = args;
+  if (behavior === "answer" && message && personQuestions.has(threadId, requestId)) {
+    const result = await personQuestions.answer(personQuestionId(threadId, requestId), message, "mausbot");
+    return result.status === "delivered" ? "answered" : "rejected";
+  }
+  return deliverNativeQuestionAnswer(...args);
+}
+
 /** `unavailable` is fail-closed: the action never ran. */
-async function answerRequest(
+async function deliverNativeQuestionAnswer(
   threadId: string,
   instanceId: string,
   requestId: string,
@@ -4936,6 +4968,7 @@ bus.subscribe((event: RuntimeEvent) => {
           if (bot) store.setTaskActivity(bot.id, event.threadId, "waiting-on-you");
           else if (asker.busy) store.setActivity(asker.id, "waiting-on-you");
           if (event.requestId) showWaitingOnPersonChip(event.threadId, event.requestId, asker, permission ? "approval" : "answer");
+          if (!permission && event.requestId) void personQuestions.open({ botId: asker.id, botName: asker.name, threadId: event.threadId, requestId: event.requestId, instanceId: event.providerInstanceId ?? asker.modelSelection.instanceId, question: event.summary, questions: event.questions }).catch(() => personQuestionNotice(event.threadId, "ask-person-storage-failed"));
           const notificationBot = (routineRun && routineSourceOwner(routineRun)?.bot) || asker;
           notify(buildNotification(
             permission ? "approval" : "question",
@@ -9472,6 +9505,19 @@ ROUTES.push(createDeciderRoutes({ decider, extractor, config: () => cfg }), crea
 if (CLOUD_TEAM) teamHost.adoptServerProfile(sessions.list().flatMap((session) => session.email ? [session.email] : []));
 ROUTES.push(createSidebarSectionRoutes({ store, maxBots: MAX_WORKSPACE_BOTS, wireBot }), createPresenceRoutes({ isOwner: ownerOrAdmin, active: async (source, zone, language) => { return proactive.brief.active(source, zone, language); }, ...(CLOUD_TEAM ? { member: teamMessages.arrived } : {}) }), createMeRoutes({ team: CLOUD_TEAM, session: (auth) => (auth.kind === "session" ? auth.session : null), profile: teamHost.memberProfile, save: teamHost.saveMemberProfile, seed: teamHost.seedMemberProfile, seeded: teamHost.seededFields, changed: () => broadcast({ kind: "config", ...configStatus() }) }), createTeamPhoneRoutes({ team: CLOUD_TEAM, sessions, publicBase: (req, auth) => publicUrl() ?? (auth.kind === "session" ? requestOrigin(req) : null) }),
   createSignInCardRoutes({ settle: settleSignIn, threadVisible: (auth, threadId) => visibleTo(viewerFor(auth)).thread(threadId) }));
+ROUTES.push(createPersonQuestionRoutes(personQuestions));
+const personQuestionInternalRoute = createPersonQuestionInternalRoute(personQuestions, (id) => store.bot(id)?.name ?? "Bot", (input) => {
+  store.appendMessage(input.threadId, { role: "bot", kind: "options", card: { tool: "ask_person", title: "Your bot has a question", subtitle: input.question, options: input.questions![0]!.options.map((option) => option.label), requestId: input.requestId, requestType: "question", questionRequest: { version: 1, questions: input.questions! } } });
+});
+let personQuestionReconciling = false;
+const reconcilePersonQuestions = async () => {
+  if (personQuestionReconciling) return;
+  personQuestionReconciling = true;
+  try { await personQuestions.reconcile(); } catch { console.warn("ask-person-storage-failed"); }
+  finally { personQuestionReconciling = false; }
+};
+setInterval(() => { void reconcilePersonQuestions(); }, 60_000).unref();
+void reconcilePersonQuestions();
 ROUTES.push(createLazurioBrowserRoutes({ browser: environmentBrowser, liveBot: (id) => Boolean(store.bot(id)) && !store.bot(id)!.hidden, audience: (auth) => stripAudienceOf(viewerFor(auth), visibleTo(viewerFor(auth))) }));
 ROUTES.push(createRoomHoldRoutes({
   group: (id) => store.group(id),
@@ -10129,6 +10175,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
           throw Object.assign(new Error("the internal turn capability has expired"), { status: 401 });
         }
       };
+      if (await personQuestionInternalRoute({ method, path, res, json, botId: internalSender.id, threadId: internalCapability.threadId, instanceId: internalSender.modelSelection.instanceId, readBody: readInternalBody }) !== PASS) return;
       const botFolders = async () => ({ roots: messageFileRootsForThread(internalSender.id, internalCapability.threadId).filter((root) => root !== ATTACHMENTS_DIR) }); if (await internalToolRoutes({ method, path, res, json, botId: internalSender.id, readBody: readInternalBody, folders: botFolders }) !== PASS || await teamMessages.internal({ method, path, res, json, botId: internalSender.id, threadId: internalCapability.threadId, readBody: readInternalBody }) !== PASS) return;
       const delegatedThisTurn = (taskId: string) => {
         (internalCapability.delegatedThisTurn ??= new Set()).add(taskId);

@@ -37,6 +37,7 @@ const SERVICE_SCOPES: readonly Scope[] = ["client"];
  * while the operator's shared Full access is on, stop a request and decline a card. Planned fix: a relay token only
  * the Slack worker holds, so these routes stop answering session-less loopback. */
 export const SERVICE_ALLOW: ReadonlyArray<{ methods: readonly string[]; path: RegExp }> = [
+  { methods: ["POST"], path: /^\/api\/person-questions\/[a-f0-9]{64}\/answer$/ },
   { methods: ["GET"], path: /^\/api\/health$/ },
   { methods: ["GET"], path: /^\/api\/auth\/session$/ },
   { methods: ["GET"], path: /^\/api\/edition$/ },

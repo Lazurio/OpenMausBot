@@ -290,9 +290,11 @@ describe("how every bot replies", () => {
     ]) expect(REPLY_HABITS_PROMPT).toContain(habit);
   });
 
-  it("asks one thing with tap-to-answer choices, keeps forms for real edits, and confirms a routine in plain words", () => {
-    expect(WIDGET_PROMPT).toContain("Ask only what you cannot find or sensibly default yourself, and one thing at a time.");
-    expect(WIDGET_PROMPT).toContain("a Card with a Row of Buttons, one per option, whose onClickAction sends that option in one tap");
+  it("routes a person’s decision to T3 and keeps event waiting indefinite after escalation", () => {
+    expect(WIDGET_PROMPT).toContain("ask_person");
+    expect(WIDGET_PROMPT).toContain("T3 Code chat on this Environment");
+    expect(WIDGET_PROMPT).toContain("no ends_at by default");
+    expect(WIDGET_PROMPT).toContain("manage_trigger to lower the cadence");
     expect(WIDGET_PROMPT).not.toContain("never end a turn with a question in text that a form could ask");
     expect(TRIGGER_PROMPT).toContain("weekdays at 9:00 AM India time\", never a zone id such as Asia/Kolkata");
     expect(TRIGGER_PROMPT).toContain("where its results will appear, what each run covers, and when the first run is");
