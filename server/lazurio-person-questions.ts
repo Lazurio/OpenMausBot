@@ -13,7 +13,7 @@ const receiptSchema = z.object({
   question: z.string(), questions: z.array(z.custom<AskQuestion>()).optional(),
   attempted: z.boolean(), t3RequestId: z.string().optional(), t3ThreadId: z.string().optional(), link: z.string().optional(),
   error: z.string().optional(), reported: z.string().optional(),
-  nativeRejected: z.boolean().optional(), answer: z.string().optional(), source: z.enum(["mausbot", "t3"]).optional(), delivered: z.boolean().optional(), notified: z.boolean().optional(),
+  nativeRejected: z.boolean().optional(), answer: z.string().optional(), source: z.enum(["mausbot", "t3"]).optional(), delivered: z.boolean().optional(), late: z.boolean().optional(), queued: z.boolean().optional(), notified: z.boolean().optional(),
 });
 export type PersonQuestionReceipt = z.infer<typeof receiptSchema>;
 export type PersonQuestionInput = Pick<PersonQuestionReceipt, "botId" | "botName" | "threadId" | "requestId" | "instanceId" | "question" | "questions">;
@@ -21,7 +21,7 @@ export interface PersonQuestionDeps {
   dataDir: string;
   cli?: PersonQuestionCli;
   nativeAnswer(receipt: PersonQuestionReceipt, answer: string): Promise<RequestOutcome>;
-  lateAnswer(receipt: PersonQuestionReceipt, text: string, sendId: string): Promise<void>;
+  lateAnswer(receipt: PersonQuestionReceipt, text: string, sendId: string): Promise<{ queued?: boolean } | void>;
   notice(receipt: PersonQuestionReceipt, code: string): void | Promise<void>;
 }
 export const personQuestionId = (threadId: string, requestId: string) => createHash("sha256").update(JSON.stringify([threadId, requestId])).digest("hex");
@@ -220,7 +220,12 @@ export class PersonQuestions {
           await this.report(record, "ask-person-answer-rejected");
           return;
         }
-        if (outcome === "unavailable") await this.deps.lateAnswer(record, `Answer to question ${record.id} (${record.source}):\n${record.answer}`, `person-question-${record.id}`);
+        if (outcome === "unavailable") {
+          record.late = true;
+          this.save(record);
+          const reply = await this.deps.lateAnswer(record, `Answer to question ${record.id} (${record.source}):\n${record.answer}`, `person-question-${record.id}`);
+          record.queued = Boolean(reply?.queued);
+        }
         record.delivered = true;
         delete record.error;
         this.save(record);
