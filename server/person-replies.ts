@@ -27,6 +27,8 @@ export interface PersonReplyDeps {
  * sends it twice. */
 export interface PersonReply {
   auth: RequestAuth;
+  /** Server-resolved attribution saved when the answer was accepted; it grants no session or permissions. */
+  attribution?: { sender?: ResolvedSender; trigger: UsageTrigger };
   threadId: string;
   owner: BotRecord;
   target: ReplyTarget;
@@ -82,8 +84,8 @@ export function createPersonReplies(deps: PersonReplyDeps) {
       const refused = reply.refusal?.();
       if (refused) throw conflict(refused);
       deps.assertWithinBudget();
-      const sender = deps.messageSender(auth);
-      const trigger = deps.usageTriggerFor(auth);
+      const sender = reply.attribution ? reply.attribution.sender : deps.messageSender(auth);
+      const trigger = reply.attribution?.trigger ?? deps.usageTriggerFor(auth);
       if (group) {
         const current = store.group(group.id);
         if (!current || !owned) throw conflict(`the room switched tasks before it could receive the answer`);

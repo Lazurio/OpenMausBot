@@ -113,6 +113,7 @@ jobs:
             server/drivers/agents-catalog.ts
             server/drivers/agents-call.ts
             server/request-auth.ts
+            server/person-replies.ts
             server/system-prompt.ts
             server/routes/bots-create.ts
             server/store.ts
