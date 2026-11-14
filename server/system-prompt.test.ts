@@ -292,7 +292,7 @@ describe("how every bot replies", () => {
 
   it("routes a person’s decision to T3 and keeps event waiting indefinite after escalation", () => {
     expect(WIDGET_PROMPT).toContain("ask_person");
-    expect(WIDGET_PROMPT).toContain("T3 Code chat on this Environment");
+    expect(WIDGET_PROMPT).toContain("Chat conversation on this Environment");
     expect(WIDGET_PROMPT).toContain("no ends_at by default");
     expect(WIDGET_PROMPT).toContain("manage_trigger to lower the cadence");
     expect(WIDGET_PROMPT).not.toContain("never end a turn with a question in text that a form could ask");
