@@ -2348,7 +2348,7 @@ const { stopThreadForPerson, stopOnTypedCommand, noteTeammatesLeftRunning } = cr
 // Lazurio overlay (DEV-6673 M4a): bots work in the Environment browser through their own agent-browser session; the
 // server only keeps each bot's strip of tabs (server/lazurio-environment-browser.ts) and starts no browser of its own.
 function personQuestionNotice(threadId: string, code: string) {
-  store.appendMessage(threadId, { role: "bot", kind: "activity", tool: { name: `${code}: the question stays open; continue independent work and report this delivery problem`, ok: false } });
+  store.appendMessage(threadId, { role: "bot", kind: "activity", tool: { name: `${code}: person-question delivery needs attention; continue independent work and report this problem`, ok: false } });
 }
 const personQuestions = new PersonQuestions({
   dataDir: DATA_DIR, port: PORT,
@@ -2369,9 +2369,10 @@ const personQuestions = new PersonQuestions({
   notice: async (receipt, code) => {
     personQuestionNotice(receipt.threadId, code);
     const bot = store.bot(receipt.botId);
-    if (!bot || bot.hidden) return;
+    if (!bot || bot.hidden || runningTurnEngines.has(receipt.threadId) || threadBusy(bot.id, receipt.threadId)) return;
     const threadId = store.taskByThread(bot.id, receipt.threadId) ? receipt.threadId : bot.threadId;
-    await acceptDirectSend({ botId: bot.id, threadId, text: `Question ${receipt.id}: ${code}. The question stays open; no person answered. Continue independent work; do not open a duplicate question.`, sendId: `person-question-notice-${receipt.id}-${code}`, trigger: { kind: "owner" }, personPresent: false });
+    const state = receipt.answer === undefined ? "The question stays open; no person answered." : "The person's answer is recorded; delivery or notification still needs recovery.";
+    await acceptDirectSend({ botId: bot.id, threadId, text: `Question ${receipt.id}: ${code}. ${state} Continue independent work; do not open a duplicate question.`, sendId: `person-question-notice-${receipt.id}-${code}`, trigger: { kind: "owner" }, personPresent: false });
   },
 });
 const environmentBrowser = startEnvironmentBrowser({ env: process.env, bots: () => store.bots, onChange: (listener) => store.onChange(listener),
