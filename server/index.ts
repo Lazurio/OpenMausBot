@@ -1,4 +1,4 @@
-import { PersonQuestions, personQuestionId, type PersonQuestionReceipt } from "./lazurio-person-questions.ts";
+import { PersonQuestions, personQuestionId, personQuestionReplyContextSchema, type PersonQuestionReceipt } from "./lazurio-person-questions.ts";
 import { createPersonQuestionInternalRoute, createPersonQuestionRoutes } from "./routes/lazurio-person-questions.ts";
 // Import first: it reads a Cloud home's secrets off the launcher's pipe before any module can start a process.
 import { BOOT_CLOUD_SECRETS } from "./cloud-secrets-boot.ts";
@@ -2350,24 +2350,27 @@ const { stopThreadForPerson, stopOnTypedCommand, noteTeammatesLeftRunning } = cr
 function personQuestionNotice(threadId: string, code: string) {
   store.appendMessage(threadId, { role: "bot", kind: "activity", tool: { name: `${code}: person-question delivery needs attention; continue independent work and report this problem`, ok: false } });
 }
-async function deliverPersonQuestionLate(receipt: PersonQuestionReceipt, text: string, sendId: string,
-  auth: RequestAuth = { kind: "loopback", trust: "service", scopes: [] }, via?: "call", callId?: string) {
+async function deliverPersonQuestionLate(receipt: PersonQuestionReceipt, text: string, sendId: string) {
   const bot = store.bot(receipt.botId);
   if (!bot || bot.hidden) throw new Error("bot-not-found");
   const message = store.messagesFor(receipt.threadId).find((message) => message.card?.requestId === receipt.requestId);
   if (!message?.card) throw new Error("question-not-found");
-  const reply = await personReplies.deliver({ auth, threadId: receipt.threadId,
-    owner: bot, target: message, answer: receipt.source === "mausbot" ? receipt.answer! : text, sendId, via, callId, about: "question" });
-  store.patchMessage(receipt.threadId, message.id, { card: { ...message.card, answered: "answer", answeredText: receipt.answer, dismissed: false } });
+  const context = receipt.replyContext;
+  const reply = await personReplies.deliver({ auth: { kind: "loopback", trust: "service", scopes: [] }, attribution: context, threadId: receipt.threadId,
+    owner: bot, target: message, answer: receipt.source === "mausbot" ? receipt.answer! : text, sendId, via: context?.via, callId: context?.callId, about: "question" });
+  store.patchMessage(receipt.threadId, message.id, { card: { ...message.card, answered: "answer", answeredText: receipt.answer, dismissed: false, ...(context ? { answeredBy: { ...context.answerer, ...(context.via ? { via: context.via } : {}) } } : {}) } });
   return reply;
 }
 const personQuestions = new PersonQuestions({
   dataDir: DATA_DIR,
   nativeAnswer: async (receipt, answer) => {
     const card = store.messagesFor(receipt.threadId).find((message) => message.card?.requestId === receipt.requestId)?.card;
-    if (card?.answered === "answer" && card.answeredText === answer) return "answered";
-    if (card?.answered) return "unavailable";
-    return await deliverNativeQuestionAnswer(receipt.threadId, receipt.instanceId, receipt.requestId, "answer", answer);
+    const outcome = card?.answered === "answer" && card.answeredText === answer ? "answered" : card?.answered ? "unavailable"
+      : await deliverNativeQuestionAnswer(receipt.threadId, receipt.instanceId, receipt.requestId, "answer", answer);
+    const settled = store.messagesFor(receipt.threadId).find((message) => message.card?.requestId === receipt.requestId);
+    const context = receipt.replyContext;
+    if (outcome === "answered" && settled?.card && context) store.patchMessage(receipt.threadId, settled.id, { card: { ...settled.card, answeredBy: { ...context.answerer, ...(context.via ? { via: context.via } : {}) } } });
+    return outcome;
   },
   lateAnswer: deliverPersonQuestionLate,
   notice: async (receipt, code) => {
@@ -3877,7 +3880,7 @@ async function answerRequest(
   reply?: { auth: RequestAuth; via?: "call"; callId?: string },
 ): Promise<RequestOutcome> {
   if (behavior === "answer" && message && personQuestions.has(threadId, requestId)) {
-    const result = await personQuestions.answer(personQuestionId(threadId, requestId), message, reply ? (receipt, text, sendId) => deliverPersonQuestionLate(receipt, text, sendId, reply.auth, reply.via, reply.callId) : undefined);
+    const result = await personQuestions.answer(personQuestionId(threadId, requestId), message, reply ? personQuestionReplyContextSchema.parse({ sender: messageSender(reply.auth), trigger: usageTriggerFor(reply.auth), answerer: cardAnswererFor(reply.auth), via: reply.via, callId: reply.callId }) : undefined);
     return result.status === "delivered" ? "answered" : "rejected";
   }
   return deliverNativeQuestionAnswer(threadId, instanceId, requestId, behavior, message, decidedFor, always, rememberCommand);

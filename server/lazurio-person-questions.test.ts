@@ -258,10 +258,31 @@ it("allows an explicit corrected answer after rejection while retaining the reje
   const nativeAnswer = vi.fn<PersonQuestionDeps["nativeAnswer"]>().mockResolvedValueOnce("rejected").mockResolvedValue("unavailable");
   const f = fixture({ nativeAnswer }); const receipt = await f.questions.open(input);
   await f.replyT3(receipt.id, "Purple");
-  const correctedDelivery = vi.fn(async () => ({ queued: false }));
-  await f.questions.answer(receipt.id, "Blue", correctedDelivery);
-  expect(correctedDelivery).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ source: "mausbot", answer: "Blue" }), expect.any(String), `person-question-${receipt.id}`);
-  expect(f.deps.lateAnswer).not.toHaveBeenCalled();
+  await f.questions.answer(receipt.id, "Blue");
+  expect(f.deps.lateAnswer).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ source: "mausbot", answer: "Blue" }), expect.any(String), `person-question-${receipt.id}`);
   expect(new PersonQuestions(f.deps).get(receipt.id)).toMatchObject({ answer: "Blue", delivered: true, rejectedAnswers: [{ answer: "Purple", source: "t3" }] });
   expect(nativeAnswer).toHaveBeenCalledTimes(2);
+});
+
+
+it("persists safe reply attribution with the answer before delivery and restores it after failure/restart", async () => {
+  const lateAnswer = vi.fn<PersonQuestionDeps["lateAnswer"]>().mockRejectedValueOnce(new Error("delivery unavailable")).mockResolvedValue({ queued: false });
+  const f = fixture({ nativeAnswer: vi.fn(async () => "unavailable" as const), lateAnswer });
+  const receipt = await f.questions.open(input);
+  const context = { sender: { name: "Fixture person", id: "p_fixture" }, trigger: { kind: "user" as const, label: "Fixture browser" }, answerer: { kind: "session" as const, name: "Fixture person", person: "p_fixture" }, via: "call" as const, callId: "fixture-call" };
+  expect((await f.questions.answer(receipt.id, "Wait", context)).status).toBe("pending");
+  expect((await f.questions.answer(receipt.id, "Different", { ...context, sender: { name: "Later sender" } })).status).toBe("already-answered");
+  expect(lateAnswer).toHaveBeenCalledTimes(1);
+  context.sender.name = "Changed after acceptance";
+  const restarted = new PersonQuestions(f.deps);
+  await restarted.reconcile();
+  expect(lateAnswer).toHaveBeenCalledTimes(2);
+  expect(lateAnswer.mock.calls[1]?.[0].replyContext).toEqual({ ...context, sender: { name: "Fixture person", id: "p_fixture" } });
+  expect(restarted.get(receipt.id)).toMatchObject({ delivered: true, replyContext: { via: "call", callId: "fixture-call", sender: { name: "Fixture person" } } });
+});
+
+it("rejects auth/session fields instead of persisting credentials in reply context", async () => {
+  const f = fixture(); const receipt = await f.questions.open(input);
+  await expect(f.questions.answer(receipt.id, "Wait", { trigger: { kind: "owner" }, answerer: { kind: "loopback" }, auth: { token: "fixture-secret" } } as any)).rejects.toThrow();
+  expect(f.questions.get(receipt.id)?.answer).toBeUndefined();
 });

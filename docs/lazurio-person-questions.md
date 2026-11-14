@@ -108,3 +108,12 @@ account, and a Full-access bot can use it. This relay adds no authority to
 publish and must not be used as independent proof of human provenance.
 Separating a hostile local bot from the user's account would change the
 Environment trust model, not just this delivery mechanism.
+
+Reply attribution is saved atomically with a MausBot answer, before native or
+late delivery. The receipt stores only the server-resolved sender, usage
+attribution, card answerer and optional call id/type. It stores no session,
+credential, token/hash or scopes. This snapshot grants no permissions and is
+never reconstructed from a request body's claimed identity. First delivery,
+retry and restart use the same persisted context; a later competing answer
+cannot replace it. A failed late-delivery regression restarts an isolated
+server and checks the actual message, card, call metadata and deduplication.
