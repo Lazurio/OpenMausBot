@@ -108,6 +108,12 @@ jobs:
             scripts/control-omb.ts
             scripts/testing/file-size-ratchet.test.ts
             server/index.ts
+            # Person questions use the common agents tool catalog and existing
+            # native answer/auth paths, with isolated T3 in verification fixtures.
+            server/drivers/agents-catalog.ts
+            server/drivers/agents-call.ts
+            server/request-auth.ts
+            server/system-prompt.ts
             server/routes/bots-create.ts
             server/store.ts
             # The GitHub intake: WebhookManager.deliver() hands its events to

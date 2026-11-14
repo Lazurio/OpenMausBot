@@ -1,3 +1,4 @@
+import { ASK_PERSON_TOOL } from "./lazurio-person-question-tool.ts";
 // The agents tool catalog and which tools a turn sees: definitions only, no environment, no calls.
 import { CREDENTIAL_TARGETS } from "../../shared/credential-request.ts";
 import { OPTIONS_CARD_LIMITS, WATCHER_OPTIONS_CARD_BOT_ID } from "../../shared/options-card.ts";
@@ -454,7 +455,7 @@ const TOOL_DEFINITIONS = [
       required: ["text"],
     },
   },
-  ...HELPER_TOOL_DEFINITIONS, ...PERSON_TOOL_DEFINITIONS,
+  ...HELPER_TOOL_DEFINITIONS, ...PERSON_TOOL_DEFINITIONS, ASK_PERSON_TOOL,
   {
     name: "memory_update",
     description:

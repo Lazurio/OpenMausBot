@@ -121,6 +121,13 @@ release offers it.
    build cannot read it afterwards, so back the data directory up before the
    first start on a new upstream base.
 
+Person-question qualification uses `server/lazurio-person-questions*.test.ts`
+and `server/lazurio-waiting-routines.test.ts`. The CLI and HTTP fixtures never
+call an installed T3 or a live bot. After Ring 0 acceptance, prove one real
+consumer asking in T3 and receiving the person's answer before retiring its
+local workaround. An Environment without T3 keeps the source question and
+reports `ask-person-unavailable`; do not invent a second chat service.
+
 ## Overlay
 
 `main` is an exact upstream stable tag and on top of it only these commits:
