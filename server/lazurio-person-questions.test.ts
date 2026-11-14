@@ -10,9 +10,14 @@ afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: tru
 const input = { botId: "bot", botName: "Release", threadId: "source", requestId: "request", instanceId: "codex", question: "Choose a version. Options: wait, continue. Default: wait on publishing; continue tests. https://github.com/example/repo/issues/1" };
 function fixture(overrides: Partial<PersonQuestionDeps> = {}) {
   const dataDir = mkdtempSync(join(tmpdir(), "person-question-")); dirs.push(dataDir);
-  const cli = { available: vi.fn(async () => {}), find: vi.fn(async () => undefined as { threadId: string; link: string } | undefined), launch: vi.fn(async () => ({ threadId: "t3", link: "<t3-thread://test/t3>" })), state: vi.fn(async () => ({ status: "waiting", archived: false })), notify: vi.fn(async () => {}) };
-  const deps = { dataDir, port: 1234, cli: cli as unknown as PersonQuestionCli, nativeAnswer: vi.fn(async () => true), lateAnswer: vi.fn(async () => {}), notice: vi.fn(), ...overrides };
-  return { deps, cli, questions: new PersonQuestions(deps) };
+  const cli = { available: vi.fn(async () => {}), find: vi.fn(async () => undefined as { threadId: string; link: string } | undefined), launch: vi.fn(async () => ({ threadId: "t3", link: "<t3-thread://test/t3>" })), state: vi.fn(async () => ({ status: "waiting", archived: false })), history: vi.fn(async () => [{ requestId: "t3-question", threadId: "t3", status: "pending", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "q", question: input.question }] }]), notify: vi.fn(async () => {}) };
+  const deps = { dataDir, cli: cli as unknown as PersonQuestionCli, nativeAnswer: vi.fn(async () => "answered" as const), lateAnswer: vi.fn(async () => {}), notice: vi.fn(), ...overrides };
+  const questions = new PersonQuestions(deps);
+  const replyT3 = async (id: string, answer: string) => {
+    cli.history.mockResolvedValue([{ requestId: "t3-question", threadId: "t3", status: "resolved", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "q", question: input.question }], answers: { q: answer } }]);
+    return questions.refresh(id);
+  };
+  return { deps, cli, questions, replyT3 };
 }
 
 describe("native bot questions delivered to a T3 chat", () => {
@@ -55,25 +60,25 @@ describe("native bot questions delivered to a T3 chat", () => {
   it("first answer wins across both channels and free text survives byte for byte", async () => {
     const f = fixture(); const receipt = await f.questions.open(input);
     const answer = 'Keep the old version\n\n`touch nope` $(echo nope) " \\ Č';
-    const results = await Promise.all([f.questions.answer(receipt.id, answer, "t3"), f.questions.answer(receipt.id, "Different", "mausbot")]);
+    const results = await Promise.all([f.replyT3(receipt.id, answer), f.questions.answer(receipt.id, "Different")]);
     expect(results.map((result) => result.status)).toEqual(["delivered", "already-answered"]);
     expect(f.deps.nativeAnswer).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: receipt.id }), answer);
     expect(new PersonQuestions(f.deps).get(receipt.id)?.answer).toBe(answer);
-    await f.questions.answer(receipt.id, answer, "t3");
+    await f.replyT3(receipt.id, answer);
     expect(f.deps.nativeAnswer).toHaveBeenCalledTimes(1);
   });
 
   it("tells T3 when the person answered in MausBot", async () => {
     const f = fixture(); const receipt = await f.questions.open(input);
-    await f.questions.answer(receipt.id, "Wait", "mausbot");
-    expect(f.cli.notify).toHaveBeenCalledExactlyOnceWith("t3", receipt.id, "Wait");
-    expect((await f.questions.answer(receipt.id, "Continue", "t3")).status).toBe("already-answered");
+    await f.questions.answer(receipt.id, "Wait");
+    expect(f.cli.notify).toHaveBeenCalledExactlyOnceWith("t3", receipt.id, "Wait", "t3-question");
+    expect((await f.replyT3(receipt.id, "Continue")).receipt).toMatchObject({ source: "mausbot", answer: "Wait" });
   });
 
   it("retries a failed notification after restart without delivering the bot’s answer twice", async () => {
     const f = fixture(); const receipt = await f.questions.open(input);
     f.cli.notify.mockRejectedValueOnce(new Error("offline T3"));
-    const result = await f.questions.answer(receipt.id, "Wait", "mausbot");
+    const result = await f.questions.answer(receipt.id, "Wait");
     expect(result.status).toBe("delivered");
     expect(result.receipt.error).toBe("ask-person-delivery-failed");
     const restarted = new PersonQuestions(f.deps);
@@ -84,16 +89,58 @@ describe("native bot questions delivered to a T3 chat", () => {
     expect(restarted.get(receipt.id)?.error).toBeUndefined();
   });
 
+  it("a rejected native answer is never retried or delivered as a late message", async () => {
+    const f = fixture({ nativeAnswer: vi.fn(async () => "rejected" as const) }); const receipt = await f.questions.open(input);
+    expect((await f.replyT3(receipt.id, "Unsupported free text")).status).toBe("rejected");
+    expect(f.questions.get(receipt.id)).toMatchObject({ nativeRejected: true, error: "ask-person-answer-rejected" });
+    await f.questions.reconcile();
+    await new PersonQuestions(f.deps).reconcile();
+    expect(f.deps.lateAnswer).not.toHaveBeenCalled();
+    expect(f.deps.nativeAnswer).toHaveBeenCalledTimes(1);
+    expect(f.questions.get(receipt.id)?.delivered).not.toBe(true);
+  });
+
+  it("reads the first bound T3 request's persisted answer and ignores a later question", async () => {
+    const f = fixture(); const receipt = await f.questions.open(input);
+    await f.questions.refresh(receipt.id);
+    const original = { requestId: "t3-question", threadId: "t3", status: "pending", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "q", question: input.question }] };
+    const later = { ...original, requestId: "unrelated", status: "resolved", questions: [{ id: "q", question: "Another decision?" }], answers: { q: "Publish something else" } };
+    f.cli.history.mockResolvedValue([original, later]);
+    await f.questions.refresh(receipt.id);
+    expect(f.deps.nativeAnswer).not.toHaveBeenCalled();
+    f.cli.history.mockResolvedValue([{ ...original, status: "resolved", answers: { q: "Wait\nexactly" } }, later]);
+    expect((await f.questions.refresh(receipt.id)).status).toBe("delivered");
+    expect(f.questions.get(receipt.id)).toMatchObject({ t3RequestId: "t3-question", answer: "Wait\nexactly", source: "t3" });
+  });
+
+  it("does not bind an unrelated question even before the relay question opens", async () => {
+    const f = fixture(); const receipt = await f.questions.open(input);
+    f.cli.history.mockResolvedValue([{ requestId: "unrelated", threadId: "t3", status: "resolved", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "q", question: "Deploy another project?" }], answers: { q: "Yes" } }]);
+    await f.questions.refresh(receipt.id);
+    expect(f.questions.get(receipt.id)).toMatchObject({ error: "ask-person-question-mismatch" });
+    expect(f.questions.get(receipt.id)?.t3RequestId).toBeUndefined();
+    expect(f.deps.nativeAnswer).not.toHaveBeenCalled();
+  });
+
+  it("does not treat a closed T3 request without an accepted answer as a person's decision", async () => {
+    const f = fixture(); const receipt = await f.questions.open(input);
+    f.cli.history.mockResolvedValue([{ requestId: "closed", threadId: "t3", status: "cancelled", createdAt: "2026-01-01T00:00:00Z", questions: [{ id: "q", question: input.question }] }]);
+    await f.questions.refresh(receipt.id);
+    expect(f.questions.get(receipt.id)).toMatchObject({ t3RequestId: "closed", error: "ask-person-still-open" });
+    expect(f.questions.get(receipt.id)?.answer).toBeUndefined();
+    expect(f.deps.nativeAnswer).not.toHaveBeenCalled();
+  });
+
   it("delivers a late answer as a new message carrying the question id", async () => {
-    const f = fixture({ nativeAnswer: vi.fn(async () => false) }); const receipt = await f.questions.open(input);
-    await f.questions.answer(receipt.id, "Later\nanswer", "t3");
+    const f = fixture({ nativeAnswer: vi.fn(async () => "unavailable" as const) }); const receipt = await f.questions.open(input);
+    await f.replyT3(receipt.id, "Later\nanswer");
     expect(f.deps.lateAnswer).toHaveBeenCalledExactlyOnceWith(expect.anything(), `Answer to question ${receipt.id} (t3):\nLater\nanswer`, `person-question-${receipt.id}`);
   });
 
   it("persists a delivery failure and retries the same first answer after restart", async () => {
     const lateAnswer = vi.fn().mockRejectedValueOnce(new Error("bot deleted" )).mockResolvedValue(undefined);
-    const f = fixture({ nativeAnswer: vi.fn(async () => false), lateAnswer }); const receipt = await f.questions.open(input);
-    expect((await f.questions.answer(receipt.id, "Wait", "t3")).status).toBe("pending");
+    const f = fixture({ nativeAnswer: vi.fn(async () => "unavailable" as const), lateAnswer }); const receipt = await f.questions.open(input);
+    expect((await f.replyT3(receipt.id, "Wait")).status).toBe("pending");
     const restarted = new PersonQuestions(f.deps);
     expect(restarted.get(receipt.id)).toMatchObject({ answer: "Wait", error: "ask-person-delivery-failed" });
     await restarted.reconcile();
@@ -124,13 +171,19 @@ describe("native bot questions delivered to a T3 chat", () => {
 
 it("uses the existing T3 capability and question CLI without a shell or permission approval", async () => {
   const call = vi.fn(async (args: string[]) => {
-    if (args[0] === "lazurio") return { agentCli: true };
-    if (args[0] === "request" && args[1] === "list") return { requests: [{ type: "approval", requestId: "permission" }, { type: "question", requestId: "question", questions: [{ id: "q" }] }] };
+    if (args[0] === "lazurio") return { agentCli: true, requestHistory: true };
+    if (args[0] === "request" && args[1] === "list") return { requests: [{ type: "approval", requestId: "permission" }, { type: "question", requestId: "question", questions: [{ id: "q" }] }, { type: "question", requestId: "unrelated", questions: [{ id: "later" }] }] };
     return { threads: [] };
   });
   const cli = new PersonQuestionCli(call);
   await cli.available();
-  await cli.notify("thread", "id", "Wait\n$(nope)");
+  await cli.notify("thread", "id", "Wait\n$(nope)", "question");
   expect(call).toHaveBeenCalledWith(["request", "respond", "question", "--thread", "thread", "--answers", JSON.stringify({ q: "Wait\n$(nope)" }), "--json"]);
   expect(call.mock.calls.some(([args]) => args.includes("approve"))).toBe(false);
+  expect(call.mock.calls.some(([args]) => args[1] === "respond" && args[2] === "unrelated")).toBe(false);
+});
+
+it("an older agent CLI without persisted question history is unavailable to the relay", async () => {
+  const cli = new PersonQuestionCli(async () => ({ agentCli: true }));
+  await expect(cli.available()).rejects.toThrow("ask-person-unavailable");
 });

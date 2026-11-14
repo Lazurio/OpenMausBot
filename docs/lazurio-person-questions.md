@@ -21,16 +21,19 @@ or issue link. A publication choice has no recommended answer.
 
 The relay is a durable delivery receipt, not another authority for bot work.
 It records the source bot, thread, request, T3 thread and verbatim answer.
-A reply endpoint uses the same native answer path as the MausBot card. Once
+MausBot reads the saved answer from the authenticated T3 CLI, bound to the
+first T3 request matching the supplied question texts in this fresh relay thread. No HTTP caller supplies
+an answer or declares it human-authored. Once
 the provider request ends, a late answer is delivered as a new message with
 the question id. First answer wins across both channels; retries return the
 receipt. Deleted bots and failed delivery remain visibly unresolved.
 
 ## Existing T3 capabilities and idempotency
 
-Probe `t3 lazurio capabilities`; require `agentCli`. Use `t3 thread launch`
-in the Environment's Lazurio Folder project, and `t3 request` to inspect or
-settle a pending question when the other channel answered. Never read T3's
+Probe `t3 lazurio capabilities`; require `agentCli` and `requestHistory`. Use `t3 thread launch`
+in the Environment's Lazurio Folder project, and `t3 request history` to read persisted request status and answers. When
+the other channel answered, settle only the exact bound request id, never
+a later question in that chat. Never read T3's
 database, reconfigure it or restart its service.
 
 The source thread/request pair identifies one question. Persist intent before
@@ -49,9 +52,11 @@ failure: avoiding duplicate questions takes precedence over automatic retry.
 - Free text is returned verbatim, including newlines and shell characters.
 - An answer in MausBot wins if first; T3 is informed. A later answer cannot
   overwrite the first. A provider timeout is not a person's answer.
-- An archived, failed or completed chat without a callback leaves the question
+- An archived, failed or completed chat without a saved answer leaves the question
   open and reports it to the bot; it is never interpreted as refusal.
-- A late answer after the source turn ends becomes a new bot message. A
+- A late answer after the source request is actually unavailable becomes a new bot message.
+  A native `rejected` outcome remains an explicit rejected-delivery record and
+  never becomes a successful late message or an automatic retry. A
   stopped/deleted bot or a delivery failure is reported, never called resumed.
 - Persist receipts before externally visible delivery and retain recoverable
   delivery errors across restart. Tests cover crash boundaries and races.
@@ -72,3 +77,10 @@ never mutate a person's live bot.
 Release uses the fork's existing contract: bot dispatches, persona approves,
 then Ring 0 browser acceptance gates the next wave. A development deployment
 lane waits for its operator's explicit instruction.
+
+The CLI history capability exposes the running server's existing persisted
+question state; it changes no server route, data or authentication. Older
+CLIs without this capability report `ask-person-unavailable`. A qualified
+CLI is a rollout dependency; it does not authorize restarting a live T3
+service. Like other Environment tools, it acts within the shared account's
+rights; this is no isolation boundary between Full-access agents.
