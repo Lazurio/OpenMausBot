@@ -13,14 +13,24 @@ const args = process.argv.slice(2);
 const file = ${JSON.stringify(state)};
 let state = {threads: [], launches: 0}; try { state = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
 let result = {};
-if (args[0] === 'lazurio') result = {agentCli: true};
+if (args[0] === 'lazurio') result = {agentCli: true, requestHistory: true};
 if (args[0] === 'thread' && args[1] === 'list') result = {threads: state.threads.filter(t => t.title.includes(args[args.indexOf('--title')+1]))};
 if (args[0] === 'thread' && args[1] === 'launch') {
   const thread = {threadId: 'fixture-t3-' + (++state.launches), title: args[args.indexOf('--title')+1], link: '<t3-thread://fixture/thread>'};
-  state.threads.push(thread); state.prompt = fs.readFileSync(args[args.indexOf('--message-file')+1], 'utf8'); result = {thread};
+  state.threads.push(thread); state.requests ??= {}; state.requests[thread.threadId] = [{requestId: 'request-' + thread.threadId, threadId: thread.threadId, status: 'pending', createdAt: '2026-01-01T00:00:00Z', questions: [{id: 'q1', question: 'Which fixture version?'}]}]; state.prompt = fs.readFileSync(args[args.indexOf('--message-file')+1], 'utf8'); result = {thread};
 }
 if (args[0] === 'thread' && args[1] === 'read') result = {thread: {status: 'waiting', archived: false}};
-if (args[0] === 'request') result = {requests: []};
+if (args[0] === 'request') {
+  const thread = args[args.indexOf('--thread') + 1];
+  const requests = state.requests?.[thread] ?? [];
+  if (args[1] === 'history') result = {requests};
+  if (args[1] === 'list') result = {requests: requests.filter(r => r.status === 'pending').map(r => ({...r, type: 'question'}))};
+  if (args[1] === 'respond') {
+    const request = requests.find(r => r.requestId === args[2]);
+    if (request) {request.status = 'resolved'; request.answers = JSON.parse(args[args.indexOf('--answers') + 1]);}
+    state.responded ??= []; state.responded.push(args[2]);
+  }
+}
 fs.writeFileSync(file, JSON.stringify(state)); console.log(JSON.stringify(result));
 `, { mode: 0o700 });
 
@@ -49,7 +59,9 @@ describe("a bot's person question through the real HTTP routes", () => {
   it("requires a capability, validates the contract and launches exactly one chat for retries", async () => {
     expect((await call("/api/internal/person-questions", question)).status).not.toBe(200);
     expect((await call("/api/internal/person-questions", { ...question, options: ["Only one"] }, true)).status).toBe(400);
-    const opened = await call("/api/internal/person-questions", question, true);
+    const retries = await Promise.all(Array.from({ length: 5 }, () => call("/api/internal/person-questions", question, true)));
+    const opened = retries[0]!;
+    expect(retries.every((result) => result.status === 200 && result.body.questionId === opened.body.questionId)).toBe(true);
     expect(opened.status).toBe(200);
     questionId = opened.body.questionId;
     expect(opened.body).toMatchObject({ threadId: "fixture-t3-1", link: "<t3-thread://fixture/thread>" });
@@ -71,10 +83,16 @@ describe("a bot's person question through the real HTTP routes", () => {
 
   it("returns a free text answer to the bot and settles the source card, refusing a later answer", async () => {
     const answer = 'Wait until the next version.\n\nLiteral: `echo nope` $(nope) " Č';
-    const reply = await call(`/api/person-questions/${questionId}/answer`, { answer });
+    expect((await call(`/api/person-questions/${questionId}/answer`, { answer: "Forged publication consent" })).status).toBe(404);
+    expect((await call(`/api/person-questions/${questionId}/refresh`, { answer: "Forged publication consent" })).status).toBe(400);
+    expect((await call(`/api/person-questions/${questionId}/refresh`, {})).body.status).toBe("waiting");
+    const persisted = JSON.parse(readFileSync(state, "utf8"));
+    const request = persisted.requests["fixture-t3-1"][0]; request.status = "resolved"; request.answers = {q1: answer};
+    writeFileSync(state, JSON.stringify(persisted));
+    const reply = await call(`/api/person-questions/${questionId}/refresh`, {});
     expect(reply).toMatchObject({ status: 200, body: { status: "delivered", questionId, source: "t3" } });
-    const repeated = await call(`/api/person-questions/${questionId}/answer`, { answer: "Another choice" });
-    expect(repeated.body.status).toBe("already-answered");
+    const repeated = await call(`/api/person-questions/${questionId}/refresh`, {});
+    expect(repeated.body.status).toBe("delivered");
     await expect.poll(async () => (await call(`/api/threads/${bot.threadId}/messages`)).body.messages.some((message: any) => message.text?.includes(answer)), { timeout: 15_000 }).toBe(true);
     const messages = (await call(`/api/threads/${bot.threadId}/messages`)).body.messages;
     expect(messages.find((message: any) => message.card?.requestId === "person-release-choice").card).toMatchObject({ answered: "answer", answeredText: answer });
@@ -84,8 +102,8 @@ describe("a bot's person question through the real HTTP routes", () => {
   it("an answer in the MausBot card wins and the T3 callback cannot deliver a competing answer", async () => {
     const answered = await call(`/api/threads/${bot.threadId}/respond`, { requestId: "person-other-channel", behavior: "answer", message: "Wait from MausBot" });
     expect(answered.status).toBe(200);
-    const losing = await call(`/api/person-questions/${otherQuestionId}/answer`, { answer: "Continue from T3" });
-    expect(losing.body).toMatchObject({ status: "already-answered", source: "mausbot" });
+    const losing = await call(`/api/person-questions/${otherQuestionId}/refresh`, {});
+    expect(losing.body).toMatchObject({ status: "delivered", source: "mausbot" });
     const receipt = JSON.parse(readFileSync(join(fixture.info.dataDir, "person-questions", `${otherQuestionId}.json`), "utf8"));
     expect(receipt).toMatchObject({ answer: "Wait from MausBot", source: "mausbot", delivered: true, notified: true });
     const messages = (await call(`/api/threads/${bot.threadId}/messages`)).body.messages;

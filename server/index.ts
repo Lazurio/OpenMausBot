@@ -2351,12 +2351,12 @@ function personQuestionNotice(threadId: string, code: string) {
   store.appendMessage(threadId, { role: "bot", kind: "activity", tool: { name: `${code}: person-question delivery needs attention; continue independent work and report this problem`, ok: false } });
 }
 const personQuestions = new PersonQuestions({
-  dataDir: DATA_DIR, port: PORT,
+  dataDir: DATA_DIR,
   nativeAnswer: async (receipt, answer) => {
     const card = store.messagesFor(receipt.threadId).find((message) => message.card?.requestId === receipt.requestId)?.card;
-    if (card?.answered === "answer" && card.answeredText === answer) return true;
-    if (card?.answered) return false;
-    return await deliverNativeQuestionAnswer(receipt.threadId, receipt.instanceId, receipt.requestId, "answer", answer) === "answered";
+    if (card?.answered === "answer" && card.answeredText === answer) return "answered";
+    if (card?.answered) return "unavailable";
+    return await deliverNativeQuestionAnswer(receipt.threadId, receipt.instanceId, receipt.requestId, "answer", answer);
   },
   lateAnswer: async (receipt, text, sendId) => {
     const bot = store.bot(receipt.botId);
@@ -3870,7 +3870,7 @@ function commandRememberRefusal(auth: RequestAuth, threadId: string, requestId: 
 async function answerRequest(...args: Parameters<typeof deliverNativeQuestionAnswer>): Promise<RequestOutcome> {
   const [threadId, , requestId, behavior, message] = args;
   if (behavior === "answer" && message && personQuestions.has(threadId, requestId)) {
-    const result = await personQuestions.answer(personQuestionId(threadId, requestId), message, "mausbot");
+    const result = await personQuestions.answer(personQuestionId(threadId, requestId), message);
     return result.status === "delivered" ? "answered" : "rejected";
   }
   return deliverNativeQuestionAnswer(...args);
@@ -9514,6 +9514,7 @@ ROUTES.push(createSidebarSectionRoutes({ store, maxBots: MAX_WORKSPACE_BOTS, wir
   createSignInCardRoutes({ settle: settleSignIn, threadVisible: (auth, threadId) => visibleTo(viewerFor(auth)).thread(threadId) }));
 ROUTES.push(createPersonQuestionRoutes(personQuestions));
 const personQuestionInternalRoute = createPersonQuestionInternalRoute(personQuestions, (id) => store.bot(id)?.name ?? "Bot", (input) => {
+  if (store.messagesFor(input.threadId).some((message) => message.card?.requestId === input.requestId)) return;
   store.appendMessage(input.threadId, { role: "bot", kind: "options", card: { title: "Your bot has a question", subtitle: input.question, options: input.questions![0]!.options.map((option) => option.label), requestId: input.requestId, requestType: "question", questionRequest: { version: 1, questions: input.questions! } } });
 });
 let personQuestionReconciling = false;

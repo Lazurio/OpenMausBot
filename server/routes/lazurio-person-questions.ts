@@ -2,19 +2,19 @@ import type { PersonQuestions } from "../lazurio-person-questions.ts";
 import { ownerOrAdmin } from "../request-auth.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
-/** An owner or the same Environment's local CLI may return a person's answer; it grants no permission. */
+/** Refresh reads the authoritative T3 request; callers cannot supply or attest an answer. */
 export function createPersonQuestionRoutes(questions: PersonQuestions): RouteHandler {
   return async ({ req, res, path, method, auth, json, readBody }) => {
-    const match = /^\/api\/person-questions\/([a-f0-9]{64})\/answer$/.exec(path);
+    const match = /^\/api\/person-questions\/([a-f0-9]{64})\/refresh$/.exec(path);
     if (!match) return PASS;
-    if (!ownerOrAdmin(auth) && !(auth.kind === "loopback" && req.headers["x-openmausbot-cli"] === "1")) return json(res, 403, { error: "forbidden" });
+    if (!ownerOrAdmin(auth)) return json(res, 403, { error: "forbidden" });
     if (method !== "POST") return json(res, 405, { error: "method not allowed" });
     const body = await readBody(req);
-    if (typeof body?.answer !== "string" || !body.answer.length || body.answer.length > 100_000) return json(res, 400, { error: "invalid-answer" });
+    if (!body || Object.keys(body).length) return json(res, 400, { error: "refresh-takes-no-answer" });
     if (!questions.get(match[1]!)) return json(res, 404, { error: "question-not-found" });
-    const result = await questions.answer(match[1]!, body.answer, "t3");
+    const result = await questions.refresh(match[1]!);
     res.setHeader("cache-control", "no-store");
-    return json(res, result.status === "pending" ? 503 : 200, { status: result.status, questionId: match[1], source: result.receipt.source });
+    return json(res, result.status === "pending" || result.status === "rejected" ? 503 : 200, { status: result.status, questionId: match[1], source: result.receipt.source });
   };
 }
 
@@ -31,11 +31,9 @@ export function createPersonQuestionInternalRoute(questions: PersonQuestions, bo
     const input = { botId: ctx.botId, botName: botName(ctx.botId), threadId: ctx.threadId, instanceId: ctx.instanceId,
       requestId: `person-${body.question_id}`, question: `${body.question}\n\nMeanwhile: ${body.meanwhile}\n${body.link}`,
       questions: [{ question: body.question, options: (body.options as string[]).map((label) => ({ label })) }] };
-    const existed = questions.has(input.threadId, input.requestId);
     let result;
-    try { result = await questions.open(input); }
+    try { result = await questions.open(input, () => card(input)); }
     catch (error) { return ctx.json(ctx.res, error instanceof Error && error.message === "question-id-conflict" ? 409 : 503, { error: error instanceof Error && error.message === "question-id-conflict" ? "question-id-conflict" : "ask-person-storage-failed" }); }
-    if (!existed) card(input);
     return ctx.json(ctx.res, result.error ? 503 : 200, { questionId: result.id, threadId: result.t3ThreadId, link: result.link, ...(result.error ? { error: result.error } : {}) });
   };
 }

@@ -1,5 +1,13 @@
 import { execFile } from "node:child_process";
+import { z } from "zod";
 import { writeFileAtomic } from "./atomic.ts";
+
+const historySchema = z.object({ requests: z.array(z.object({
+  requestId: z.string().min(1), threadId: z.string().min(1), status: z.enum(["pending", "resolved", "cancelled", "expired"]),
+  createdAt: z.string(), questions: z.array(z.object({ id: z.string(), question: z.string() }).passthrough()),
+  answers: z.record(z.string(), z.unknown()).optional(),
+})) });
+export type T3Question = z.infer<typeof historySchema>["requests"][number];
 
 export type T3Call = (args: string[]) => Promise<any>;
 export const t3Call: T3Call = (args) => new Promise((resolve, reject) => {
@@ -15,7 +23,8 @@ export class PersonQuestionCli {
   constructor(call: T3Call = t3Call) { this.call = call; }
 
   async available(): Promise<void> {
-    if ((await this.call(["lazurio", "capabilities"])).agentCli !== true) throw new Error("ask-person-unavailable");
+    const capabilities = await this.call(["lazurio", "capabilities"]);
+    if (capabilities.agentCli !== true || capabilities.requestHistory !== true) throw new Error("ask-person-unavailable");
   }
 
   async find(marker: string): Promise<{ threadId: string; link: string } | undefined> {
@@ -42,12 +51,20 @@ export class PersonQuestionCli {
     return thread;
   }
 
-  async notify(threadId: string, id: string, text: string): Promise<void> {
-    const result = await this.call(["request", "list", "--json", "--thread", threadId]);
-    for (const request of result.requests ?? []) {
-      if (request.type !== "question") continue;
-      const answers = Object.fromEntries((request.questions ?? []).map((question: any) => [question.id, text]));
-      await this.call(["request", "respond", request.requestId, "--thread", threadId, "--answers", JSON.stringify(answers), "--json"]);
+  async history(threadId: string): Promise<T3Question[]> {
+    const result = historySchema.parse(await this.call(["request", "history", "--thread", threadId, "--json"]));
+    if (result.requests.some((request) => request.threadId !== threadId)) throw new Error("ask-person-unavailable");
+    return result.requests.toSorted((a, b) => a.createdAt.localeCompare(b.createdAt) || a.requestId.localeCompare(b.requestId));
+  }
+
+  async notify(threadId: string, id: string, text: string, requestId?: string): Promise<void> {
+    if (requestId) {
+      const result = await this.call(["request", "list", "--json", "--thread", threadId]);
+      const request = (result.requests ?? []).find((candidate: any) => candidate.type === "question" && candidate.requestId === requestId);
+      if (request) {
+        const answers = Object.fromEntries((request.questions ?? []).map((question: any) => [question.id, text]));
+        await this.call(["request", "respond", requestId, "--thread", threadId, "--answers", JSON.stringify(answers), "--json"]);
+      }
     }
     await this.call(["thread", "send", threadId, `Question ${id} was answered in MausBot. The first answer won. Verbatim answer:\n${text}`, "--json", "--mode", "queue", "--idempotency-key", `mausbot-question-${id}`]);
   }
