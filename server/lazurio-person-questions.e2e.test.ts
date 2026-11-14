@@ -59,7 +59,9 @@ describe("a bot's person question through the real HTTP routes", () => {
     expect(t3.prompt).toContain(question.meanwhile);
     expect(t3.prompt).toContain(question.link);
     const messages = (await call(`/api/threads/${bot.threadId}/messages`)).body.messages;
-    expect(messages.filter((message: any) => message.card?.requestId === "person-release-choice")).toHaveLength(1);
+    const cards = messages.filter((message: any) => message.card?.requestId === "person-release-choice");
+    expect(cards).toHaveLength(1);
+    expect(cards[0].card.tool).toBeUndefined();
   });
 
   it("returns a free text answer to the bot and settles the source card, refusing a later answer", async () => {

@@ -9507,7 +9507,7 @@ ROUTES.push(createSidebarSectionRoutes({ store, maxBots: MAX_WORKSPACE_BOTS, wir
   createSignInCardRoutes({ settle: settleSignIn, threadVisible: (auth, threadId) => visibleTo(viewerFor(auth)).thread(threadId) }));
 ROUTES.push(createPersonQuestionRoutes(personQuestions));
 const personQuestionInternalRoute = createPersonQuestionInternalRoute(personQuestions, (id) => store.bot(id)?.name ?? "Bot", (input) => {
-  store.appendMessage(input.threadId, { role: "bot", kind: "options", card: { tool: "ask_person", title: "Your bot has a question", subtitle: input.question, options: input.questions![0]!.options.map((option) => option.label), requestId: input.requestId, requestType: "question", questionRequest: { version: 1, questions: input.questions! } } });
+  store.appendMessage(input.threadId, { role: "bot", kind: "options", card: { title: "Your bot has a question", subtitle: input.question, options: input.questions![0]!.options.map((option) => option.label), requestId: input.requestId, requestType: "question", questionRequest: { version: 1, questions: input.questions! } } });
 });
 let personQuestionReconciling = false;
 const reconcilePersonQuestions = async () => {
