@@ -293,7 +293,6 @@ describe.skipIf(process.platform === "win32")("a server whose intake review run 
     return { status: response.status, body: await response.json() as any };
   };
   const file = (threadId: string, extension: string) => join(fixture.info.dataDir, `${threadId}.${extension}`);
-  const finish = (threadId: string) => writeFileSync(file(threadId, "gate"), "finish isolated turn");
   const dump = async (threadId: string) => {
     let parsed: any;
     await expect.poll(() => {
@@ -330,7 +329,7 @@ describe.skipIf(process.platform === "win32")("a server whose intake review run 
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("hands nothing more over for the pull request until the teammate the stop left running has ended", async () => {
+  it("waits for the teammate the stop left running on the same head, and a newer head stops it and is handed over", async () => {
     expect((await api("POST", "/api/bots", { name: "Henry", section: "Steward" })).status).toBe(201);
     const worker = (await api("POST", "/api/bots", { name: "Worker", section: "Steward" })).body.bot;
     expect((await api("POST", "/api/github-intake/poll")).body.summary).toMatchObject({ delivered: 1 });
@@ -349,18 +348,29 @@ describe.skipIf(process.platform === "win32")("a server whose intake review run 
     expect(work()?.status).toBe("running");
     expect(readHandoffs(fixture.info.dataDir).find((node) => node.threadId === run.threadId && !node.parentId)?.status).toBe("cancelled");
 
-    const pushedAt = new Date(Date.now() + 1_000).toISOString();
-    writeFileSync(githubState, JSON.stringify({ rerequested: true, requestedAt: pushedAt, updatedAt: pushedAt, head: NEXT }));
+    // A request again on the same head waits for the teammate: one review of a head at a time.
+    const askedAt = new Date(Date.now() + 1_000).toISOString();
+    writeFileSync(githubState, JSON.stringify({ rerequested: true, requestedAt: askedAt, updatedAt: askedAt }));
     for (let i = 0; i < 2; i++) {
       const polled = await api("POST", "/api/github-intake/poll");
       expect(polled.body.summary).toMatchObject({ delivered: 0 });
       expect(polled.body.status).toMatchObject({ needsRecovery: 0 });
     }
+    expect(work()?.status).toBe("running");
 
-    finish(work()!.threadId);
-    await expect.poll(() => work()?.status, { timeout: hostTimeout(20_000), interval: 200 }).toBe("completed");
-    const next = await api("POST", "/api/github-intake/poll");
-    expect(next.body.summary).toMatchObject({ delivered: 1 });
-    expect(next.body.status.recent[0]).toMatchObject({ kind: "review", outcome: "delivered", headSha: NEXT });
+    // A newer head replaces the review of the older one: the teammate still on the older head is stopped and the newer
+    // head is handed over as soon as nothing of the pull request is in flight.
+    const pushedAt = new Date(Date.now() + 2_000).toISOString();
+    writeFileSync(githubState, JSON.stringify({ rerequested: true, requestedAt: pushedAt, updatedAt: pushedAt, head: NEXT }));
+    let delivered: any;
+    await expect.poll(async () => {
+      const polled = await api("POST", "/api/github-intake/poll");
+      if (polled.body.summary.delivered === 1) delivered = polled.body;
+      return Boolean(delivered);
+    }, { timeout: hostTimeout(20_000), interval: 500 }).toBe(true);
+    expect(work()?.status).not.toBe("running");
+    expect(delivered.status.recent.find((record: any) => record.outcome === "delivered" && record.headSha === NEXT)).toBeTruthy();
+    expect(delivered.status.recent.find((record: any) => record.outcome === "superseded" && record.headSha === HEAD)).toBeTruthy();
+    expect(delivered.status.needsRecovery).toBe(0);
   }, hostTimeout(120_000));
 });
