@@ -2648,3 +2648,89 @@ describe("GitHub intake: the inputs a release's verify job logged", () => {
     await expect(ghText(async () => ({ ok: false, code: 1, stderr: "gh: Not Found (HTTP 404)" }), "repos/x/y/actions/jobs/2/logs")).rejects.toThrow(/actions\/jobs\/2\/logs/);
   });
 });
+
+describe("GitHub intake: a newer head replaces the review still running on an older head", () => {
+  function supersedeHarness(withCancel = true) {
+    const h = harness({ bot: "Pablo" }, { bots: [{ id: "bot-pablo", name: "Pablo" }] });
+    const cancelled: Array<[string, string]> = [];
+    const options: GithubIntakeOptions = {
+      ...h.intakeOptions, runState: (id) => h.runs.get(id) ?? null, runs: h.nativeRuns,
+      ...(withCancel ? {
+        cancelRun: (id: string, reason: string) => {
+          cancelled.push([id, reason]);
+          Object.assign(h.runs.get(id) ?? {}, { status: "cancelled", error: reason, finishedAt: h.github.now });
+        },
+      } : {}),
+    };
+    return { ...h, intake: new GithubIntake(options), cancelled, file: options.file };
+  }
+  const running = (h: { runs: Map<string, RunReceipt>; github: FakeGitHub }, id: string) =>
+    h.runs.set(id, { status: "running", createdAt: h.github.now - 30_000, startedAt: h.github.now - 20_000, threadId: `lead-${id}` });
+
+  it("stops the run on head A and hands head B over in the same poll, recorded as superseded", async () => {
+    const h = supersedeHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    running(h, "run-1");
+    h.github.push(pr, HEAD_B);
+    h.github.request(pr, "henry-bot", "matej");
+
+    await h.intake.pollOnce();
+
+    expect(h.cancelled).toEqual([["run-1", expect.stringContaining(`superseded: the pull request moved on to ${HEAD_B.slice(0, 12)}`)]]);
+    expect(h.events().map((event) => event.head_sha)).toEqual([HEAD_A, HEAD_B]);
+    const records = JSON.parse(readFileSync(h.file, "utf8")).records as Array<Record<string, unknown>>;
+    expect(records.filter((record) => record.outcome === "superseded")).toEqual([
+      expect.objectContaining({ repository: "acme/app", number: 7, headSha: HEAD_A, runId: "run-1" }),
+    ]);
+    expect(records.some((record) => record.headSha === HEAD_A && record.outcome === "needs_recovery")).toBe(false);
+    expect(pr.comments.filter((comment) => comment.user === "henry-bot")).toEqual([]);
+    expect(h.logs.some((line) => line.includes(`stopped the review of ${HEAD_A.slice(0, 12)} (run run-1) for the newer head ${HEAD_B.slice(0, 12)}`))).toBe(true);
+  });
+
+  it("does not stop or duplicate a run when a second request comes for the same head", async () => {
+    const h = supersedeHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    running(h, "run-1");
+    h.github.request(pr, "henry-bot", "matej");
+
+    await h.intake.pollOnce();
+
+    expect(h.cancelled).toEqual([]);
+    expect(h.queued).toHaveLength(1);
+    expect(h.runs.get("run-1")?.status).toBe("running");
+  });
+
+  it("keeps waiting when it cannot stop runs: without cancelRun the newer head waits as before", async () => {
+    const h = supersedeHarness(false);
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    running(h, "run-1");
+    h.github.push(pr, HEAD_B);
+
+    await h.intake.pollOnce();
+
+    expect(h.queued).toHaveLength(1);
+    expect(h.runs.get("run-1")?.status).toBe("running");
+  });
+
+  it("hands the newer head over once the stopped run's delegated work has ended, not before", async () => {
+    const h = supersedeHarness();
+    const pr = h.github.pr({ repo: "acme/app", number: 7, requested: ["henry-bot"] });
+    await h.intake.pollOnce();
+    running(h, "run-1");
+    // A run that still shows as active after the stop (its delegated work is still live) keeps the newer head waiting.
+    const sticky = new GithubIntake({ ...h.intakeOptions, runState: (id) => h.runs.get(id) ?? null, runs: h.nativeRuns,
+      cancelRun: (id) => { h.cancelled.push([id, "stop"]); } });
+    h.github.push(pr, HEAD_B);
+
+    await sticky.pollOnce();
+    expect(h.cancelled.map(([id]) => id)).toEqual(["run-1"]);
+    expect(h.queued).toHaveLength(1);
+
+    h.runs.set("run-1", { status: "cancelled", finishedAt: h.github.now });
+    await sticky.pollOnce();
+    expect(h.events().map((event) => event.head_sha)).toEqual([HEAD_A, HEAD_B]);
+  });
+});

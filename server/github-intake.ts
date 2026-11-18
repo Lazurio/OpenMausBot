@@ -89,7 +89,7 @@ const permissionSchema = z.object({ permission: z.string().optional(), role_name
 // ── durable state ─────────────────────────────────────────────────────────
 
 export type IntakeKind = "review" | "publish" | "deployment";
-export const INTAKE_OUTCOMES = ["delivered", "duplicate", "already_reviewed", "needs_human_approval", "ignored", "needs_recovery", "notified", "approved", "rejected", "ended"] as const;
+export const INTAKE_OUTCOMES = ["delivered", "duplicate", "already_reviewed", "needs_human_approval", "ignored", "needs_recovery", "notified", "approved", "rejected", "ended", "superseded"] as const;
 export type IntakeOutcome = (typeof INTAKE_OUTCOMES)[number];
 const HANDED_OVER: readonly IntakeOutcome[] = ["delivered", "duplicate", "needs_recovery"];
 
@@ -557,8 +557,8 @@ export class GithubIntake {
           if (this.options.runState && !ACTIVE_RUN.includes(receipt?.status ?? "")) {
             done = await this.afterAttempt({ ...plan, receipt, pr, account, bot, summary, deferred, reviews });
           }
-        } else if (this.hasActiveRun(repo, number)) {
-          done = false; // one review at a time: earlier work on this pull request finishes first
+        } else if (this.hasActiveRun(repo, number) && !this.supersede(repo, number, head)) {
+          done = false; // one review at a time: work on this head, or on a head no record names, finishes first
         } else {
           done = this.deliver(bot, deferred, summary, {
             key: plan.key, kind: "review", repository: repo, number, headSha: head, requester: plan.requester, ...plan.record, notesFloor: await this.notesFloor(repo),
@@ -572,6 +572,23 @@ export class GithubIntake {
       done = (await this.publications(repo, number, pr, account, bot, summary, deferred)) && done;
     }
     return done;
+  }
+
+  /** Stops the runs reviewing an older head so the newer head is handed over; false while anything stays in flight. */
+  private supersede(repo: string, number: number, head: string): boolean {
+    if (!this.options.cancelRun) return false;
+    const running = this.state.records.filter((record) => record.kind === "review" && record.repository.toLowerCase() === repo.toLowerCase() && record.number === number &&
+      record.runId !== undefined && ACTIVE_RUN.includes(this.receipt(record.runId)?.status ?? ""));
+    if (!running.length || running.some((record) => !record.headSha || record.headSha === head)) return false;
+    for (const record of running) {
+      const reason = `superseded: the pull request moved on to ${head.slice(0, 12)}`;
+      this.options.cancelRun(record.runId!, reason);
+      this.stoppedRuns.add(record.runId!);
+      this.record({ key: `superseded:${repo}#${number}@${record.headSha}~${record.runId}`, kind: "review", outcome: "superseded", repository: repo, number,
+        headSha: record.headSha, runId: record.runId, reason });
+      this.log(`[github-intake] ${repo}#${number}: stopped the review of ${record.headSha!.slice(0, 12)} (run ${record.runId}) for the newer head ${head.slice(0, 12)}`);
+    }
+    return !this.hasActiveRun(repo, number);
   }
 
   /** Native work of this pull request in flight: by the intake's records, or by its webhook's runs when the records are lost. */
