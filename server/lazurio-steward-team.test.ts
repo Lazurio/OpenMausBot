@@ -1,7 +1,9 @@
 // The Lazurio Steward team (lazurio/teams/steward.openmaus.json) is a valid
 // portable team package: a leader who is the team's Chief of Staff and three
 // workers, no secrets, and no persona name baked into the instructions, so
-// the same file serves every persona (rename the leader after import).
+// the same file serves every persona (rename the leader after import). The
+// role's name, the Organization's Henry, stays whatever the persona is called
+// (Lazurio decision 0250).
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -35,8 +37,9 @@ describe("the Lazurio Steward team package", () => {
     expect(brief).toContain("AGENTS.md");
     expect(brief).toContain("commit_id");
     expect(pkg.agents.find((agent) => agent.key === "leader")?.soul).toContain("coordinate_bots");
+    expect(brief).toContain("the Organization's Henry of one Lazurio Organization");
     for (const text of [brief, ...pkg.agents.map((agent) => agent.soul ?? "")]) {
-      expect(text).not.toMatch(/henry|pablo/i);
+      expect(text.replaceAll("Organization's Henry", "")).not.toMatch(/henry|pablo/i);
     }
   });
 
