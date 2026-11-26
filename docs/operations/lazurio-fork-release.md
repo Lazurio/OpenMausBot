@@ -376,10 +376,12 @@ Organization Admin can do these steps; the order matters.
 ## Ring 0: LazurioExampleOrganization
 
 Every release goes first to the Environments of LazurioExampleOrganization
-(GitHub id 325048785), the public reference Organization with fictional data
-and no tailnet, that run OpenMausBot. Lazurio decision 0204 point 7 sets this
+(GitHub id 325048785), the reference Organization with fictional data, that
+run OpenMausBot. Lazurio decision 0204 point 7 sets this
 ([HumanAndMachines/Lazurio `manual/decision-register.md`](https://github.com/HumanAndMachines/Lazurio/blob/main/manual/decision-register.md),
-row 0204).
+row 0204). Since 2026-11-14 the Organization is back in its own tailnet: its
+Environments have no public DNS, and people enter them through Tailscale from
+an approved device, as in every Organization.
 
 - **No consent or window:** pin moves, restarts, reinstalls and redeploys
   there need neither the consent of the people who use those Environments nor
@@ -394,8 +396,8 @@ row 0204).
   Organization's Environments (decision 0178): OpenMausBot opens in the
   Environment browser and, once the Organization has AI, a bot team runs a
   harmless task.
-- **Outside Ring 0:** tailnet entry, which that Organization does not have,
-  is first proven by the next wave.
+- **Tailnet entry** is proven on Ring 0 already: browser acceptance on that
+  Organization's Environments goes through its tailnet.
 
 ## Dispatching a release
 
