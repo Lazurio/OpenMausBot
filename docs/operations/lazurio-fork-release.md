@@ -393,17 +393,16 @@ an approved device, as in every Organization.
   ([Approval](#approval)), no secrets in Git, and every other Organization's
   own consent.
 - **The next wave** moves only after browser acceptance on that
-  Organization's Environments (decision 0178): OpenMausBot opens in the
-  Environment browser and, once the Organization has AI, a bot team runs a
-  harmless task.
-- **Tailnet entry:** that Organization's Environments are reachable only
-  through its tailnet (since 2026-11-14). The browser acceptance above runs in
-  the Environment browser inside the Environment, so it does not prove a
-  person's entry from an approved device. A release that changes how people
-  enter an Environment also needs an acceptance from an approved device over
-  that Organization's tailnet, in the person's own browser (a test persona's
-  own tailnet node, as in the reference Organization's smoke test), before the
-  next wave.
+  Organization's Environments (decision 0178). A test persona of the
+  reference Organization's smoke test opens OpenMausBot (the Environment's
+  Automate) in its own browser, from its own approved device over that
+  Organization's tailnet, and, once the Organization has AI, a bot team runs
+  a harmless task. Automate is a Lazurio sign-in, so the acceptance never
+  opens it in the Environment browser
+  ([`LAZURIO.md`](../../LAZURIO.md#the-browser-panel), Lazurio accounts go to
+  the person's own browser). Because the persona enters through the tailnet
+  as a person does, the same acceptance shows that people still reach the
+  Environment after the release.
 
 ## Dispatching a release
 
