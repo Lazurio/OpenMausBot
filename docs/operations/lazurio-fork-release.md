@@ -396,8 +396,14 @@ an approved device, as in every Organization.
   Organization's Environments (decision 0178): OpenMausBot opens in the
   Environment browser and, once the Organization has AI, a bot team runs a
   harmless task.
-- **Tailnet entry** is proven on Ring 0 already: browser acceptance on that
-  Organization's Environments goes through its tailnet.
+- **Tailnet entry:** that Organization's Environments are reachable only
+  through its tailnet (since 2026-11-14). The browser acceptance above runs in
+  the Environment browser inside the Environment, so it does not prove a
+  person's entry from an approved device. A release that changes how people
+  enter an Environment also needs an acceptance from an approved device over
+  that Organization's tailnet, in the person's own browser (a test persona's
+  own tailnet node, as in the reference Organization's smoke test), before the
+  next wave.
 
 ## Dispatching a release
 
